@@ -2,6 +2,8 @@
 
 **Engineering standards for an AI world.**
 
+[![Version](https://img.shields.io/github/v/release/ravisingh11/engineering-standards?label=version)](https://github.com/ravisingh11/engineering-standards/releases/latest)
+[![License](https://img.shields.io/github/license/ravisingh11/engineering-standards?label=license)](LICENSE)
 [![Scorecard Workflow](https://github.com/ravisingh11/engineering-standards/actions/workflows/guardrails-scorecard.yml/badge.svg?event=pull_request_target)](https://github.com/ravisingh11/engineering-standards/actions/workflows/guardrails-scorecard.yml)
 [![Latest PR Scorecard](https://ravisingh11.github.io/engineering-standards/guardrails-badge.svg)](https://ravisingh11.github.io/engineering-standards/)
 
