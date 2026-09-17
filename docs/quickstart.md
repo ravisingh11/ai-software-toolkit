@@ -215,6 +215,11 @@ contain `unverified` items); **2** means invalid CLI arguments, a nonexistent
 target, or failure to load a required runtime helper. Exit 0 is not an
 all-controls-passed result.
 
+If a required helper is missing or cannot be imported (including syntax damage),
+doctor reports its filename and exits 2 without a traceback; refresh the trusted
+installation. `GUARDRAILS_WORKING_DIRECTORY` is trimmed like the scanner's value,
+and an empty or whitespace-only value selects the repository root.
+
 Doctor must not run scans, execute configured repository commands, install
 tools, or mutate files, policy, GitHub settings, or secrets. A local
 **configured** result means configuration was found, not that a check ran or

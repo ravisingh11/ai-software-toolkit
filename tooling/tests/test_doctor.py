@@ -98,6 +98,29 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(rows["local.working-directory"]["status"], "action_needed")
         self.assertEqual(rows["git.clean"]["status"], "action_needed")
 
+    def test_working_directory_whitespace_matches_producer_normalization(self):
+        (self.target / "src").mkdir()
+        for value in (" ./src ", " \t ", ""):
+            with self.subTest(value=value):
+                rows = self.checks(self.report(environment={"GUARDRAILS_WORKING_DIRECTORY": value}))
+                self.assertEqual(rows["local.working-directory"]["status"], "configured")
+
+    def test_installed_helper_load_failure_is_usage_error_without_traceback(self):
+        helper = self.target / ".guardrails/evaluate.py"
+        for content in ("def malformed_helper(:\n", "import nonexistent_doctor_test_dependency\n",
+                        "raise RuntimeError('private helper detail')\n"):
+            with self.subTest(content=content):
+                helper.write_text(content)
+                completed = subprocess.run(
+                    [sys.executable, str(self.target / ".guardrails/doctor.py"), "--json"],
+                    cwd=self.target, text=True, capture_output=True, timeout=20,
+                )
+                self.assertEqual(completed.returncode, 2, completed.stderr)
+                self.assertIn("evaluate.py", completed.stderr)
+                self.assertNotIn("Traceback", completed.stderr)
+                self.assertNotIn("private helper detail", completed.stderr)
+                self.assertEqual(completed.stdout, "")
+
     def enable_github(self):
         path = self.target / ".guardrails/policy.yaml"
         policy = json.loads(path.read_text())

@@ -18,12 +18,14 @@ def trusted_module(source: str, installed: str):
     """Load this distribution's helpers, never executable code from --target."""
     here = Path(__file__).resolve()
     path = here.parent / installed if here.parent.name == ".guardrails" else here.parents[1] / source
-    spec = importlib.util.spec_from_file_location(f"doctor_{path.stem}", path)
-    module = importlib.util.module_from_spec(spec)
     previous = sys.dont_write_bytecode
     try:
         sys.dont_write_bytecode = True
+        spec = importlib.util.spec_from_file_location(f"doctor_{path.stem}", path)
+        module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
+    except Exception:
+        raise ValueError(f"Cannot load runtime helper {path.name}; refresh the installation.") from None
     finally:
         sys.dont_write_bytecode = previous
     return module
@@ -223,7 +225,8 @@ def diagnose(target: Path, *, operation: str = "change", environment: dict | Non
             "Declared documents exist and are nonempty; accuracy still needs review." if valid else "Ground-truth declaration is invalid, empty, or references missing/empty documents.",
             "Set .guardrails/ground-truth-ai.yaml documents to real repository-relative documentation paths.")
 
-    working = (target / environment.get("GUARDRAILS_WORKING_DIRECTORY", ".")).resolve()
+    working_directory = environment.get("GUARDRAILS_WORKING_DIRECTORY", ".").strip() or "."
+    working = (target / working_directory).resolve()
     valid_working = working.is_relative_to(target) and working.is_dir()
     add("local.working-directory", "configured" if valid_working else "action_needed",
         "Working directory is inside the repository." if valid_working else "Working directory is missing or escapes the repository.",
