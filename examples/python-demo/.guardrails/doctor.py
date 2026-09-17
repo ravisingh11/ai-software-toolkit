@@ -24,7 +24,7 @@ def trusted_module(source: str, installed: str):
         spec = importlib.util.spec_from_file_location(f"doctor_{path.stem}", path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-    except Exception:
+    except (Exception, SystemExit):
         raise ValueError(f"Cannot load runtime helper {path.name}; refresh the installation.") from None
     finally:
         sys.dont_write_bytecode = previous

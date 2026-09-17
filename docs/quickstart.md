@@ -219,6 +219,7 @@ If a required helper is missing or cannot be imported (including syntax damage),
 doctor reports its filename and exits 2 without a traceback; refresh the trusted
 installation. `GUARDRAILS_WORKING_DIRECTORY` is trimmed like the scanner's value,
 and an empty or whitespace-only value selects the repository root.
+Helper exits are handled as load failures, but user interrupts still propagate.
 
 Doctor must not run scans, execute configured repository commands, install
 tools, or mutate files, policy, GitHub settings, or secrets. A local

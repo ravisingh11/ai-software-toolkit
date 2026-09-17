@@ -108,7 +108,8 @@ class DoctorTests(unittest.TestCase):
     def test_installed_helper_load_failure_is_usage_error_without_traceback(self):
         helper = self.target / ".guardrails/evaluate.py"
         for content in ("def malformed_helper(:\n", "import nonexistent_doctor_test_dependency\n",
-                        "raise RuntimeError('private helper detail')\n"):
+                        "raise RuntimeError('private helper detail')\n",
+                        "raise SystemExit(0)\n", "raise SystemExit(7)\n"):
             with self.subTest(content=content):
                 helper.write_text(content)
                 completed = subprocess.run(
@@ -120,6 +121,12 @@ class DoctorTests(unittest.TestCase):
                 self.assertNotIn("Traceback", completed.stderr)
                 self.assertNotIn("private helper detail", completed.stderr)
                 self.assertEqual(completed.stdout, "")
+        helper.write_text("raise KeyboardInterrupt\n")
+        previous = sys.dont_write_bytecode
+        with patch.object(self.module, "__file__", str(self.target / ".guardrails/doctor.py")):
+            with self.assertRaises(KeyboardInterrupt):
+                self.module.trusted_module("unused.py", "evaluate.py")
+        self.assertEqual(sys.dont_write_bytecode, previous)
 
     def enable_github(self):
         path = self.target / ".guardrails/policy.yaml"
