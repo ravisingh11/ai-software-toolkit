@@ -1,7 +1,9 @@
 # Sample Guardrails v2 scorecard
 
-This representative output shows all four readiness colors. The build
-capability is enforced and has no authoritative result, so the overall decision
+**Illustrative fixture, not a live scan.** The timestamp, evidence path, and
+outcomes below are examples, not evidence from the current checkout or a
+published release. This representative output shows all four readiness colors.
+The build capability is enforced and has no authoritative result, so the overall decision
 is `BLOCK`. Advisory gaps remain `ORANGE`; inactive capabilities remain `GRAY`.
 
 ```text
@@ -47,6 +49,18 @@ Generate a current report with:
 ```sh
 python3 .guardrails/scan.py --all-catalog-controls
 ```
+
+Run this in a committed, clean consumer repository after configuring its real
+commands. The [release-pinned walkthrough](../../README.md#start-here) creates
+an isolated demo; its advisory defaults differ from the enforced build in this
+fixture. Read the newly generated Markdown and JSON under
+`.artifacts/guardrails/` for your actual revision, provider results, and reasons.
+Missing tools and command variables can legitimately leave rows orange.
+
+The implemented, unreleased v0.3.0 doctor reports setup states
+(`configured`, `action_needed`, `unverified`), not these scorecard colors.
+Neither `configured` nor its zero exit code means a provider passed. See
+[setup diagnostics](../quickstart.md#diagnose-installation-unreleased-v030).
 
 See the runnable [Python demo](../../examples/python-demo/) and the
 [status guide](../control-status.md).
