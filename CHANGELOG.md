@@ -8,7 +8,10 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
-No changes yet.
+- Improved coverage run titles and step labels while preserving the
+  `Changed Code Coverage` check context. This repository's coverage command
+  now publishes a summary with outcomes, measured details, and an explanation
+  when no changed lines can be measured; pass/fail behavior is unchanged.
 
 ## [1.0.0] - 2026-09-17
 

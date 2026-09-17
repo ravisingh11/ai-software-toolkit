@@ -96,7 +96,16 @@ excluded. `tooling/coverage.ini` enables subprocess collection and parallel
 data files. The script exposes a repository-owned `sitecustomize` bootstrap so
 this also works where coverage.py cannot write into the Python installation's
 site-packages directory, then combines parent and child data before evaluating
-changed lines. The migration command encodes this repository's actual ground
+changed lines.
+
+In Actions, the coverage command also writes a job summary with the outcome,
+configured target, and diff-cover's measured results. If no measured changed
+lines exist, it explains why no percentage applies instead of implying 100%
+coverage. All test suites still run; this messaging change does not make
+docs-only runs faster or change the exit status. Failed comparisons retain
+their failure and publish details when available.
+
+The migration command encodes this repository's actual ground
 truth: it has no database, so recursively introducing a common migration path
 fails until the command is replaced with validation for the chosen migration
 framework. Dependency, generated, and worktree directories are excluded from
