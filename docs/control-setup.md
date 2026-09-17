@@ -5,7 +5,7 @@ produced each result. Configure the producer first, verify exact-subject
 evidence, then consider enforcement.
 
 For missing commands, runtime files, tools, or GitHub setup visibility, use
-the unreleased v0.3.0 [read-only setup diagnostic](quickstart.md#diagnose-installation-unreleased-v030).
+the [read-only setup diagnostic](quickstart.md#diagnose-installation).
 It gives next actions without running providers or treating configuration as
 passing evidence. Local environment variables and GitHub Actions variables
 are inspected separately.

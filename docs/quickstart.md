@@ -4,12 +4,12 @@ Install Core, configure repository commands, run locally, and then verify the
 same capability providers on a pull request.
 
 For a copyable, isolated first run, start with the
-[release-pinned Python demo](../README.md#start-here). It clones v0.2.0,
+[release-pinned Python demo](../README.md#start-here). It clones v1.0.0,
 refreshes the embedded installation, configures real build/test commands,
 commits the demo, and scans it. Git, Python 3.11+, and a POSIX shell are the
 prerequisites. Docker and GitHub credentials are optional; missing providers
-produce no result, not a pass. “v2” is the runtime contract; v0.2.0 is the latest
-actual release. Features explicitly marked v0.3.0 below are unreleased.
+produce no result, not a pass. “v2” is the runtime and evidence contract;
+v1.0.0 is the repository release version.
 
 The numbered steps below adapt that flow to **your own repository**. Use its
 real commands and ground-truth documents, not the demo's paths.
@@ -19,7 +19,7 @@ real commands and ground-truth documents, not the demo's paths.
 Clone the released source, then run the installer from that checkout:
 
 ```sh
-git clone --branch v0.2.0 https://github.com/ravisingh11/engineering-standards.git
+git clone --branch v1.0.0 https://github.com/ravisingh11/engineering-standards.git
 cd engineering-standards
 python3 tooling/install.py --target /path/to/repo --dry-run
 python3 tooling/install.py --target /path/to/repo
@@ -172,13 +172,13 @@ mismatch produces `NO RESULT`.
   An advisory `ORANGE / ALLOW` result is not an all-checks-passed result.
 
 <a id="diagnose-installation-planned-v030"></a>
+<a id="diagnose-installation-unreleased-v030"></a>
 
-## Diagnose installation (unreleased v0.3.0)
+## Diagnose installation
 
-The implemented, unreleased v0.3.0 installer distributes `.guardrails/doctor.py` with the runtime,
-including runtime-only installs. Refreshing an existing v2 installation with
-that installer adds it. **The v0.2.0 clone above does not contain this command.**
-Use a reviewed checkout containing the v0.3.0 changes to try it before release:
+The v1.0.0 installer distributes `.guardrails/doctor.py` with the runtime,
+including runtime-only installs. Refreshing an existing v2 installation adds
+it. Run these commands from the installed consumer repository:
 
 ```sh
 python3 .guardrails/doctor.py
@@ -226,7 +226,7 @@ tools, or mutate files, policy, GitHub settings, or secrets. A local
 **configured** result means configuration was found, not that a check ran or
 passed. GitHub metadata also does not prove an exact-head provider pass.
 Continue to use the scanner and trusted PR workflows for execution evidence.
-See the [release draft](releases/v0.3.0.md) for upgrade constraints.
+See the [release notes](releases/v1.0.0.md#upgrade-from-v020) for upgrade constraints.
 
 Git inspection disables hooks, fsmonitor, and filters and does not recurse into
 submodules. An otherwise clean checkout with `.gitmodules` remains `unverified`;
@@ -299,9 +299,8 @@ gate.
 
 ## Publish the optional scorecard badge
 
-This publisher landed after v0.2.0 and is intended for v0.3.0. The commands in
-this section require a checkout containing that feature; they do not work with
-the release-pinned v0.2.0 installer above. No v0.3.0 tag is published yet.
+The v1.0.0 installer supports the optional publisher. Run the installation
+commands below from the released standards checkout, not the consumer.
 
 GitHub's native **Scorecard Workflow** badge reports whether the workflow ran
 successfully. The optional **Latest PR Scorecard** badge reports the newest
