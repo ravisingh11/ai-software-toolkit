@@ -73,14 +73,14 @@ enforced merge gate.
 
 ## Evidence boundary
 
-Setup diagnostics sit outside the evidence pipeline. The unreleased v0.3.0
+Setup diagnostics sit outside the evidence pipeline. The
 `.guardrails/doctor.py` reads installed configuration, local prerequisites, and
 optionally repository-level GitHub metadata. It uses its own distribution's
 validators, not executable helpers discovered in a different `--target`.
 It does not execute repository commands, create evidence, or change settings.
 Its `configured`, `action_needed`, and `unverified` states describe setup only;
 neither `configured` nor exit 0 satisfies a capability. See
-[setup diagnostics](quickstart.md#diagnose-installation-unreleased-v030).
+[setup diagnostics](quickstart.md#diagnose-installation).
 
 Evidence uses a nested capability/provider shape:
 

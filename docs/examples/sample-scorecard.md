@@ -57,10 +57,10 @@ fixture. Read the newly generated Markdown and JSON under
 `.artifacts/guardrails/` for your actual revision, provider results, and reasons.
 Missing tools and command variables can legitimately leave rows orange.
 
-The implemented, unreleased v0.3.0 doctor reports setup states
+The setup doctor reports setup states
 (`configured`, `action_needed`, `unverified`), not these scorecard colors.
 Neither `configured` nor its zero exit code means a provider passed. See
-[setup diagnostics](../quickstart.md#diagnose-installation-unreleased-v030).
+[setup diagnostics](../quickstart.md#diagnose-installation).
 
 See the runnable [Python demo](../../examples/python-demo/) and the
 [status guide](../control-status.md).

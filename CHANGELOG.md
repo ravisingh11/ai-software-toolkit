@@ -2,16 +2,21 @@
 
 All notable changes to Engineering Standards are documented here.
 
-The project follows [Semantic Versioning](https://semver.org/). Until version
-1.0, minor releases may refine public configuration and workflow contracts;
-migrations will be documented.
+The project follows [Semantic Versioning](https://semver.org/). Starting with
+1.0, incompatible changes to the documented public runtime, configuration,
+or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
-Target: v0.3.0. These changes are not part of the published v0.2.0 release.
-See the [v0.3.0 release draft](docs/releases/v0.3.0.md).
+No changes yet.
 
-### Implemented since v0.2.0
+## [1.0.0] - 2026-09-17
+
+First stable release. Includes the work previously planned as v0.3.0;
+no v0.3.0 release was published. The Guardrails v2 runtime/evidence schema
+version stays at 2. See [release notes](docs/releases/v1.0.0.md).
+
+### Changes since v0.2.0
 
 - Hardened exact-head GitHub PR evidence collection and matching by provider
   App identity (#19, #21).
@@ -41,11 +46,9 @@ See the [v0.3.0 release draft](docs/releases/v0.3.0.md).
   advisory failure, enforced blocking, repair, missing-command evidence, and
   repeated merge/refresh preservation.
 
-### Release preparation
-
-- Verified fresh consumers and upgrade from v0.2.0, including runtime-only
-  diagnostic distribution. See the [release validation record](docs/releases/v0.3.0.md#validation-on-2026-09-17)
-  for results and limitations. These notes do not publish a release.
+- Added GitHub Sponsors funding configuration (#31).
+- Pinned installation examples to v1.0.0 and documented the stable public
+  contract, upgrade path, and remaining integration boundaries.
 
 ## [0.2.0] - 2026-09-01
 
@@ -77,4 +80,5 @@ Initial public release.
 
 [0.1.0]: https://github.com/ravisingh11/engineering-standards/releases/tag/v0.1.0
 [0.2.0]: https://github.com/ravisingh11/engineering-standards/releases/tag/v0.2.0
-[Unreleased]: https://github.com/ravisingh11/engineering-standards/compare/v0.2.0...HEAD
+[1.0.0]: https://github.com/ravisingh11/engineering-standards/releases/tag/v1.0.0
+[Unreleased]: https://github.com/ravisingh11/engineering-standards/compare/v1.0.0...HEAD

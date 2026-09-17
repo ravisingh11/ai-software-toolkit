@@ -17,13 +17,13 @@ checks that run with the work, not another handbook to remember.
 ## Start here
 
 Try the embedded Python demo in an isolated directory with Git, Python 3.11+
-and a POSIX shell. This pins **v0.2.0**, the latest actual release; “Guardrails
-v2” names the runtime contract, not release v2.0.0. No account, token, Docker,
+and a POSIX shell. This pins **v1.0.0**; “Guardrails v2” names the runtime
+and evidence contract, not the repository release version. No account, token, Docker,
 or paid service is required to get a scorecard.
 
 ```sh
 demo_workspace="$(mktemp -d)"
-git clone --branch v0.2.0 https://github.com/ravisingh11/engineering-standards.git "$demo_workspace/engineering-standards"
+git clone --branch v1.0.0 https://github.com/ravisingh11/engineering-standards.git "$demo_workspace/engineering-standards"
 standards_root="$demo_workspace/engineering-standards"
 cp -R "$standards_root/examples/python-demo" "$demo_workspace/python-demo"
 cd "$demo_workspace/python-demo"
@@ -87,9 +87,9 @@ The installer copies runtime/configuration and workflow files, not credentials.
 Follow [inspect policy and run](docs/quickstart.md#5-inspect-policy-and-run).
 Commit installation and configuration before scanning. Dirty worktrees produce
 no-result evidence rather than a passing claim about `HEAD`.
-[Unreleased v0.3.0 diagnostics](docs/quickstart.md#diagnose-installation-unreleased-v030)
-inspect setup without executing your commands; they are implemented but not in
-v0.2.0. Their `configured`, `action_needed`, and `unverified` states describe
+[Setup diagnostics](docs/quickstart.md#diagnose-installation)
+inspect setup without executing your commands. Their `configured`,
+`action_needed`, and `unverified` states describe
 setup, not scan results. Exit zero is not a pass.
 
 ## Profiles
@@ -169,5 +169,5 @@ MIT licensed; third-party tools keep their own terms. See
 [licensing](docs/licensing.md), [contributing](CONTRIBUTING.md), and the
 [complete validation commands](AGENTS.md#verification).
 Run `tooling/test.sh` for the repository's four unit-test suites.
-Read the [changelog](CHANGELOG.md) and [v0.3.0 draft](docs/releases/v0.3.0.md)
-for release boundaries; v0.3.0 is not published.
+Read the [changelog](CHANGELOG.md) and [v1.0.0 release notes](docs/releases/v1.0.0.md)
+for supported contracts, upgrade instructions, and limitations.
