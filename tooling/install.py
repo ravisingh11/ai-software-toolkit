@@ -101,6 +101,7 @@ def runtime_sources(target: Path) -> list[InstallItem]:
         "scorecard.py": ROOT / "tooling/guardrail_scorecard.py",
         "configure.py": ROOT / "tooling/configure_guardrails.py",
         "scan.py": ROOT / "tooling/scan_repository.py",
+        "doctor.py": ROOT / "tooling/doctor.py",
         "github_evidence.py": ROOT / "tooling/github_evidence.py",
         "produce.py": PRODUCER,
         "validate_ground_truth.py": ROOT / "tooling/validators/validate_ground_truth.py",

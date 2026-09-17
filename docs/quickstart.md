@@ -3,14 +3,36 @@
 Install Core, configure repository commands, run locally, and then verify the
 same capability providers on a pull request.
 
+For a copyable, isolated first run, start with the
+[release-pinned Python demo](../README.md#start-here). It clones v0.2.0,
+refreshes the embedded installation, configures real build/test commands,
+commits the demo, and scans it. Git, Python 3.11+, and a POSIX shell are the
+prerequisites. Docker and GitHub credentials are optional; missing providers
+produce no result, not a pass. “v2” is the runtime contract; v0.2.0 is the latest
+actual release. Features explicitly marked v0.3.0 below are unreleased.
+
+The numbered steps below adapt that flow to **your own repository**. Use its
+real commands and ground-truth documents, not the demo's paths.
+
 ## 1. Preview and install Core
 
-From the standards repository:
+Clone the released source, then run the installer from that checkout:
 
 ```sh
+git clone --branch v0.2.0 https://github.com/ravisingh11/engineering-standards.git
+cd engineering-standards
 python3 tooling/install.py --target /path/to/repo --dry-run
 python3 tooling/install.py --target /path/to/repo
 ```
+
+Replace `/path/to/repo` with an existing consumer directory. Installation writes
+files there; it does not configure GitHub settings or prove any check passed.
+For an existing v2 installation, preview and use `--refresh-existing` instead
+of a plain install. Refresh updates distributed runtime and installer-owned
+workflows while preserving repository policy, documentation/ground-truth
+mappings, scope/metadata settings, and consumer-owned workflows. Review the
+diff before committing; provider definitions are refreshed while retaining
+repository-specific trusted paths.
 
 A normal install includes the Core runtime and Core GitHub Actions. To install
 only the runtime, use:
@@ -87,6 +109,11 @@ filenames are not required.
 
 ## 5. Inspect policy and run
 
+Run from the consumer repository, not the standards checkout. Review and commit
+the installation/configuration with your normal Git workflow **before** the
+scan. A new repository also needs `git init` and its initial commit; the
+[demo walkthrough](../README.md#start-here) includes both.
+
 ```sh
 python3 .guardrails/configure.py --list
 python3 .guardrails/scan.py --help
@@ -94,8 +121,9 @@ python3 .guardrails/configure.py --help
 python3 .guardrails/scan.py
 ```
 
-The scan requires a clean worktree and binds evidence to the resolved full
-`HEAD`. It writes:
+The scan requires a clean worktree for passing local evidence and binds evidence
+to the resolved full `HEAD`. A dirty worktree yields no-result evidence; a
+repository without a commit cannot resolve `HEAD`. It writes:
 
 ```text
 .artifacts/guardrails/evidence-YYYYMMDD-HHMMSSZ.json
@@ -124,6 +152,87 @@ Core uses the pinned Semgrep CE and Gitleaks CLI containers when Docker is
 available. Otherwise it accepts only host Semgrep `1.175.0` and Gitleaks
 `8.30.1`. Missing Docker, unavailable tools, a shallow history, or a version
 mismatch produces `NO RESULT`.
+
+### First-run troubleshooting
+
+- **No HEAD / no commit:** commit the reviewed installation before scanning.
+- **First commit only:** documentation-change and scope checks need the default
+  base `HEAD~1`; they report no result until a real parent commit exists.
+- **Dirty worktree:** review `git status --short`, then commit intended changes.
+  Do not discard unrelated work just to get a clean scan.
+- **Build/tests/coverage have no result:** export the real command variables in
+  this shell. Setting GitHub repository variables does not populate your local
+  environment, and a configured command is not proof it passed.
+- **Scanner tools unavailable:** install the pinned tools or a working Docker
+  runtime if you want their evidence. Do not replace a security scan with a no-op.
+- **Semgrep cannot find its rules inside Docker:** verify the daemon can mount
+  the consumer directory, including `.guardrails/semgrep-rules.yml`; inspect
+  that path inside the container before attributing the failure to a mount.
+- **GitHub checks absent locally:** verify the supported producers on a real PR.
+  An advisory `ORANGE / ALLOW` result is not an all-checks-passed result.
+
+<a id="diagnose-installation-planned-v030"></a>
+
+## Diagnose installation (unreleased v0.3.0)
+
+The implemented, unreleased v0.3.0 installer distributes `.guardrails/doctor.py` with the runtime,
+including runtime-only installs. Refreshing an existing v2 installation with
+that installer adds it. **The v0.2.0 clone above does not contain this command.**
+Use a reviewed checkout containing the v0.3.0 changes to try it before release:
+
+```sh
+python3 .guardrails/doctor.py
+python3 .guardrails/doctor.py --target /path/to/repo
+python3 .guardrails/doctor.py --target /path/to/repo --json
+python3 .guardrails/doctor.py --github OWNER/REPO
+python3 .guardrails/doctor.py --operation release
+```
+
+`--target` defaults to the current working directory; `--operation change|release`
+defaults to `change`. `--json` selects
+machine-readable diagnostics. Optional `--github OWNER/REPO` uses the locally
+authenticated `gh` CLI for read-only API metadata probes; without it, diagnosis
+is local. Probes cover repository-level Actions variables and secret names,
+plus secret-scanning/push-protection settings when the secret-protection
+provider is selected. Inherited organization/environment variables and secrets
+are not queried. Secret values, token validity, token permissions, and actual
+workflow availability are not verified.
+
+Endpoint scope and access requirements are documented by GitHub:
+[repository secrets](https://docs.github.com/en/rest/actions/secrets#list-repository-secrets),
+[repository variables](https://docs.github.com/en/rest/actions/variables#list-repository-variables),
+and [repository metadata](https://docs.github.com/en/rest/repos/repos#get-a-repository).
+
+| Setup state | Meaning |
+| --- | --- |
+| `configured` | The inspected configuration or prerequisite is present; execution is not verified. |
+| `action_needed` | An actionable setup gap was found, including invalid installed configuration. |
+| `unverified` | The available checks cannot establish readiness; absence from repository-level metadata does not rule out inherited settings. |
+
+Exit codes: **1** means actionable setup gaps, including readable but invalid
+installed configuration; **0** means none were found (the report can still
+contain `unverified` items); **2** means invalid CLI arguments, a nonexistent
+target, or failure to load a required runtime helper. Exit 0 is not an
+all-controls-passed result.
+
+If a required helper is missing or cannot be imported (including syntax damage),
+doctor reports its filename and exits 2 without a traceback; refresh the trusted
+installation. `GUARDRAILS_WORKING_DIRECTORY` is trimmed like the scanner's value,
+and an empty or whitespace-only value selects the repository root.
+Helper exits are handled as load failures, but user interrupts still propagate.
+
+Doctor must not run scans, execute configured repository commands, install
+tools, or mutate files, policy, GitHub settings, or secrets. A local
+**configured** result means configuration was found, not that a check ran or
+passed. GitHub metadata also does not prove an exact-head provider pass.
+Continue to use the scanner and trusted PR workflows for execution evidence.
+See the [release draft](releases/v0.3.0.md) for upgrade constraints.
+
+Git inspection disables hooks, fsmonitor, and filters and does not recurse into
+submodules. An otherwise clean checkout with `.gitmodules` remains `unverified`;
+filtered files may appear dirty with filters disabled. Before scanning, review
+`git status` in a trust-reviewed checkout, including its filters and submodules;
+do not discard changes merely to clear a diagnostic.
 
 ## 6. Configure the GitHub overlay
 
@@ -190,10 +299,16 @@ gate.
 
 ## Publish the optional scorecard badge
 
+This publisher landed after v0.2.0 and is intended for v0.3.0. The commands in
+this section require a checkout containing that feature; they do not work with
+the release-pinned v0.2.0 installer above. No v0.3.0 tag is published yet.
+
 GitHub's native **Scorecard Workflow** badge reports whether the workflow ran
 successfully. The optional **Latest PR Scorecard** badge reports the newest
 accepted PR readiness and passed/active count. A successful workflow may still
 publish `ORANGE / ALLOW`; the latest PR result does not attest current `main`.
+The native URL's `event=pull_request_target` filter selects PR executions and
+avoids the default-branch fallback showing `no status`.
 
 For a clean installation:
 

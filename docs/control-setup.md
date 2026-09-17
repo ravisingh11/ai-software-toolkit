@@ -4,6 +4,12 @@ Guardrails selects capabilities through profiles and records the provider that
 produced each result. Configure the producer first, verify exact-subject
 evidence, then consider enforcement.
 
+For missing commands, runtime files, tools, or GitHub setup visibility, use
+the unreleased v0.3.0 [read-only setup diagnostic](quickstart.md#diagnose-installation-unreleased-v030).
+It gives next actions without running providers or treating configuration as
+passing evidence. Local environment variables and GitHub Actions variables
+are inspected separately.
+
 ## Core profile
 
 Core is selected by default. A normal install deploys its runtime and workflows.

@@ -27,6 +27,7 @@ REQUIRED_FILES = (
     "scorecard.py",
     "configure.py",
     "scan.py",
+    "doctor.py",
     "github_evidence.py",
     "produce.py",
     "validate_ground_truth.py",

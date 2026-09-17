@@ -47,6 +47,7 @@ class ActionDistributionTests(unittest.TestCase):
             ".guardrails/scorecard.py": "tooling/guardrail_scorecard.py",
             ".guardrails/configure.py": "tooling/configure_guardrails.py",
             ".guardrails/scan.py": "tooling/scan_repository.py",
+            ".guardrails/doctor.py": "tooling/doctor.py",
             ".guardrails/github_evidence.py": "tooling/github_evidence.py",
             ".guardrails/produce.py": "tooling/produce_guardrail_evidence.py",
             ".guardrails/validate_ground_truth.py": "tooling/validators/validate_ground_truth.py",
