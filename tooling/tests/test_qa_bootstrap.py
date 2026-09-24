@@ -12,7 +12,6 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILL = ROOT / "skills/qa-bootstrap"
-APPLY = runpy.run_path(str(SKILL / "scripts/apply_skill_updates.py"))["apply"]
 EMBED = runpy.run_path(str(SKILL / "scripts/embed_evidence.py"))["embed"]
 START, END = "<!-- qa:learned:start -->", "<!-- qa:learned:end -->"
 
@@ -26,66 +25,6 @@ class QABootstrapTests(unittest.TestCase):
         self.skill.parent.mkdir(parents=True)
         self.original = f"Before\n{START}\n{END}\nAfter\n"
         self.skill.write_text(self.original)
-        self.updates = self.root / "updates.json"
-
-    def apply(self, updates):
-        self.updates.write_text(json.dumps(updates))
-        return APPLY(self.updates, self.root, "skills")
-
-    def entry(self, **kwargs):
-        return {"file": "skills/qa-web/SKILL.md", "content": "- Wait for the login dialog.", **kwargs}
-
-    def test_learning_preserves_surrounding_content_and_is_idempotent(self):
-        self.assertEqual(self.apply([self.entry()]), 1)
-        self.assertEqual(self.skill.read_text(), self.original.replace(END, self.entry()["content"] + "\n" + END))
-        self.assertEqual(self.apply([self.entry()]), 0)
-
-    def test_learning_rejects_paths_payloads_and_marker_injection(self):
-        invalid = [None, self.entry(file="../outside"), self.entry(file="skills/qa-web/SKILL.md\n"),
-                   self.entry(file="README.md"), self.entry(content=""), self.entry(content=5),
-                   self.entry(content="x" * 2001), self.entry(content=START)]
-        self.assertEqual(self.apply(invalid), 0)
-        self.assertEqual(self.skill.read_text(), self.original)
-        for prefix in ("../skills", "/skills", ""):
-            with self.subTest(prefix=prefix), self.assertRaises(ValueError):
-                APPLY(self.updates, self.root, prefix)
-        with self.assertRaises(ValueError):
-            self.apply({"file": "README.md"})
-
-    def test_learning_rejects_file_and_directory_symlinks_even_inside_repo(self):
-        target = self.root / "README.md"
-        target.write_text(self.original)
-        self.skill.unlink()
-        self.skill.symlink_to(target)
-        self.assertEqual(self.apply([self.entry()]), 0)
-        self.assertEqual(target.read_text(), self.original)
-        self.skill.unlink()
-        self.skill.parent.rmdir()
-        self.skill.parent.symlink_to(self.root, target_is_directory=True)
-        (self.root / "SKILL.md").write_text(self.original)
-        self.assertEqual(self.apply([self.entry()]), 0)
-        self.assertEqual((self.root / "SKILL.md").read_text(), self.original)
-
-    def test_learning_rejects_missing_duplicate_and_reversed_blocks(self):
-        for body in ("No block", END + START, START + END + END):
-            self.skill.write_text(body)
-            self.assertEqual(self.apply([self.entry()]), 0)
-            self.assertEqual(self.skill.read_text(), body)
-        self.skill.unlink()
-        self.assertEqual(self.apply([self.entry()]), 0)
-
-    def test_learning_bounds_updates_and_validates_source(self):
-        self.assertEqual(APPLY(self.updates, self.root, "skills"), 0)
-        updates = [self.entry(content=f"- Distinct entry {n}.") for n in range(21)]
-        self.assertEqual(self.apply(updates), 20)
-        self.assertNotIn("entry 20", self.skill.read_text())
-        self.updates.write_text("invalid JSON")
-        with self.assertRaises(ValueError):
-            APPLY(self.updates, self.root, "skills")
-        self.updates.unlink()
-        self.updates.symlink_to(self.skill)
-        with self.assertRaises(ValueError):
-            APPLY(self.updates, self.root, "skills")
 
     def test_evidence_embeds_uploads_and_falls_back_to_safe_artifact_names(self):
         report = self.root / "report.md"
@@ -127,11 +66,6 @@ class QABootstrapTests(unittest.TestCase):
         self.assertEqual(self.skill.read_text(), self.original)
 
     def test_cli_entrypoints(self):
-        self.updates.write_text(json.dumps([self.entry()]))
-        result = subprocess.run([sys.executable, str(SKILL / "scripts/apply_skill_updates.py"),
-                                 str(self.updates), str(self.root), "skills"],
-                                capture_output=True, text=True, check=True)
-        self.assertIn("applied 1", result.stdout)
         (self.root / "report.md").write_text("<!-- evidence:item -->")
         subprocess.run([sys.executable, str(SKILL / "scripts/embed_evidence.py"), str(self.root)], check=True)
         self.assertIn("job artifacts", (self.root / "report.md").read_text())
@@ -375,9 +309,11 @@ class QABootstrapTests(unittest.TestCase):
         (self.root / "validated-report.md").write_text("Validated report")
         old = {"id": 91, "run_number": 10, "run_attempt": 2, "event": "pull_request",
                "head_sha": sha, "pull_requests": [{"number": 42}]}
-        for runs, allowed in (([old], True),
-                              ([old, {**old, "id": 92, "run_number": 11}], False),
-                              ([{**old, "run_attempt": 3}], False), ([], False)):
+        for runs, allowed, report in (([old], True, "Validated report"),
+                                      ([old], True, "x" * 65000),
+                                      ([old, {**old, "id": 92, "run_number": 11}], False, "old"),
+                                      ([{**old, "run_attempt": 3}], False, "old"), ([], False, "old")):
+            (self.root / "validated-report.md").write_text(report)
             (self.root / "calls").write_text("")
             result = self.shell(fake_gh + self.shell_step("Post or update the QA comment", 1),
                                 PR_NUMBER="42", TESTED_SHA=sha, RUN_ID="91", RUN_ATTEMPT="2",
@@ -386,6 +322,10 @@ class QABootstrapTests(unittest.TestCase):
                                 RUNS_JSON=json.dumps([{"workflow_runs": runs}]))
             self.assertEqual(result.returncode == 0, allowed, result.stderr)
             self.assertEqual("-X POST" in (self.root / "calls").read_text(), allowed)
+            if allowed:
+                body = (self.root / "body.md").read_text()
+                self.assertLessEqual(len(body.encode()), 60000)
+                self.assertIn("INCOMPLETE REPORT" if len(report) > 60000 else "Validated report", body)
 
     def test_rejected_artifact_reaches_failed_replacement_even_with_pass_files(self):
         results = self.root / "qa-results"

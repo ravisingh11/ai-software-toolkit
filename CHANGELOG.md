@@ -17,7 +17,8 @@ or evidence contracts require a major release and migration guidance.
   run QA with read-only repository permissions and publish validated results
   from a trusted default-branch reporting workflow. Learned failure modes
   survive regeneration. Missing or blocked
-  results fail the check; trusted helper scripts reject symlinked update targets.
+  results fail the advisory check. Functional QA cannot be promoted to enforced
+  while its result job is PR-editable; failure learning remains suggestion-only.
   Reports are rendered from validated result rows; rejected artifacts replace
   stale success comments, and superseded runs cannot publish.
 - Add the opt-in `functional-qa` capability and `qa-bootstrap-workflow` provider.

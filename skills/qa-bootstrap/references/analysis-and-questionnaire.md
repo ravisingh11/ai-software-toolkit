@@ -95,12 +95,12 @@ Each question below gives the wording, the default where one exists, and (in ita
 **3.2 Agent CLI.** Confirm what was detected, or ask: "Which agent CLI should run QA in CI, how is it installed, what is its non-interactive command, and what is the name of the secret holding its API key?"
 Recommend the narrowest permission mode that still lets it build and launch the app and use the automation tools. Prefer a scoped tool allowlist over any "skip all permissions" flag.
 
-**3.3 Blocking.** "Should QA remain advisory, or become a required merge check after representative validation?"
-*Only completed PASS evidence succeeds. FAIL, BLOCKED, and INCONCLUSIVE remain unsuccessful checks; an advisory check does not block merging. BLOCKED means QA could not test, not that the app is broken.*
+**3.3 Advisory status.** Explain that functional QA is advisory-only: the PR can edit the execution workflow and result source, so its check is not an enforceable security boundary. Do not offer a required-check or promotion option. A protected producer architecture is separate future work.
+*Only completed PASS evidence succeeds. FAIL, BLOCKED, and INCONCLUSIVE remain unsuccessful advisory checks. BLOCKED means QA could not test, not that the app is broken.*
 
 **3.4 Previews.** Only if previews were detected: "Should CI wait for the preview deployment before testing, so QA tests the branch's real code?" (Default: yes.)
 
-**3.5 Fork PRs.** Explain, then confirm: "QA runs automatically only for PRs from branches in this repository. Fork PRs receive a failing BLOCKED gate. A reviewed manual run is informational and cannot satisfy their required check; exact-head fork support needs a separately reviewed route. Is that acceptable?"
+**3.5 Fork PRs.** Explain, then confirm: "QA runs automatically only for PRs from branches in this repository. Fork PRs receive a failing BLOCKED advisory check. A reviewed manual run is informational and does not produce fork-head evidence; exact-head fork support needs a separately reviewed route. Is that acceptable?"
 *Running an agent on unreviewed outside code with your secrets in scope is the classic CI attack.*
 
 ### Part 4: Evidence and learning
@@ -111,8 +111,6 @@ Recommend the narrowest permission mode that still lets it build and launch the 
 **4.2 Inline media.** Only if CI was requested: "Should screenshots and videos appear inline in the PR comment, or only as downloadable artifacts?" (Default: artifacts only.)
 *Inline needs the `uploads.github.com/user-attachments` endpoint, which is undocumented and may change, and only accepts a classic PAT with `repo` scope (the workflow token and fine-grained PATs are rejected). The token is used only in the trusted default-branch reporting workflow and never reaches the PR workflow or agent.*
 
-**4.3 Learning from failures.** Only if CI was requested (otherwise set `suggest_in_report`): "When QA hits a new quirk of your environment, say an auth wall, a missing env var, or a slow iframe, how should that knowledge flow back into the QA skills?"
-- **Suggest in the report** (default): ready-to-paste additions in a table.
-- **Open a PR** (recommended over auto-commit): CI opens a draft PR against the default branch for review.
+**4.3 Learning from failures.** Explain the supported mode: QA records proposed environment notes in the structured `action_required` strings for human review. Each suggestion names the affected skill and the proposed addition. Suggestions remain in the summary artifact when the run is incomplete or nonpassing; do not append freeform report Markdown that the trusted renderer discards.
 
-Save as `failure_learning`: `suggest_in_report` or `open_pr`. Automatic commits to a PR branch are unsupported because the privileged reporter never checks out PR code.
+Set `failure_learning: suggest_in_report`. Automatic PR creation and commits are not implemented and must not be offered.

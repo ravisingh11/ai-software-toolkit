@@ -10,7 +10,7 @@ Set up QA that exercises the application the way a user would (browser, terminal
 ```text
   PR ───▶ qa (orchestrator): config → diff → affected apps → their flows → report
                  └─ loads only qa-web, qa-cli, ... (one flow menu per app)
-  CI: [PR QA workflow: agent + always-running read-only gate]
+  CI: [PR QA workflow: agent + always-running advisory check]
         → [default-branch reporting workflow: validate artifacts → comment]
 ```
 
@@ -34,9 +34,9 @@ The workflow split is deliberate: the PR-editable workflow has no repository wri
   config.yaml                    # single source of truth
   REPORT-TEMPLATE.md
   ci-prompt.md                   # CI only
-  scripts/                       # validator always; CI adds evidence/learning helpers
+  scripts/                       # validator always; CI adds the evidence helper
 <skills-dir>/qa-<app>/SKILL.md   # one self-contained sub-skill per app
-.github/workflows/qa.yml         # read-only execution + QA / report gate
+.github/workflows/qa.yml         # read-only execution + advisory QA / report check
 .github/workflows/qa-report.yml  # trusted default-branch reporting; both CI only
 ```
 
@@ -54,10 +54,11 @@ Make a todo list from these phases before starting. Leave the user's other work 
 
 - QA tests the branch's own code: a preview URL or a local server from the checkout. Never a shared dev, staging, or prod environment for a PR; report BLOCKED instead.
 - No app affected by the diff means one INCONCLUSIVE row, not a pass. Shared packages and lockfiles map to every app that depends on them.
-- Fork PRs never run automatically; their always-running `QA / report` gate fails as BLOCKED. Manual reviewed-commit runs are informational and cannot satisfy a fork-head check. Require a separately reviewed exact-head route before claiming fork support. Never use `pull_request_target`.
+- Fork PRs never run automatically; their always-running advisory `QA / report` check fails as BLOCKED. Manual reviewed-commit runs are informational and do not produce fork-head evidence. Require a separately reviewed exact-head route before claiming fork support. Never use `pull_request_target`.
 - The privileged reporter is a separate default-branch `workflow_run` workflow. It validates the originating run, workflow, repository, current PR head, artifact metadata, latest run/attempt, and structured results before commenting; it never checks out PR code.
 - Keep the workflow name `QA`, report job id `report`, and explicit job name `QA / report`: the Guardrails `qa-bootstrap-workflow` provider records the `QA / report` check as evidence.
-- Failure learning supports suggestions or a draft `open_pr` from a trusted default-branch checkout. Only that optional trusted reporter needs `contents: write`; `auto_commit` is unsupported.
+- Functional QA is advisory-only. Its execution workflow and result source are PR-editable, so `QA / report` must not be a required merge check or promoted to enforced. A protected producer architecture would be separate future work.
+- Failure learning supports suggestions only, stored in structured `action_required` strings. It never opens PRs or commits learned changes, and needs no `contents: write` permission.
 - If the repository is not on GitHub, say so and skip the CI phase rather than generating a workflow that cannot run.
 
 ## Related Skills

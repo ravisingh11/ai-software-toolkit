@@ -5,7 +5,9 @@ every action tag below to a reviewed full commit SHA. Preserve existing QA
 workflows unless the user approved replacement.
 
 The PR-editable workflow has read-only permissions throughout. Its `QA / report`
-job is the merge gate and always runs, including when execution was skipped.
+job is an advisory result check and always runs, including when execution was skipped.
+Its PR-editable definition cannot enforce a tamper-resistant merge decision; do
+not require it in branch protection or promote functional-qa to enforced.
 The separate `workflow_run` reporter runs its definition from the default branch;
 it never checks out or executes PR code. Its only inputs from QA are validated,
 run-bound artifacts treated as untrusted data.
@@ -15,7 +17,7 @@ scripts there before expecting a successful gate; the initial bootstrap PR may
 fail for a missing validator. Keep the new check advisory until a subsequent
 representative run validates the installed producer.
 
-## `.github/workflows/qa.yml`: execution and read-only gate
+## `.github/workflows/qa.yml`: execution and advisory result
 
 ```yaml
 name: QA
@@ -356,6 +358,15 @@ jobs:
             cat validated-report.md
             printf '\n---\n[Run log]'; printf '(%s/%s/actions/runs/%s) · raw evidence in the run artifacts\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$RUN_ID"
           } > body.md
+          # Bound the final payload after attachment URLs and metadata were added.
+          if [ "$(wc -c < body.md)" -gt 60000 ]; then
+            {
+              echo '<!-- qa-report -->'
+              printf '## QA Report\n\n**Result: INCOMPLETE REPORT.** The embedded report exceeded the comment size limit; inspect the run artifacts.\n\n'
+              printf 'Tested commit: `%s`\n\n' "$TESTED_SHA"
+              printf 'Run: %s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$RUN_ID"
+            } > body.md
+          fi
           id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
             --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- qa-report -->"))) | .id' | head -n1)
           if [ -n "$id" ]; then
@@ -368,8 +379,9 @@ jobs:
 ## Generation rules
 
 - `QA / report` is the read-only PR check. Keep `if: always()` and never skip the
-  gate when QA was skipped: absent execution evidence must fail. Promote it only
-  after representative exact-head checks have been verified.
+  job when QA was skipped: absent execution evidence must fail. This control is
+  advisory-only: PR authors can edit this job, so it must not be required for
+  merging. Enforcement needs a separately reviewed protected producer.
 - Fork QA is BLOCKED by this template: automatic execution is skipped and the
   gate fails. Manual dispatch is informational and cannot satisfy a fork-head
   check. Do not claim fork support until a separately reviewed authorized route
@@ -386,14 +398,10 @@ jobs:
 - Preview polling belongs only in the read-only QA job, for the resolved SHA and
   expected deployment creator. Timeout/failure is BLOCKED. Never use a privileged
   `workflow_run` job to launch PR code. Never use `pull_request_target`.
-- `QA_EVIDENCE_TOKEN` exists only in the trusted reporter. Inline uploads and
-  learning run only after result validation. Failed/incomplete evidence produces
+- `QA_EVIDENCE_TOKEN` exists only in the trusted reporter. Inline uploads run only after result validation. Failed/incomplete evidence produces
   an explicit replacement comment, never the agent's optimistic PASS report.
-- Failure learning supports `suggest_in_report` or `open_pr`. For `open_pr`, only
-  the trusted reporter may check out the **default branch** into `repo/`, apply
-  updates with the trusted helper, and create a draft PR for review. Add
-  `contents: write` only to that workflow. Never checkout a PR branch with write
-  credentials; `auto_commit` is not supported by this trust model.
+- Failure learning is suggestion-only. Put reviewed suggestions in the structured
+  result's `action_required` list. This workflow does not push commits or open PRs.
 - Full action SHA pins are required in generated files. Run actionlint on both
   workflows after replacing placeholders, then exercise passing, crashed,
-  missing-artifact, and fork cases before recommending branch protection.
+  missing-artifact, and fork cases before enabling advisory evidence.

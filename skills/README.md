@@ -108,7 +108,7 @@ install only the skills they actually need.
 - Use `full-test-suite` for a broad scan-fix-verify loop across the project-ops skills.
 - Use `qa-bootstrap` to set up agent-driven functional QA in a product repo: a
   `qa` orchestrator, per-app `qa-<app>` flow menus, and optional GitHub Actions
-  workflows with a read-only QA gate and trusted sticky-comment reporting.
+  workflows with a read-only advisory QA check and trusted sticky-comment reporting.
 - Use `skill-installer` to install or refresh canonical skills locally.
 
 ## Support Bundle

@@ -59,6 +59,7 @@ class ProviderContractTests(unittest.TestCase):
         self.assertEqual(policies["build"], "promotable")
         self.assertEqual(policies["ai-engineering-review"], "advisory-only")
         self.assertEqual(policies["ai-qa-review"], "advisory-only")
+        self.assertEqual(policies["functional-qa"], "advisory-only")
         self.assertEqual(policies["ai-security-review"], "advisory-only")
         self.assertEqual(
             policies["ai-repository-standards-review"], "advisory-only"
@@ -330,22 +331,15 @@ class EvaluateV2Tests(unittest.TestCase):
         self.assertEqual(result["controls"][0]["effective_mode"], "enforced")
 
     def test_runtime_rejects_enforced_advisory_only_control(self) -> None:
-        policy, profiles, catalog, providers = contracts()
-        policy["overrides"]["change"]["ai-engineering-review"] = "enforced"
-
-        with self.assertRaisesRegex(
-            ValueError, "ai-engineering-review is advisory-only"
-        ):
-            MODULE.evaluate(
-                policy,
-                profiles,
-                catalog,
-                providers,
-                evidence(),
-                "change",
-                "abc123",
-                "git-commit",
-            )
+        for control in ("ai-engineering-review", "functional-qa"):
+            with self.subTest(control=control):
+                policy, profiles, catalog, providers = contracts()
+                policy["overrides"]["change"][control] = "enforced"
+                with self.assertRaisesRegex(ValueError, f"{control} is advisory-only"):
+                    MODULE.evaluate(
+                        policy, profiles, catalog, providers, evidence(),
+                        "change", "abc123", "git-commit",
+                    )
 
     def test_selected_profiles_are_additive(self) -> None:
         policy, _, _, _ = contracts()
