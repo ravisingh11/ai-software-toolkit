@@ -1,5 +1,10 @@
 # Guardrails v2 quick start
 
+This guide installs the Guardrails component of [AI Software Toolkit](vision.md).
+For other entry points, [install skills](../skills/README.md#install-locally)
+or [set up functional QA](../skills/qa-bootstrap/SKILL.md) from a source revision
+containing those capabilities.
+
 Install Core, configure repository commands, run locally, and then verify the
 same capability providers on a pull request.
 

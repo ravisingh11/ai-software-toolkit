@@ -1,5 +1,9 @@
 # Guardrails v2 architecture
 
+Guardrails is the evidence and policy component of [AI Software Toolkit](vision.md).
+This document defines that component's runtime contracts; the toolkit also
+provides skills and QA workflows with their own adoption paths.
+
 Guardrails evaluates vendor-neutral capabilities while naming the provider that
 produced each result. It does not run third-party services, reinterpret their
 findings, or treat configuration as evidence.

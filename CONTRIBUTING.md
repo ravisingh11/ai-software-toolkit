@@ -1,7 +1,9 @@
 # Contributing
 
-Contributions should make this repository easier to use, safer to change, and
-clear about what is policy versus implementation.
+Contributions to AI Software Toolkit should help development, QA, security,
+and release teams perform reusable work and verify the results. Keep the
+distinction between policy, implemented capabilities, and aspiration clear.
+See [the vision and maturity map](docs/vision.md).
 
 ## Where changes belong
 
@@ -74,7 +76,7 @@ after the failure and recovery behavior are understood.
 
 ## Release readiness
 
-Before a standards release:
+Before a toolkit release:
 
 1. Run the validators, unit tests, and documentation link checks.
 2. Review workflow permissions, pinned action references, and provider secrets.

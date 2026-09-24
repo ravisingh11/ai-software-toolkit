@@ -1,12 +1,17 @@
 # Changelog
 
-All notable changes to Engineering Standards are documented here.
+All notable changes to AI Software Toolkit are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). Starting with
 1.0, incompatible changes to the documented public runtime, configuration,
 or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
+
+- Introduce AI Software Toolkit as the umbrella identity for shared skills,
+  QA workflows, standards, and Guardrails. Add a lifecycle vision and maturity
+  map, with DORA measurement marked as aspirational. Preserve the existing
+  engineering-standards repository URLs and Guardrails runtime contracts.
 
 - Align CodeQL v4.38.1 and SonarQube scan v8.2.2 action pins across repository,
   reusable, and demo workflows.
