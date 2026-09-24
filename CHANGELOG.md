@@ -8,7 +8,12 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
-No changes yet.
+- Expand the security and AI development policies with coding-agent trust
+  boundaries, scoped tool access, isolation, delegation, memory protection,
+  data handling, dependency verification, release evidence, and incident
+  response requirements. Add OWASP and GitHub reference guidance and clarify
+  disclosure and support limitations. These policy updates do not activate
+  runtime controls or change advisory-only AI review enforcement.
 
 ## [1.0.0] - 2026-09-17
 

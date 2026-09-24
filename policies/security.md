@@ -37,6 +37,11 @@ control to enforced only after it meets the promotion rule in
 
 ## Organization-specific guardrails
 
+For coding agents, model context, prompt injection, tool permissions, and
+generated dependencies, apply the [AI development policy](ai-development.md)
+alongside this standard. The repository's [security policy](../SECURITY.md)
+defines its trust boundaries and private reporting process.
+
 These are candidate rules for Semgrep or equivalent enforcement. They are
 intentionally documented in [security/semgrep/README.md](../security/semgrep/README.md)
 rather than represented by unreliable pattern-only rules.
