@@ -47,7 +47,7 @@ class QABootstrapTests(unittest.TestCase):
                 (self.root / "evidence.json").write_text(raw)
                 (self.root / "uploads.json").write_text(raw)
             EMBED(self.root)
-            self.assertIn("job artifacts", (self.root / "report.md").read_text())
+            self.assertIn("unavailable", (self.root / "report.md").read_text())
 
     def test_evidence_rejects_symlinks(self):
         report = self.root / "report.md"
@@ -65,10 +65,36 @@ class QABootstrapTests(unittest.TestCase):
             EMBED(alias)
         self.assertEqual(self.skill.read_text(), self.original)
 
+    def test_artifact_availability_requires_nonempty_regular_file(self):
+        directory = self.root / "evidence"
+        directory.mkdir()
+        file = directory / "image.png"
+        metadata = self.root / "evidence.json"
+        metadata.write_text(json.dumps([{"id": "image", "file": "image.png"}]))
+        report = self.root / "report.md"
+        for contents, available in ((None, False), (b"", False), (b"image data", True)):
+            if contents is not None:
+                file.write_bytes(contents)
+            report.write_text("<!-- evidence:image -->")
+            EMBED(self.root)
+            self.assertEqual("is available" in report.read_text(), available)
+            self.assertEqual("unavailable" in report.read_text(), not available)
+        file.unlink()
+        file.symlink_to(self.skill)
+        report.write_text("<!-- evidence:image -->")
+        EMBED(self.root)
+        self.assertIn("unavailable", report.read_text())
+        file.unlink()
+        directory.rmdir()
+        directory.symlink_to(self.skill.parent, target_is_directory=True)
+        report.write_text("<!-- evidence:image -->")
+        EMBED(self.root)
+        self.assertIn("unavailable", report.read_text())
+
     def test_cli_entrypoints(self):
         (self.root / "report.md").write_text("<!-- evidence:item -->")
         subprocess.run([sys.executable, str(SKILL / "scripts/embed_evidence.py"), str(self.root)], check=True)
-        self.assertIn("job artifacts", (self.root / "report.md").read_text())
+        self.assertIn("unavailable", (self.root / "report.md").read_text())
 
     def shell_step(self, name, workflow=0):
         trusted = self.root / "trusted/skills/qa/scripts"
@@ -289,6 +315,7 @@ class QABootstrapTests(unittest.TestCase):
         execution, reporter = [part.split("```", 1)[0] for part in template.split("```yaml\n")[1:]]
         self.assertNotIn(": write", execution)
         self.assertNotIn("QA_EVIDENCE_TOKEN", execution)
+        self.assertIn("group: qa-${{ github.event_name }}-", execution)
         self.assertIn("name: QA / report\n    needs: qa\n    if: always()", execution)
         self.assertIn("workflow_run:", reporter)
         self.assertNotIn("  pull_request:", reporter)

@@ -34,7 +34,7 @@ on:
         required: true
 permissions: {}
 concurrency:
-  group: qa-${{ github.event.pull_request.number || inputs.pr_number }}
+  group: qa-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: true
 env:
   PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
