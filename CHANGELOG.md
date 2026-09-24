@@ -22,6 +22,8 @@ or evidence contracts require a major release and migration guidance.
 - Promote this repository's validated repository, build, unit-test, lint, and
   migration controls to enforced mode after representative passing and failing
   GitHub runs.
+- Make Build and Unit Tests fail visibly when their repository command is
+  missing so required checks cannot pass through a skipped job.
 
 ## [1.0.0] - 2026-09-17
 
