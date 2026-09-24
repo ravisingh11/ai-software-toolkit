@@ -41,6 +41,14 @@ fails the job so a promoted required context cannot be satisfied by a skipped
 producer. Changed-code coverage remains inactive until configured and
 advisory. Local scans continue to represent absent commands as `NO RESULT`.
 
+Coverage runs use a readable title such as `Coverage check · PR #32`; the
+check context stays `Changed Code Coverage` so provider contracts and rulesets
+keep matching. A custom coverage command can write its measured results to
+`GITHUB_STEP_SUMMARY` to show them on the Actions Summary page. This repository's
+`tooling/changed_code_coverage.sh` does that, including failed comparisons and
+diffs without measured lines. A successful docs-only run is not a claim of
+100% coverage. Changing a workflow updates future runs, not historical titles.
+
 Semgrep CE runs its repository-owned rule tests, then `semgrep scan --error`
 from the exact pinned container with networking disabled. Gitleaks runs the MIT
 CLI from its exact pinned container against complete Git history. Core does not

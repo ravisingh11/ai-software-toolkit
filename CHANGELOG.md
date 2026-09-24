@@ -34,6 +34,10 @@ or evidence contracts require a major release and migration guidance.
   GitHub runs.
 - Make Build and Unit Tests fail visibly when their repository command is
   missing so required checks cannot pass through a skipped job.
+- Improved coverage run titles and step labels while preserving the
+  `Changed Code Coverage` check context. This repository's coverage command
+  now publishes a summary with outcomes, measured details, and an explanation
+  when no changed lines can be measured; pass/fail behavior is unchanged.
 
 ## [1.0.0] - 2026-09-17
 
