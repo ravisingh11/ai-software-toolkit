@@ -105,8 +105,10 @@ class ActionDistributionTests(unittest.TestCase):
 
     def test_configurable_command_producers_fail_when_command_is_unavailable(self) -> None:
         cases = {
+            "build.yml": "GUARDRAILS_BUILD_COMMAND",
             "format-and-lint.yml": "GUARDRAILS_FORMAT_LINT_COMMAND",
             "migration-validation.yml": "GUARDRAILS_MIGRATION_VALIDATION_COMMAND",
+            "unit-tests.yml": "GUARDRAILS_UNIT_TEST_COMMAND",
         }
 
         for filename, variable in cases.items():
@@ -186,18 +188,12 @@ class ActionDistributionTests(unittest.TestCase):
         self.assertNotIn("semgrep ci", combined)
         self.assertNotIn("--config auto", combined)
 
-    def test_repository_command_workflows_skip_when_unconfigured(self) -> None:
-        contracts = {
-            "build.yml": "GUARDRAILS_BUILD_COMMAND",
-            "unit-tests.yml": "GUARDRAILS_UNIT_TEST_COMMAND",
-            "changed-code-coverage.yml": "GUARDRAILS_CHANGED_COVERAGE_COMMAND",
-        }
-        for filename, variable in contracts.items():
-            with self.subTest(filename=filename):
-                text = (ROOT / "workflows" / filename).read_text()
-                self.assertIn(f"vars.{variable} != ''", text)
-                self.assertIn("GUARDRAILS_SETUP_COMMAND", text)
-                self.assertIn("GUARDRAILS_WORKING_DIRECTORY", text)
+    def test_advisory_changed_coverage_skips_when_unconfigured(self) -> None:
+        text = (ROOT / "workflows" / "changed-code-coverage.yml").read_text()
+
+        self.assertIn("vars.GUARDRAILS_CHANGED_COVERAGE_COMMAND != ''", text)
+        self.assertIn("GUARDRAILS_SETUP_COMMAND", text)
+        self.assertIn("GUARDRAILS_WORKING_DIRECTORY", text)
 
     def test_changed_coverage_exports_the_exact_comparison_base(self) -> None:
         workflow = (ROOT / "workflows/changed-code-coverage.yml").read_text()

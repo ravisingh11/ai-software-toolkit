@@ -36,8 +36,8 @@ Local and Actions producers use the same names:
 | Variable | Required for | Behavior when absent |
 | --- | --- | --- |
 | `GUARDRAILS_SETUP_COMMAND` | Optional setup before repository commands | Setup step is omitted. |
-| `GUARDRAILS_BUILD_COMMAND` | Build | Build reports `NO RESULT`. |
-| `GUARDRAILS_UNIT_TEST_COMMAND` | Unit tests | Unit tests report `NO RESULT`. |
+| `GUARDRAILS_BUILD_COMMAND` | Build | The Actions job fails visibly; a local scan reports `NO RESULT`. |
+| `GUARDRAILS_UNIT_TEST_COMMAND` | Unit tests | The Actions job fails visibly; a local scan reports `NO RESULT`. |
 | `GUARDRAILS_CHANGED_COVERAGE_COMMAND` | Changed-code coverage | Coverage reports `NO RESULT`. |
 | `GUARDRAILS_FORMAT_LINT_COMMAND` | Format and lint | The Actions job fails visibly; a local scan reports `NO RESULT`. |
 | `GUARDRAILS_MIGRATION_VALIDATION_COMMAND` | Migration validation | The Actions job fails visibly; a local scan reports `NO RESULT`. |
@@ -45,11 +45,11 @@ Local and Actions producers use the same names:
 
 Use repository variables in GitHub and environment variables locally. Commands
 run through `bash -euo pipefail -c` in the selected working directory. Configure
-format/lint and migration validation before enabling their workflows on active
-pull requests. Their Actions jobs intentionally fail when the command is absent,
-preventing a promoted required check from passing through a skipped job.
-Do not use a no-op command to make either check green: the command must exercise
-the repository's actual formatting/lint or migration contract.
+build, unit tests, format/lint, and migration validation before enabling their
+workflows on active pull requests. Their Actions jobs intentionally fail when
+the command is absent, preventing a promoted required check from passing
+through a skipped job. Do not use a no-op command to make any check green: each
+command must exercise the repository's actual engineering contract.
 
 This repository uses a deliberately narrow, debt-aware baseline:
 
@@ -75,6 +75,11 @@ GUARDRAILS_FORMAT_LINT_COMMAND=tooling/lint.sh
 GUARDRAILS_MIGRATION_VALIDATION_COMMAND=python3 tooling/validators/validate_no_migrations.py
 GUARDRAILS_UNIT_TEST_COMMAND=tooling/test.sh
 ```
+
+This repository enforces repository validation, build, unit tests, format and
+lint, and migration validation for pull requests. Their exact observed check
+contexts are required by the live default-branch ruleset. Other selected
+capabilities remain advisory unless this repository's policy says otherwise.
 
 `tooling/lint.sh` checks whitespace errors in committed, staged, and unstaged
 content, Python syntax and name errors through Ruff, and YAML structure and
