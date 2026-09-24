@@ -1,9 +1,25 @@
-# Shared Engineering Skills
+# AI Software Toolkit Skills
 
 This directory is the canonical source for reusable agent skills in the
-guardrails repository. Skills are small, task-specific operating
+AI Software Toolkit. Skills are small, task-specific operating
 guides that tell Codex how to perform repeatable engineering, security,
-release, and repository administration work.
+QA, release, and repository administration work.
+
+## Choose a starting point
+
+- **Plan and build:** use specification, safe-change, review, and maintenance
+  skills with the application's acceptance criteria and architecture.
+- **QA and validation:** start with [QA bootstrap](qa-bootstrap/SKILL.md) to
+  generate application-specific QA skills; use test-gap and audit skills to
+  identify missing coverage. Bootstrap installs the capability; generated
+  skills execute the flows. QA also informs requirements and future regressions.
+- **Security and release:** use security review and release-readiness skills
+  to assess risks and evidence within the application's authority.
+
+See [the delivery lifecycle and maturity map](../docs/vision.md). Choose a
+source revision or release containing the desired skill; newer QA additions
+are documented under [Unreleased](../CHANGELOG.md#unreleased), not in the
+v1.0.0 Guardrails demo. Installing a skill does not prove it has run.
 
 ## Policy
 

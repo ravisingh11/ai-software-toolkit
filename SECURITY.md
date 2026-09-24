@@ -2,8 +2,8 @@
 
 ## Scope And Ownership
 
-This repository publishes shared engineering policy, agent instructions,
-reusable CI workflows, and the Guardrails runtime. Its security boundary is
+AI Software Toolkit publishes shared engineering policy, agent skills,
+QA and CI workflows, and the Guardrails runtime. Its security boundary is
 the integrity of those materials and the decisions made from their evidence.
 It is not an application service and has no application database or migration
 framework. Consuming repositories own their application threat models,
