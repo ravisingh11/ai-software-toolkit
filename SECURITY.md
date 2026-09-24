@@ -24,7 +24,7 @@ Do not open a public issue for suspected credential exposure, private data
 leakage, or other sensitive vulnerabilities.
 
 When GitHub displays **Report a vulnerability**, use
-[private vulnerability reporting](https://github.com/ravisingh11/engineering-standards/security/advisories/new).
+[private vulnerability reporting](https://github.com/ravisingh11/ai-software-toolkit/security/advisories/new).
 That feature requires separate repository configuration; this policy does not
 enable it. If unavailable, use a private security contact published by the
 maintainer. If none is available, open an issue asking only for a private
