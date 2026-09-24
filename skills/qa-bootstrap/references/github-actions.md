@@ -296,6 +296,7 @@ jobs:
           fi
 
       - name: Upload inline evidence
+        continue-on-error: true            # optional media must not suppress the current report
         if: steps.policy.outputs.validated == 'true'
         env:
           QA_EVIDENCE_TOKEN: ${{ secrets.QA_EVIDENCE_TOKEN }}
@@ -304,7 +305,11 @@ jobs:
           mkdir -p qa-results
           echo '{}' > qa-results/uploads.json
           [ -n "$QA_EVIDENCE_TOKEN" ] && [ -f qa-results/evidence.json ] || exit 0
-          jq -c '.[]?' qa-results/evidence.json | while read -r e; do
+          if ! jq -e 'type == "array"' qa-results/evidence.json >/dev/null 2>&1; then
+            echo "Inline evidence metadata is unavailable or malformed; continuing without uploads"
+            exit 0
+          fi
+          jq -c '.[] | select(type == "object") | select((.id | type) == "string" and (.file | type) == "string")' qa-results/evidence.json | while read -r e; do
             id=$(jq -r '.id // empty' <<<"$e"); file=$(basename "$(jq -r '.file // empty' <<<"$e")")
             [[ "$id" =~ ^[a-z0-9-]{1,64}$ ]] || continue
             case "$file" in

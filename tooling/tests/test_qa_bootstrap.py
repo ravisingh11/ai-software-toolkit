@@ -366,3 +366,14 @@ class QABootstrapTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("FAILED / INCOMPLETE", (self.root / "validated-report.md").read_text())
         self.assertNotIn("validated=true", output.read_text())
+
+    @unittest.skipUnless(shutil.which("jq"), "optional media metadata requires jq")
+    def test_optional_upload_ignores_malformed_or_wrong_shape_metadata(self):
+        results = self.root / "qa-results"
+        results.mkdir()
+        script = self.shell_step("Upload inline evidence", 1)
+        for raw in ("invalid JSON", "null", "{}", '[null, 1, "text", {}, {"id": []}]'):
+            (results / "evidence.json").write_text(raw)
+            result = self.shell(script, QA_EVIDENCE_TOKEN="fixture-only", REPO_ID="7")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads((results / "uploads.json").read_text()), {})
