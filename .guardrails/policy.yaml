@@ -8,6 +8,7 @@
   ],
   "overrides": {
     "change": {
+      "negative-test-unknown-control": "enforced",
       "dependency-remediation": "not_activated"
     },
     "release": {}
