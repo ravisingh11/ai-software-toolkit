@@ -28,18 +28,18 @@ publishing.
 | `pr-metadata.yml` | `PR Metadata` | Trusted mutable PR title/body evidence plus a run-bound custom check on the exact candidate head SHA |
 | `format-and-lint.yml` | `Format and Lint` | `GUARDRAILS_FORMAT_LINT_COMMAND`; the job fails visibly when unset |
 | `migration-validation.yml` | `Migration Validation` | `GUARDRAILS_MIGRATION_VALIDATION_COMMAND`; the job fails visibly when unset |
-| `build.yml` | `Build` | `GUARDRAILS_BUILD_COMMAND` |
-| `unit-tests.yml` | `Unit Tests` | `GUARDRAILS_UNIT_TEST_COMMAND` |
+| `build.yml` | `Build` | `GUARDRAILS_BUILD_COMMAND`; the job fails visibly when unset |
+| `unit-tests.yml` | `Unit Tests` | `GUARDRAILS_UNIT_TEST_COMMAND`; the job fails visibly when unset |
 | `changed-code-coverage.yml` | `Changed Code Coverage` | `GUARDRAILS_CHANGED_COVERAGE_COMMAND` |
 | `semgrep-ce.yml` | `Semgrep CE` | Installed tested rules; no secret |
 | `gitleaks.yml` | `Gitleaks` | Full Git history; no secret |
 
-Repository command workflows use optional
-`GUARDRAILS_SETUP_COMMAND` and default `GUARDRAILS_WORKING_DIRECTORY` to `.`.
-Build, test, and coverage jobs remain inactive until configured. Format/lint and
-migration validation always create their named job; an absent command fails the
-job so a promoted required context cannot be satisfied by a skipped producer.
-Local scans continue to represent absent commands as `NO RESULT`.
+Repository command workflows use optional `GUARDRAILS_SETUP_COMMAND` and
+default `GUARDRAILS_WORKING_DIRECTORY` to `.`. Build, unit tests, format/lint,
+and migration validation always create their named job; an absent command
+fails the job so a promoted required context cannot be satisfied by a skipped
+producer. Changed-code coverage remains inactive until configured and
+advisory. Local scans continue to represent absent commands as `NO RESULT`.
 
 Semgrep CE runs its repository-owned rule tests, then `semgrep scan --error`
 from the exact pinned container with networking disabled. Gitleaks runs the MIT
