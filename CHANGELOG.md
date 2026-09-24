@@ -18,6 +18,8 @@ or evidence contracts require a major release and migration guidance.
   from a trusted default-branch reporting workflow. Learned failure modes
   survive regeneration. Missing or blocked
   results fail the check; trusted helper scripts reject symlinked update targets.
+  Reports are rendered from validated result rows; rejected artifacts replace
+  stale success comments, and superseded runs cannot publish.
 - Add the opt-in `functional-qa` capability and `qa-bootstrap-workflow` provider.
   The provider has no shipped template: the consumer-owned `qa.yml` that
   `qa-bootstrap` generates is the producer, and its `QA / report` check is the

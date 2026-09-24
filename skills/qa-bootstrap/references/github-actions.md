@@ -10,6 +10,11 @@ The separate `workflow_run` reporter runs its definition from the default branch
 it never checks out or executes PR code. Its only inputs from QA are validated,
 run-bound artifacts treated as untrusted data.
 
+Both jobs load the result validator from the default branch. Publish the generated
+scripts there before expecting a successful gate; the initial bootstrap PR may
+fail for a missing validator. Keep the new check advisory until a subsequent
+representative run validates the installed producer.
+
 ## `.github/workflows/qa.yml`: execution and read-only gate
 
 ```yaml
@@ -115,7 +120,14 @@ jobs:
     timeout-minutes: 10
     permissions:
       actions: read
+      contents: read
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          sparse-checkout: <skills-dir>/qa/scripts
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         continue-on-error: true
         with:
@@ -141,16 +153,7 @@ jobs:
         run: |
           # Missing, crashed, malformed, blocked, and inconclusive evidence cannot pass.
           [[ "$QA_EXECUTION_OUTCOME" = success ]] || { echo "QA did not complete successfully"; exit 1; }
-          [ -s qa-results/report.md ] || { echo "QA report is missing"; exit 1; }
-          jq -se '
-            length == 1 and (.[0] |
-            type == "object" and .overall == "pass" and
-            (.counts | type == "object") and
-            ([.counts.pass, .counts.fail, .counts.blocked, .counts.flaky, .counts.inconclusive] |
-              all(type == "number" and . >= 0 and . == floor)) and
-            .counts.fail == 0 and .counts.blocked == 0 and .counts.inconclusive == 0 and
-            (.counts.pass + .counts.flaky > 0))
-          ' qa-results/summary.json >/dev/null
+          python3 trusted/<skills-dir>/qa/scripts/validate_results.py qa-results
 ```
 
 ## `.github/workflows/qa-report.yml`: trusted reporting only
@@ -167,8 +170,8 @@ on:
     types: [completed]
 permissions: {}
 concurrency:
-  group: qa-report-${{ github.event.workflow_run.id }}
-  cancel-in-progress: true
+  group: qa-report-${{ github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.id }}
+  cancel-in-progress: false
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -230,15 +233,15 @@ jobs:
           RUN_ATTEMPT: ${{ steps.origin.outputs.run_attempt }}
           TESTED_SHA: ${{ steps.origin.outputs.head_sha }}
         run: |
-          artifacts=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts")
-          selected=$(jq --arg name "qa-results-$RUN_ATTEMPT" '[.[].artifacts[] | select(.name == $name)]' <<<"$artifacts")
           echo 'available=false' >> "$GITHUB_OUTPUT"
+          artifacts=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts") || exit 0
+          selected=$(jq --arg name "qa-results-$RUN_ATTEMPT" '[.[].artifacts[] | select(.name == $name)]' <<<"$artifacts")
           if [[ $(jq length <<<"$selected") = 0 ]]; then exit 0; fi
           jq -e --argjson run_id "$RUN_ID" --argjson repo_id "$GITHUB_REPOSITORY_ID" --arg sha "$TESTED_SHA" '
             length == 1 and (.[0] | .expired == false and .size_in_bytes <= 104857600 and
             .workflow_run.id == $run_id and .workflow_run.repository_id == $repo_id and
             .workflow_run.head_repository_id == $repo_id and .workflow_run.head_sha == $sha)
-          ' <<<"$selected" >/dev/null
+          ' <<<"$selected" >/dev/null || exit 0
           echo 'available=true' >> "$GITHUB_OUTPUT"
 
       - name: Check out trusted scripts from the default branch
@@ -250,6 +253,7 @@ jobs:
           persist-credentials: false
 
       - uses: actions/download-artifact@v4
+        id: download
         if: steps.artifact.outputs.available == 'true'
         continue-on-error: true
         with:
@@ -279,18 +283,12 @@ jobs:
         env:
           QA_EXECUTION_OUTCOME: ${{ steps.origin.outputs.execution_outcome }}
           ARTIFACT_PATHS_OUTCOME: ${{ steps.paths.outcome }}
+          ARTIFACT_DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
         run: |
           echo 'validated=false' >> "$GITHUB_OUTPUT"
           printf '## QA Report\n\n**Result: FAILED / INCOMPLETE.** QA execution or evidence validation failed. The agent report is withheld; inspect the run logs and artifacts.\n' > validated-report.md
-          if [[ "$QA_EXECUTION_OUTCOME" = success && "$ARTIFACT_PATHS_OUTCOME" = success ]] &&
-             [ -s qa-results/report.md ] && jq -se '
-               length == 1 and (.[0] | type == "object" and .overall == "pass" and
-               (.counts | type == "object") and
-               ([.counts.pass, .counts.fail, .counts.blocked, .counts.flaky, .counts.inconclusive] |
-                 all(type == "number" and . >= 0 and . == floor)) and
-               .counts.fail == 0 and .counts.blocked == 0 and .counts.inconclusive == 0 and
-               (.counts.pass + .counts.flaky > 0))
-             ' qa-results/summary.json >/dev/null 2>&1; then
+          if [[ "$QA_EXECUTION_OUTCOME" = success && "$ARTIFACT_PATHS_OUTCOME" = success && "$ARTIFACT_DOWNLOAD_OUTCOME" = success ]] &&
+             python3 trusted/<skills-dir>/qa/scripts/validate_results.py qa-results; then
             cp qa-results/report.md validated-report.md
             echo 'validated=true' >> "$GITHUB_OUTPUT"
           fi
@@ -341,10 +339,17 @@ jobs:
           PR_NUMBER: ${{ steps.origin.outputs.pr_number }}
           TESTED_SHA: ${{ steps.origin.outputs.head_sha }}
           RUN_ID: ${{ steps.origin.outputs.run_id }}
+          RUN_ATTEMPT: ${{ steps.origin.outputs.run_attempt }}
         run: |
           # Recheck just before writing: stale results must not overwrite a newer report.
           pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
           jq -e --arg sha "$TESTED_SHA" '.state == "open" and .head.sha == $sha' <<<"$pr" >/dev/null
+          runs=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/workflows/qa.yml/runs?event=pull_request&head_sha=$TESTED_SHA&per_page=100")
+          jq -e --arg sha "$TESTED_SHA" --argjson pr "$PR_NUMBER" --argjson id "$RUN_ID" --argjson attempt "$RUN_ATTEMPT" '
+            [.[].workflow_runs[] | select(.event == "pull_request" and .head_sha == $sha and
+              any(.pull_requests[]; .number == $pr))] | max_by(.run_number) |
+            .id == $id and .run_attempt == $attempt
+          ' <<<"$runs" >/dev/null
           {
             echo '<!-- qa-report -->'
             printf 'Tested commit: `%s`\n\n' "$TESTED_SHA"

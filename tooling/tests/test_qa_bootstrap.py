@@ -137,6 +137,9 @@ class QABootstrapTests(unittest.TestCase):
         self.assertIn("job artifacts", (self.root / "report.md").read_text())
 
     def shell_step(self, name, workflow=0):
+        trusted = self.root / "trusted/skills/qa/scripts"
+        trusted.mkdir(parents=True, exist_ok=True)
+        shutil.copy(SKILL / "scripts/validate_results.py", trusted / "validate_results.py")
         template = (SKILL / "references/github-actions.md").read_text()
         block = template.split("```yaml\n")[workflow + 1].split("```", 1)[0]
         step = block.split(f"      - name: {name}\n", 1)[1]
@@ -146,7 +149,7 @@ class QABootstrapTests(unittest.TestCase):
             if line and not line.startswith("          "):
                 break
             lines.append(line[10:])
-        return "\n".join(lines)
+        return "\n".join(lines).replace("<skills-dir>", "skills")
 
     def shell(self, script, **env):
         return subprocess.run(["bash", "-euo", "pipefail", "-c", script], cwd=self.root,
@@ -154,7 +157,9 @@ class QABootstrapTests(unittest.TestCase):
 
     def passing_summary(self):
         return {"overall": "pass", "counts": {"pass": 1, "fail": 0, "blocked": 0,
-                                               "flaky": 0, "inconclusive": 0}}
+                                               "flaky": 0, "inconclusive": 0},
+                "rows": [{"test_case": "Login", "app": "web", "persona": "member",
+                          "result": "pass", "notes": "everything worked"}]}
 
     @unittest.skipUnless(shutil.which("jq"), "workflow policy requires jq")
     def test_workflow_gate_rejects_missing_skipped_crashed_and_nonpassing_evidence(self):
@@ -183,7 +188,8 @@ class QABootstrapTests(unittest.TestCase):
                 self.assertEqual(result.returncode == 0, expected, result.stderr)
         summary.write_text(json.dumps(valid))
         (results / "report.md").unlink()
-        self.assertNotEqual(self.shell(script, QA_EXECUTION_OUTCOME="success").returncode, 0)
+        self.assertEqual(self.shell(script, QA_EXECUTION_OUTCOME="success").returncode, 0)
+        self.assertIn("Result: PASS", (results / "report.md").read_text())
 
     @unittest.skipUnless(shutil.which("jq"), "workflow revision validation requires jq")
     def test_manual_dispatch_requires_current_exact_open_pr_head(self):
@@ -291,9 +297,9 @@ class QABootstrapTests(unittest.TestCase):
         artifact = {"name": "qa-results-2", "expired": False, "size_in_bytes": 50,
                     "workflow_run": {"id": 91, "repository_id": 7, "head_repository_id": 7,
                                      "head_sha": "a" * 40}}
-        cases = [([], True, False), ([artifact], True, True), ([artifact, artifact], False, False),
-                 ([{**artifact, "size_in_bytes": 104857601}], False, False),
-                 ([{**artifact, "workflow_run": {**artifact["workflow_run"], "id": 92}}], False, False)]
+        cases = [([], True, False), ([artifact], True, True), ([artifact, artifact], True, False),
+                 ([{**artifact, "size_in_bytes": 104857601}], True, False),
+                 ([{**artifact, "workflow_run": {**artifact["workflow_run"], "id": 92}}], True, False)]
         for artifacts, succeeds, available in cases:
             output = self.root / "outputs"
             output.write_text("")
@@ -325,11 +331,11 @@ class QABootstrapTests(unittest.TestCase):
             output = self.root / "outputs"
             output.write_text("")
             result = self.shell(script, QA_EXECUTION_OUTCOME=outcome, ARTIFACT_PATHS_OUTCOME=paths,
-                                GITHUB_OUTPUT=str(output))
+                                GITHUB_OUTPUT=str(output), ARTIFACT_DOWNLOAD_OUTCOME="success")
             self.assertEqual(result.returncode, 0, result.stderr)
             normalized = (self.root / "validated-report.md").read_text()
             if succeeds:
-                self.assertIn("PASS: everything worked", normalized)
+                self.assertIn("everything worked", normalized)
             else:
                 self.assertIn("FAILED / INCOMPLETE", normalized)
                 self.assertNotIn("PASS", normalized)
@@ -355,3 +361,41 @@ class QABootstrapTests(unittest.TestCase):
         self.assertIn("ref: ${{ github.event.repository.default_branch }}", reporter)
         self.assertNotIn("ref: ${{ steps.origin.outputs.head_sha }}", reporter)
         self.assertLess(reporter.index("Validate result before publishing"), reporter.index("Post or update the QA comment"))
+
+    @unittest.skipUnless(shutil.which("jq"), "run supersession requires jq")
+    def test_only_latest_run_and_attempt_for_same_head_can_publish(self):
+        sha = "a" * 40
+        fake_gh = '''gh() {
+          printf '%s\\n' "$*" >> calls
+          case "$*" in
+            */pulls/42*) printf '%s' "$PR_JSON" ;;
+            *actions/workflows/qa.yml/runs*) printf '%s' "$RUNS_JSON" ;;
+          esac
+        };\n'''
+        (self.root / "validated-report.md").write_text("Validated report")
+        old = {"id": 91, "run_number": 10, "run_attempt": 2, "event": "pull_request",
+               "head_sha": sha, "pull_requests": [{"number": 42}]}
+        for runs, allowed in (([old], True),
+                              ([old, {**old, "id": 92, "run_number": 11}], False),
+                              ([{**old, "run_attempt": 3}], False), ([], False)):
+            (self.root / "calls").write_text("")
+            result = self.shell(fake_gh + self.shell_step("Post or update the QA comment", 1),
+                                PR_NUMBER="42", TESTED_SHA=sha, RUN_ID="91", RUN_ATTEMPT="2",
+                                GITHUB_REPOSITORY="owner/repo", GITHUB_SERVER_URL="https://github.com",
+                                PR_JSON=json.dumps({"state": "open", "head": {"sha": sha}}),
+                                RUNS_JSON=json.dumps([{"workflow_runs": runs}]))
+            self.assertEqual(result.returncode == 0, allowed, result.stderr)
+            self.assertEqual("-X POST" in (self.root / "calls").read_text(), allowed)
+
+    def test_rejected_artifact_reaches_failed_replacement_even_with_pass_files(self):
+        results = self.root / "qa-results"
+        results.mkdir()
+        (results / "summary.json").write_text(json.dumps(self.passing_summary()))
+        (results / "report.md").write_text("PASS: stale output")
+        output = self.root / "outputs"
+        result = self.shell(self.shell_step("Validate result before publishing", 1),
+                            QA_EXECUTION_OUTCOME="success", ARTIFACT_PATHS_OUTCOME="success",
+                            ARTIFACT_DOWNLOAD_OUTCOME="skipped", GITHUB_OUTPUT=str(output))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("FAILED / INCOMPLETE", (self.root / "validated-report.md").read_text())
+        self.assertNotIn("validated=true", output.read_text())
