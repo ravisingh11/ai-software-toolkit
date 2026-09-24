@@ -310,13 +310,15 @@ def validate_provider_document(config: dict, catalog: dict[str, dict]) -> None:
 def validate_provider_template_names(config: dict, root: Path = ROOT) -> None:
     for provider_id, provider in config["providers"].items():
         template = provider["template"]
-        if not provider["template_available"] or template is None:
+        if not provider["template_available"]:
             continue
+        if template is None:
+            raise ValueError(
+                f"provider {provider_id} declares a template available without a template path"
+            )
         template_path = root / template
         if not template_path.is_file():
-            if provider["enabled_by_default"]:
-                raise ValueError(f"provider {provider_id} template does not exist: {template}")
-            continue
+            raise ValueError(f"provider {provider_id} template does not exist: {template}")
         workflow_name = None
         for line in template_path.read_text(encoding="utf-8").splitlines():
             if line.startswith("name:"):

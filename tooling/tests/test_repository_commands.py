@@ -83,6 +83,7 @@ class RepositoryCommandTests(unittest.TestCase):
             coverage.chmod(0o755)
             diff_cover.chmod(0o755)
             environment = os.environ.copy()
+            environment.pop("GITHUB_STEP_SUMMARY", None)
             environment["PATH"] = f"{binary_directory}:/usr/bin:/bin"
             environment["GUARDRAILS_COVERAGE_BASE_REF"] = "base-sha"
             inherited_coverage_file = binary_directory / "outer.coverage"

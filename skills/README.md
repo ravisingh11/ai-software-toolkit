@@ -61,6 +61,7 @@ install only the skills they actually need.
 - `docs-sync`
 - `frontend-regression-review`
 - `full-product-review`
+- `qa-bootstrap`
 - `full-test-suite`
 - `observability-gap-review`
 - `onboarding-doc-builder`
@@ -105,6 +106,9 @@ install only the skills they actually need.
 - Use `ios-release-qa` for release-candidate QA around environment locks,
   accessibility, iPad/device flows, and App Store/TestFlight readiness.
 - Use `full-test-suite` for a broad scan-fix-verify loop across the project-ops skills.
+- Use `qa-bootstrap` to set up agent-driven functional QA in a product repo: a
+  `qa` orchestrator, per-app `qa-<app>` flow menus, and optional GitHub Actions
+  workflows with a read-only advisory QA check and trusted sticky-comment reporting.
 - Use `skill-installer` to install or refresh canonical skills locally.
 
 ## Support Bundle

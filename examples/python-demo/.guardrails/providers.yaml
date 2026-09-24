@@ -170,13 +170,23 @@
       "secrets": ["SONAR_TOKEN"],
       "enabled_by_default": false
     },
+    "qa-bootstrap-workflow": {
+      "display_name": "QA Bootstrap Workflow",
+      "activation": "repository",
+      "capabilities": ["functional-qa"],
+      "checks": {"functional-qa": {"check_name": "QA / report", "workflow": "QA", "workflow_path": ".github/workflows/qa.yml"}},
+      "template": null,
+      "template_available": false,
+      "secrets": [],
+      "enabled_by_default": false
+    },
     "snyk-code": {
       "display_name": "Snyk Code",
       "activation": "external",
       "capabilities": ["deep-sast"],
       "checks": {"deep-sast": {"check_name": "Snyk Code", "workflow": "Snyk", "workflow_path": ".github/workflows/snyk.yml"}},
-      "template": "workflows/snyk.yml",
-      "template_available": true,
+      "template": null,
+      "template_available": false,
       "secrets": ["SNYK_TOKEN"],
       "enabled_by_default": false
     },
@@ -185,8 +195,8 @@
       "activation": "external",
       "capabilities": ["dependency-vulnerability"],
       "checks": {"dependency-vulnerability": {"check_name": "Snyk Open Source", "workflow": "Snyk", "workflow_path": ".github/workflows/snyk.yml"}},
-      "template": "workflows/snyk.yml",
-      "template_available": true,
+      "template": null,
+      "template_available": false,
       "secrets": ["SNYK_TOKEN"],
       "enabled_by_default": false
     },
@@ -211,8 +221,8 @@
         "dependency-vulnerability": {"check_name": "FOSSA", "workflow": "FOSSA", "workflow_path": ".github/workflows/fossa.yml"},
         "license-compliance": {"check_name": "FOSSA", "workflow": "FOSSA", "workflow_path": ".github/workflows/fossa.yml"}
       },
-      "template": "workflows/fossa.yml",
-      "template_available": true,
+      "template": null,
+      "template_available": false,
       "secrets": ["FOSSA_API_KEY"],
       "enabled_by_default": false
     },
@@ -297,6 +307,7 @@
     "dependency-remediation": {"authoritative": "github-dependabot", "supplemental": []},
     "artifact-provenance": {"authoritative": "github-artifact-attestations", "supplemental": []},
     "static-quality": {"authoritative": "sonarqube", "supplemental": []},
+    "functional-qa": {"authoritative": "qa-bootstrap-workflow", "supplemental": []},
     "dependency-vulnerability": {"authoritative": "snyk-open-source", "supplemental": []},
     "license-compliance": {"authoritative": "fossa", "supplemental": []},
     "ai-engineering-review": {"authoritative": "codex-github-review", "supplemental": []},

@@ -56,6 +56,32 @@ for surface in \
   }
 done
 
+coverage_report="${coverage_data_root}/changed-code-coverage.md"
+coverage_status=0
 diff-cover "${coverage_file}" \
   --compare-branch="${GUARDRAILS_COVERAGE_BASE_REF}" \
-  --fail-under="${coverage_target}"
+  --fail-under="${coverage_target}" \
+  --format "markdown:${coverage_report}" || coverage_status=$?
+
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  {
+    printf '\n## Coverage check\n\n'
+    if [[ "${coverage_status}" -ne 0 ]]; then
+      printf '**Result:** Failed. Review the comparison below and the job logs.\n\n'
+    elif [[ -f "${coverage_report}" ]] && grep -Fq 'No lines with coverage information in this diff.' "${coverage_report}"; then
+      printf '**Result:** Passed — no changed lines to measure.\n\n'
+      printf 'The coverage report contains no measured changed lines. This can happen for documentation-only changes or excluded files. No coverage percentage applies.\n\n'
+    else
+      printf '**Result:** Passed. The changed-code coverage command completed successfully.\n\n'
+    fi
+    printf '**Target:** at least %s%% coverage of measured changed lines.\n\n' "${coverage_target}"
+    printf 'The coverage command runs the repository test suites before comparing changed lines; a docs-only change does not skip those suites.\n\n'
+    if [[ -s "${coverage_report}" ]]; then
+      cat "${coverage_report}"
+    else
+      printf 'Detailed comparison unavailable. Check the job logs; no coverage percentage is reported here.\n'
+    fi
+  } >> "${GITHUB_STEP_SUMMARY}"
+fi
+
+exit "${coverage_status}"

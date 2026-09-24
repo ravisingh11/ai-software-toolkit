@@ -55,6 +55,29 @@ class GuardrailsContractValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "template workflow name"):
             self.validator("validate_provider_template_names")(config)
 
+    def test_declared_provider_templates_must_exist_even_when_disabled(self) -> None:
+        config = load("policies/provider-config.yaml")
+        provider = config["providers"]["snyk-code"]
+        provider["template"] = None
+        provider["template_available"] = True
+        provider["enabled_by_default"] = False
+
+        with self.assertRaisesRegex(ValueError, "without a template path"):
+            self.validator("validate_provider_template_names")(config)
+
+        provider["template"] = "workflows/missing-snyk.yml"
+
+        with self.assertRaisesRegex(ValueError, "provider snyk-code template does not exist"):
+            self.validator("validate_provider_template_names")(config)
+
+    def test_unshipped_vendor_templates_are_not_declared_available(self) -> None:
+        providers = self.providers()
+
+        for provider_id in ("snyk-code", "snyk-open-source", "fossa"):
+            with self.subTest(provider_id=provider_id):
+                self.assertIsNone(providers[provider_id]["template"])
+                self.assertFalse(providers[provider_id]["template_available"])
+
     def test_actions_backed_checks_declare_exact_installed_workflow_paths(self) -> None:
         providers = self.providers()
 

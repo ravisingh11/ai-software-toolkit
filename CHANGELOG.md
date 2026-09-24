@@ -8,12 +8,44 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Align CodeQL v4.38.1 and SonarQube scan v8.2.2 action pins across repository,
+  reusable, and demo workflows.
+
+- Add the `qa-bootstrap` shared skill: analyzes a product repository, asks only
+  what it cannot detect, and generates a `qa` orchestrator, per-app `qa-<app>`
+  sub-skills, a report template, and optional GitHub Actions workflows that
+  run QA with read-only repository permissions and publish validated results
+  from a trusted default-branch reporting workflow. Learned failure modes
+  survive regeneration. Missing or blocked
+  results fail the advisory check. Functional QA cannot be promoted to enforced
+  while its result job is PR-editable; failure learning remains suggestion-only.
+  Reports are rendered from validated result rows; rejected artifacts replace
+  stale success comments, and superseded runs cannot publish.
+- Add the opt-in `functional-qa` capability and `qa-bootstrap-workflow` provider.
+  The provider has no shipped template: the consumer-owned `qa.yml` that
+  `qa-bootstrap` generates is the producer, and its `QA / report` check is the
+  exact-head evidence. It is outside the default profiles and inactive until a
+  consumer sets `functional-qa=advisory`, so existing scorecards are unchanged.
 - Expand the security and AI development policies with coding-agent trust
   boundaries, scoped tool access, isolation, delegation, memory protection,
   data handling, dependency verification, release evidence, and incident
   response requirements. Add OWASP and GitHub reference guidance and clarify
   disclosure and support limitations. These policy updates do not activate
   runtime controls or change advisory-only AI review enforcement.
+- Correct Snyk and FOSSA provider metadata so unavailable workflow templates
+  are not advertised, and reject every declared available template that is
+  missing from the distribution.
+- Isolate setup-diagnostic CLI tests from ambient Guardrails command variables
+  so the self-hosted unit-test producer remains deterministic.
+- Promote this repository's validated repository, build, unit-test, lint, and
+  migration controls to enforced mode after representative passing and failing
+  GitHub runs.
+- Make Build and Unit Tests fail visibly when their repository command is
+  missing so required checks cannot pass through a skipped job.
+- Improved coverage run titles and step labels while preserving the
+  `Changed Code Coverage` check context. This repository's coverage command
+  now publishes a summary with outcomes, measured details, and an explanation
+  when no changed lines can be measured; pass/fail behavior is unchanged.
 
 ## [1.0.0] - 2026-09-17
 

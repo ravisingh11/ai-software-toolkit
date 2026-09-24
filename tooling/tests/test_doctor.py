@@ -198,10 +198,21 @@ class DoctorTests(unittest.TestCase):
                     self.report(github=invalid)
 
     def test_text_and_json_cli_exit_codes_distinguish_gaps_and_usage_errors(self):
+        environment = os.environ.copy()
+        for variable in (
+            "GUARDRAILS_BUILD_COMMAND",
+            "GUARDRAILS_CHANGED_COVERAGE_COMMAND",
+            "GUARDRAILS_FORMAT_LINT_COMMAND",
+            "GUARDRAILS_MIGRATION_VALIDATION_COMMAND",
+            "GUARDRAILS_SETUP_COMMAND",
+            "GUARDRAILS_UNIT_TEST_COMMAND",
+            "GUARDRAILS_WORKING_DIRECTORY",
+        ):
+            environment.pop(variable, None)
         for arguments, expected in (([], 1), (["--target", str(self.target / "absent")], 2),
                                     (["--github", "bad-input"], 2)):
             completed = subprocess.run([sys.executable, str(SCRIPT), *arguments], cwd=self.target,
-                                       text=True, capture_output=True)
+                                       text=True, capture_output=True, env=environment)
             self.assertEqual(completed.returncode, expected, completed.stderr)
             if expected == 1:
                 self.assertIn("Configuration is not passing evidence", completed.stdout)
@@ -214,7 +225,7 @@ class DoctorTests(unittest.TestCase):
         self.git("add", ".")
         self.git("commit", "-qm", "disable producers")
         completed = subprocess.run([sys.executable, str(SCRIPT), "--json"], cwd=self.target,
-                                   text=True, capture_output=True)
+                                   text=True, capture_output=True, env=environment)
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(json.loads(completed.stdout)["summary"]["action_needed"], 0)
 

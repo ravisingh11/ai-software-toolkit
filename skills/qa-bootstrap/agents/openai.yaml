@@ -1,0 +1,4 @@
+interface:
+  display_name: "QA Bootstrap"
+  short_description: "Set up agent-driven functional QA with PR reporting"
+  default_prompt: "Use $qa-bootstrap to analyze this repository, ask what you cannot detect, and generate the qa orchestrator, per-app qa sub-skills, and the optional GitHub Actions QA workflow."
