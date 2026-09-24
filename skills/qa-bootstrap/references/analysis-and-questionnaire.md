@@ -49,7 +49,7 @@ Detect everything below without asking. Then present a structured summary, group
 
 Note what is installed locally and what CI would need. An interactive app with no usable driver is a setup blocker; report it rather than generating flows that cannot run.
 
-**CI/CD.** Existing QA/E2E workflows, runner labels, and whether the repo receives PRs from forks. This skill generates GitHub Actions; if the repo is hosted elsewhere, say so and skip Part 3.
+**CI/CD.** Existing QA/E2E workflows, runner labels, and whether the repo receives PRs from forks. This skill generates separate read-only QA and trusted reporting GitHub Actions workflows; if the repo is hosted elsewhere, say so and skip Part 3.
 
 **Agent CLI in CI.** Whether existing workflows already run an agent CLI headlessly. If so, record its install step, its non-interactive invocation, and the secret it authenticates with.
 
@@ -89,7 +89,7 @@ Each question below gives the wording, the default where one exists, and (in ita
 
 ### Part 3: Running it in CI
 
-**3.1 Generate CI?** Ask this first; if the answer is no, skip the rest of Part 3 and questions 4.2 and 4.3. List existing QA/E2E workflows, then: "Should I add a GitHub Actions workflow that runs QA on every PR and keeps one QA comment per PR up to date? [If existing workflows:] Should it replace [names], or run alongside them?"
+**3.1 Generate CI?** Ask this first; if the answer is no, skip the rest of Part 3 and questions 4.2 and 4.3. List existing QA/E2E workflows, then: "Should I add two GitHub Actions workflows: read-only QA on PRs and a separate default-branch reporter that keeps one QA comment per PR up to date? [If existing workflows:] Should it replace [names], or run alongside them?"
 *This is the approval gate for posting to PRs. Generate nothing unless the answer is yes.*
 
 **3.2 Agent CLI.** Confirm what was detected, or ask: "Which agent CLI should run QA in CI, how is it installed, what is its non-interactive command, and what is the name of the secret holding its API key?"
@@ -100,7 +100,7 @@ Recommend the narrowest permission mode that still lets it build and launch the 
 
 **3.4 Previews.** Only if previews were detected: "Should CI wait for the preview deployment before testing, so QA tests the branch's real code?" (Default: yes.)
 
-**3.5 Fork PRs.** Explain, then confirm: "QA runs automatically only for PRs from branches in this repository. For PRs from forks, a maintainer starts a run by hand after reading the code, pinned to the exact commit they reviewed. OK?"
+**3.5 Fork PRs.** Explain, then confirm: "QA runs automatically only for PRs from branches in this repository. Fork PRs receive a failing BLOCKED gate. A reviewed manual run is informational and cannot satisfy their required check; exact-head fork support needs a separately reviewed route. Is that acceptable?"
 *Running an agent on unreviewed outside code with your secrets in scope is the classic CI attack.*
 
 ### Part 4: Evidence and learning
@@ -109,11 +109,10 @@ Recommend the narrowest permission mode that still lets it build and launch the 
 *Browser tools produce WebM/MP4. Terminal sessions produce asciinema `.cast` files, which are downloadable but not playable inline.*
 
 **4.2 Inline media.** Only if CI was requested: "Should screenshots and videos appear inline in the PR comment, or only as downloadable artifacts?" (Default: artifacts only.)
-*Inline needs the `uploads.github.com/user-attachments` endpoint, which is undocumented and may change, and only accepts a classic PAT with `repo` scope (the workflow token and fine-grained PATs are rejected). The token is used only in the report job and never reaches the agent.*
+*Inline needs the `uploads.github.com/user-attachments` endpoint, which is undocumented and may change, and only accepts a classic PAT with `repo` scope (the workflow token and fine-grained PATs are rejected). The token is used only in the trusted default-branch reporting workflow and never reaches the PR workflow or agent.*
 
 **4.3 Learning from failures.** Only if CI was requested (otherwise set `suggest_in_report`): "When QA hits a new quirk of your environment, say an auth wall, a missing env var, or a slow iframe, how should that knowledge flow back into the QA skills?"
 - **Suggest in the report** (default): ready-to-paste additions in a table.
 - **Open a PR** (recommended over auto-commit): CI opens a draft PR against the default branch for review.
-- **Auto-commit**: CI commits to the PR branch. Only works for same-repo PRs.
 
-Save as `failure_learning`: `suggest_in_report`, `open_pr`, or `auto_commit`.
+Save as `failure_learning`: `suggest_in_report` or `open_pr`. Automatic commits to a PR branch are unsupported because the privileged reporter never checks out PR code.

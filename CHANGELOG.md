@@ -13,9 +13,10 @@ or evidence contracts require a major release and migration guidance.
 
 - Add the `qa-bootstrap` shared skill: analyzes a product repository, asks only
   what it cannot detect, and generates a `qa` orchestrator, per-app `qa-<app>`
-  sub-skills, a report template, and an optional GitHub Actions workflow that
-  runs the agent read-only on PR code and posts results from a separate
-  report job. Learned failure modes survive regeneration. Missing or blocked
+  sub-skills, a report template, and optional GitHub Actions workflows that
+  run QA with read-only repository permissions and publish validated results
+  from a trusted default-branch reporting workflow. Learned failure modes
+  survive regeneration. Missing or blocked
   results fail the check; trusted helper scripts reject symlinked update targets.
 - Add the opt-in `functional-qa` capability and `qa-bootstrap-workflow` provider.
   The provider has no shipped template: the consumer-owned `qa.yml` that

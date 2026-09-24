@@ -1,53 +1,47 @@
-# GitHub Actions workflow
+# GitHub Actions workflows
 
-Template for Phase 4g of `qa-bootstrap`. Generate only if the user said yes in question 3.1.
+Generate both files only after CI is requested. Fill placeholders and resolve
+every action tag below to a reviewed full commit SHA. Preserve existing QA
+workflows unless the user approved replacement.
 
-If the user approved replacing existing QA workflows, remove them and list them in the Phase 5 summary. Otherwise leave them alone.
+The PR-editable workflow has read-only permissions throughout. Its `QA / report`
+job is the merge gate and always runs, including when execution was skipped.
+The separate `workflow_run` reporter runs its definition from the default branch;
+it never checks out or executes PR code. Its only inputs from QA are validated,
+run-bound artifacts treated as untrusted data.
 
-Generate `.github/workflows/qa.yml`, filling the `<...>` placeholders from the analysis:
+## `.github/workflows/qa.yml`: execution and read-only gate
 
 ```yaml
-# QA: runs the qa skill against PR code, then posts one sticky comment.
-#
-# Two jobs on purpose:
-#   qa      executes the agent on the PR's code with READ-ONLY permissions
-#   report  has write permissions but never runs PR code; its scripts come
-#           from the default branch
 name: QA
-
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-  workflow_dispatch:                       # manual run, e.g. for a reviewed fork PR
+  workflow_dispatch:
     inputs:
       pr_number:
-        description: PR number
+        description: PR number for an informational manual run
         required: true
       head_sha:
-        description: Exact commit you reviewed (required for fork PRs)
+        description: Exact reviewed commit; this does not satisfy a fork-head check
         required: true
-
-permissions: {}                            # each job declares exactly what it needs
-
-concurrency:                               # one run per PR; new pushes cancel old runs
+permissions: {}
+concurrency:
   group: qa-${{ github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: true
-
 env:
   PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
-
 jobs:
-  # ─────────────────────────────────────────────────────────────────────
-  # Job 1: run QA (read-only)
-  # ─────────────────────────────────────────────────────────────────────
   qa:
-    # Fork PRs never run automatically; a maintainer dispatches them after review.
+    name: QA execution
+    # Unreviewed fork code receives no agent key or app credentials.
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
       contents: read
       pull-requests: read
+      deployments: read                   # omit unless polling previews
     outputs:
       execution_outcome: ${{ steps.qa.outcome }}
     steps:
@@ -93,7 +87,6 @@ jobs:
       # ── Run ────────────────────────────────────────────────────────────
       - name: Run QA
         id: qa
-        continue-on-error: true            # the report job decides pass/fail
         timeout-minutes: 20
         env:
           CI: 'true'
@@ -110,35 +103,23 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: qa-results
+          name: qa-results-${{ github.run_attempt }}
           path: qa-results/
           retention-days: 14
 
-  # ─────────────────────────────────────────────────────────────────────
-  # Job 2: report (write permissions, trusted code only)
-  # ─────────────────────────────────────────────────────────────────────
   report:
     name: QA / report
     needs: qa
-    if: always() && needs.qa.result != 'skipped'
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: read                       # write only for auto_commit / open_pr
-      pull-requests: write
+      actions: read
     steps:
-      - name: Check out trusted scripts from the default branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          path: trusted
-          sparse-checkout: <skills-dir>/qa/scripts
-          persist-credentials: false
-
       - uses: actions/download-artifact@v4
-        continue-on-error: true            # a crashed qa job still gets a comment
+        continue-on-error: true
         with:
-          name: qa-results
+          name: qa-results-${{ github.run_attempt }}
           path: qa-results
 
       - name: Validate artifact paths
@@ -149,9 +130,173 @@ jobs:
             echo "artifact symlinks are not allowed"
             exit 1
           fi
+          for file in summary.json evidence.json skill-updates.json; do
+            [ ! -f "qa-results/$file" ] || [ "$(wc -c < "qa-results/$file")" -le 65536 ] || exit 1
+          done
+          [ ! -f qa-results/report.md ] || [ "$(wc -c < qa-results/report.md)" -le 60000 ] || exit 1
 
-      # ── Inline evidence (no-op unless QA_EVIDENCE_TOKEN is set) ────────
+      - name: Apply result policy
+        env:
+          QA_EXECUTION_OUTCOME: ${{ needs.qa.outputs.execution_outcome }}
+        run: |
+          # Missing, crashed, malformed, blocked, and inconclusive evidence cannot pass.
+          [[ "$QA_EXECUTION_OUTCOME" = success ]] || { echo "QA did not complete successfully"; exit 1; }
+          [ -s qa-results/report.md ] || { echo "QA report is missing"; exit 1; }
+          jq -se '
+            length == 1 and (.[0] |
+            type == "object" and .overall == "pass" and
+            (.counts | type == "object") and
+            ([.counts.pass, .counts.fail, .counts.blocked, .counts.flaky, .counts.inconclusive] |
+              all(type == "number" and . >= 0 and . == floor)) and
+            .counts.fail == 0 and .counts.blocked == 0 and .counts.inconclusive == 0 and
+            (.counts.pass + .counts.flaky > 0))
+          ' qa-results/summary.json >/dev/null
+```
+
+## `.github/workflows/qa-report.yml`: trusted reporting only
+
+Install this workflow on the default branch before expecting comments. Do not add
+`pull_request` or manual triggers here. Do not checkout the upstream run's SHA,
+load its scripts, restore its caches, install its dependencies, or run app code.
+
+```yaml
+name: QA Report
+on:
+  workflow_run:
+    workflows: [QA]
+    types: [completed]
+permissions: {}
+concurrency:
+  group: qa-report-${{ github.event.workflow_run.id }}
+  cancel-in-progress: true
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Validate originating run and current PR
+        id: origin
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        run: |
+          [[ "$RUN_ID" =~ ^[0-9]+$ && "$RUN_ATTEMPT" =~ ^[0-9]+$ ]] || exit 1
+          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")
+          workflow=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/qa.yml")
+          # Validate server-side identity; no identity comes from artifact contents.
+          jq -e --arg repo "$GITHUB_REPOSITORY" --argjson repo_id "$GITHUB_REPOSITORY_ID" \
+            --argjson id "$RUN_ID" --argjson attempt "$RUN_ATTEMPT" \
+            --argjson workflow_id "$(jq .id <<<"$workflow")" '
+            .id == $id and .run_attempt == $attempt and .status == "completed" and
+            .event == "pull_request" and .repository.id == $repo_id and
+            .repository.full_name == $repo and .head_repository.id == $repo_id and
+            .head_repository.full_name == $repo and .workflow_id == $workflow_id and
+            .path == ".github/workflows/qa.yml" and .name == "QA" and
+            (.head_sha | test("^[0-9a-f]{40}$")) and (.pull_requests | length == 1)
+          ' <<<"$run" >/dev/null
+          pr_number=$(jq -r '.pull_requests[0].number' <<<"$run")
+          sha=$(jq -r .head_sha <<<"$run")
+          [[ "$pr_number" =~ ^[0-9]+$ ]] || exit 1
+          pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number")
+          jq -e --arg sha "$sha" --argjson repo_id "$GITHUB_REPOSITORY_ID" '
+            .state == "open" and .head.sha == $sha and
+            .base.repo.id == $repo_id and .head.repo.id == $repo_id
+          ' <<<"$pr" >/dev/null
+          jobs=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/attempts/$RUN_ATTEMPT/jobs")
+          outcome=failure
+          if [[ $(jq -r .conclusion <<<"$run") = success ]] && jq -e '
+            ([.[].jobs[] | select(.name == "QA / report")] |
+              length == 1 and .[0].status == "completed" and .[0].conclusion == "success") and
+            ([.[].jobs[] | select(.name == "QA execution")] |
+              length == 1 and (.[0] | .status == "completed" and .conclusion == "success" and
+              ([.steps[] | select(.name == "Run QA")] | length == 1 and .[0].conclusion == "success")))' \
+            <<<"$jobs" >/dev/null; then outcome=success; fi
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "execution_outcome=$outcome" >> "$GITHUB_OUTPUT"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "run_attempt=$RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+
+      - name: Validate run artifact metadata
+        id: artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.origin.outputs.run_id }}
+          RUN_ATTEMPT: ${{ steps.origin.outputs.run_attempt }}
+          TESTED_SHA: ${{ steps.origin.outputs.head_sha }}
+        run: |
+          artifacts=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts")
+          selected=$(jq --arg name "qa-results-$RUN_ATTEMPT" '[.[].artifacts[] | select(.name == $name)]' <<<"$artifacts")
+          echo 'available=false' >> "$GITHUB_OUTPUT"
+          if [[ $(jq length <<<"$selected") = 0 ]]; then exit 0; fi
+          jq -e --argjson run_id "$RUN_ID" --argjson repo_id "$GITHUB_REPOSITORY_ID" --arg sha "$TESTED_SHA" '
+            length == 1 and (.[0] | .expired == false and .size_in_bytes <= 104857600 and
+            .workflow_run.id == $run_id and .workflow_run.repository_id == $repo_id and
+            .workflow_run.head_repository_id == $repo_id and .workflow_run.head_sha == $sha)
+          ' <<<"$selected" >/dev/null
+          echo 'available=true' >> "$GITHUB_OUTPUT"
+
+      - name: Check out trusted scripts from the default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          sparse-checkout: <skills-dir>/qa/scripts
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        if: steps.artifact.outputs.available == 'true'
+        continue-on-error: true
+        with:
+          name: qa-results-${{ steps.origin.outputs.run_attempt }}
+          run-id: ${{ steps.origin.outputs.run_id }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          path: qa-results
+
+      - name: Validate artifact paths
+        id: paths
+        continue-on-error: true
+        run: |
+          [ ! -L qa-results ] || { echo "artifact root must not be a symlink"; exit 1; }
+          mkdir -p qa-results
+          if find qa-results -type l -print -quit | grep -q .; then
+            echo "artifact symlinks are not allowed"
+            exit 1
+          fi
+          for file in summary.json evidence.json skill-updates.json; do
+            [ ! -f "qa-results/$file" ] || [ "$(wc -c < "qa-results/$file")" -le 65536 ] || exit 1
+          done
+          [ ! -f qa-results/report.md ] || [ "$(wc -c < qa-results/report.md)" -le 60000 ] || exit 1
+
+      - name: Validate result before publishing
+        id: policy
+        env:
+          QA_EXECUTION_OUTCOME: ${{ steps.origin.outputs.execution_outcome }}
+          ARTIFACT_PATHS_OUTCOME: ${{ steps.paths.outcome }}
+        run: |
+          echo 'validated=false' >> "$GITHUB_OUTPUT"
+          printf '## QA Report\n\n**Result: FAILED / INCOMPLETE.** QA execution or evidence validation failed. The agent report is withheld; inspect the run logs and artifacts.\n' > validated-report.md
+          if [[ "$QA_EXECUTION_OUTCOME" = success && "$ARTIFACT_PATHS_OUTCOME" = success ]] &&
+             [ -s qa-results/report.md ] && jq -se '
+               length == 1 and (.[0] | type == "object" and .overall == "pass" and
+               (.counts | type == "object") and
+               ([.counts.pass, .counts.fail, .counts.blocked, .counts.flaky, .counts.inconclusive] |
+                 all(type == "number" and . >= 0 and . == floor)) and
+               .counts.fail == 0 and .counts.blocked == 0 and .counts.inconclusive == 0 and
+               (.counts.pass + .counts.flaky > 0))
+             ' qa-results/summary.json >/dev/null 2>&1; then
+            cp qa-results/report.md validated-report.md
+            echo 'validated=true' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Upload inline evidence
+        if: steps.policy.outputs.validated == 'true'
         env:
           QA_EVIDENCE_TOKEN: ${{ secrets.QA_EVIDENCE_TOKEN }}
           REPO_ID: ${{ github.event.repository.id }}
@@ -180,31 +325,31 @@ jobs:
           done
 
       - name: Embed evidence
+        if: steps.policy.outputs.validated == 'true'
         run: |
           s=trusted/<skills-dir>/qa/scripts/embed_evidence.py
           if [ -f "$s" ]; then
             python3 "$s" qa-results
+            cp qa-results/report.md validated-report.md
           else
             echo "embed script not on default branch yet; skipping"
           fi
 
-      # ── Sticky comment: one per PR, updated in place ───────────────────
       - name: Post or update the QA comment
         env:
           GH_TOKEN: ${{ github.token }}
-          TESTED_SHA: ${{ inputs.head_sha || github.event.pull_request.head.sha }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PR_NUMBER: ${{ steps.origin.outputs.pr_number }}
+          TESTED_SHA: ${{ steps.origin.outputs.head_sha }}
+          RUN_ID: ${{ steps.origin.outputs.run_id }}
         run: |
+          # Recheck just before writing: stale results must not overwrite a newer report.
+          pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
+          jq -e --arg sha "$TESTED_SHA" '.state == "open" and .head.sha == $sha' <<<"$pr" >/dev/null
           {
             echo '<!-- qa-report -->'
             printf 'Tested commit: `%s`\n\n' "$TESTED_SHA"
-            if [ -s qa-results/report.md ]; then
-              grep -q '^## QA Report' qa-results/report.md || echo '## QA Report'
-              cat qa-results/report.md
-            else
-              printf '## QA Report\n\n:no_entry: QA produced no report. See the run log.\n'
-            fi
-            printf '\n---\n[Run log]'; printf '(%s) · raw evidence in the `qa-results` artifact\n' "$RUN_URL"
+            cat validated-report.md
+            printf '\n---\n[Run log]'; printf '(%s/%s/actions/runs/%s) · raw evidence in the run artifacts\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$RUN_ID"
           } > body.md
           id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
             --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- qa-report -->"))) | .id' | head -n1)
@@ -213,34 +358,37 @@ jobs:
           else
             gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -F body=@body.md > /dev/null
           fi
-
-      # ── Failure learning (open_pr / auto_commit only; see notes) ───────
-
-      # ── Pass/fail for the check ────────────────────────────────────────
-      - name: Apply result policy
-        env:
-          QA_EXECUTION_OUTCOME: ${{ needs.qa.outputs.execution_outcome }}
-        run: |
-          # Missing, crashed, malformed, blocked, and inconclusive evidence cannot pass.
-          [[ "$QA_EXECUTION_OUTCOME" = success ]] || { echo "QA did not complete successfully"; exit 1; }
-          jq -e '
-            type == "object" and .overall == "pass" and
-            (.counts | type == "object") and
-            ([.counts.pass, .counts.fail, .counts.blocked, .counts.flaky, .counts.inconclusive] |
-              all(type == "number" and . >= 0 and . == floor)) and
-            .counts.fail == 0 and .counts.blocked == 0 and .counts.inconclusive == 0 and
-            (.counts.pass + .counts.flaky > 0)
-          ' qa-results/summary.json >/dev/null
 ```
 
-Notes for generating this workflow:
+## Generation rules
 
-- **Required check.** The explicit report job name creates `QA / report`. Require that check only after a representative run verifies it. An advisory check can fail without blocking merges; never turn missing or blocked evidence into a successful check.
-- **Manual fork runs.** Dispatch from the trusted default branch. The preflight requires a 40-character SHA matching the open PR head; a moving branch name or stale reviewed SHA is rejected before checkout. A manual run checks the dispatch revision, so do not present it as a required check bound to the fork commit; its comment must identify the tested SHA.
-- **Runner isolation.** Use a fresh GitHub-hosted runner for both jobs. Never reuse a persistent self-hosted runner between PR code and the privileged report job.
-- **Action pinning.** Resolve every action version shown here to a reviewed full commit SHA before generating the workflow.
-- **Waiting for previews** (if requested): keep the existing PR/manual triggers and poll deployment statuses for `steps.pr.outputs.head_sha` in the read-only QA job. Verify the expected deployment creator and exact commit; timeout or failure means BLOCKED. Do not introduce a privileged `workflow_run` trigger to execute PR code.
-- **Never use `pull_request_target`.**
-- **Failure learning, `open_pr`:** in the report job, check out the default branch with credentials into `repo/`; run `python3 trusted/<skills-dir>/qa/scripts/apply_skill_updates.py qa-results/skill-updates.json repo <skills-dir>`; if `git -C repo diff --quiet <skills-dir>` shows changes, commit to `qa/learned-${{ github.run_id }}` and `gh pr create --draft --base <default-branch>`. Needs `contents: write`.
-- **Failure learning, `auto_commit`:** only when the PR head repo equals this repo. Check out the PR head branch with credentials, apply with the same trusted script, commit and push. Pushes made with `GITHUB_TOKEN` do not retrigger the workflow. Needs `contents: write`.
-- **`QA_EVIDENCE_TOKEN`** is referenced only in the report job; the agent job never sees it.
+- `QA / report` is the read-only PR check. Keep `if: always()` and never skip the
+  gate when QA was skipped: absent execution evidence must fail. Promote it only
+  after representative exact-head checks have been verified.
+- Fork QA is BLOCKED by this template: automatic execution is skipped and the
+  gate fails. Manual dispatch is informational and cannot satisfy a fork-head
+  check. Do not claim fork support until a separately reviewed authorized route
+  produces exact-head evidence. The privileged reporter rejects fork and manual
+  origins and never accepts a PR number supplied by an artifact.
+- Both workflows use fresh GitHub-hosted runners. The reporter workflow and its
+  scripts must exist on the trusted default branch; first-install PRs do not
+  activate reporting. PR changes to the reporter are not executed by the
+  `workflow_run` event until merged.
+- The reporter validates source workflow ID/path, repository IDs, run attempt,
+  current PR SHA, artifact provenance/size, and execution results using GitHub
+  APIs. It consumes artifacts only as data, never as scripts, command arguments,
+  workflow output files, caches, or dependency manifests.
+- Preview polling belongs only in the read-only QA job, for the resolved SHA and
+  expected deployment creator. Timeout/failure is BLOCKED. Never use a privileged
+  `workflow_run` job to launch PR code. Never use `pull_request_target`.
+- `QA_EVIDENCE_TOKEN` exists only in the trusted reporter. Inline uploads and
+  learning run only after result validation. Failed/incomplete evidence produces
+  an explicit replacement comment, never the agent's optimistic PASS report.
+- Failure learning supports `suggest_in_report` or `open_pr`. For `open_pr`, only
+  the trusted reporter may check out the **default branch** into `repo/`, apply
+  updates with the trusted helper, and create a draft PR for review. Add
+  `contents: write` only to that workflow. Never checkout a PR branch with write
+  credentials; `auto_commit` is not supported by this trust model.
+- Full action SHA pins are required in generated files. Run actionlint on both
+  workflows after replacing placeholders, then exercise passing, crashed,
+  missing-artifact, and fork cases before recommending branch protection.

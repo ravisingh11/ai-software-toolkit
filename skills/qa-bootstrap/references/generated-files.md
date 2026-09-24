@@ -89,7 +89,7 @@ ci:
 # CI succeeds only for validated PASS evidence; BLOCKED/INCONCLUSIVE fail the
 # check even when advisory. Branch protection decides whether failure blocks a merge.
 
-failure_learning: <suggest_in_report|open_pr|auto_commit>
+failure_learning: <suggest_in_report|open_pr>
 ```
 
 ### 4b. Orchestrator: `<skills-dir>/qa/SKILL.md`
@@ -217,7 +217,7 @@ Good suggestions describe the environment: "the auth page renders in the runner'
 Then, per `failure_learning`:
 
 - `suggest_in_report`: the table only.
-- `open_pr` or `auto_commit`: also write `qa-results/skill-updates.json` as `[{"file": "<skills-dir>/qa-web/SKILL.md", "content": "- **Short title.** Explanation."}]`. CI appends each entry to that file's learned block and changes nothing else.
+- `open_pr`: also write `qa-results/skill-updates.json` as `[{"file": "<skills-dir>/qa-web/SKILL.md", "content": "- **Short title.** Explanation."}]`. The trusted default-branch reporter may append each entry to that file's learned block in a draft PR after execution and evidence validation.
 
 Omit the section when there is nothing new.
 ~~~~
@@ -329,7 +329,7 @@ instructions.
 
 ### 4f. Scripts (CI only)
 
-Copy `scripts/embed_evidence.py` and, for `open_pr` or `auto_commit`, `scripts/apply_skill_updates.py` from this skill into `<skills-dir>/qa/scripts/` unchanged. CI runs them from the **default branch**, never from the PR checkout; otherwise a PR could rewrite the script that runs with write permissions.
+Copy `scripts/embed_evidence.py` and, for `open_pr`, `scripts/apply_skill_updates.py` from this skill into `<skills-dir>/qa/scripts/` unchanged. Only the separate default-branch `qa-report.yml` workflow runs them with write permissions. The PR workflow remains read-only. Checking out trusted scripts inside a PR-editable privileged workflow is not a security boundary.
 
 What they do:
 

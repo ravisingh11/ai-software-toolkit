@@ -1,6 +1,6 @@
 ---
 name: "qa-bootstrap"
-description: "Set up agent-driven functional QA for a repository: analyze the codebase, ask only what cannot be detected, then generate a qa orchestrator skill, per-app QA sub-skills, a report template, and an optional two-job GitHub Actions workflow. Use when a user asks to set up QA, add functional or end-to-end testing driven by an agent, or get QA results posted on pull requests."
+description: "Set up agent-driven functional QA for a repository: analyze the codebase, ask only what cannot be detected, then generate a qa orchestrator skill, per-app QA sub-skills, a report template, and an optional pair of GitHub Actions workflows. Use when a user asks to set up QA, add functional or end-to-end testing driven by an agent, or get QA results posted on pull requests."
 ---
 
 # QA Bootstrap
@@ -10,10 +10,11 @@ Set up QA that exercises the application the way a user would (browser, terminal
 ```text
   PR ───▶ qa (orchestrator): config → diff → affected apps → their flows → report
                  └─ loads only qa-web, qa-cli, ... (one flow menu per app)
-  CI: [qa job: runs the agent on PR code, read-only] → [report job: comment, uploads, write tokens]
+  CI: [PR QA workflow: agent + always-running read-only gate]
+        → [default-branch reporting workflow: validate artifacts → comment]
 ```
 
-The two-job split is deliberate: the job that executes PR code never holds a token that can write to the repository, comment, or upload.
+The workflow split is deliberate: the PR-editable workflow has no repository write permissions or evidence-upload secret. The privileged reporter runs only its default-branch definition, treats artifacts as untrusted data, and never executes PR code.
 
 ## Ground Rules
 
@@ -35,7 +36,8 @@ The two-job split is deliberate: the job that executes PR code never holds a tok
   ci-prompt.md                   # CI only
   scripts/                       # CI only; copied from this skill's scripts/
 <skills-dir>/qa-<app>/SKILL.md   # one self-contained sub-skill per app
-.github/workflows/qa.yml         # only if the user asks for CI
+.github/workflows/qa.yml         # read-only execution + QA / report gate
+.github/workflows/qa-report.yml  # trusted default-branch reporting; both CI only
 ```
 
 ## Procedure
@@ -45,17 +47,17 @@ Make a todo list from these phases before starting. Leave the user's other work 
 1. **Prepare.** Resolve `<skills-dir>` (default `docs/ai/skills`; ask if the repo already uses another). If `<skills-dir>/qa/.install-progress.yaml` exists, offer to resume or start fresh. Harvest every `qa:learned` block from existing `qa`/`qa-*` skills for reinsertion.
 2. **Analyze the codebase** per `references/analysis-and-questionnaire.md`: apps and shared code, environments and previews, auth, flags, integrations, existing tests, automation drivers, CI, agent CLI. Present a grouped summary before the first question. An interactive app with no usable driver is a blocker; report it rather than generating flows that cannot run.
 3. **Questionnaire** per the same reference: what to test, test data and services, CI, evidence and learning. Ask one part at a time and save progress after each part. Ask "Generate CI?" before any other CI question.
-4. **Generate** per `references/generated-files.md`, in this order: config, orchestrator, sub-skills, report template, CI prompt, scripts. Regenerate everything from the answers, reinserting harvested learned blocks. If CI was requested, generate the workflow per `references/github-actions.md`.
+4. **Generate** per `references/generated-files.md`, in this order: config, orchestrator, sub-skills, report template, CI prompt, scripts. Regenerate everything from the answers, reinserting harvested learned blocks. If CI was requested, generate both workflows per `references/github-actions.md`.
 5. **Verify and hand off.** Parse every YAML file; `py_compile` the scripts; run `actionlint` if available. Confirm every glob matches a file, commands exist, and secret names agree across config, workflow, and checklist. Run `$code-review` on the generated files if available and fix serious findings. Delete `.install-progress.yaml`, add `qa-results/` to `.gitignore`, then summarize: files written, workflows replaced, learned entries carried over, how to run QA, and a secrets checklist derived from what the workflow actually references. If the repo has Guardrails installed (`.guardrails/` exists) and a workflow was generated, tell the user to verify the `QA / report` check on one representative PR and then run `python3 .guardrails/configure.py --set functional-qa=advisory` so the result appears on the scorecard.
 
 ## Decision Rules
 
 - QA tests the branch's own code: a preview URL or a local server from the checkout. Never a shared dev, staging, or prod environment for a PR; report BLOCKED instead.
 - No app affected by the diff means one INCONCLUSIVE row, not a pass. Shared packages and lockfiles map to every app that depends on them.
-- Fork PRs never run automatically. A maintainer dispatches them after review, pinned to the reviewed commit. Never use `pull_request_target`.
-- The report job runs scripts from the default branch, never from the PR checkout.
+- Fork PRs never run automatically; their always-running `QA / report` gate fails as BLOCKED. Manual reviewed-commit runs are informational and cannot satisfy a fork-head check. Require a separately reviewed exact-head route before claiming fork support. Never use `pull_request_target`.
+- The privileged reporter is a separate default-branch `workflow_run` workflow. It validates the originating run, workflow, repository, current PR head, artifact metadata, and result before commenting; it never checks out PR code.
 - Keep the workflow name `QA`, report job id `report`, and explicit job name `QA / report`: the Guardrails `qa-bootstrap-workflow` provider records the `QA / report` check as evidence.
-- Recommend `open_pr` over `auto_commit` for failure learning; both need `contents: write`.
+- Failure learning supports suggestions or a draft `open_pr` from a trusted default-branch checkout. Only that optional trusted reporter needs `contents: write`; `auto_commit` is unsupported.
 - If the repository is not on GitHub, say so and skip the CI phase rather than generating a workflow that cannot run.
 
 ## Related Skills

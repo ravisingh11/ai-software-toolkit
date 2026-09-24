@@ -303,7 +303,7 @@ or adapter.
 | Snyk Open Source | Dependency vulnerability | `SNYK_TOKEN` | Supply a repository or organization workflow/adapter and exact-head `Snyk Open Source` evidence. |
 | Semgrep AppSec Platform | Custom static analysis, deep SAST | `SEMGREP_APP_TOKEN` | Supply an organization-approved integration and exact-head `Semgrep` evidence. |
 | FOSSA | Dependency vulnerability, license compliance | `FOSSA_API_KEY` | Supply a repository or organization workflow/adapter and exact-head `FOSSA` evidence. |
-| QA Bootstrap Workflow | Functional QA | None (the agent API key and app test credentials are repository secrets named in `config.yaml`) | Generate `.github/workflows/qa.yml` with the `qa-bootstrap` skill, verify its `QA / report` check on a representative pull request, then set `functional-qa=advisory`. Guardrails records the exact-head check result; it does not run the agent. |
+| QA Bootstrap Workflow | Functional QA | None (the agent API key and app test credentials are repository secrets named in `config.yaml`) | Generate the read-only `.github/workflows/qa.yml` gate and trusted `.github/workflows/qa-report.yml` reporter with the `qa-bootstrap` skill, verify the gate's `QA / report` check on a representative pull request, then set `functional-qa=advisory`. Guardrails records the exact-head check result; it does not run the agent. |
 | Codex Code Review | AI engineering review | None | Connect the repository to Codex, enable native automatic reviews in Codex settings (recommended) or comment `@codex review`, then set `ai-engineering-review=advisory`. Guardrails accepts only an exact-head review from `chatgpt-codex-connector[bot]`. |
 
 Do not add a credential until the adapter is ready. Do not select a vendor as
