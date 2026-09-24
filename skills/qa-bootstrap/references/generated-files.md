@@ -85,7 +85,9 @@ evidence:
 flaky_retries: 1                         # a FAIL that passes on retry is reported FLAKY
 
 ci:
-  fail_on: [fail]                        # add "blocked" to also fail the check on BLOCKED
+  required_check: false                  # promote only after representative evidence
+# CI succeeds only for validated PASS evidence; BLOCKED/INCONCLUSIVE fail the
+# check even when advisory. Branch protection decides whether failure blocks a merge.
 
 failure_learning: <suggest_in_report|open_pr|auto_commit>
 ```
@@ -194,7 +196,7 @@ Write `qa-results/report.md` using `REPORT-TEMPLATE.md`, and `qa-results/summary
 { "overall": "pass|fail|blocked|inconclusive", "counts": { "pass": 0, "fail": 0, "blocked": 0, "flaky": 0, "inconclusive": 0 } }
 ```
 
-`overall`, in order: `fail` if any FAIL; else `blocked` if any BLOCKED; else `inconclusive` if every row is INCONCLUSIVE; else `pass` (FLAKY counts as pass).
+`overall`, in order: `fail` if any FAIL; else `blocked` if any BLOCKED; else `inconclusive` if any row is INCONCLUSIVE or there are no test rows; else `pass` (FLAKY counts as pass).
 
 Keep the report short: the table, "Action Required" if needed, one collapsed evidence block. Do not restate the diff or add metadata tables.
 

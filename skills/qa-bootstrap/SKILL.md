@@ -1,6 +1,6 @@
 ---
 name: "qa-bootstrap"
-description: "Set up agent-driven functional QA for a repository: analyze the codebase, ask only what cannot be detected, then generate a qa orchestrator skill, per-app qa-<app> sub-skills, a report template, and an optional two-job GitHub Actions workflow. Use when a user asks to set up QA, add functional or end-to-end testing driven by an agent, or get QA results posted on pull requests."
+description: "Set up agent-driven functional QA for a repository: analyze the codebase, ask only what cannot be detected, then generate a qa orchestrator skill, per-app QA sub-skills, a report template, and an optional two-job GitHub Actions workflow. Use when a user asks to set up QA, add functional or end-to-end testing driven by an agent, or get QA results posted on pull requests."
 ---
 
 # QA Bootstrap
@@ -54,7 +54,7 @@ Make a todo list from these phases before starting. Leave the user's other work 
 - No app affected by the diff means one INCONCLUSIVE row, not a pass. Shared packages and lockfiles map to every app that depends on them.
 - Fork PRs never run automatically. A maintainer dispatches them after review, pinned to the reviewed commit. Never use `pull_request_target`.
 - The report job runs scripts from the default branch, never from the PR checkout.
-- Keep the workflow name `QA` and the report job id `report`: the Guardrails `qa-bootstrap-workflow` provider records the `QA / report` check as evidence.
+- Keep the workflow name `QA`, report job id `report`, and explicit job name `QA / report`: the Guardrails `qa-bootstrap-workflow` provider records the `QA / report` check as evidence.
 - Recommend `open_pr` over `auto_commit` for failure learning; both need `contents: write`.
 - If the repository is not on GitHub, say so and skip the CI phase rather than generating a workflow that cannot run.
 

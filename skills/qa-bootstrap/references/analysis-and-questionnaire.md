@@ -95,8 +95,8 @@ Each question below gives the wording, the default where one exists, and (in ita
 **3.2 Agent CLI.** Confirm what was detected, or ask: "Which agent CLI should run QA in CI, how is it installed, what is its non-interactive command, and what is the name of the secret holding its API key?"
 Recommend the narrowest permission mode that still lets it build and launch the app and use the automation tools. Prefer a scoped tool allowlist over any "skip all permissions" flag.
 
-**3.3 Blocking.** "Should a bad QA result block merging? And which results count as bad: only FAIL (default), or FAIL and BLOCKED too?"
-*BLOCKED means QA couldn't run a test, not that the app is broken. Counting it blocks merges on infrastructure trouble.*
+**3.3 Blocking.** "Should QA remain advisory, or become a required merge check after representative validation?"
+*Only completed PASS evidence succeeds. FAIL, BLOCKED, and INCONCLUSIVE remain unsuccessful checks; an advisory check does not block merging. BLOCKED means QA could not test, not that the app is broken.*
 
 **3.4 Previews.** Only if previews were detected: "Should CI wait for the preview deployment before testing, so QA tests the branch's real code?" (Default: yes.)
 

@@ -8,11 +8,15 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Align CodeQL v4.38.1 and SonarQube scan v8.2.2 action pins across repository,
+  reusable, and demo workflows.
+
 - Add the `qa-bootstrap` shared skill: analyzes a product repository, asks only
   what it cannot detect, and generates a `qa` orchestrator, per-app `qa-<app>`
   sub-skills, a report template, and an optional GitHub Actions workflow that
   runs the agent read-only on PR code and posts results from a separate
-  report job. Learned failure modes survive regeneration.
+  report job. Learned failure modes survive regeneration. Missing or blocked
+  results fail the check; trusted helper scripts reject symlinked update targets.
 - Add the opt-in `functional-qa` capability and `qa-bootstrap-workflow` provider.
   The provider has no shipped template: the consumer-owned `qa.yml` that
   `qa-bootstrap` generates is the producer, and its `QA / report` check is the
