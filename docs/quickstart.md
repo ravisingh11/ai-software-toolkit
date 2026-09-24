@@ -24,8 +24,8 @@ real commands and ground-truth documents, not the demo's paths.
 Clone the released source, then run the installer from that checkout:
 
 ```sh
-git clone --branch v1.0.0 https://github.com/ravisingh11/engineering-standards.git
-cd engineering-standards
+git clone --branch v1.0.0 https://github.com/ravisingh11/ai-software-toolkit.git
+cd ai-software-toolkit
 python3 tooling/install.py --target /path/to/repo --dry-run
 python3 tooling/install.py --target /path/to/repo
 ```
