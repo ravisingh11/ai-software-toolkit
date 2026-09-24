@@ -19,6 +19,9 @@ or evidence contracts require a major release and migration guidance.
   missing from the distribution.
 - Isolate setup-diagnostic CLI tests from ambient Guardrails command variables
   so the self-hosted unit-test producer remains deterministic.
+- Promote this repository's validated repository, build, unit-test, lint, and
+  migration controls to enforced mode after representative passing and failing
+  GitHub runs.
 
 ## [1.0.0] - 2026-09-17
 

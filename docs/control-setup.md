@@ -76,6 +76,11 @@ GUARDRAILS_MIGRATION_VALIDATION_COMMAND=python3 tooling/validators/validate_no_m
 GUARDRAILS_UNIT_TEST_COMMAND=tooling/test.sh
 ```
 
+This repository enforces repository validation, build, unit tests, format and
+lint, and migration validation for pull requests. Their exact observed check
+contexts are required by the live default-branch ruleset. Other selected
+capabilities remain advisory unless this repository's policy says otherwise.
+
 `tooling/lint.sh` checks whitespace errors in committed, staged, and unstaged
 content, Python syntax and name errors through Ruff, and YAML structure and
 duplicate keys through yamllint.
