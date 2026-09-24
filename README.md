@@ -1,13 +1,40 @@
-# Engineering Standards
+# AI Software Toolkit
 
-**Move fast. Prove it works.** Guardrails turns engineering policy into
-revision-bound checks and readable scorecards. Keep changes reviewable, test
-what changed, and make missing evidence visible. Your repository owns its
-architecture and commands; Guardrails connects the results.
+**Move fast. Prove it works.** Shared skills, QA workflows, and guardrails for
+planning, building, testing, securing, and releasing software with AI.
+
+AI Software Toolkit supports development, QA, security, and release teams.
+Skills guide repeatable work, functional QA exercises application behavior,
+and Guardrails connects verification results to policy through revision-bound
+checks and readable scorecards. Your repository owns its architecture,
+acceptance criteria, and commands.
 
 I built this because AI lets me create more code and ship changes faster than
 ever. I wanted that speed without losing confidence in what I ship: lightweight
-checks that run with the work, not another handbook to remember.
+skills and checks that run with the work, with quality considered from the
+first acceptance criterion through release and feedback.
+
+The product identity is **AI Software Toolkit** (`ai-software-toolkit`). The
+GitHub repository remains `ravisingh11/engineering-standards` to preserve
+existing forks, installation URLs, workflow references, and Pages links.
+
+## What the toolkit brings together
+
+| Component | Purpose | Start here |
+| --- | --- | --- |
+| Standards | Define expectations for quality, security, and accountable AI use | [AI development policy](policies/ai-development.md) |
+| Skills | Guide agents through repeatable development, QA, security, and release work | [Install shared skills](skills/README.md#install-locally) |
+| Verification | Produce evidence from tests, functional QA, and scanners | [Set up functional QA](skills/qa-bootstrap/SKILL.md) |
+| Guardrails | Evaluate evidence against policy and expose missing results | [Install and configure Guardrails](docs/quickstart.md) |
+| Measurement — aspiration | Learn whether delivery is improving across the lifecycle | [Vision and maturity](docs/vision.md) |
+
+QA helps shape acceptance criteria and risk coverage, explores behavior, and
+feeds failures back into future validation. Quality is shared across the
+lifecycle; QA expertise is part of planning and improvement as well as testing.
+
+See [the toolkit vision](docs/vision.md) for the Plan → Build → Validate →
+Release → Improve direction and the distinction between available components,
+optional integrations, and future work.
 
 [![Version](https://img.shields.io/github/v/release/ravisingh11/engineering-standards?label=version)](https://github.com/ravisingh11/engineering-standards/releases/latest)
 [![License](https://img.shields.io/github/license/ravisingh11/engineering-standards?label=license)](LICENSE)
@@ -15,6 +42,10 @@ checks that run with the work, not another handbook to remember.
 [![Latest PR Scorecard](https://ravisingh11.github.io/engineering-standards/guardrails-badge.svg)](https://ravisingh11.github.io/engineering-standards/)
 
 ## Start here
+
+Choose the entry point above for skills or QA. The demo below introduces the
+Guardrails component from **v1.0.0**; it does not include the newer QA bootstrap
+and functional-QA integration listed under [Unreleased](CHANGELOG.md#unreleased).
 
 Try the embedded Python demo in an isolated directory with Git, Python 3.11+
 and a POSIX shell. This pins **v1.0.0**; “Guardrails v2” names the runtime

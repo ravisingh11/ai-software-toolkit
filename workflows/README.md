@@ -1,5 +1,9 @@
 # Guardrails v2 workflows
 
+These workflows provide Guardrails evidence within [AI Software Toolkit](../docs/vision.md).
+For consumer-specific functional QA workflows, start with
+[QA bootstrap](../skills/qa-bootstrap/SKILL.md).
+
 The installer deploys independent producer workflows and an aggregate
 scorecard. A workflow file is configuration; only exact-subject provider
 evidence can pass a capability.
