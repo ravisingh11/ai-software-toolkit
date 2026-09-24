@@ -14,9 +14,10 @@ ever. I wanted that speed without losing confidence in what I ship: lightweight
 skills and checks that run with the work, with quality considered from the
 first acceptance criterion through release and feedback.
 
-The product identity is **AI Software Toolkit** (`ai-software-toolkit`). The
-GitHub repository remains `ravisingh11/engineering-standards` to preserve
-existing forks, installation URLs, workflow references, and Pages links.
+The repository is **`ravisingh11/ai-software-toolkit`**, formerly
+`ravisingh11/engineering-standards`. Existing forks remain connected. See the
+[rename migration guide](docs/repository-rename.md) for remote, workflow, and
+Pages updates; the `.guardrails/` runtime contract is unchanged.
 
 ## What the toolkit brings together
 
@@ -36,10 +37,10 @@ See [the toolkit vision](docs/vision.md) for the Plan → Build → Validate →
 Release → Improve direction and the distinction between available components,
 optional integrations, and future work.
 
-[![Version](https://img.shields.io/github/v/release/ravisingh11/engineering-standards?label=version)](https://github.com/ravisingh11/engineering-standards/releases/latest)
-[![License](https://img.shields.io/github/license/ravisingh11/engineering-standards?label=license)](LICENSE)
-[![Scorecard Workflow](https://github.com/ravisingh11/engineering-standards/actions/workflows/guardrails-scorecard.yml/badge.svg?event=pull_request_target)](https://github.com/ravisingh11/engineering-standards/actions/workflows/guardrails-scorecard.yml)
-[![Latest PR Scorecard](https://ravisingh11.github.io/engineering-standards/guardrails-badge.svg)](https://ravisingh11.github.io/engineering-standards/)
+[![Version](https://img.shields.io/github/v/release/ravisingh11/ai-software-toolkit?label=version)](https://github.com/ravisingh11/ai-software-toolkit/releases/latest)
+[![License](https://img.shields.io/github/license/ravisingh11/ai-software-toolkit?label=license)](LICENSE)
+[![Scorecard Workflow](https://github.com/ravisingh11/ai-software-toolkit/actions/workflows/guardrails-scorecard.yml/badge.svg?event=pull_request_target)](https://github.com/ravisingh11/ai-software-toolkit/actions/workflows/guardrails-scorecard.yml)
+[![Latest PR Scorecard](https://ravisingh11.github.io/ai-software-toolkit/guardrails-badge.svg)](https://ravisingh11.github.io/ai-software-toolkit/)
 
 ## Start here
 
@@ -54,8 +55,8 @@ or paid service is required to get a scorecard.
 
 ```sh
 demo_workspace="$(mktemp -d)"
-git clone --branch v1.0.0 https://github.com/ravisingh11/engineering-standards.git "$demo_workspace/engineering-standards"
-standards_root="$demo_workspace/engineering-standards"
+git clone --branch v1.0.0 https://github.com/ravisingh11/ai-software-toolkit.git "$demo_workspace/ai-software-toolkit"
+standards_root="$demo_workspace/ai-software-toolkit"
 cp -R "$standards_root/examples/python-demo" "$demo_workspace/python-demo"
 cd "$demo_workspace/python-demo"
 

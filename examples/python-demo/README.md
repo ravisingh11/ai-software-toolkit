@@ -1,7 +1,7 @@
 # Python Guardrails v2 example
 
 This standard-library Python application is an executable consumer of
-[Guardrails](https://github.com/ravisingh11/engineering-standards). It keeps
+[Guardrails](https://github.com/ravisingh11/ai-software-toolkit). It keeps
 repository-specific ground truth in the application while using the shared v2
 capability, profile, provider, evidence, and scorecard contracts.
 
@@ -142,7 +142,7 @@ and passed/active count; workflow success can still contain an advisory
 Badge publication is not embedded under this example because nested workflows
 do not execute in the parent repository. A standalone demo repository can add
 it with `--refresh-existing --scorecard-badge`, then follow the
-[badge setup](https://github.com/ravisingh11/engineering-standards/blob/main/docs/quickstart.md#publish-the-optional-scorecard-badge).
+[badge setup](https://github.com/ravisingh11/ai-software-toolkit/blob/main/docs/quickstart.md#publish-the-optional-scorecard-badge).
 The public projection is aggregate-only; detailed evidence is excluded from
 Pages and remains in the source Actions artifact under normal repository
 access. Publication never changes `allow`, `block`, or branch protection.

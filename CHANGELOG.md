@@ -8,6 +8,11 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Rename the GitHub repository to `ravisingh11/ai-software-toolkit` and update
+  clone, release, security reporting, and Pages links. Add a migration guide
+  for existing clones, forks, workflows, and badges. Runtime contracts and
+  existing release tags are unchanged.
+
 - Introduce AI Software Toolkit as the umbrella identity for shared skills,
   QA workflows, standards, and Guardrails. Add a lifecycle vision and maturity
   map, with DORA measurement marked as aspirational. Preserve the existing
@@ -120,7 +125,7 @@ Initial public release.
 - Added engineering, QA, security, and repository-standards AI review guidance.
 - Added reusable engineering skills and an embedded Python consumer example.
 
-[0.1.0]: https://github.com/ravisingh11/engineering-standards/releases/tag/v0.1.0
-[0.2.0]: https://github.com/ravisingh11/engineering-standards/releases/tag/v0.2.0
-[1.0.0]: https://github.com/ravisingh11/engineering-standards/releases/tag/v1.0.0
-[Unreleased]: https://github.com/ravisingh11/engineering-standards/compare/v1.0.0...HEAD
+[0.1.0]: https://github.com/ravisingh11/ai-software-toolkit/releases/tag/v0.1.0
+[0.2.0]: https://github.com/ravisingh11/ai-software-toolkit/releases/tag/v0.2.0
+[1.0.0]: https://github.com/ravisingh11/ai-software-toolkit/releases/tag/v1.0.0
+[Unreleased]: https://github.com/ravisingh11/ai-software-toolkit/compare/v1.0.0...HEAD
