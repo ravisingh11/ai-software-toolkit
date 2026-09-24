@@ -8,6 +8,11 @@
   ],
   "overrides": {
     "change": {
+      "repository-validation": "enforced",
+      "format-and-lint": "enforced",
+      "migration-validation": "enforced",
+      "build": "enforced",
+      "unit-tests": "enforced",
       "dependency-remediation": "not_activated"
     },
     "release": {}

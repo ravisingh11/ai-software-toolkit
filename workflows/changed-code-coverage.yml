@@ -1,5 +1,9 @@
 # Guardrails v2 installer-owned workflow.
 name: Changed Code Coverage
+run-name: >-
+  Coverage check · ${{ github.event_name == 'pull_request'
+  && format('PR #{0}', github.event.pull_request.number)
+  || format('manual run on {0}', github.ref_name) }}
 
 on:
   pull_request:
@@ -21,13 +25,13 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Setup repository
+      - name: Prepare repository for coverage
         if: ${{ vars.GUARDRAILS_SETUP_COMMAND != '' }}
         working-directory: ${{ vars.GUARDRAILS_WORKING_DIRECTORY || '.' }}
         run: bash -euo pipefail -c "${GUARDRAILS_SETUP_COMMAND}"
         env:
           GUARDRAILS_SETUP_COMMAND: ${{ vars.GUARDRAILS_SETUP_COMMAND }}
-      - name: Changed-code coverage
+      - name: Run tests and check changed-code coverage
         working-directory: ${{ vars.GUARDRAILS_WORKING_DIRECTORY || '.' }}
         run: bash -euo pipefail -c "${GUARDRAILS_CHANGED_COVERAGE_COMMAND}"
         env:

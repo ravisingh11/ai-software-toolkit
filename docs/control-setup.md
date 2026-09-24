@@ -36,8 +36,8 @@ Local and Actions producers use the same names:
 | Variable | Required for | Behavior when absent |
 | --- | --- | --- |
 | `GUARDRAILS_SETUP_COMMAND` | Optional setup before repository commands | Setup step is omitted. |
-| `GUARDRAILS_BUILD_COMMAND` | Build | Build reports `NO RESULT`. |
-| `GUARDRAILS_UNIT_TEST_COMMAND` | Unit tests | Unit tests report `NO RESULT`. |
+| `GUARDRAILS_BUILD_COMMAND` | Build | The Actions job fails visibly; a local scan reports `NO RESULT`. |
+| `GUARDRAILS_UNIT_TEST_COMMAND` | Unit tests | The Actions job fails visibly; a local scan reports `NO RESULT`. |
 | `GUARDRAILS_CHANGED_COVERAGE_COMMAND` | Changed-code coverage | Coverage reports `NO RESULT`. |
 | `GUARDRAILS_FORMAT_LINT_COMMAND` | Format and lint | The Actions job fails visibly; a local scan reports `NO RESULT`. |
 | `GUARDRAILS_MIGRATION_VALIDATION_COMMAND` | Migration validation | The Actions job fails visibly; a local scan reports `NO RESULT`. |
@@ -45,11 +45,11 @@ Local and Actions producers use the same names:
 
 Use repository variables in GitHub and environment variables locally. Commands
 run through `bash -euo pipefail -c` in the selected working directory. Configure
-format/lint and migration validation before enabling their workflows on active
-pull requests. Their Actions jobs intentionally fail when the command is absent,
-preventing a promoted required check from passing through a skipped job.
-Do not use a no-op command to make either check green: the command must exercise
-the repository's actual formatting/lint or migration contract.
+build, unit tests, format/lint, and migration validation before enabling their
+workflows on active pull requests. Their Actions jobs intentionally fail when
+the command is absent, preventing a promoted required check from passing
+through a skipped job. Do not use a no-op command to make any check green: each
+command must exercise the repository's actual engineering contract.
 
 This repository uses a deliberately narrow, debt-aware baseline:
 
@@ -76,6 +76,11 @@ GUARDRAILS_MIGRATION_VALIDATION_COMMAND=python3 tooling/validators/validate_no_m
 GUARDRAILS_UNIT_TEST_COMMAND=tooling/test.sh
 ```
 
+This repository enforces repository validation, build, unit tests, format and
+lint, and migration validation for pull requests. Their exact observed check
+contexts are required by the live default-branch ruleset. Other selected
+capabilities remain advisory unless this repository's policy says otherwise.
+
 `tooling/lint.sh` checks whitespace errors in committed, staged, and unstaged
 content, Python syntax and name errors through Ruff, and YAML structure and
 duplicate keys through yamllint.
@@ -96,7 +101,16 @@ excluded. `tooling/coverage.ini` enables subprocess collection and parallel
 data files. The script exposes a repository-owned `sitecustomize` bootstrap so
 this also works where coverage.py cannot write into the Python installation's
 site-packages directory, then combines parent and child data before evaluating
-changed lines. The migration command encodes this repository's actual ground
+changed lines.
+
+In Actions, the coverage command also writes a job summary with the outcome,
+configured target, and diff-cover's measured results. If no measured changed
+lines exist, it explains why no percentage applies instead of implying 100%
+coverage. All test suites still run; this messaging change does not make
+docs-only runs faster or change the exit status. Failed comparisons retain
+their failure and publish details when available.
+
+The migration command encodes this repository's actual ground
 truth: it has no database, so recursively introducing a common migration path
 fails until the command is replaced with validation for the chosen migration
 framework. Dependency, generated, and worktree directories are excluded from
@@ -278,7 +292,9 @@ same capability.
 ## Optional vendor providers
 
 These definitions are available but are not runnable profiles and are not
-installed as active integrations:
+installed as active integrations. Snyk, FOSSA, and the QA Bootstrap Workflow have
+no shipped workflow template; consumers must supply their own reviewed workflow
+or adapter.
 
 | Provider | Capabilities | Declared credential | Activation responsibility |
 | --- | --- | --- | --- |
@@ -287,7 +303,16 @@ installed as active integrations:
 | Snyk Open Source | Dependency vulnerability | `SNYK_TOKEN` | Supply a repository or organization workflow/adapter and exact-head `Snyk Open Source` evidence. |
 | Semgrep AppSec Platform | Custom static analysis, deep SAST | `SEMGREP_APP_TOKEN` | Supply an organization-approved integration and exact-head `Semgrep` evidence. |
 | FOSSA | Dependency vulnerability, license compliance | `FOSSA_API_KEY` | Supply a repository or organization workflow/adapter and exact-head `FOSSA` evidence. |
+| QA Bootstrap Workflow | Functional QA | None (the agent API key and app test credentials are repository secrets named in `config.yaml`) | Generate the read-only `.github/workflows/qa.yml` advisory check and trusted `.github/workflows/qa-report.yml` reporter with the `qa-bootstrap` skill, verify the `QA / report` check on a representative pull request, then set `functional-qa=advisory`. Guardrails records the exact-head check result; it does not run the agent. |
 | Codex Code Review | AI engineering review | None | Connect the repository to Codex, enable native automatic reviews in Codex settings (recommended) or comment `@codex review`, then set `ai-engineering-review=advisory`. Guardrails accepts only an exact-head review from `chatgpt-codex-connector[bot]`. |
+
+Functional QA is advisory-only. The PR can edit its execution workflow and
+result source, so `QA / report` must not be required for merge or promoted to
+`enforced`. The trusted reporter protects posting credentials; it does not
+make PR-authored execution authoritative. A protected producer architecture
+would require separate design and verification. Learning suggestions use
+structured `action_required` entries for human review; automatic learning PRs
+and commits are not implemented.
 
 Do not add a credential until the adapter is ready. Do not select a vendor as
 authoritative until its evidence contract and failure behavior are verified.
@@ -319,7 +344,8 @@ python3 .guardrails/configure.py --set unit-tests=enforced
 Policy enforcement without a matching ruleset does not protect merge. A
 required status check without a reliable provider can deadlock merge.
 The promotion sequence applies only to controls whose catalog
-`enforcement_policy` is `promotable`; AI review controls are `advisory-only`.
+`enforcement_policy` is `promotable`; AI review and functional QA controls are
+`advisory-only`.
 
 ## Evidence-only lifecycle controls
 

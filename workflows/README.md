@@ -28,18 +28,26 @@ publishing.
 | `pr-metadata.yml` | `PR Metadata` | Trusted mutable PR title/body evidence plus a run-bound custom check on the exact candidate head SHA |
 | `format-and-lint.yml` | `Format and Lint` | `GUARDRAILS_FORMAT_LINT_COMMAND`; the job fails visibly when unset |
 | `migration-validation.yml` | `Migration Validation` | `GUARDRAILS_MIGRATION_VALIDATION_COMMAND`; the job fails visibly when unset |
-| `build.yml` | `Build` | `GUARDRAILS_BUILD_COMMAND` |
-| `unit-tests.yml` | `Unit Tests` | `GUARDRAILS_UNIT_TEST_COMMAND` |
+| `build.yml` | `Build` | `GUARDRAILS_BUILD_COMMAND`; the job fails visibly when unset |
+| `unit-tests.yml` | `Unit Tests` | `GUARDRAILS_UNIT_TEST_COMMAND`; the job fails visibly when unset |
 | `changed-code-coverage.yml` | `Changed Code Coverage` | `GUARDRAILS_CHANGED_COVERAGE_COMMAND` |
 | `semgrep-ce.yml` | `Semgrep CE` | Installed tested rules; no secret |
 | `gitleaks.yml` | `Gitleaks` | Full Git history; no secret |
 
-Repository command workflows use optional
-`GUARDRAILS_SETUP_COMMAND` and default `GUARDRAILS_WORKING_DIRECTORY` to `.`.
-Build, test, and coverage jobs remain inactive until configured. Format/lint and
-migration validation always create their named job; an absent command fails the
-job so a promoted required context cannot be satisfied by a skipped producer.
-Local scans continue to represent absent commands as `NO RESULT`.
+Repository command workflows use optional `GUARDRAILS_SETUP_COMMAND` and
+default `GUARDRAILS_WORKING_DIRECTORY` to `.`. Build, unit tests, format/lint,
+and migration validation always create their named job; an absent command
+fails the job so a promoted required context cannot be satisfied by a skipped
+producer. Changed-code coverage remains inactive until configured and
+advisory. Local scans continue to represent absent commands as `NO RESULT`.
+
+Coverage runs use a readable title such as `Coverage check · PR #32`; the
+check context stays `Changed Code Coverage` so provider contracts and rulesets
+keep matching. A custom coverage command can write its measured results to
+`GITHUB_STEP_SUMMARY` to show them on the Actions Summary page. This repository's
+`tooling/changed_code_coverage.sh` does that, including failed comparisons and
+diffs without measured lines. A successful docs-only run is not a claim of
+100% coverage. Changing a workflow updates future runs, not historical titles.
 
 Semgrep CE runs its repository-owned rule tests, then `semgrep scan --error`
 from the exact pinned container with networking disabled. Gitleaks runs the MIT

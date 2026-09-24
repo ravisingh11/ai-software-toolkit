@@ -12,10 +12,17 @@ permissions:
 jobs:
   unit-tests:
     name: Unit Tests
-    if: ${{ vars.GUARDRAILS_UNIT_TEST_COMMAND != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - name: Require configured command
+        run: |
+          if [[ -z "${GUARDRAILS_UNIT_TEST_COMMAND}" ]]; then
+            echo "::error::GUARDRAILS_UNIT_TEST_COMMAND is not configured"
+            exit 1
+          fi
+        env:
+          GUARDRAILS_UNIT_TEST_COMMAND: ${{ vars.GUARDRAILS_UNIT_TEST_COMMAND }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
