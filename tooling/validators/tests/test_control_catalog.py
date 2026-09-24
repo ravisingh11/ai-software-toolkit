@@ -24,6 +24,7 @@ CONTROL_IDS = {
     "build",
     "unit-tests",
     "changed-code-coverage",
+    "functional-qa",
     "custom-static-analysis",
     "secret-detection",
     "deep-sast",

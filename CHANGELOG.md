@@ -8,6 +8,16 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Add the `qa-bootstrap` shared skill: analyzes a product repository, asks only
+  what it cannot detect, and generates a `qa` orchestrator, per-app `qa-<app>`
+  sub-skills, a report template, and an optional GitHub Actions workflow that
+  runs the agent read-only on PR code and posts results from a separate
+  report job. Learned failure modes survive regeneration.
+- Add the opt-in `functional-qa` capability and `qa-bootstrap-workflow` provider.
+  The provider has no shipped template: the consumer-owned `qa.yml` that
+  `qa-bootstrap` generates is the producer, and its `QA / report` check is the
+  exact-head evidence. It is outside the default profiles and inactive until a
+  consumer sets `functional-qa=advisory`, so existing scorecards are unchanged.
 - Expand the security and AI development policies with coding-agent trust
   boundaries, scoped tool access, isolation, delegation, memory protection,
   data handling, dependency verification, release evidence, and incident

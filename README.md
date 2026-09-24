@@ -107,7 +107,9 @@ Keep capabilities advisory until their producer, stable check name,
 exact-subject evidence, and remediation owner are verified.
 [Promote one proven capability](docs/quickstart.md#8-promote-one-proven-capability);
 policy mode and GitHub rulesets are separate settings. AI review remains
-advisory-only. See [provider and control setup](docs/control-setup.md).
+advisory-only. Agent-driven functional QA is an opt-in capability whose
+workflow the [`qa-bootstrap` skill](skills/qa-bootstrap/SKILL.md) generates. See
+[provider and control setup](docs/control-setup.md).
 
 ## Status vocabulary
 

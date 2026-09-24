@@ -170,6 +170,16 @@
       "secrets": ["SONAR_TOKEN"],
       "enabled_by_default": false
     },
+    "qa-bootstrap-workflow": {
+      "display_name": "QA Bootstrap Workflow",
+      "activation": "repository",
+      "capabilities": ["functional-qa"],
+      "checks": {"functional-qa": {"check_name": "QA / report", "workflow": "QA", "workflow_path": ".github/workflows/qa.yml"}},
+      "template": null,
+      "template_available": false,
+      "secrets": [],
+      "enabled_by_default": false
+    },
     "snyk-code": {
       "display_name": "Snyk Code",
       "activation": "external",
@@ -297,6 +307,7 @@
     "dependency-remediation": {"authoritative": "github-dependabot", "supplemental": []},
     "artifact-provenance": {"authoritative": "github-artifact-attestations", "supplemental": []},
     "static-quality": {"authoritative": "sonarqube", "supplemental": []},
+    "functional-qa": {"authoritative": "qa-bootstrap-workflow", "supplemental": []},
     "dependency-vulnerability": {"authoritative": "snyk-open-source", "supplemental": []},
     "license-compliance": {"authoritative": "fossa", "supplemental": []},
     "ai-engineering-review": {"authoritative": "codex-github-review", "supplemental": []},
