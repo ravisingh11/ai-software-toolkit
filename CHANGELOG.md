@@ -14,6 +14,11 @@ or evidence contracts require a major release and migration guidance.
   response requirements. Add OWASP and GitHub reference guidance and clarify
   disclosure and support limitations. These policy updates do not activate
   runtime controls or change advisory-only AI review enforcement.
+- Correct Snyk and FOSSA provider metadata so unavailable workflow templates
+  are not advertised, and reject every declared available template that is
+  missing from the distribution.
+- Isolate setup-diagnostic CLI tests from ambient Guardrails command variables
+  so the self-hosted unit-test producer remains deterministic.
 
 ## [1.0.0] - 2026-09-17
 

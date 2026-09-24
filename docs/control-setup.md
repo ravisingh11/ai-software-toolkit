@@ -278,7 +278,8 @@ same capability.
 ## Optional vendor providers
 
 These definitions are available but are not runnable profiles and are not
-installed as active integrations:
+installed as active integrations. Snyk and FOSSA have no shipped workflow
+template; consumers must supply their own reviewed workflow or adapter.
 
 | Provider | Capabilities | Declared credential | Activation responsibility |
 | --- | --- | --- | --- |

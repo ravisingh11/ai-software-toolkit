@@ -51,6 +51,7 @@ class ConsumerLifecycleTests(unittest.TestCase):
             "PATH": str(binaries),
             "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_CONFIG_GLOBAL": os.devnull,
+            "PYTHON_COLORS": "0",
             "PYTHONPYCACHEPREFIX": str(workspace / "bytecode"),
         })
         python = shlex.quote(sys.executable)

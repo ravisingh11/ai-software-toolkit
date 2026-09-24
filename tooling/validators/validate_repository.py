@@ -314,9 +314,7 @@ def validate_provider_template_names(config: dict, root: Path = ROOT) -> None:
             continue
         template_path = root / template
         if not template_path.is_file():
-            if provider["enabled_by_default"]:
-                raise ValueError(f"provider {provider_id} template does not exist: {template}")
-            continue
+            raise ValueError(f"provider {provider_id} template does not exist: {template}")
         workflow_name = None
         for line in template_path.read_text(encoding="utf-8").splitlines():
             if line.startswith("name:"):
