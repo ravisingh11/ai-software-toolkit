@@ -1,0 +1,4 @@
+interface:
+  display_name: "Toolkit Setup"
+  short_description: "Install, diagnose, and refresh AI Software Toolkit with the ai-toolkit CLI"
+  default_prompt: "Use $toolkit-setup to discover this repository, preview the toolkit installation, apply it after I confirm, and run doctor and check."
