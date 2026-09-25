@@ -1,0 +1,110 @@
+name: AI Toolkit Setup
+
+# Starter workflow: copy this file into .github/workflows/ of a consuming
+# repository, then run it manually. It downloads a pinned toolkit archive,
+# verifies its checksum, previews the installation, and (when apply=true)
+# opens a pull request with the proposed files. Repository commands are
+# printed as `gh variable set` lines; they are never written into the tree.
+
+on:
+  workflow_dispatch:
+    inputs:
+      toolkit-tag:
+        description: Toolkit release tag that publishes ai-toolkit.pyz (for example v2.1.0).
+        required: true
+        type: string
+      archive-sha256:
+        description: Expected SHA-256 of ai-toolkit.pyz from that release's ai-toolkit.pyz.sha256 asset.
+        required: true
+        type: string
+      components:
+        description: Comma-separated components to install.
+        required: false
+        type: string
+        default: guardrails,skills,qa
+      clients:
+        description: Comma-separated agent clients whose project skill directories receive skills.
+        required: false
+        type: string
+        default: codex
+      apply:
+        description: Open a pull request with the installation instead of only previewing it.
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    name: AI Toolkit Setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      TOOLKIT_TAG: ${{ inputs.toolkit-tag }}
+      ARCHIVE_SHA256: ${{ inputs.archive-sha256 }}
+      COMPONENTS: ${{ inputs.components }}
+      CLIENTS: ${{ inputs.clients }}
+      APPLY: ${{ inputs.apply }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: true
+
+      - name: Download and verify the pinned toolkit archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${TOOLKIT_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]]; then
+            echo "::error::toolkit-tag must be a release tag such as v2.1.0" >&2
+            exit 1
+          fi
+          if [[ ! "${ARCHIVE_SHA256}" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::archive-sha256 must be a 64-character lowercase hex digest" >&2
+            exit 1
+          fi
+          mkdir -p "${RUNNER_TEMP}/ai-toolkit"
+          curl --fail --silent --show-error --location \
+            --output "${RUNNER_TEMP}/ai-toolkit/ai-toolkit.pyz" \
+            "https://github.com/ravisingh11/ai-software-toolkit/releases/download/${TOOLKIT_TAG}/ai-toolkit.pyz"
+          echo "${ARCHIVE_SHA256}  ${RUNNER_TEMP}/ai-toolkit/ai-toolkit.pyz" | sha256sum --check --strict
+
+      - name: Preview the installation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "${RUNNER_TEMP}/ai-toolkit/ai-toolkit.pyz" init --target . --preview \
+            --components "${COMPONENTS}" --clients "${CLIENTS}" | tee "${RUNNER_TEMP}/ai-toolkit/preview.txt"
+          {
+            echo '## AI Toolkit setup preview'
+            echo
+            echo '```text'
+            cat "${RUNNER_TEMP}/ai-toolkit/preview.txt"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Apply and open a pull request
+        if: ${{ inputs.apply }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="ai-toolkit/setup-${TOOLKIT_TAG}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${branch}"
+          python3 "${RUNNER_TEMP}/ai-toolkit/ai-toolkit.pyz" init --target . --yes \
+            --components "${COMPONENTS}" --clients "${CLIENTS}"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to install; the repository already matches the toolkit." >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+          git commit -m "chore: set up AI Software Toolkit ${TOOLKIT_TAG}"
+          git push --set-upstream origin "${branch}"
+          gh pr create --title "chore: set up AI Software Toolkit ${TOOLKIT_TAG}" \
+            --body-file "${RUNNER_TEMP}/ai-toolkit/preview.txt" --head "${branch}"
