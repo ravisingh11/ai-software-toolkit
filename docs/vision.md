@@ -15,7 +15,7 @@ enforced controls or promise delivery dates.
 | Plan | Define user outcomes, acceptance criteria, risks, and testability with QA involved early | [Spec-driven development](../skills/spec-driven-development/SKILL.md), [safe change preparation](../skills/prepare-safe-change/SKILL.md) |
 | Build | Implement scoped changes, review design, and preserve application contracts | [Code review](../skills/code-review/SKILL.md), [dependency remediation](../skills/dependency-remediation/SKILL.md) |
 | Validate | Combine automated checks with exploratory judgment and evidence from user flows | [QA bootstrap](../skills/qa-bootstrap/SKILL.md), [test-gap analysis](../skills/test-gap-finder/SKILL.md), [testing policy](../policies/testing.md) |
-| Release | Assess readiness, examine evidence, and follow the application's release authority | [Release readiness](../skills/release-readiness/SKILL.md), [Guardrails](guardrails.md) |
+| Release | Assess readiness, examine evidence, and follow the application's release authority | [Release readiness](../skills/release-readiness/SKILL.md), [Guardrails](guardrails/README.md) |
 | Improve | Investigate failures, refine acceptance criteria, and improve future verification | [Bug investigation](../skills/bug-hunter/SKILL.md), QA learned failure modes, prospective delivery measurement |
 
 These activities are connected, not sequential handoffs between departments.
@@ -30,7 +30,7 @@ Agents assist; accountable people own decisions and outcomes.
 - **Skills** guide agents through repeatable tasks using repository ground truth.
 - **Verification** produces observations from tests, QA sessions, and scanners.
 - **Guardrails** evaluates provider evidence for the exact subject and selected
-  policy. Its architecture and public runtime remain [Guardrails v2](architecture.md).
+  policy. Its architecture and public runtime remain [Guardrails v2](guardrails/architecture.md).
 - **Measurement**, a future area of work, would connect delivery outcomes to
   improvements in the preceding activities.
 
@@ -42,7 +42,7 @@ Agents assist; accountable people own decisions and outcomes.
 | Shared skills | Source catalog with a separate [skills installer](../skills/README.md#install-locally) | Choose a revision containing the desired skill and supply application context; installation is not execution |
 | Agent-driven functional QA | Newer source capability recorded under [Unreleased](../CHANGELOG.md#unreleased), outside default profiles | Run QA bootstrap, configure usable drivers and environments, execute generated QA, and inspect its evidence; it is not part of the v1.0.0 demo |
 | AI security guidance | Policy covering agent authority, data, tools, memory, and verification | Configure and verify actual agent/runtime protections; policy text does not enable them |
-| Release and runtime assurance | Readiness skills exist; several lifecycle capabilities remain [evidence-only contracts](architecture.md#evidence-only-lifecycle-capabilities) | Implement and validate the missing producers before claiming runtime assurance |
+| Release and runtime assurance | Readiness skills exist; several lifecycle capabilities remain [evidence-only contracts](guardrails/architecture.md#evidence-only-lifecycle-capabilities) | Implement and validate the missing producers before claiming runtime assurance |
 | DORA and AI delivery diagnostics | Aspiration; no measurement pipeline or dashboard is established by this documentation | Define service boundaries and data sources, implement collection, and validate attribution and completeness |
 
 Source availability, release availability, consumer configuration, and a
@@ -54,7 +54,7 @@ QA bootstrap generates a consumer-owned orchestrator, per-app skills, and
 optional execution/reporting workflows. The generated QA skill runs the flows;
 bootstrap itself does not validate the application. Functional QA is opt-in
 and advisory-only under the current provider contract. AI review also remains
-advisory-only. Other controls follow the existing [promotion rules](control-status.md).
+advisory-only. Other controls follow the existing [promotion rules](guardrails/control-status.md).
 
 ## Aspiration: learn from delivery outcomes
 

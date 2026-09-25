@@ -72,4 +72,4 @@ Move a capability from advisory to enforced only after:
 - the exact check context is added to the repository ruleset.
 
 See [control setup](control-setup.md), [producer contract](producer-contract.md),
-and [ruleset guidance](../rulesets/README.md).
+and [ruleset guidance](../../rulesets/README.md).

@@ -5,7 +5,7 @@
 This is an initial, evolving standard. The shared baseline reports these
 controls as advisory so teams can adopt them without stopping delivery. Move a
 control to enforced only after it meets the promotion rule in
-[the guardrails standard](../docs/guardrails.md#promotion-rule).
+[the guardrails standard](../docs/guardrails/README.md#promotion-rule).
 
 ## Security expectations
 

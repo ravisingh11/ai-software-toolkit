@@ -6,10 +6,10 @@ without turning missing configuration into a pass.
 ## Install
 
 ```sh
-python3 /path/to/engineering-standards/tooling/install.py --target /path/to/repo
-python3 /path/to/engineering-standards/tooling/install.py --target /path/to/repo --profile github
-python3 /path/to/engineering-standards/tooling/install.py --target /path/to/repo --no-actions
-python3 /path/to/engineering-standards/tooling/install.py --target /path/to/repo --local-hooks
+python3 /path/to/ai-software-toolkit/tooling/install.py --target /path/to/repo
+python3 /path/to/ai-software-toolkit/tooling/install.py --target /path/to/repo --profile github
+python3 /path/to/ai-software-toolkit/tooling/install.py --target /path/to/repo --no-actions
+python3 /path/to/ai-software-toolkit/tooling/install.py --target /path/to/repo --local-hooks
 ```
 
 The first command installs Core runtime and Actions. The second also selects

@@ -63,4 +63,4 @@ Neither `configured` nor its zero exit code means a provider passed. See
 [setup diagnostics](../quickstart.md#diagnose-installation).
 
 See the runnable [Python demo](../../examples/python-demo/) and the
-[status guide](../control-status.md).
+[status guide](../guardrails/control-status.md).
