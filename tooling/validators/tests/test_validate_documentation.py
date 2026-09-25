@@ -74,7 +74,7 @@ class DocumentationValidatorTests(unittest.TestCase):
     def test_contract_change_passes_with_mapped_documentation(self) -> None:
         failures = MODULE.validate_changed_files(
             self.policy,
-            ["guardrails/evaluate.py", "docs/guardrails.md"],
+            ["guardrails/evaluate.py", "docs/guardrails/README.md"],
         )
         self.assertEqual(failures, [])
 

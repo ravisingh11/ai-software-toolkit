@@ -4,7 +4,7 @@
     {
       "name": "control-contract",
       "triggers": ["policies/**", "guardrails/**"],
-      "documents": ["README.md", "policies/**", "docs/guardrails.md"]
+      "documents": ["README.md", "policies/**", "docs/guardrails/README.md"]
     },
     {
       "name": "workflow-contract",
@@ -14,7 +14,7 @@
     {
       "name": "agent-capability",
       "triggers": ["skills/**", "prompts/**", "templates/**"],
-      "documents": ["README.md", "skills/README.md", "docs/ai-agent-standards.md"]
+      "documents": ["README.md", "skills/README.md", "docs/standards/ai-agent-standards.md"]
     },
     {
       "name": "tooling-contract",

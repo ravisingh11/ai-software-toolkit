@@ -120,7 +120,7 @@ production actions to prove impact.
 Documented requirements are not proof of enforcement. Core and optional GitHub
 profile capabilities start advisory; all AI review controls are advisory-only.
 Actual enforcement depends on repository configuration, authoritative producer
-evidence, and rulesets. See [control status](docs/control-status.md) for the
+evidence, and rulesets. See [control status](docs/guardrails/control-status.md) for the
 meaning of advisory, enforced, not activated, and missing-result states.
 
 This policy does not activate an automated prompt-injection defense, sandbox,

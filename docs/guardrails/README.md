@@ -1,5 +1,15 @@
 # Guardrails standard
 
+| Guide | Purpose |
+| --- | --- |
+| [Quickstart](../quickstart.md) | Install and run in a consuming repository |
+| [Architecture](architecture.md) | Runtime contracts and evidence boundaries |
+| [Implementation](implementation.md) | Distributed components and supported entry points |
+| [Control setup](control-setup.md) | Configure providers and commands |
+| [Control status](control-status.md) | Interpret readiness and missing evidence |
+| [Operating guide](operating-guide.md) | Run, inspect, and promote controls |
+| [Producer contract](producer-contract.md) | Produce revision-bound evidence |
+
 ## Purpose
 
 Guardrails is a deterministic evidence layer around engineering operations.
@@ -109,7 +119,7 @@ public projection is limited to aggregate status/counts, source-run metadata,
 and a revision digest. Detailed controls, findings, evidence, reasons, provider
 data, check URLs, raw revisions, and source Markdown are excluded from Pages and
 remain in the source Actions artifact under normal repository access. See
-[quick start](quickstart.md#publish-the-optional-scorecard-badge).
+[quick start](../quickstart.md#publish-the-optional-scorecard-badge).
 
 ## Future lifecycle contracts
 
@@ -118,5 +128,5 @@ boundaries. They are not selectable and have no installed providers. A future
 change must add a runnable contract, provider mapping, evidence production, and
 tests before documentation may describe execution.
 
-See [architecture](architecture.md), [implementation](guardrails-implementation.md),
+See [architecture](architecture.md), [implementation](implementation.md),
 and [producer contract](producer-contract.md).

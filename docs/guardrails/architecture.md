@@ -1,6 +1,6 @@
 # Guardrails v2 architecture
 
-Guardrails is the evidence and policy component of [AI Software Toolkit](vision.md).
+Guardrails is the evidence and policy component of [AI Software Toolkit](../vision.md).
 This document defines that component's runtime contracts; the toolkit also
 provides skills and QA workflows with their own adoption paths.
 
@@ -84,7 +84,7 @@ validators, not executable helpers discovered in a different `--target`.
 It does not execute repository commands, create evidence, or change settings.
 Its `configured`, `action_needed`, and `unverified` states describe setup only;
 neither `configured` nor exit 0 satisfies a capability. See
-[setup diagnostics](quickstart.md#diagnose-installation).
+[setup diagnostics](../quickstart.md#diagnose-installation).
 
 Evidence uses a nested capability/provider shape:
 
@@ -186,5 +186,5 @@ runnable profile and cannot be activated by policy. Future implementations
 must add providers and exact-subject evidence before these capabilities become
 runnable.
 
-See [Guardrails standard](guardrails.md), [producer contract](producer-contract.md),
+See [Guardrails standard](README.md), [producer contract](producer-contract.md),
 and [control status](control-status.md).

@@ -5,7 +5,7 @@ produced each result. Configure the producer first, verify exact-subject
 evidence, then consider enforcement.
 
 For missing commands, runtime files, tools, or GitHub setup visibility, use
-the [read-only setup diagnostic](quickstart.md#diagnose-installation).
+the [read-only setup diagnostic](../quickstart.md#diagnose-installation).
 It gives next actions without running providers or treating configuration as
 passing evidence. Local environment variables and GitHub Actions variables
 are inspected separately.
@@ -178,7 +178,7 @@ Gitleaks CLI, not the separately licensed Gitleaks Action.
 Install or add the profile with:
 
 ```sh
-python3 /path/to/engineering-standards/tooling/install.py --target /path/to/repo --profile github
+python3 /path/to/ai-software-toolkit/tooling/install.py --target /path/to/repo --profile github
 ```
 
 | Capability | Provider/check | Required repository setup |
@@ -262,7 +262,7 @@ findings, evidence, reasons, provider data, check URLs, raw revisions, and sourc
 Markdown are excluded from Pages and remain in the source Actions artifact
 under normal repository access. The publisher is reporting only; do
 not add it to required checks. See the complete commands and badge URLs in the
-[quick start](quickstart.md#publish-the-optional-scorecard-badge).
+[quick start](../quickstart.md#publish-the-optional-scorecard-badge).
 
 ## Provider selection
 

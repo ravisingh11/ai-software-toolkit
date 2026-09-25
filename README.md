@@ -91,7 +91,7 @@ A small **illustrative** scorecard (not a live scan or badge):
 | ⚪ GRAY | Artifact provenance in a PR | Not activated |
 
 See the [full illustrative report](docs/examples/sample-scorecard.md),
-[status meanings](docs/control-status.md), and
+[status meanings](docs/guardrails/control-status.md), and
 [onboarding guide](docs/quickstart.md) for real-repository setup and troubleshooting.
 
 ## Guardrails model
@@ -141,7 +141,7 @@ exact-subject evidence, and remediation owner are verified.
 policy mode and GitHub rulesets are separate settings. AI review remains
 advisory-only. Agent-driven functional QA is an opt-in capability whose
 workflow the [`qa-bootstrap` skill](skills/qa-bootstrap/SKILL.md) generates. See
-[provider and control setup](docs/control-setup.md).
+[provider and control setup](docs/guardrails/control-setup.md).
 
 ## Status vocabulary
 
@@ -150,7 +150,7 @@ workflow the [`qa-bootstrap` skill](skills/qa-bootstrap/SKILL.md) generates. See
 ⚪ **GRAY**: inactive for this operation/subject.
 Raw `not_run` or absent evidence is displayed as `no_result`, never a pass.
 The default report omits inactive catalog rows; use `--all-catalog-controls`
-to include them. See the [status guide](docs/control-status.md).
+to include them. See the [status guide](docs/guardrails/control-status.md).
 
 ## What runs on GitHub
 
@@ -184,9 +184,13 @@ Repositories own their architecture, testing, security, deployment, and
 contribution docs; map existing paths in `.guardrails/ground-truth-ai.yaml`.
 Artifact, deployment, and runtime capabilities without implemented producers
 remain evidence contracts, not runnable assurances. See the
-[architecture](docs/architecture.md) and [producer contract](docs/producer-contract.md).
+[architecture](docs/guardrails/architecture.md) and [producer contract](docs/guardrails/producer-contract.md).
 
 ## Repository map
+
+Browse the [documentation index](docs/README.md) for adoption, operating guides,
+standards, and retained design history. To run the toolkit against this repository,
+use the [self-check guide](docs/self-check.md).
 
 | Path | Purpose |
 | --- | --- |
@@ -194,8 +198,16 @@ remain evidence contracts, not runnable assurances. See the
 | `guardrails/`, `tooling/` | Evaluator, installer, producers, and validators |
 | `workflows/`, `rulesets/` | GitHub workflow and enforcement templates |
 | `skills/` | Reusable agent instructions |
+| `pr-review/`, `prompts/`, `templates/` | Review contracts and reusable guidance |
+| `security/` | Tested scanner rules and fixtures |
 | `examples/` | Runnable consumers |
-| `.guardrails/` | Installed runtime and consumer-owned configuration |
+| `docs/guardrails/`, `docs/standards/` | Runtime guides and software delivery standards |
+| `docs/archive/` | Historical designs and plans; current behavior is documented elsewhere |
+| `.guardrails/`, `.github/workflows/`, `.agents/` | This repository's installed toolkit and CI |
+
+The source and installed directories are intentional: the toolkit is also its
+own consumer. See [source ownership and installed copies](docs/README.md#source-ownership-and-installed-copies)
+before changing or refreshing them.
 
 ## License and validation
 

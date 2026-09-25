@@ -363,4 +363,4 @@ Pages and remain in the source Actions artifact under normal repository access.
 Publishing is optional reporting and never influences the
 scorecard decision or branch rules.
 
-Continue with [control setup](control-setup.md) and [rulesets](../rulesets/README.md).
+Continue with [control setup](guardrails/control-setup.md) and [rulesets](../rulesets/README.md).

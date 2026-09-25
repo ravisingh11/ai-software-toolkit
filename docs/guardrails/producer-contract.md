@@ -73,6 +73,10 @@ commands report `not_run`. The scanner verifies the same clean revision before
 and after each configured command and local tool, so one producer cannot change
 the tree consumed by the next or publish passing evidence for a different tree.
 Semgrep CE and Gitleaks use pinned containers or exactly matching host versions.
+Before a Docker Gitleaks scan, the producer verifies that the container can
+read complete Git history at the same `HEAD` as the host. An inaccessible,
+shallow, or mismatched mount produces no usable evidence. A zero-commit scan
+cannot pass merely because the scanner exits successfully.
 
 External adapters may place `*.json` fragments in
 `.artifacts/guardrails/evidence/`. The scanner accepts only nested v2 fragments

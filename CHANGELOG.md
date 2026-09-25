@@ -8,6 +8,18 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Group current Guardrails guides under `docs/guardrails/`, delivery standards
+  under `docs/standards/`, and historical design plans under `docs/archive/`.
+  Add a documentation index and a repository self-check entry point. Update
+  documentation links and ground-truth mappings. Remove the unused pre-v2 staged
+  attestation script, broken hook template, transient agent reports, and
+  superseded unpublished v0.3.0 draft. Supported installer output, `.guardrails/`
+  runtime paths, policy modes, and Spec Kit preset identifiers are unchanged.
+- Bind repository self-checks to the installed policy rather than shared
+  advisory defaults, and isolate diagnostic tests from inherited command
+  settings. Verify the Docker-mounted Git repository before accepting Gitleaks
+  evidence so an unavailable mount cannot produce a false passing scan.
+
 - Rename the GitHub repository to `ravisingh11/ai-software-toolkit` and update
   clone, release, security reporting, and Pages links. Add a migration guide
   for existing clones, forks, workflows, and badges. Runtime contracts and

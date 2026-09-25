@@ -73,5 +73,5 @@ Rulesets cannot configure credentials, enable GitHub security settings, create
 external vendor projects, or prove a provider ran. Complete those activation
 steps first.
 
-See [control setup](../docs/control-setup.md), [status](../docs/control-status.md),
+See [control setup](../docs/guardrails/control-setup.md), [status](../docs/guardrails/control-status.md),
 and [workflow guidance](../workflows/README.md).

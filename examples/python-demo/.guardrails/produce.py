@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -253,6 +254,16 @@ def semgrep_result(
     )
 
 
+def gitleaks_record(producer: str, command: list[str], code: int, output: str) -> dict:
+    # Gitleaks can exit successfully after Git fails and no history was scanned.
+    if code == 0 and re.search(r"\b0 commits? scanned\b|\bfatal:", output, re.IGNORECASE):
+        return producer_result(
+            producer, "failed",
+            evidence=["Gitleaks did not complete a valid Git history scan.", bounded(output)],
+        )
+    return command_record(producer, "gitleaks", command, code, output)
+
+
 def gitleaks_result(
     target: Path,
     *,
@@ -270,13 +281,27 @@ def gitleaks_result(
     if which("docker"):
         code, output = runner(["docker", "version", "--format", "{{.Server.Version}}"], target)
         if code == 0:
-            command = [
+            head_code, head = runner(["git", "rev-parse", "--verify", "HEAD^{commit}"], target)
+            if head_code != 0 or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", head.strip()):
+                return producer_result(
+                    producer, "not_run", reason="Cannot verify the host Git HEAD for the Docker scan."
+                )
+            mount = [
                 "docker", "run", "--rm", "--network", "none",
                 "-v", f"{target.resolve()}:/repo:ro", "-w", "/repo",
-                GITLEAKS_IMAGE, "git", "--redact", "--no-banner", ".",
             ]
+            mount_code, mount_output = runner(
+                [*mount, "--entrypoint", "git", GITLEAKS_IMAGE,
+                 "rev-parse", "--is-shallow-repository", "HEAD^{commit}"], target,
+            )
+            if mount_code != 0 or mount_output.strip().splitlines() != ["false", head.strip()]:
+                return producer_result(
+                    producer, "not_run",
+                    reason="Docker must mount complete Git history at the exact host HEAD; mounted history is missing or mismatched.",
+                )
+            command = [*mount, GITLEAKS_IMAGE, "git", "--redact", "--no-banner", "."]
             scan_code, scan_output = runner(command, target)
-            return command_record(producer, "gitleaks", command, scan_code, scan_output)
+            return gitleaks_record(producer, command, scan_code, scan_output)
         docker_reason = bounded(output)
     else:
         docker_reason = "Docker is not installed."
@@ -285,7 +310,7 @@ def gitleaks_result(
         if exact:
             command = ["gitleaks", "git", "--redact", "--no-banner", "."]
             code, output = runner(command, target)
-            return command_record(producer, "gitleaks", command, code, output)
+            return gitleaks_record(producer, command, code, output)
         return producer_result(
             producer,
             "not_run",

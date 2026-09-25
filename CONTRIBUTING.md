@@ -56,6 +56,14 @@ third-party integrations or copied material.
 
 ## Validation
 
+The [documentation index](docs/README.md) maps the source directories and
+installed copies. Keep transient agent reports in ignored local directories;
+retain only useful design decisions in the [archive](docs/archive/README.md).
+
+Use [the repository self-check](docs/self-check.md) to produce a local Guardrails
+scorecard from a clean commit. The complete validation commands below also work
+while editing; their output alone is not revision-bound scan evidence.
+
 ```sh
 python3 -m pip install --disable-pip-version-check -r tooling/requirements-ci.txt
 tooling/build.sh
