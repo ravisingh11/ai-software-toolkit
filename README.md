@@ -108,7 +108,16 @@ not a pass.
 
 ## Install
 
-For your own repository, [preview and install Core](docs/quickstart.md#1-preview-and-install-core),
+The shared [`ai-toolkit` CLI](docs/install.md) is the front door for Guardrails,
+skills, and QA bootstrap: `discover` and `init --preview` are read-only,
+`init --yes` installs the selected components and records `toolkit.toml` and
+`toolkit.lock.json`, `doctor` reports installed / configured / verified state
+without executing anything, `check` explains what ran, failed, and remains
+unverified, and `update` refreshes managed files while preserving your edits.
+The same code serves the CLI, the `toolkit-setup` skill, and the
+`AI Toolkit Setup` starter workflow.
+
+For the underlying installer, [preview and install Core](docs/quickstart.md#1-preview-and-install-core),
 then [configure real commands](docs/quickstart.md#3-configure-repository-commands)
 and [declare ground truth](docs/quickstart.md#4-declare-repository-ground-truth).
 Do not substitute demo commands or no-ops for your application's validation.

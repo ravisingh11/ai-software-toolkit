@@ -6,6 +6,7 @@ Guardrails. Start with the task you need to perform.
 | Task | Guide |
 | --- | --- |
 | Understand the direction and current maturity | [Vision](vision.md) |
+| Set up the toolkit with one CLI | [Install with `ai-toolkit`](install.md) |
 | Install and run Guardrails in a repository | [Quickstart](quickstart.md) |
 | Install reusable agent skills | [Skill catalog](../skills/README.md) |
 | Set up functional QA | [QA bootstrap](../skills/qa-bootstrap/SKILL.md) |

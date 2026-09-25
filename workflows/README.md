@@ -187,3 +187,14 @@ present and fails when its command is absent; this is deliberate protection
 against a required context being satisfied by GitHub's skipped-job behavior.
 
 See [ruleset guidance](../rulesets/README.md) before adding contexts.
+
+## Starter workflow
+
+`ai-toolkit-setup.yml` is not installed by the installer. Copy it into a
+consuming repository's `.github/workflows/` and run it manually
+(`workflow_dispatch`). It downloads `ai-toolkit.pyz` from the pinned release
+tag you supply, verifies it against the SHA-256 you supply, runs
+`ai-toolkit init --preview` into the job summary, and, when `apply=true`,
+commits the installation to an `ai-toolkit/setup-<tag>` branch and opens a
+pull request with `gh`. Discovered repository commands appear in the preview
+as `gh variable set` lines; the workflow never writes them into the tree.
