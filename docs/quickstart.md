@@ -363,4 +363,13 @@ Pages and remain in the source Actions artifact under normal repository access.
 Publishing is optional reporting and never influences the
 scorecard decision or branch rules.
 
+The report page presents the policy status and decision, separate active,
+enforced, and advisory counts, readable UTC timestamps, and a link to the
+source CI run. Verification details expand to show the subject digest; summary
+JSON and Markdown remain available. The layout adapts to narrow screens and
+loads without JavaScript or external fonts. “Not passed” includes failed,
+missing, and unresolved evidence; zero configured controls are labeled
+explicitly. This is the latest published PR evaluation, not an assessment of
+the current default branch.
+
 Continue with [control setup](guardrails/control-setup.md) and [rulesets](../rulesets/README.md).
