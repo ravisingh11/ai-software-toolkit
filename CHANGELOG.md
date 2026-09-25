@@ -8,6 +8,11 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Format the public PR scorecard as a responsive dashboard with clear policy
+  status, separate enforced/advisory counts, readable timestamps, and source
+  evidence links. Preserve the bounded public metadata, badge URLs, and
+  evaluation semantics.
+
 - Group current Guardrails guides under `docs/guardrails/`, delivery standards
   under `docs/standards/`, and historical design plans under `docs/archive/`.
   Add a documentation index and a repository self-check entry point. Update

@@ -287,20 +287,170 @@ def _markdown(metadata: dict[str, Any]) -> str:
 """
 
 
+_REPORT_CSS = """
+:root{color-scheme:light;--ink:#182b32;--muted:#52636b;--line:#dbe3e4;
+  --paper:#fff;--canvas:#f4f7f7;--accent:#155e63;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);font-size:15px;line-height:1.6}
+a{color:var(--accent);text-underline-offset:4px}
+a:hover{text-decoration-thickness:2px}
+a:focus-visible,summary:focus-visible{outline:3px solid #227b92;outline-offset:5px;border-radius:3px}
+.skip-link{position:absolute;left:16px;top:-80px;background:var(--paper);padding:12px;z-index:1}
+.skip-link:focus{top:12px}
+.shell{width:min(1080px,100% - 64px);margin-inline:auto}
+.topbar{background:var(--paper);border-bottom:1px solid var(--line)}
+.topbar .shell{display:flex;justify-content:space-between;align-items:center;gap:24px;min-height:82px;padding-block:16px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand-mark{display:grid;place-items:center;width:36px;height:40px;flex-shrink:0;background:var(--accent);color:#fff;font-weight:750;border-radius:9px 9px 16px 16px}
+.brand-name{display:block;font-size:16px;font-weight:750;letter-spacing:-.3px}
+.repository{display:block;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.repo-link{font-size:13px;font-weight:600;white-space:nowrap}
+main{padding-block:48px 36px}
+.eyebrow{margin:0 0 8px;color:var(--accent);font-size:11px;font-weight:750;letter-spacing:1.7px;text-transform:uppercase}
+h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;letter-spacing:-1.6px}
+.intro{margin:12px 0 28px;color:var(--muted);max-width:680px;font-size:16px}
+.good{--tone:#216341;--wash:#eef8f1;--edge:#c6e1cf}
+.caution{--tone:#815407;--wash:#fff7e8;--edge:#ecd5a7}
+.danger{--tone:#a02d36;--wash:#fff1f2;--edge:#ebc5c9}
+.neutral{--tone:#52636b;--wash:#f2f5f5;--edge:var(--line)}
+.status-panel{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:25px 28px;border:1px solid var(--edge);border-left:4px solid var(--tone);border-radius:12px;background:var(--wash);margin-bottom:22px}
+.status-label{display:flex;align-items:center;gap:8px;color:var(--tone);font-size:12px;font-weight:800;letter-spacing:1px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--tone)}
+.status-panel h2{font-size:21px;line-height:1.35;letter-spacing:-.4px;margin:7px 0 4px}
+.status-panel p{margin:0;color:var(--muted);font-size:13px}
+.decision{text-align:right;flex-shrink:0}
+.decision dt{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px}
+.decision dd{color:var(--tone);margin:4px 0 0;font-size:20px;font-weight:750}
+.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.metric{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:24px}
+.metric h2{margin:0 0 12px;font-size:13px;font-weight:650;color:var(--muted)}
+.count{font-size:40px;font-weight:650;line-height:1.2;letter-spacing:-1.5px;font-variant-numeric:tabular-nums}
+.count span{font-size:24px;color:var(--muted);font-weight:450;letter-spacing:-.5px}
+.count-caption{font-size:12px;color:var(--muted);margin:5px 0 20px}
+.track{height:6px;border-radius:5px;background:#e8eeee;overflow:hidden}
+.fill{height:100%;background:var(--tone);border-radius:5px}
+.metric-note{color:var(--tone);font-size:12px;font-weight:650;margin:10px 0 0}
+.evidence{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:36px;padding:30px;margin-top:24px;background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.evidence h2{margin:0 0 8px;font-size:18px;letter-spacing:-.3px}
+.evidence p{color:var(--muted);font-size:13px;margin:0 0 20px;max-width:420px}
+.button{display:inline-flex;align-items:center;gap:20px;background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:7px;text-decoration:none;font-size:13px;font-weight:650;padding:10px 16px}
+.button:hover{background:#104b50}
+.source-facts{margin:0;display:grid;gap:15px;align-content:start}
+.source-facts div{display:grid;grid-template-columns:110px minmax(0,1fr);gap:16px}
+.source-facts dt{color:var(--muted);font-size:12px}
+.source-facts dd{margin:0;font-size:12px;font-weight:550;overflow-wrap:anywhere}
+.scope-note{display:flex;gap:12px;padding:20px 2px;color:var(--muted);font-size:12px;line-height:1.7}
+.scope-note strong{color:var(--ink);font-weight:650}
+.scope-note p{margin:0}
+.note-mark{flex-shrink:0;font-size:16px;color:var(--accent)}
+details{border-top:1px solid var(--line);padding:18px 0;color:var(--muted);font-size:12px}
+summary{cursor:pointer;width:fit-content;font-weight:600}
+.digest{margin:14px 0 0}
+.digest code{display:block;margin-top:5px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere;color:var(--ink)}
+footer{display:flex;align-items:center;justify-content:space-between;gap:20px;border-top:1px solid var(--line);padding:22px 0 12px;color:var(--muted);font-size:11px}
+footer img{display:block;max-width:100%;height:auto}
+.formats{display:flex;gap:20px;flex-wrap:wrap;font-size:12px}
+@media(max-width:680px){
+  .shell{width:calc(100% - 36px)}
+  .topbar .shell{gap:12px}.repo-link{font-size:12px}
+  main{padding-top:30px}.intro{font-size:14px}
+  .status-panel{align-items:flex-start;padding:20px;gap:16px}
+  .status-panel h2{font-size:18px}.decision dd{font-size:17px}
+  .metrics{grid-template-columns:1fr;gap:12px}
+  .metric{padding:20px}.count-caption{margin-bottom:14px}
+  .evidence{grid-template-columns:1fr;gap:26px;padding:22px}
+  .source-facts div{grid-template-columns:95px minmax(0,1fr);gap:12px}
+  footer{align-items:flex-start;flex-direction:column}
+}
+@media(max-width:380px){.status-panel{flex-direction:column}.decision{text-align:left;margin:0}}
+@media(prefers-reduced-motion:no-preference){a{transition:background-color .15s ease}}
+"""
+
+
 def _html(metadata: dict[str, Any]) -> str:
     safe = {key: html.escape(str(value), quote=True) for key, value in metadata.items()}
-    enforced = metadata["enforced"]
-    advisory = metadata["advisory"]
+    tone, headline = {
+        "GREEN": ("good", "All active controls passed"),
+        "ORANGE": ("caution", "Advisory controls need attention"),
+        "RED": ("danger", "Enforced controls need attention"),
+    }[metadata["status"]]
+    cards = []
+    for label, counts, card_tone in (
+        ("Active controls", metadata, tone),
+        ("Enforced", metadata["enforced"], "danger"),
+        ("Advisory", metadata["advisory"], "caution"),
+    ):
+        passed, total = counts["passed"], counts["total"]
+        percent = passed / total * 100 if total else 0
+        if not total:
+            card_tone, note = "neutral", "No controls configured"
+        elif passed == total:
+            card_tone, note = "good", "All passed"
+        else:
+            note = f"{total - passed} not passed"
+        cards.append(f"""<section class="metric {card_tone}" aria-label="{label}">
+  <h2>{label}</h2><div class="count">{passed}<span>/{total}</span></div>
+  <p class="count-caption">controls passed</p>
+  <div class="track" aria-hidden="true"><div class="fill" style="width:{percent:.2f}%"></div></div>
+  <p class="metric-note">{note}</p>
+</section>""")
+    timestamps = {
+        key: datetime.fromisoformat(str(metadata[key]).replace("Z", "+00:00"))
+        .astimezone(timezone.utc)
+        .strftime("%d %b %Y · %H:%M:%S UTC")
+        for key in ("source_run_created_at", "published_at")
+    }
     return f"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Latest PR Scorecard</title></head>
-<body><main><h1>Latest PR Scorecard</h1><img src="guardrails-badge.svg" alt="{safe["message"]}"><dl>
-<dt>Repository</dt><dd>{safe["repository"]}</dd><dt>Operation</dt><dd>{safe["operation"]}</dd><dt>Status</dt><dd>{safe["status"]}</dd>
-<dt>Active controls</dt><dd>{safe["passed"]}/{safe["total"]} passed</dd>
-<dt>Enforced</dt><dd>{enforced["passed"]}/{enforced["total"]} passed</dd>
-<dt>Advisory</dt><dd>{advisory["passed"]}/{advisory["total"]} passed</dd>
-<dt>Source run</dt><dd><a href="{safe["source_run_url"]}">{safe["source_run_id"]} attempt {safe["source_run_attempt"]}</a></dd>
-<dt>Source created</dt><dd>{safe["source_run_created_at"]}</dd><dt>Published</dt><dd>{safe["published_at"]}</dd>
-<dt>Subject digest</dt><dd>{safe["subject_digest"]}</dd></dl></main></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Latest published pull-request scorecard for {safe['repository']}: {safe['message']}.">
+  <title>Latest PR Scorecard · {safe['repository']}</title>
+  <style>{_REPORT_CSS}</style>
+</head>
+<body>
+<a class="skip-link" href="#scorecard">Skip to scorecard</a>
+<header class="topbar"><div class="shell">
+  <div class="brand"><span class="brand-mark" aria-hidden="true">G</span><div>
+    <span class="brand-name">Guardrails</span><span class="repository">{safe['repository']}</span>
+  </div></div>
+  <a class="repo-link" href="https://github.com/{safe['repository']}">View repository <span aria-hidden="true">↗</span></a>
+</div></header>
+<main class="shell" id="scorecard">
+  <p class="eyebrow">CI evidence / change assessment</p>
+  <h1>Latest PR Scorecard</h1>
+  <p class="intro">A clear view of the latest published pull-request evaluation.</p>
+  <section class="status-panel {tone}" aria-label="Scorecard status">
+    <div><div class="status-label"><span class="status-dot" aria-hidden="true"></span>{safe['status']}</div>
+      <h2>{headline}</h2><p>The policy decision is based on enforced controls.</p></div>
+    <dl class="decision"><dt>Policy decision</dt><dd>{safe['decision'].upper()}</dd></dl>
+  </section>
+  <div class="metrics">{''.join(cards)}</div>
+  <section class="evidence" aria-labelledby="evidence-title">
+    <div><h2 id="evidence-title">Trace it to the evidence</h2>
+      <p>Open the source CI run for the full scorecard, individual controls, and supporting results.</p>
+      <a class="button" href="{safe['source_run_url']}">View source CI run <span aria-hidden="true">↗</span></a>
+    </div>
+    <dl class="source-facts">
+      <div><dt>Source run</dt><dd>#{safe['source_run_id']} · attempt {safe['source_run_attempt']}</dd></div>
+      <div><dt>Source created</dt><dd><time datetime="{safe['source_run_created_at']}">{timestamps['source_run_created_at']}</time></dd></div>
+      <div><dt>Published</dt><dd><time datetime="{safe['published_at']}">{timestamps['published_at']}</time></dd></div>
+      <div><dt>Operation</dt><dd>{safe['operation']}</dd></div>
+    </dl>
+  </section>
+  <aside class="scope-note"><span class="note-mark" aria-hidden="true">ⓘ</span>
+    <p><strong>A PR snapshot, not an assessment of current main.</strong> Counts show controls with passing evidence.
+    “Not passed” includes failed, missing, or unresolved results. Advisory gaps do not block the policy decision;
+    repository merge requirements may apply separately.</p>
+  </aside>
+  <details><summary>Verification details</summary>
+    <p class="digest">Subject digest<code>{safe['subject_digest']}</code></p>
+  </details>
+  <footer><img src="guardrails-badge.svg" alt="{safe['message']}" width="216" height="20">
+    <nav class="formats" aria-label="Report formats"><a href="scorecard.json">Summary JSON</a><a href="scorecard.md">Summary Markdown</a></nav>
+  </footer>
+</main>
+</body></html>
 """
 
 
