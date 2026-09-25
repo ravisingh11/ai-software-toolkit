@@ -44,6 +44,14 @@ tooling/install-skills.sh --all --dry-run
 tooling/install-skills.sh --all --merge-existing
 ```
 
+The [`ai-toolkit` CLI](../docs/install.md) installs the same canonical skills
+for Codex (`.agents/skills`) and Claude Code (`.claude/skills`) without
+`rsync`, and records them in `toolkit.lock.json`:
+
+```bash
+python3 tooling/ai_toolkit skills install --skill starter --client codex,claude-code
+```
+
 Install behavior:
 
 - First-time installs copy the selected skill and `_shared-project-ops`.
@@ -126,6 +134,9 @@ install only the skills they actually need.
   `qa` orchestrator, per-app `qa-<app>` flow menus, and optional GitHub Actions
   workflows with a read-only advisory QA check and trusted sticky-comment reporting.
 - Use `skill-installer` to install or refresh canonical skills locally.
+- Use `toolkit-setup` to install, diagnose, or refresh the whole toolkit
+  through the shared `ai-toolkit` CLI; it runs the same discovery and
+  installation code as the CLI and the GitHub starter workflow.
 
 ## Support Bundle
 
