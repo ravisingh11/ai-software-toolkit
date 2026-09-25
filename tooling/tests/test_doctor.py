@@ -66,8 +66,11 @@ class DoctorTests(unittest.TestCase):
 
     def test_installed_cli_works_without_canonical_checkout_and_does_not_write(self):
         before = self.git("status", "--porcelain")
+        environment = {key: value for key, value in os.environ.items()
+                       if not key.startswith("GUARDRAILS_")}
         result = subprocess.run([sys.executable, str(self.target / ".guardrails/doctor.py"),
-                                 "--json"], cwd=self.target, capture_output=True, text=True)
+                                 "--json"], cwd=self.target, capture_output=True, text=True,
+                                env=environment)
         self.assertEqual(result.returncode, 1, result.stderr)
         report = json.loads(result.stdout)
         self.assertEqual(report["kind"], "setup-diagnostics")

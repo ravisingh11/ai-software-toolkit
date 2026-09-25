@@ -83,9 +83,9 @@ The preset wraps upstream Spec Kit commands instead of replacing them. It adds:
 
 - `docs/mature-product-repo-standard.md` defines when a product repo needs
   durable operational discipline.
-- `docs/release-evidence-standard.md` defines what must be recorded after a
+- `docs/standards/release-evidence-standard.md` defines what must be recorded after a
   production-facing release.
-- `docs/error-handling-standard.md` defines error and observability behavior.
+- `docs/standards/error-handling-standard.md` defines error and observability behavior.
 - `docs/contracts/CROSS_CLIENT_DELIVERY_CONTRACT.md` defines multi-surface
   parity tracking.
 

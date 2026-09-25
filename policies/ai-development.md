@@ -106,7 +106,7 @@ an agent's confidence does not establish it.
 - Preserve evidence provenance and bind results to the exact commit, artifact,
   or environment. A previous pass or an agent's completion claim is insufficient.
 - Keep AI review advisory-only, consistent with
-  [control status](../docs/control-status.md). Use deterministic checks and
+  [control status](../docs/guardrails/control-status.md). Use deterministic checks and
   accountable review; do not treat agreement between models as approval.
 - Follow the repository's risk and release authority for security-sensitive
   changes. Do not let an agent weaken checks, change exceptions, or alter

@@ -288,11 +288,62 @@ class ToolProducerTests(unittest.TestCase):
             self.assertIn("examples/python-demo/.guardrails/semgrep-tests/fixtures", command)
 
     def test_gitleaks_uses_exact_digest_history_scan_and_redaction(self) -> None:
-        runner = mock.Mock(side_effect=[(0, "false"), (0, "Docker version 28"), (0, "no leaks")])
+        runner = mock.Mock(side_effect=[
+            (0, "false"), (0, "Docker version 28"), (0, "a" * 40),
+            (0, "false\n" + "a" * 40), (0, "1 commits scanned. no leaks"),
+        ])
         result = MODULE.gitleaks_result(Path("/repo"), runner=runner, which=lambda name: f"/usr/bin/{name}")
         command = runner.call_args_list[-1].args[0]
         self.assertEqual(result["status"], "passed")
         self.assertEqual(command[-5:], [MODULE.GITLEAKS_IMAGE, "git", "--redact", "--no-banner", "."])
+
+    def test_gitleaks_docker_rejects_missing_shallow_and_mismatched_mounts(self) -> None:
+        for mount_result in (
+            (128, "fatal: not a git repository"), (0, ""),
+            (0, "true\n" + "a" * 40), (0, "false\n" + "b" * 40),
+        ):
+            with self.subTest(mount_result=mount_result):
+                runner = mock.Mock(side_effect=[
+                    (0, "false"), (0, "28"), (0, "a" * 40), mount_result,
+                ])
+                result = MODULE.gitleaks_result(
+                    Path("/repo"), runner=runner, which=lambda name: f"/usr/bin/{name}",
+                )
+                self.assertEqual(result["status"], "not_run")
+                self.assertIn("mounted history", result["reason"])
+                self.assertEqual(runner.call_count, 4)
+                self.assertIn("--entrypoint", runner.call_args.args[0])
+
+    def test_gitleaks_docker_rejects_missing_host_head(self) -> None:
+        for host_result in ((128, "missing HEAD"), (0, "")):
+            with self.subTest(host_result=host_result):
+                runner = mock.Mock(side_effect=[(0, "false"), (0, "28"), host_result])
+                result = MODULE.gitleaks_result(
+                    Path("/repo"), runner=runner, which=lambda name: f"/usr/bin/{name}",
+                )
+                self.assertEqual(result["status"], "not_run")
+                self.assertEqual(runner.call_count, 3)
+
+    def test_gitleaks_docker_zero_commits_after_valid_mount_cannot_pass(self) -> None:
+        runner = mock.Mock(side_effect=[
+            (0, "false"), (0, "28"), (0, "a" * 40),
+            (0, "false\n" + "a" * 40), (0, "INF 0 commits scanned. INF no leaks found"),
+        ])
+        result = MODULE.gitleaks_result(
+            Path("/repo"), runner=runner, which=lambda name: f"/usr/bin/{name}",
+        )
+        self.assertEqual(result["status"], "failed")
+
+    def test_gitleaks_zero_exit_without_scanned_history_cannot_pass(self) -> None:
+        runner = mock.Mock(side_effect=[
+            (0, "false"), (0, "gitleaks version 8.30.1"),
+            (0, "ERR fatal: not a git repository\nINF 0 commits scanned.\nINF no leaks found"),
+        ])
+        result = MODULE.gitleaks_result(
+            Path("/repo"), runner=runner,
+            which=lambda name: "/usr/bin/gitleaks" if name == "gitleaks" else None,
+        )
+        self.assertEqual(result["status"], "failed")
 
     def test_gitleaks_host_binary_keeps_executable_in_argv(self) -> None:
         runner = mock.Mock(side_effect=[(0, "false"), (0, "gitleaks version 8.30.1"), (0, "no leaks")])

@@ -58,9 +58,11 @@ Each production repo should eventually have an `AGENTS.md` with:
 
 ## Prompt And Skill Files
 
-- Keep reusable prompts in `docs/ai/prompts/`.
-- Keep repo-specific skills or workflows in `docs/ai/workflows/` unless the
-  tool requires another path.
+- This toolkit publishes reusable prompts in `prompts/`, skills in `skills/`,
+  and workflow guides in `docs/agent-workflows/`.
+- Consuming repositories choose their own documentation hierarchy; `docs/ai/`
+  is one option. Install executable skills in the agent tool's discovery path,
+  such as `.agents/skills/`, rather than duplicating their instructions.
 - Include inputs, expected outputs, and verification steps in every reusable
   workflow.
 - Avoid storing one-off chat transcripts unless they are curated into a durable

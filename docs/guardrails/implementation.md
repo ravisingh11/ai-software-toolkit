@@ -70,4 +70,4 @@ passed/active count. Publication is downstream reporting only and never affects
 evaluation or merge policy. The public files contain aggregates, source-run
 metadata, and a revision digest; detailed evidence is excluded from Pages and
 remains in the source Actions artifact under normal repository access. See
-[quick start](quickstart.md#publish-the-optional-scorecard-badge).
+[quick start](../quickstart.md#publish-the-optional-scorecard-badge).

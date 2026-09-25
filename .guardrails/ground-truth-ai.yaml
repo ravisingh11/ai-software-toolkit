@@ -2,7 +2,7 @@
   "version": 1,
   "documents": [
     {"path": "AGENTS.md"},
-    {"path": "docs/architecture.md"},
+    {"path": "docs/guardrails/architecture.md"},
     {"path": "policies/code-quality.md"},
     {"path": "policies/testing.md"},
     {"path": "policies/security.md"},
