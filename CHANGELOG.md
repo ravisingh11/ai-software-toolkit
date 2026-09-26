@@ -8,6 +8,25 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Ship adapter-owned Snyk and FOSSA workflow templates (`workflows/snyk.yml`,
+  `workflows/fossa.yml`) and install `.guardrails/adapter.py`, which runs
+  `snyk code test`, `snyk test`, and `fossa analyze` followed by `fossa test`
+  for the exact revision, maps exit codes and output to the four evidence
+  statuses, and writes nested v2 evidence fragments that `scan.py` merges.
+  Consumers supply arguments (`SNYK_CODE_ARGS`, `SNYK_OPEN_SOURCE_ARGS`,
+  `FOSSA_ARGS`), never the verb, so an upload alone cannot pass. Non-passing
+  results carry a standard reason code as the prefix of `reason`
+  (`configuration-missing`, `credential-missing`, `authentication-failed`,
+  `execution-error`, `analysis-incomplete`, `revision-mismatch`,
+  `unsupported-project`, `timed-out`); the evidence schema is unchanged. The
+  FOSSA CLI is pinned by version and SHA-256. `doctor` adds adapter, local
+  credential, and template rows for selected external providers; `ai-toolkit
+  check` turns reason codes into next actions. Add provider guides, a reason
+  code reference, contract tests for every outcome, and a live verification
+  ledger; no adapter is labelled verified until a live run is recorded there.
+  Existing `snyk-code`, `snyk-open-source`, and `fossa` check identities are
+  unchanged.
+
 - Add the shared `ai-toolkit` CLI (`tooling/ai_toolkit`) with `discover`,
   `init`, `doctor`, `check`, `providers`, `skills`, `qa`, and `update`. The CLI
   dispatches to the existing installer, diagnostics, scanner, configuration,

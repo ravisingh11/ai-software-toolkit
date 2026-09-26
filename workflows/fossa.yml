@@ -1,0 +1,86 @@
+name: FOSSA
+
+# Adapter-owned FOSSA workflow. The installed .guardrails/adapter.py runs
+# `fossa analyze` and then `fossa test` for the exact revision; an upload alone
+# never passes. Exit codes and output map to evidence with a reason code
+# (credential-missing, authentication-failed, analysis-incomplete,
+# execution-error, unsupported-project, timed-out). Consumers supply extra
+# `fossa analyze` arguments through the FOSSA_ARGS repository variable. The
+# CLI is pinned by version and SHA-256; update both together.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_call:
+    inputs:
+      fossa-args:
+        description: Extra arguments for `fossa analyze`.
+        required: false
+        type: string
+        default: ''
+    secrets:
+      FOSSA_API_KEY:
+        description: FOSSA API key.
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  FOSSA_CLI_VERSION: 3.19.3
+  FOSSA_CLI_SHA256: f2e946ff25717241e92765093409e73e879d21791a56e2d6520d17f311698fe8
+
+jobs:
+  fossa:
+    name: FOSSA
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
+      FOSSA_ARGS: ${{ inputs.fossa-args || vars.FOSSA_ARGS }}
+      GUARDRAILS_WORKING_DIRECTORY: ${{ vars.GUARDRAILS_WORKING_DIRECTORY || '.' }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Require the installed adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f .guardrails/adapter.py ]]; then
+            echo "::error::.guardrails/adapter.py is missing; refresh the Guardrails installation (tooling/install.py --refresh-existing)." >&2
+            exit 1
+          fi
+      - name: Install the pinned FOSSA CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/fossa-cli"
+          curl --fail --silent --show-error --location \
+            --output "${RUNNER_TEMP}/fossa-cli/fossa.zip" \
+            "https://github.com/fossas/fossa-cli/releases/download/v${FOSSA_CLI_VERSION}/fossa_${FOSSA_CLI_VERSION}_linux_amd64.zip"
+          echo "${FOSSA_CLI_SHA256}  ${RUNNER_TEMP}/fossa-cli/fossa.zip" | sha256sum --check --strict
+          unzip -q -o "${RUNNER_TEMP}/fossa-cli/fossa.zip" fossa -d "${RUNNER_TEMP}/fossa-cli"
+          chmod +x "${RUNNER_TEMP}/fossa-cli/fossa"
+          echo "${RUNNER_TEMP}/fossa-cli" >> "${GITHUB_PATH}"
+      - name: Run FOSSA analyze and test through the adapter
+        shell: bash
+        run: |
+          set -uo pipefail
+          python3 .guardrails/adapter.py fossa \
+            --target "${GUARDRAILS_WORKING_DIRECTORY}" \
+            --revision "${HEAD_SHA}" \
+            --evidence-dir "${RUNNER_TEMP}/evidence" | tee "${RUNNER_TEMP}/fossa.txt"
+          status=${PIPESTATUS[0]}
+          printf '### FOSSA\n\n```text\n%s\n```\n' "$(cat "${RUNNER_TEMP}/fossa.txt")" >> "${GITHUB_STEP_SUMMARY}"
+          exit "${status}"
+      - name: Upload evidence fragment
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: guardrails-fossa-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/evidence/fossa.json
+          if-no-files-found: ignore
+          retention-days: 7
