@@ -47,10 +47,15 @@ The Snyk CLI exit code is the contract
 | timeout | `blocked` | `timed-out` |
 | `SNYK_TOKEN` unset | `blocked` | `credential-missing` |
 | `snyk` not on `PATH` | `not_run` | `configuration-missing` |
-| `--revision` differs from `HEAD` | `not_run` | `revision-mismatch` |
+| `--revision` differs from `HEAD`, no resolvable `HEAD`, or a dirty worktree | `not_run` | `revision-mismatch` |
+| arguments that stop the scan (`--help`, `--version`, subcommands) | `not_run` | `configuration-missing` |
 
 The workflow fails the job for every outcome except `passed`; the job summary
-shows the status and reason code.
+shows the status and reason code. `SNYK_TOKEN` is injected only into the
+adapter step, never into the repository setup command. Set the
+`SNYK_CODE_ENABLED` or `SNYK_OPEN_SOURCE_ENABLED` repository variable to
+`false` to skip a job whose provider you have not selected. The template runs
+only on `pull_request` so its check names match the provider contract.
 
 ## Verify
 

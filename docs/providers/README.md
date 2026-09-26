@@ -39,7 +39,14 @@ python3 .guardrails/scan.py      # merges .artifacts/guardrails/evidence/*.json
 
 The adapter exits 0 only for `passed`; the workflow templates fail the job for
 every other outcome and put the reason in the job summary and in an uploaded
-evidence fragment.
+evidence fragment. Evidence binds to a clean checkout: a dirty worktree, an
+unresolvable `HEAD`, or a revision that is not `HEAD` yields `revision-mismatch`.
+
+On a same-repository pull request the adapter script itself comes from the PR
+head, so a collaborator with push access could alter it; this is the same
+trust level GitHub gives every `pull_request` workflow that uses a secret, and
+fork pull requests receive no secret at all. Running the adapter from the
+trusted base revision is tracked as follow-up work.
 
 ## Reason codes
 

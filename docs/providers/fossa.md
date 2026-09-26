@@ -41,13 +41,16 @@ python3 .guardrails/configure.py --select-provider license-compliance=fossa --se
 | `test` reports issues (exit 1 with JSON issues) | `failed` with the issue count | — |
 | `analyze` or `test` rejects the key (`Status: 401/403`, "API key") | `blocked` | `authentication-failed` |
 | `analyze` finds no targets | `not_run` | `unsupported-project` |
-| `test` times out waiting for the build | `blocked` | `analysis-incomplete` |
+| `test` reports that the build is still pending | `blocked` | `analysis-incomplete` |
 | `analyze` uploaded but `test` did not run | `blocked` | `analysis-incomplete` |
-| other non-zero exit | `blocked` | `execution-error` |
+| other non-zero exit, or `issues: []` with a non-zero exit | `blocked` | `execution-error` |
 | adapter timeout | `blocked` | `timed-out` |
 | `FOSSA_API_KEY` unset | `blocked` | `credential-missing` |
 | `fossa` not on `PATH` | `not_run` | `configuration-missing` |
-| `--revision` differs from `HEAD` | `not_run` | `revision-mismatch` |
+| `--revision` differs from `HEAD`, no resolvable `HEAD`, or a dirty worktree | `not_run` | `revision-mismatch` |
+
+`FOSSA_API_KEY` is injected only into the adapter step. The template runs
+only on `pull_request` so its check name matches the provider contract.
 
 ## Verify
 
