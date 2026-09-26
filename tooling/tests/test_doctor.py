@@ -375,3 +375,54 @@ class DoctorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AdapterDiagnosticTests(DoctorTests):
+    def select_external(self):
+        providers = self.target / ".guardrails" / "providers.yaml"
+        document = json.loads(providers.read_text(encoding="utf-8"))
+        document["selections"]["deep-sast"] = {"authoritative": "snyk-code", "supplemental": []}
+        document["selections"]["license-compliance"] = {"authoritative": "fossa", "supplemental": []}
+        providers.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+        policy = self.target / ".guardrails" / "policy.yaml"
+        policy_document = json.loads(policy.read_text(encoding="utf-8"))
+        policy_document["overrides"]["change"]["license-compliance"] = "advisory"
+        policy_document["overrides"]["change"]["deep-sast"] = "advisory"
+        policy.write_text(json.dumps(policy_document, indent=2) + "\n", encoding="utf-8")
+        self.git("add", ".")
+        self.git("commit", "-qm", "select external providers")
+
+    def test_adapter_rows_for_external_providers(self):
+        self.select_external()
+        with patch.dict(os.environ, {"SNYK_TOKEN": "x"}, clear=True):
+            checks = self.checks(self.module.diagnose(self.target))
+        self.assertEqual(checks["provider.snyk-code.adapter"]["status"], "configured")
+        self.assertIn("snyk command shape", checks["provider.snyk-code.adapter"]["message"])
+        self.assertEqual(checks["provider.fossa.adapter"]["status"], "configured")
+        self.assertEqual(checks["local.credential.SNYK_TOKEN"]["status"], "unverified")
+        self.assertIn("is set locally", checks["local.credential.SNYK_TOKEN"]["message"])
+        self.assertIn("is unset locally", checks["local.credential.FOSSA_API_KEY"]["message"])
+        self.assertEqual(checks["provider.fossa.template"]["status"], "unverified")
+        self.assertIn("workflows/fossa.yml", checks["provider.fossa.template"]["message"])
+        self.assertNotIn("provider.github-codeql.adapter", checks)
+        (self.target / ".github" / "workflows" / "snyk.yml").write_text("name: Snyk\n", encoding="utf-8")
+        self.git("add", ".")
+        self.git("commit", "-qm", "install snyk workflow")
+        checks = self.checks(self.report())
+        self.assertNotIn("provider.snyk-code.template", checks)
+        self.assertIn("provider.fossa.template", checks)
+
+    def test_missing_adapter_is_action_needed(self):
+        self.select_external()
+        (self.target / ".guardrails" / "adapter.py").unlink()
+        self.git("add", ".")
+        self.git("commit", "-qm", "remove adapter")
+        installed = load(self.target / ".guardrails" / "doctor.py")
+        with patch.dict(os.environ, {}, clear=True):
+            checks = self.checks(installed.diagnose(self.target))
+        self.assertEqual(checks["provider.snyk-code.adapter"]["status"], "action_needed")
+        self.assertIn("refresh-existing", checks["provider.snyk-code.adapter"]["next_step"])
+
+    def test_no_rows_without_external_selection(self):
+        checks = self.checks(self.report())
+        self.assertFalse([key for key in checks if key.startswith("provider.")])

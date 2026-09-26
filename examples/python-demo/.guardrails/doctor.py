@@ -144,6 +144,48 @@ def github_setup(target: Path, repository: str, selected: dict, providers: dict,
     return rows
 
 
+def adapter_setup(target: Path, selected: dict, providers: dict, environment: dict) -> list[dict]:
+    """Diagnose adapter-backed external providers without running them."""
+    rows: list[dict] = []
+    adapter_providers = {
+        provider_id for provider_id, selection in
+        ((selection["authoritative"], selection) for selection in selected.values())
+        if providers.get(provider_id, {}).get("activation") == "external"
+    }
+    if not adapter_providers:
+        return rows
+    try:
+        adapter = trusted_module("tooling/provider_adapter.py", "adapter.py")
+        contracts = adapter.PROVIDERS
+    except ValueError:
+        contracts = None
+    for provider_id in sorted(adapter_providers):
+        provider = providers[provider_id]
+        secrets = [name for name in provider.get("secrets", []) if isinstance(name, str)]
+        if contracts is None:
+            rows.append({"id": f"provider.{provider_id}.adapter", "status": "action_needed",
+                         "message": "The installed runtime has no adapter.py; adapter-owned provider commands cannot run.",
+                         "next_step": "Run tooling/install.py --target <repo> --refresh-existing from a trusted release."})
+        elif provider_id in contracts:
+            contract = contracts[provider_id]
+            available = bool(shutil.which(contract["binary"]))
+            rows.append({"id": f"provider.{provider_id}.adapter", "status": "configured",
+                         "message": f"Adapter owns the {contract['binary']} command shape; the CLI is {'on PATH' if available else 'not on PATH'} locally and was not executed.",
+                         "next_step": f"Run .guardrails/adapter.py {provider_id} locally or the {provider['display_name']} workflow on a PR to produce evidence."})
+        for name in secrets:
+            present = bool(environment.get(name, "").strip())
+            rows.append({"id": f"local.credential.{name}", "status": "unverified",
+                         "message": f"{name} is {'set' if present else 'unset'} locally; its validity was not checked." ,
+                         "next_step": f"Store {name} as a GitHub secret for CI; export it locally only to run the adapter yourself."})
+        template = provider.get("template")
+        path = next((check.get("workflow_path") for check in provider.get("checks", {}).values() if isinstance(check, dict) and check.get("workflow_path")), None)
+        if template and path and not (target / path).is_file():
+            rows.append({"id": f"provider.{provider_id}.template", "status": "unverified",
+                         "message": f"Template {template} is available but {path} is not installed in this repository.",
+                         "next_step": f"Copy {template} to {path}, add the {', '.join(secrets) or 'required'} secret, and verify a representative PR."})
+    return rows
+
+
 def diagnose(target: Path, *, operation: str = "change", environment: dict | None = None, github: str | None = None) -> dict:
     target = target.resolve()
     if not target.is_dir():
@@ -259,6 +301,8 @@ def diagnose(target: Path, *, operation: str = "change", environment: dict | Non
             add(f"workflow.{control_id}", "configured" if present else "unverified",
                 "Workflow file present; GitHub execution is not verified." if present else "Workflow file absent; local-only installations may intentionally omit Actions.",
                 "For PR automation, install/configure the selected provider workflow and verify a representative PR.")
+
+    checks.extend(adapter_setup(target, selected, providers, environment))
 
     if github and selected:
         checks.extend(github_setup(target, github, selected, providers, producer))
