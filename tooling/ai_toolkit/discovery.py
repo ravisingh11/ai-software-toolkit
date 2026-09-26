@@ -225,7 +225,14 @@ def discover(target: Path, environment: dict[str, str] | None = None) -> dict[st
     commands: dict[str, dict[str, str]] = {}
     for row in languages:
         for capability, command in row["commands"].items():
-            commands.setdefault(capability, command)
+            previous = commands.get(capability)
+            if previous is None:
+                commands[capability] = dict(command)
+            else:
+                # Polyglot repository: every detected suite must run, so the commands are
+                # chained; a failure in either one fails the capability.
+                commands[capability] = {"command": f"{previous['command']} && {command['command']}",
+                                        "source": f"{previous['source']}; {command['source']}"}
     if languages:
         commands["codeql-languages"] = _command(",".join(row["codeql_language"] for row in languages), "detected languages")
     return {

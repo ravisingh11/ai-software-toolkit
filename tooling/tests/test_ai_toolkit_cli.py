@@ -534,3 +534,69 @@ class ReviewRegressionTests(CliFixture):
         self.assertEqual(configuration["toolkit"]["components"], ["guardrails", "skills"])
         self.assertEqual(configuration["agents"]["clients"], ["codex", "claude-code"])
         self.assertIn(".guardrails/policy.yaml", config.read_lock(self.target)["managed"])
+
+    def test_reinit_inherits_no_actions_mode(self):
+        self.assertEqual(self.init("--components", "guardrails", "--no-actions")[0], 0)
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        configuration = config.read_configuration(self.target)
+        self.assertFalse(configuration["guardrails"]["actions"])
+        self.assertEqual(configuration["toolkit"]["components"], ["guardrails", "skills"])
+        self.assertFalse((self.target / ".github" / "workflows").exists())
+
+    def test_update_never_adopts_skipped_skills_into_the_lock(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        mine = self.target / ".agents" / "skills" / "security-audit-lite"
+        mine.mkdir()
+        (mine / "SKILL.md").write_text("my own version\n", encoding="utf-8")
+        for _ in range(2):
+            code, out, _ = run_cli("update", "--target", str(self.target), "--force")
+            self.assertEqual(code, 0, out)
+        self.assertFalse(any(path.startswith(".agents/skills/security-audit-lite/") for path in config.read_lock(self.target)["managed"]))
+        self.assertEqual((mine / "SKILL.md").read_text(encoding="utf-8"), "my own version\n")
+
+    def test_explicit_install_adopts_existing_directory_at_canonical_baseline(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        mine = self.target / ".agents" / "skills" / "security-audit-lite"
+        mine.mkdir()
+        (mine / "SKILL.md").write_text("my own version\n", encoding="utf-8")
+        code, out, _ = run_cli("skills", "install", "--skill", "security-audit-lite", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertIn("skip", out)
+        lock = config.read_lock(self.target)
+        self.assertIn(".agents/skills/security-audit-lite/SKILL.md", lock["managed"])
+        code, out, _ = run_cli("update", "--target", str(self.target), "--force", "--json")
+        self.assertIn(".agents/skills/security-audit-lite/SKILL.md", [row["path"] for row in json.loads(out)["conflicts"]])
+        self.assertEqual((mine / "SKILL.md").read_text(encoding="utf-8"), "my own version\n")
+
+    def test_symlinked_skills_root_is_refused(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        os.symlink(outside, self.target / ".agents")
+        code, _, err = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("symlink", err)
+        self.assertFalse(any(outside.iterdir()))
+        code, _, err = run_cli("init", "--target", str(self.target), "--yes", "--clients", "codex", "--components", "skills")
+        self.assertEqual(code, 2)
+        self.assertFalse(any(outside.iterdir()))
+
+    def test_update_restores_everything_when_a_skill_refresh_fails(self):
+        self.assertEqual(self.init("--components", "guardrails,skills", "--skills", "code-review")[0], 0)
+        runtime = self.target / ".guardrails" / "scan.py"
+        edited = runtime.read_text(encoding="utf-8") + "# keep\n"
+        runtime.write_text(edited, encoding="utf-8")
+        with patch.object(cli.skills, "install_skills", side_effect=ToolkitError("refresh exploded")):
+            code, _, err = run_cli("update", "--target", str(self.target), "--force")
+        self.assertEqual(code, 2)
+        self.assertIn("previous files were restored", err)
+        self.assertEqual(runtime.read_text(encoding="utf-8"), edited)
+        self.assertNotIn("previous", config.read_lock(self.target))
+
+    def test_doctor_reports_a_client_missing_its_recorded_skills(self):
+        self.assertEqual(self.init("--components", "skills", "--clients", "codex,claude-code", "--skills", "code-review")[0], 0)
+        subprocess.run(["rm", "-rf", str(self.target / ".claude")], check=True)
+        code, out, _ = run_cli("doctor", "--target", str(self.target), "--json")
+        self.assertEqual(code, 1)
+        payload = json.loads(out)
+        self.assertEqual(payload["components"]["skills"]["state"], "missing")
+        self.assertIn("claude-code", payload["components"]["skills"]["next_step"])

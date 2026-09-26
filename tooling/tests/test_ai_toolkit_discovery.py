@@ -144,3 +144,11 @@ class DiscoveryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_polyglot_commands_run_every_suite(self):
+        self.write("pyproject.toml", "[project]\nname = 'x'\n[tool.pytest.ini_options]\ntestpaths = ['tests']\n")
+        self.write("package.json", json.dumps({"scripts": {"test": "vitest", "build": "vite build"}}))
+        found = discovery.discover(self.target, environment={"HOME": str(self.target)})
+        self.assertEqual(found["variables"]["GUARDRAILS_UNIT_TEST_COMMAND"], "python3 -m pytest && npm run test")
+        self.assertEqual(found["variables"]["GUARDRAILS_BUILD_COMMAND"], "python3 -m compileall -q . && npm run build")
+        self.assertIn("pytest configuration or dependency; package.json scripts.test", found["commands"]["unit-tests"]["source"])

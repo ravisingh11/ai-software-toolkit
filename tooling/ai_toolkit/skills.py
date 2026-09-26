@@ -79,7 +79,25 @@ def _reject_symlinks(destination_root: Path, path: Path) -> None:
             raise ToolkitError(f"refusing to write through a symlink: {component}")
 
 
-def install_skills(names: list[str], destination_root: Path, *, existing: str = "skip", dry_run: bool = False) -> list[dict[str, Any]]:
+def reject_symlinked_root(destination_root: Path, boundary: Path | None) -> None:
+    """Refuse a skills root that is, or sits under, a symlink inside the repository."""
+    candidates = [destination_root]
+    if boundary is not None:
+        try:
+            parts = destination_root.relative_to(boundary).parts
+        except ValueError:
+            parts = ()
+        component = boundary
+        for part in parts:
+            component = component / part
+            candidates.append(component)
+    for path in candidates:
+        if path.is_symlink():
+            raise ToolkitError(f"refusing to install skills through a symlink: {path}")
+
+
+def install_skills(names: list[str], destination_root: Path, *, existing: str = "skip", dry_run: bool = False,
+                   boundary: Path | None = None) -> list[dict[str, Any]]:
     """Copy skills; returns one row per skill with the action taken and the files written.
 
     ``existing`` decides what happens to a skill directory that is already there:
@@ -92,6 +110,8 @@ def install_skills(names: list[str], destination_root: Path, *, existing: str = 
     selected = list(names)
     if selected and SHARED_BUNDLE not in selected and (source_dir() / SHARED_BUNDLE).is_dir():
         selected.append(SHARED_BUNDLE)
+    if selected and not dry_run:
+        reject_symlinked_root(destination_root, boundary)
     rows = []
     for name in selected:
         files = skill_files(name)
