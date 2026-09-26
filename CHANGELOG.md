@@ -8,6 +8,22 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Implement the five action skills `fix-ci`, `generate-unit-tests`,
+  `fix-security-finding`, `dependency-upgrade`, and `address-pr-findings`,
+  replacing their placeholders. Each defines inputs, permitted changes, stop
+  conditions, verification, and an outcome report; reuses the canonical review
+  skills; ships a seeded fixture; and keeps a per-client `VERIFICATION.md`
+  ledger that `tooling/validate-skills.py` now requires. No action skill is
+  labelled verified until a live run in Codex and Claude Code is recorded.
+  `tooling/install-skills.sh` gains `--client codex|claude-code`.
+- QA: `qa-bootstrap` documents version-controlled test plans
+  (`plans/<app>.yaml`), findings with regression links (`findings/<id>.md`),
+  and rerun reporting; result rows may carry `origin`, `scenario`, and
+  `finding`, rendered in the trusted report. FLAKY now maps to `blocked`
+  (`analysis-incomplete`) instead of passing, so a pass on retry can never
+  satisfy the advisory `QA / report` check; non-passing reports state the
+  overall status and reason. Functional QA remains advisory-only.
+
 - Ship adapter-owned Snyk and FOSSA workflow templates (`workflows/snyk.yml`,
   `workflows/fossa.yml`) and install `.guardrails/adapter.py`, which runs
   `snyk code test`, `snyk test`, and `fossa analyze` followed by `fossa test`

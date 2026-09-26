@@ -1,0 +1,4 @@
+interface:
+  display_name: "Address PR Findings"
+  short_description: "Resolve or decide every review finding with verification"
+  default_prompt: "Use $address-pr-findings to deduplicate the review findings, resolve P0-P2 items with verified changes, record accepted or deferred risk with reasons, and update each finding's status and verification block."

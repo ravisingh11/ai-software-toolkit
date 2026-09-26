@@ -28,16 +28,47 @@ class QAResultsTests(unittest.TestCase):
         data["rows"][0]["evidence"] = ["login", "login"]
         data["action_required"] = ["Review the retry timing"]
         report = RENDER(data)
-        self.assertIn("| # | Test Case | App | Persona | Result | Notes |", report)
-        self.assertIn("| 1 | Login | web | member | :white_check_mark: PASS | Dashboard appeared |", report)
+        self.assertIn("| # | Test Case | App | Persona | Origin | Scenario / Finding | Result | Notes |", report)
+        self.assertIn("| 1 | Login | web | member | agent | &#45; | :white_check_mark: PASS | Dashboard appeared |", report)
         self.assertEqual(report.count("<!-- evidence:login -->"), 1)
         self.assertIn("### Action Required", report)
 
-    def test_flaky_rows_match_existing_pass_with_warning_contract(self):
+    def test_flaky_rows_block_instead_of_passing(self):
         data = self.payload()
         data["rows"][0]["result"] = "flaky"
         data["counts"].update({"pass": 0, "flaky": 1})
-        self.assertIn(":warning: FLAKY", RENDER(data))
+        with self.assertRaisesRegex(ValueError, "overall contradicts"):
+            RENDER(data)
+        data["overall"] = "blocked"
+        with self.assertRaises(MODULE["NotPassing"]) as raised:
+            RENDER(data)
+        self.assertEqual(raised.exception.overall, "blocked")
+
+    def test_origin_scenario_and_finding_are_rendered_and_validated(self):
+        data = self.payload()
+        data["rows"][0].update({"origin": "human", "scenario": "checkout.negative-1", "finding": "qa-0007"})
+        report = RENDER(data)
+        self.assertIn("| 1 | Login | web | member | human | checkout.negative-1 qa-0007 | :white_check_mark: PASS |", report)
+        for key, value in (("origin", "robot"), ("scenario", "Bad Scenario!"), ("finding", "")):
+            changed = copy.deepcopy(self.payload())
+            changed["rows"][0][key] = value
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "invalid"):
+                RENDER(changed)
+
+    def test_nonpassing_file_report_names_the_reason(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "qa-results"
+            root.mkdir()
+            data = self.payload()
+            data["rows"][0]["result"] = "flaky"
+            data["counts"].update({"pass": 0, "flaky": 1})
+            data["overall"] = "blocked"
+            (root / "summary.json").write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaises(MODULE["NotPassing"]):
+                MODULE["validate_results"](root)
+            report = (root / "report.md").read_text(encoding="utf-8")
+            self.assertIn("FAILED / INCOMPLETE", report)
+            self.assertIn("Overall: BLOCKED — analysis-incomplete", report)
 
     def test_rejects_contradictory_counts_and_overall(self):
         data = self.payload()
@@ -102,7 +133,7 @@ class QAResultsTests(unittest.TestCase):
         self.assertNotIn("`code`", report)
         self.assertIn("&#124; forged row", report)
         table_row = next(line for line in report.splitlines() if line.startswith("| 1 |"))
-        self.assertEqual(table_row.count("|"), 7)
+        self.assertEqual(table_row.count("|"), 9)
 
     def test_rejects_report_expansion_past_comment_bound(self):
         data = self.payload()
