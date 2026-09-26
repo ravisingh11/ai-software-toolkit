@@ -8,7 +8,22 @@ import re
 import sys
 
 STATUSES = ("pass", "fail", "blocked", "flaky", "inconclusive")
+ORIGINS = ("deterministic", "agent", "human")
+IDENTIFIER = r"[a-z0-9][a-z0-9.-]{0,63}"
 FAILURE_REPORT = "## QA Report\n\n**Result: FAILED / INCOMPLETE.** No validated passing result is available.\n"
+# Overall precedence. FLAKY blocks: a pass on retry is not proof, so it can never
+# satisfy the advisory check; it maps to blocked / analysis-incomplete.
+OVERALL_REASONS = {
+    "fail": "one or more scenarios failed",
+    "blocked": "analysis-incomplete: blocked or flaky scenarios must be stabilized before QA can pass",
+    "inconclusive": "inconclusive scenarios; the change could not be judged",
+}
+
+
+class NotPassing(ValueError):
+    def __init__(self, overall):
+        super().__init__("QA results are not passing")
+        self.overall = overall
 
 
 def plain(value, limit, *, required=False):
@@ -35,11 +50,19 @@ def render_results(payload):
     for index, row in enumerate(rows, 1):
         required = {"test_case", "app", "persona", "result", "notes"}
         if (not isinstance(row, dict) or not required <= row.keys()
-                or row.keys() - required - {"evidence"} or row["result"] not in STATUSES):
+                or row.keys() - required - {"evidence", "origin", "scenario", "finding"} or row["result"] not in STATUSES):
             raise ValueError("invalid result row schema or status")
+        origin = row.get("origin", "agent")
+        if origin not in ORIGINS:
+            raise ValueError("invalid result origin")
+        for key in ("scenario", "finding"):
+            if key in row and (not isinstance(row[key], str) or not re.fullmatch(IDENTIFIER, row[key])):
+                raise ValueError(f"invalid {key} reference")
         measured[row["result"]] += 1
         fields = [plain(row[key], limit, required=True) for key, limit in
                   (("test_case", 200), ("app", 80), ("persona", 80))]
+        fields.append(origin)
+        fields.append(plain(" ".join(filter(None, (row.get("scenario"), row.get("finding")))), 130) or "&#45;")
         notes = plain(row["notes"], 1000)
         evidence = row.get("evidence", [])
         if (not isinstance(evidence, list) or len(evidence) > 10
@@ -51,7 +74,8 @@ def render_results(payload):
         lines.append(f"| {index} | {' | '.join(fields)} | {result} | {notes} |")
     if any(counts[status] != measured[status] for status in STATUSES):
         raise ValueError("counts contradict result rows")
-    overall = next((status for status in ("fail", "blocked", "inconclusive") if measured[status]), "pass")
+    overall = ("fail" if measured["fail"] else "blocked" if measured["blocked"] or measured["flaky"]
+               else "inconclusive" if measured["inconclusive"] else "pass")
     if payload["overall"] != overall:
         raise ValueError("overall contradicts result rows")
     actions = payload.get("action_required", [])
@@ -59,10 +83,10 @@ def render_results(payload):
         raise ValueError("invalid action-required list")
     actions = [plain(action, 1000, required=True) for action in actions]
     if overall != "pass":
-        raise ValueError("QA results are not passing")
+        raise NotPassing(overall)
     report = ("## QA Report\n\n**Result: PASS**\n\n"
-              "| # | Test Case | App | Persona | Result | Notes |\n"
-              "| --- | --- | --- | --- | --- | --- |\n" + "\n".join(lines) + "\n")
+              "| # | Test Case | App | Persona | Origin | Scenario / Finding | Result | Notes |\n"
+              "| --- | --- | --- | --- | --- | --- | --- | --- |\n" + "\n".join(lines) + "\n")
     if actions:
         report += "\n### Action Required\n\n" + "\n".join(f"- {action}" for action in actions) + "\n"
     if evidence_ids:
@@ -83,7 +107,12 @@ def validate_results(root):
     report.write_text(FAILURE_REPORT, encoding="utf-8")
     if source.stat().st_size > 65536:
         raise ValueError("summary exceeds size limit")
-    rendered = render_results(json.loads(source.read_text(encoding="utf-8")))
+    try:
+        rendered = render_results(json.loads(source.read_text(encoding="utf-8")))
+    except NotPassing as error:
+        # Rows validated structurally; say why the run cannot pass without trusting any agent prose.
+        report.write_text(FAILURE_REPORT + f"\nOverall: {error.overall.upper()} — {OVERALL_REASONS[error.overall]}.\n", encoding="utf-8")
+        raise
     report.write_text(rendered, encoding="utf-8")
     return rendered
 

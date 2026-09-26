@@ -133,6 +133,12 @@ Read `<skills-dir>/qa/config.yaml` on every run. Do not rely on values remembere
 
 ## 3. Scope the run
 
+If `<skills-dir>/qa/plans/<app>.yaml` exists for an affected app, load it and
+select the entries per `plans-and-findings.md`; every selected entry becomes a
+result row with `scenario: <id>`. Load `<skills-dir>/qa/findings/*.md` and
+queue the rerun of every `confirmed` finding with a `regression` path for the
+affected apps; each rerun becomes a row with `finding: <id>`.
+
 **Smoke or release run** (the user asks for a smoke test, a release check, or names an environment with no change to test): skip diff scoping. Every app is in scope; run the flows marked `Smoke: yes` in each sub-skill, as each persona they list.
 
 **Change run** (the default, and always in CI):
@@ -221,9 +227,15 @@ at most 1,000 characters each. No unknown fields are accepted. The complete
 summary must be at most 64 KiB, and the rendered report at most 60,000 bytes.
 
 Counts must exactly match the rows, with all five nonnegative integer keys.
-`overall`, in order: `fail` if any FAIL; else `blocked` if any BLOCKED; else
-`inconclusive` if any INCONCLUSIVE; else `pass` (FLAKY counts as pass).
-If there is nothing to test, emit one INCONCLUSIVE row, never an empty PASS.
+`overall`, in order: `fail` if any FAIL; else `blocked` if any BLOCKED or
+FLAKY; else `inconclusive` if any INCONCLUSIVE; else `pass`. A pass on retry
+is not proof: FLAKY blocks the run and the report says
+`Overall: BLOCKED — analysis-incomplete`. If there is nothing to test, emit
+one INCONCLUSIVE row, never an empty PASS.
+
+Rows may also carry `origin` (`deterministic`, `agent`, or `human`; default
+`agent`), `scenario` (a plan entry id), and `finding` (a finding id), each
+matching `[a-z0-9][a-z0-9.-]{0,63}`; see `plans-and-findings.md`.
 
 Run `python3 <skills-dir>/qa/scripts/validate_results.py qa-results` to
 validate the structured results and render the standard report table. It
@@ -339,8 +351,8 @@ validated rows, action-required strings, and evidence IDs from `summary.json`.
 ```markdown
 ## QA Report
 
-| #   | Test Case | App | Persona | Result | Notes |
-| --- | --------- | --- | ------- | ------ | ----- |
+| #   | Test Case | App | Persona | Origin | Scenario / Finding | Result | Notes |
+| --- | --------- | --- | ------- | ------ | ------------------ | ------ | ----- |
 
 {{TEST_ROWS}}
 

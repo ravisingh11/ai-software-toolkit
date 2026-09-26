@@ -35,6 +35,8 @@ The workflow split is deliberate: the PR-editable workflow has no repository wri
   REPORT-TEMPLATE.md
   ci-prompt.md                   # CI only
   scripts/                       # validator always; CI adds the evidence helper
+  plans/<app>.yaml               # optional editable test plans (acceptance, risks, negative, exploratory)
+  findings/<id>.md               # optional human/agent findings with regression links
 <skills-dir>/qa-<app>/SKILL.md   # one self-contained sub-skill per app
 .github/workflows/qa.yml         # read-only execution + advisory QA / report check
 .github/workflows/qa-report.yml  # trusted default-branch reporting; both CI only
@@ -58,6 +60,7 @@ Make a todo list from these phases before starting. Leave the user's other work 
 - The privileged reporter is a separate default-branch `workflow_run` workflow. It validates the originating run, workflow, repository, current PR head, artifact metadata, latest run/attempt, and structured results before commenting; it never checks out PR code.
 - Keep the workflow name `QA`, report job id `report`, and explicit job name `QA / report`: the Guardrails `qa-bootstrap-workflow` provider records the `QA / report` check as evidence.
 - Functional QA is advisory-only. Its execution workflow and result source are PR-editable, so `QA / report` must not be a required merge check or promoted to enforced. A protected producer architecture would be separate future work.
+- FLAKY never passes: a pass on retry maps to `blocked` at the Guardrails boundary (`analysis-incomplete`). Deterministic, agent, and human results appear together in one report, each row labelled with its origin; see `references/plans-and-findings.md` for plans, findings, and regression reruns.
 - Failure learning supports suggestions only, stored in structured `action_required` strings. It never opens PRs or commits learned changes, and needs no `contents: write` permission.
 - If the repository is not on GitHub, say so and skip the CI phase rather than generating a workflow that cannot run.
 
