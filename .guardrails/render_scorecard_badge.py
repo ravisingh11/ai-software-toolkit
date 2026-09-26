@@ -137,6 +137,62 @@ def _counts(document: dict[str, Any], mode: str) -> dict[str, int]:
     return {"passed": passed, "total": total}
 
 
+def _result_breakdown(document: dict[str, Any]) -> dict[str, Any]:
+    """Publish only complete control counts that reconcile with both mode totals."""
+    unavailable = {"availability": "unavailable"}
+    rows = document.get("controls")
+    if not isinstance(rows, list):
+        return unavailable
+    counts = {mode: dict.fromkeys(("passed", "failed", "blocked", "unverified"), 0)
+              for mode in ("enforced", "advisory")}
+    seen = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            return unavailable
+        control_id, mode = row.get("id"), row.get("effective_mode")
+        if not isinstance(control_id, str) or not control_id or control_id in seen:
+            return unavailable
+        seen.add(control_id)
+        if mode == "not_activated":
+            continue
+        if not isinstance(mode, str) or mode not in counts:
+            return unavailable
+        status = row.get("evidence_status")
+        if not isinstance(status, str) or status not in {"passed", "failed", "blocked", "no_result"}:
+            return unavailable
+        counts[mode]["unverified" if status == "no_result" else status] += 1
+    for mode, values in counts.items():
+        expected = document[mode]
+        if values["passed"] != expected["passed"] or sum(values.values()) != expected["total"]:
+            return unavailable
+    overall = {key: sum(values[key] for values in counts.values()) for key in counts["enforced"]}
+    return {"availability": "available", "overall": overall, **counts}
+
+
+def _breakdown_markdown(breakdown: dict[str, Any]) -> str:
+    if breakdown["availability"] != "available":
+        return "Result breakdown unavailable: this source does not contain complete, consistent control results."
+    lines = ["| Evidence results | Passed | Failed | Blocked | Unverified |", "| --- | ---: | ---: | ---: | ---: |"]
+    for key, label in (("overall", "All active controls"), ("enforced", "Enforced"), ("advisory", "Advisory")):
+        counts = breakdown[key]
+        lines.append(f"| {label} | {counts['passed']} | {counts['failed']} | {counts['blocked']} | {counts['unverified']} |")
+    return "\n".join(lines)
+
+
+def _breakdown_html(breakdown: dict[str, Any]) -> str:
+    heading = '<section class="scope-panel" aria-labelledby="results-title"><h2 id="results-title">Evidence results</h2>'
+    if breakdown["availability"] != "available":
+        return heading + '<p>Result breakdown unavailable: this source does not contain complete, consistent control results.</p></section>'
+    rows = []
+    for key, label in (("overall", "All active controls"), ("enforced", "Enforced"), ("advisory", "Advisory")):
+        counts = breakdown[key]
+        rows.append(f'<tr><th scope="row">{label}</th><td>{counts["passed"]}</td><td>{counts["failed"]}</td><td>{counts["blocked"]}</td><td>{counts["unverified"]}</td></tr>')
+    return heading + '<div class="size-table-wrap" role="region" aria-label="Evidence results" tabindex="0"><table class="size-table"><caption>Control outcomes, separated from unavailable evidence</caption><thead><tr><th scope="col">Controls</th><th scope="col">Passed</th><th scope="col">Failed</th><th scope="col">Blocked</th><th scope="col">Unverified</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div><p>Failed means a reported failure. Blocked means the producer reported a blocker. Unverified means no usable result was available.</p></section>'
+
+
+_SIZE_GUIDANCE = "Large PRs can overwhelm human reviewers; smaller, focused PRs make feedback more actionable."
+
+
 _SCOPE_ROWS = (
     ("files", "max_files", "Counted files"),
     ("added_lines", "max_added_lines", "Added lines"),
@@ -215,7 +271,7 @@ def _validated_change_scope(document: dict[str, Any]) -> dict[str, Any]:
 
 
 def _scope_markdown(scope: dict[str, Any]) -> str:
-    title = "\n## PR Size · Files & LOC\n\n"
+    title = "\n## PR Size · Files & LOC\n\n" + _SIZE_GUIDANCE + "\n\n"
     if scope["availability"] != "available":
         return title + "Measurements unavailable. This source does not contain validated PR size measurements.\n"
     metrics, limits = scope["metrics"], scope["thresholds"]
@@ -231,7 +287,7 @@ def _scope_markdown(scope: dict[str, Any]) -> str:
 
 
 def _scope_html(scope: dict[str, Any]) -> str:
-    heading = '<section class="scope-panel" aria-labelledby="size-title"><p class="eyebrow">Change scope</p><h2 id="size-title">PR Size · Files &amp; LOC</h2>'
+    heading = '<section class="scope-panel" aria-labelledby="size-title"><p class="eyebrow">Change scope</p><h2 id="size-title">PR Size · Files &amp; LOC</h2>' + f'<p>{_SIZE_GUIDANCE}</p>'
     if scope["availability"] != "available":
         return heading + '<p><strong>Measurements unavailable</strong></p><p>This source does not contain validated PR size measurements. No size verdict is available; missing measurements are not a pass.</p></section>'
     metrics, limits = scope["metrics"], scope["thresholds"]
@@ -298,6 +354,7 @@ def _validated_scorecard(source_dir: Path) -> dict[str, Any]:
         "total": total,
         "subject_revision": revision,
         "change_scope": _change_scope(document),
+        "result_breakdown": _result_breakdown(document),
     }
 
 
@@ -355,6 +412,7 @@ def _public_metadata(
         "advisory": inspected["advisory"],
         "pages_url": pages_base_url(repository),
         "change_scope": inspected["change_scope"],
+        "result_breakdown": inspected["result_breakdown"],
     }
 
 
@@ -398,6 +456,14 @@ def _markdown(metadata: dict[str, Any]) -> str:
 | Source created | {metadata["source_run_created_at"]} |
 | Published | {metadata["published_at"]} |
 | Subject digest | {metadata["subject_digest"]} |
+
+{_breakdown_markdown(metadata["result_breakdown"])}
+
+Failed means a reported failure. Blocked means the producer reported a blocker. Unverified means no usable result was available.
+
+ALLOW means the enforced guardrails are satisfied for this snapshot; it does not establish mergeability or release readiness.
+This is a published PR snapshot. The source timestamp does not prove it matches the current PR head or current main.
+Test totals, security finding counts, and coverage percentages are not collected in this summary.
 {_scope_markdown(metadata["change_scope"])}
 """
 
@@ -553,10 +619,11 @@ def _html(metadata: dict[str, Any]) -> str:
   <p class="intro">A clear view of the latest published pull-request evaluation.</p>
   <section class="status-panel {tone}" aria-label="Scorecard status">
     <div><div class="status-label"><span class="status-dot" aria-hidden="true"></span>{safe['status']}</div>
-      <h2>{headline}</h2><p>The policy decision is based on enforced controls.</p></div>
+      <h2>{headline}</h2><p>ALLOW means the enforced guardrails are satisfied for this snapshot. It does not establish mergeability or release readiness.</p></div>
     <dl class="decision"><dt>Policy decision</dt><dd>{safe['decision'].upper()}</dd></dl>
   </section>
   <div class="metrics">{''.join(cards)}</div>
+  {_breakdown_html(metadata["result_breakdown"])}
   {_scope_html(metadata["change_scope"])}
   <section class="evidence" aria-labelledby="evidence-title">
     <div><h2 id="evidence-title">Trace it to the evidence</h2>
@@ -572,8 +639,8 @@ def _html(metadata: dict[str, Any]) -> str:
   </section>
   <aside class="scope-note"><span class="note-mark" aria-hidden="true">ⓘ</span>
     <p><strong>A PR snapshot, not an assessment of current main.</strong> Counts show controls with passing evidence.
-    “Not passed” includes failed, missing, or unresolved results. Advisory gaps do not block the policy decision;
-    repository merge requirements may apply separately.</p>
+    The source timestamp does not prove this matches the current PR head. Advisory gaps do not block the policy decision.
+    Test totals, security finding counts, and coverage percentages are not collected in this summary.</p>
   </aside>
   <details><summary>Verification details</summary>
     <p class="digest">Subject digest<code>{safe['subject_digest']}</code></p>

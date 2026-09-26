@@ -363,6 +363,10 @@ required-check settings remain compatible. Refresh the workflow, provider
 configuration, and runtime together: the trusted collector verifies the new
 workflow display name as well as its unchanged file path.
 
+Large PRs can overwhelm human reviewers. Prefer smaller, focused PRs so
+feedback is easier to act on and each change is easier to verify. Size limits
+are review aids; staying below them does not establish correctness.
+
 The report compares counted files, added lines, added plus deleted lines, and
 maximum added lines in one file against `.guardrails/change-scope.yaml`.
 Separate totals show excluded files and lines. Binary files count as files but
@@ -375,3 +379,34 @@ snapshot, including the policy mode and limit results. It does not combine
 measurements from another repository or revision. Older or invalid optional
 measurements display **unavailable**, never zero or passed. Public output
 contains no per-file paths or raw scope findings.
+
+## Reading scorecard evidence
+
+A passing control means its declared producer supplied passing evidence for the
+scored revision. Failed evidence, blocked producers, and unverified results are
+different outcomes. Missing, skipped, stale, or unconfigured evidence must never
+be presented as a pass or as a measured failure. The public scorecard reports
+these aggregate outcomes when complete validated control details are available;
+older artifacts without those details cannot supply the breakdown.
+
+The policy decision **allow** means the enforced guardrails were satisfied. It
+does not establish GitHub mergeability or deployment readiness. Advisory issues
+remain visible even when the decision allows the change.
+
+The source run and its creation time identify a revision-bound snapshot. A
+publication timestamp records when that snapshot was published, not when the
+checks ran. The dashboard does not assert that the snapshot is the current PR
+head. The public revision digest identifies the snapshot without exposing a raw
+commit SHA; open the source run to inspect its PR and commit.
+
+Test totals, security finding counts by severity, and numeric coverage are not
+part of the public aggregate evidence contract. A passed check does not imply
+zero findings, a particular test count, or 100% coverage. Read the producer's
+report for those measurements. The coverage report distinguishes changes with
+no measured lines from a measured coverage percentage.
+
+The coverage workflow keeps the stable Actions title **Changed Code Coverage**
+so its run identity matches the declared provider contract. Refresh the
+installer-owned coverage workflow in existing consumers to receive this fix.
+Historical runs with a conflicting custom title remain unverified; a new run
+is required to produce matching evidence.

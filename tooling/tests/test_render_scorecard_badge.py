@@ -124,6 +124,60 @@ class RendererTests(unittest.TestCase):
                 ):
                     self.assertNotIn(private, text, path.name)
 
+    def breakdown_card(self) -> dict[str, Any]:
+        card = scorecard(status="ORANGE", enforced=(1, 1), advisory=(1, 4))
+        card["controls"] = [
+            {"id": f"private-{index}", "effective_mode": mode, "evidence_status": status}
+            for index, (mode, status) in enumerate([
+                ("enforced", "passed"), ("advisory", "passed"),
+                ("advisory", "failed"), ("advisory", "blocked"), ("advisory", "no_result"),
+                ("not_activated", "not_activated"),
+            ])
+        ]
+        return card
+
+    def test_breakdown_preserves_distinct_results_and_privacy(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "published"
+            metadata = self.render(self.write_source(root, self.breakdown_card()), output)
+            self.assertEqual(metadata["result_breakdown"]["overall"], {
+                "passed": 2, "failed": 1, "blocked": 1, "unverified": 1,
+            })
+            self.assertEqual(metadata["result_breakdown"]["enforced"], {
+                "passed": 1, "failed": 0, "blocked": 0, "unverified": 0,
+            })
+            for filename in ("index.html", "scorecard.md"):
+                text = (output / filename).read_text()
+                for expected in ("Unverified", "Blocked", "mergeability or release readiness",
+                                 "current PR head", "Test totals", MODULE._SIZE_GUIDANCE):
+                    self.assertIn(expected, text)
+                self.assertNotIn("private-", text)
+
+    def test_incomplete_or_inconsistent_breakdown_is_unavailable(self) -> None:
+        for mutation in ("missing", "empty", "duplicate", "unknown", "mode", "passed", "malformed"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                card = self.breakdown_card()
+                if mutation == "missing":
+                    del card["controls"]
+                elif mutation == "empty":
+                    card["controls"] = []
+                elif mutation == "duplicate":
+                    card["controls"][1]["id"] = card["controls"][0]["id"]
+                elif mutation == "unknown":
+                    card["controls"][2]["evidence_status"] = "skipped"
+                elif mutation == "mode":
+                    card["controls"][2]["effective_mode"] = []
+                elif mutation == "passed":
+                    card["controls"][2]["evidence_status"] = "passed"
+                else:
+                    card["controls"][2] = None
+                root = Path(directory)
+                metadata = self.render(self.write_source(root, card), root / "published")
+                self.assertEqual(metadata["result_breakdown"], {"availability": "unavailable"})
+                self.assertEqual(metadata["passed"], 2)
+                self.assertIn("Result breakdown unavailable", (root / "published/index.html").read_text())
+
     def scope_card(self, *, exceeded: bool = False) -> dict[str, Any]:
         card = scorecard(status="ORANGE" if exceeded else "GREEN", advisory=(3 if exceeded else 4, 4))
         metrics = {"files": 2, "added_lines": 84, "changed_lines": 90,
