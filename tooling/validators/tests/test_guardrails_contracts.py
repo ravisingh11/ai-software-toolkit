@@ -73,10 +73,21 @@ class GuardrailsContractValidationTests(unittest.TestCase):
     def test_unshipped_vendor_templates_are_not_declared_available(self) -> None:
         providers = self.providers()
 
-        for provider_id in ("snyk-code", "snyk-open-source", "fossa"):
+        for provider_id in ("semgrep-app", "qa-bootstrap-workflow"):
             with self.subTest(provider_id=provider_id):
                 self.assertIsNone(providers[provider_id]["template"])
                 self.assertFalse(providers[provider_id]["template_available"])
+
+    def test_adapter_backed_vendor_templates_are_shipped(self) -> None:
+        providers = self.providers()
+
+        for provider_id, template in (("snyk-code", "workflows/snyk.yml"), ("snyk-open-source", "workflows/snyk.yml"), ("fossa", "workflows/fossa.yml")):
+            with self.subTest(provider_id=provider_id):
+                self.assertEqual(providers[provider_id]["template"], template)
+                self.assertTrue(providers[provider_id]["template_available"])
+                text = (ROOT / template).read_text(encoding="utf-8")
+                self.assertIn(".guardrails/adapter.py", text)
+                self.assertIn(f"adapter.py {provider_id}", text)
 
     def test_actions_backed_checks_declare_exact_installed_workflow_paths(self) -> None:
         providers = self.providers()
