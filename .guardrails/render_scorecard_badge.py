@@ -137,6 +137,118 @@ def _counts(document: dict[str, Any], mode: str) -> dict[str, int]:
     return {"passed": passed, "total": total}
 
 
+_SCOPE_ROWS = (
+    ("files", "max_files", "Counted files"),
+    ("added_lines", "max_added_lines", "Added lines"),
+    ("changed_lines", "max_changed_lines", "Added + deleted lines"),
+    ("max_added_lines_per_file", "max_added_lines_per_file", "Most added lines in one file"),
+)
+_SCOPE_METRICS = (
+    "files", "added_lines", "changed_lines", "max_added_lines_per_file",
+    "binary_files", "total_files", "total_added_lines", "total_changed_lines",
+    "excluded_files", "excluded_added_lines", "excluded_changed_lines",
+    "excluded_binary_files",
+)
+
+
+def _change_scope(document: dict[str, Any]) -> dict[str, Any]:
+    # Optional measurements cannot invalidate an otherwise valid scorecard.
+    # Malformed data is never rendered as a passing or zero-sized change.
+    try:
+        return _validated_change_scope(document)
+    except (ValueError, TypeError, KeyError):
+        return {"availability": "unavailable"}
+
+
+def _validated_change_scope(document: dict[str, Any]) -> dict[str, Any]:
+    """Project only bounded aggregate measurements from the selected producer."""
+    unavailable = {"availability": "unavailable"}
+    controls = document.get("controls", [])
+    if not isinstance(controls, list):
+        return unavailable
+    rows = [row for row in controls if isinstance(row, dict) and row.get("id") == "change-scope"]
+    if not rows:
+        return unavailable
+    if len(rows) != 1:
+        raise ValueError("duplicate change-scope controls")
+    row = rows[0]
+    provider = row.get("authoritative_provider") or {}
+    result = row.get("authoritative_result") or {}
+    mode = row.get("effective_mode")
+    if (not isinstance(provider, dict) or provider.get("id") != "repository-change-scope"
+            or mode not in {"advisory", "enforced"}
+            or not isinstance(result, dict)
+            or row.get("evidence_status") not in {"passed", "failed"}):
+        return unavailable
+    scope = result.get("change_scope")
+    if scope is None:
+        return unavailable
+    if not isinstance(scope, dict) or type(scope.get("version")) is not int or scope["version"] != 1:
+        raise ValueError("change_scope must use version 1")
+    raw_metrics, raw_limits = scope.get("metrics"), scope.get("thresholds")
+    if not isinstance(raw_metrics, dict) or not isinstance(raw_limits, dict):
+        raise ValueError("change_scope requires metrics and thresholds")
+    metrics = {key: _integer(raw_metrics.get(key), f"change_scope.{key}") for key in _SCOPE_METRICS}
+    limits = {key: _integer(raw_limits.get(key), f"change_scope.{key}", positive=True) for _, key, _ in _SCOPE_ROWS}
+    if any(value > 2**53 - 1 for value in (*metrics.values(), *limits.values())):
+        raise ValueError("change_scope measurements exceed the supported bound")
+    for key in ("files", "added_lines", "changed_lines"):
+        if metrics[f"total_{key}"] != metrics[key] + metrics[f"excluded_{key}"]:
+            raise ValueError("change_scope aggregate totals are inconsistent")
+    for prefix in ("", "excluded_"):
+        files = metrics[f"{prefix}files"]
+        binary = metrics[f"{prefix}binary_files"]
+        added = metrics[f"{prefix}added_lines"]
+        changed = metrics[f"{prefix}changed_lines"]
+        if binary > files or added > changed or (files == binary and changed != 0):
+            raise ValueError("change_scope measurements are inconsistent")
+    maximum = metrics["max_added_lines_per_file"]
+    text_files = metrics["files"] - metrics["binary_files"]
+    if maximum > metrics["added_lines"] or metrics["added_lines"] > maximum * text_files:
+        raise ValueError("change_scope per-file measurements are inconsistent")
+    exceeded = any(metrics[key] > limits[limit] for key, limit, _ in _SCOPE_ROWS)
+    status = "failed" if exceeded else "passed"
+    if result.get("status") != status or row.get("evidence_status") != status:
+        raise ValueError("change_scope status does not match its measurements")
+    return {"availability": "available", "mode": mode, "status": status,
+            "metrics": metrics, "thresholds": limits}
+
+
+def _scope_markdown(scope: dict[str, Any]) -> str:
+    title = "\n## PR Size · Files & LOC\n\n"
+    if scope["availability"] != "available":
+        return title + "Measurements unavailable. This source does not contain validated PR size measurements.\n"
+    metrics, limits = scope["metrics"], scope["thresholds"]
+    meaning = "Advisory — warns only; does not block the policy decision." if scope["mode"] == "advisory" else "Enforced — exceeding a limit blocks the policy decision."
+    lines = [title + meaning, "", "| Measurement | Counted | Limit | Result |", "| --- | ---: | ---: | --- |"]
+    for key, limit, label in _SCOPE_ROWS:
+        state = "Above limit" if metrics[key] > limits[limit] else "Within limit"
+        lines.append(f"| {label} | {metrics[key]} | {limits[limit]} | {state} |")
+    lines += ["", f"Total: {metrics['total_files']} files; {metrics['total_added_lines']} added lines; {metrics['total_changed_lines']} added + deleted lines.",
+              f"Excluded: {metrics['excluded_files']} files; {metrics['excluded_added_lines']} added lines; {metrics['excluded_changed_lines']} added + deleted lines.",
+              f"Binary files: {metrics['binary_files']} counted; {metrics['excluded_binary_files']} excluded. Binary contents have no line count."]
+    return "\n".join(lines) + "\n"
+
+
+def _scope_html(scope: dict[str, Any]) -> str:
+    heading = '<section class="scope-panel" aria-labelledby="size-title"><p class="eyebrow">Change scope</p><h2 id="size-title">PR Size · Files &amp; LOC</h2>'
+    if scope["availability"] != "available":
+        return heading + '<p><strong>Measurements unavailable</strong></p><p>This source does not contain validated PR size measurements. No size verdict is available; missing measurements are not a pass.</p></section>'
+    metrics, limits = scope["metrics"], scope["thresholds"]
+    advisory = scope["mode"] == "advisory"
+    meaning = "Advisory · warns only; does not block the policy decision." if advisory else "Enforced · exceeding a limit blocks the policy decision."
+    rows = []
+    for key, limit, label in _SCOPE_ROWS:
+        exceeded = metrics[key] > limits[limit]
+        tone = ("caution" if advisory else "danger") if exceeded else "good"
+        state = "Above limit" if exceeded else "Within limit"
+        rows.append(f'<tr><th scope="row">{label}</th><td>{metrics[key]:,}</td><td>{limits[limit]:,}</td><td><span class="size-result {tone}">{state}</span></td></tr>')
+    return heading + f'''<p class="scope-mode">{meaning}</p>
+<div class="size-table-wrap" role="region" aria-label="PR size measurements" tabindex="0"><table class="size-table"><caption>Counted changes compared with the configured limits</caption><thead><tr><th scope="col">Measurement</th><th scope="col">Counted</th><th scope="col">Limit</th><th scope="col">Result</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div>
+<div class="scope-totals"><p><strong>Total diff</strong><br>{metrics['total_files']:,} files · {metrics['total_added_lines']:,} added lines · {metrics['total_changed_lines']:,} added + deleted lines</p><p><strong>Excluded from limits</strong><br>{metrics['excluded_files']:,} files · {metrics['excluded_added_lines']:,} added lines · {metrics['excluded_changed_lines']:,} added + deleted lines</p></div>
+<p class="size-footnote">Counted changes exclude the configured path patterns. Binary files: {metrics['binary_files']:,} counted; {metrics['excluded_binary_files']:,} excluded. Binary contents have no line count. File paths are not published.</p></section>'''
+
+
 def _validated_scorecard(source_dir: Path) -> dict[str, Any]:
     json_path, _ = _bounded_source(source_dir)
     try:
@@ -185,6 +297,7 @@ def _validated_scorecard(source_dir: Path) -> dict[str, Any]:
         "passed": passed,
         "total": total,
         "subject_revision": revision,
+        "change_scope": _change_scope(document),
     }
 
 
@@ -241,6 +354,7 @@ def _public_metadata(
         "enforced": inspected["enforced"],
         "advisory": inspected["advisory"],
         "pages_url": pages_base_url(repository),
+        "change_scope": inspected["change_scope"],
     }
 
 
@@ -284,6 +398,7 @@ def _markdown(metadata: dict[str, Any]) -> str:
 | Source created | {metadata["source_run_created_at"]} |
 | Published | {metadata["published_at"]} |
 | Subject digest | {metadata["subject_digest"]} |
+{_scope_markdown(metadata["change_scope"])}
 """
 
 
@@ -330,6 +445,19 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .track{height:6px;border-radius:5px;background:#e8eeee;overflow:hidden}
 .fill{height:100%;background:var(--tone);border-radius:5px}
 .metric-note{color:var(--tone);font-size:12px;font-weight:650;margin:10px 0 0}
+.scope-panel{margin-top:24px;padding:28px;background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.scope-panel h2{margin:0;font-size:24px;letter-spacing:-.5px}
+.scope-panel p{color:var(--muted);font-size:13px}
+.scope-mode{font-weight:650}
+.size-table-wrap{overflow-x:auto}.size-table-wrap:focus-visible{outline:3px solid #227b92;outline-offset:3px}
+.size-table{width:100%;border-collapse:collapse;font-size:13px}
+.size-table caption{text-align:left;color:var(--muted);padding:8px 0 12px}
+.size-table th,.size-table td{text-align:left;padding:13px 10px;border-bottom:1px solid var(--line)}
+.size-table thead{background:var(--canvas)}
+.size-table td:nth-child(2),.size-table td:nth-child(3){font-variant-numeric:tabular-nums}
+.size-result{display:inline-block;white-space:nowrap;padding:3px 9px;border-radius:5px;background:var(--wash);color:var(--tone);font-weight:650}
+.scope-totals{display:grid;grid-template-columns:1fr 1fr;gap:20px}.scope-totals strong{color:var(--ink)}
+.size-footnote{margin-bottom:0}
 .evidence{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:36px;padding:30px;margin-top:24px;background:var(--paper);border:1px solid var(--line);border-radius:12px}
 .evidence h2{margin:0 0 8px;font-size:18px;letter-spacing:-.3px}
 .evidence p{color:var(--muted);font-size:13px;margin:0 0 20px;max-width:420px}
@@ -357,6 +485,9 @@ footer img{display:block;max-width:100%;height:auto}
   .status-panel{align-items:flex-start;padding:20px;gap:16px}
   .status-panel h2{font-size:18px}.decision dd{font-size:17px}
   .metrics{grid-template-columns:1fr;gap:12px}
+  .scope-panel{padding:20px}.scope-totals{grid-template-columns:1fr;gap:0}
+  .size-table{font-size:12px}
+  .size-table th,.size-table td{padding:10px 5px}
   .metric{padding:20px}.count-caption{margin-bottom:14px}
   .evidence{grid-template-columns:1fr;gap:26px;padding:22px}
   .source-facts div{grid-template-columns:95px minmax(0,1fr);gap:12px}
@@ -426,6 +557,7 @@ def _html(metadata: dict[str, Any]) -> str:
     <dl class="decision"><dt>Policy decision</dt><dd>{safe['decision'].upper()}</dd></dl>
   </section>
   <div class="metrics">{''.join(cards)}</div>
+  {_scope_html(metadata["change_scope"])}
   <section class="evidence" aria-labelledby="evidence-title">
     <div><h2 id="evidence-title">Trace it to the evidence</h2>
       <p>Open the source CI run for the full scorecard, individual controls, and supporting results.</p>

@@ -302,6 +302,57 @@ def render(result: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_markdown(result: dict[str, Any], mode: str) -> str:
+    metrics = result["metrics"]
+    descriptions = {
+        "advisory": "**Warn only (advisory).** Exceeding a limit produces a neutral check and does not block merging.",
+        "enforced": "**Enforced mode.** Exceeding a limit fails the check. Merge blocking depends on the repository ruleset requiring it.",
+        "not_activated": "**Not activated.** This control does not enforce a merge requirement.",
+    }
+    outcome = "Within limits" if result["status"] == "passed" else "Limits exceeded"
+    lines = [
+        "## PR Size / Files & LOC",
+        "",
+        f"**Result: {outcome}.**",
+        "",
+        descriptions[mode],
+        "",
+        "### Counted changes against policy limits",
+        "",
+        "| Metric | Actual | Limit | Result |",
+        "| --- | ---: | ---: | --- |",
+    ]
+    for label, metric, limit in (
+        ("Changed files", "files", "max_files"),
+        ("Added lines", "added_lines", "max_added_lines"),
+        ("Changed lines (added + deleted)", "changed_lines", "max_changed_lines"),
+        ("Most added lines in one file", "max_added_lines_per_file", "max_added_lines_per_file"),
+    ):
+        actual = metrics[metric]
+        threshold = result["thresholds"][limit]
+        status = "Within limit" if actual <= threshold else "Over limit"
+        lines.append(f"| {label} | {actual} | {threshold} | {status} |")
+    lines.extend([
+        "",
+        "### What was counted",
+        "",
+        "| Scope | Files | Added lines | Deleted lines | Changed lines |",
+        "| --- | ---: | ---: | ---: | ---: |",
+    ])
+    for label, prefix in (("Counted", ""), ("Excluded by policy", "excluded_"), ("Total PR", "total_")):
+        added = metrics[f"{prefix}added_lines"]
+        changed = metrics[f"{prefix}changed_lines"]
+        lines.append(f"| {label} | {metrics[f'{prefix}files']} | {added} | {changed - added} | {changed} |")
+    lines.extend([
+        "",
+        "Only counted changes are compared with limits. Exclusions come from `.guardrails/change-scope.yaml`.",
+        f"Binary files: {metrics['binary_files']} counted, {metrics['excluded_binary_files']} excluded. Binary files count toward file totals; their line counts are unavailable and omitted.",
+        "",
+        "The published check keeps the stable name **PR Change Scope** for existing rulesets and evidence consumers.",
+    ])
+    return "\n".join(lines) + "\n"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Inspect file and line scope for a staged change or Git range"
@@ -318,6 +369,8 @@ def main() -> int:
     parser.add_argument("--fallback-base")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--markdown-output", type=Path)
+    parser.add_argument("--mode", choices=("advisory", "enforced", "not_activated"), default="advisory")
     args = parser.parse_args()
 
     try:
@@ -340,6 +393,8 @@ def main() -> int:
                 json.dumps(result, indent=2) + "\n",
                 encoding="utf-8",
             )
+        if args.markdown_output:
+            args.markdown_output.write_text(render_markdown(result, args.mode), encoding="utf-8")
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2

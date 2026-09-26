@@ -115,7 +115,7 @@ evaluation, and the latest PR score does not attest current `main`.
 
 Badge publication runs after evaluation. It is not a capability, provider,
 policy mode, or required check and cannot influence `allow` or `block`. Its
-public projection is limited to aggregate status/counts, source-run metadata,
+public projection is limited to aggregate status/counts, PR-size measurements and thresholds, source-run metadata,
 and a revision digest. Detailed controls, findings, evidence, reasons, provider
 data, check URLs, raw revisions, and source Markdown are excluded from Pages and
 remain in the source Actions artifact under normal repository access. See

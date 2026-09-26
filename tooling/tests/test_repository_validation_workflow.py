@@ -60,7 +60,10 @@ class RepositoryValidationWorkflowTests(unittest.TestCase):
 
         scope = (ROOT / "workflows/change-scope.yml").read_text(encoding="utf-8")
         self.assertIn("pull_request_target:", scope)
-        self.assertIn("name: PR Change Scope", scope)
+        self.assertIn("name: PR Size / Files & LOC", scope)
+        self.assertIn("name: Files & LOC report", scope)
+        self.assertIn('name:"PR Change Scope"', scope)
+        self.assertIn("--markdown-output", scope)
         self.assertIn("--repository-root candidate", scope)
         self.assertIn("--effective-mode change-scope", scope)
         self.assertIn("guardrails:change-scope:", scope)
