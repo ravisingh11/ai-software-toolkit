@@ -3,17 +3,19 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Install Codex skills from this repository.
+Install canonical skills from this repository for Codex or Claude Code.
 
 Usage:
   tooling/install-skills.sh --list
-  tooling/install-skills.sh --all [--target DIR] [--dry-run] [--skip-existing|--merge-existing|--replace-existing]
-  tooling/install-skills.sh --skill NAME [--skill NAME ...] [--target DIR] [--dry-run] [--skip-existing|--merge-existing|--replace-existing]
+  tooling/install-skills.sh --all [--client codex|claude-code] [--target DIR] [--dry-run] [--skip-existing|--merge-existing|--replace-existing]
+  tooling/install-skills.sh --skill NAME [--skill NAME ...] [--client codex|claude-code] [--target DIR] [--dry-run] [--skip-existing|--merge-existing|--replace-existing]
 
 Options:
   --all              Install all canonical skills.
   --skill NAME       Install one skill. Can be repeated.
-  --target DIR       Destination skills directory. Defaults to ${CODEX_HOME:-$HOME/.codex}/skills.
+  --client NAME      Agent client: codex (default) or claude-code. Sets the default target:
+                     codex -> ${CODEX_HOME:-$HOME/.codex}/skills; claude-code -> ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills.
+  --target DIR       Destination skills directory. Overrides the client default.
   --source DIR       Source skills directory. Defaults to <repo>/skills.
   --dry-run          Print actions without writing files.
   --skip-existing    Skip skills that already exist at the target.
@@ -31,7 +33,8 @@ EOF
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 source_dir="$repo_root/skills"
-target_dir="${CODEX_HOME:-$HOME/.codex}/skills"
+client="codex"
+target_dir=""
 dry_run=0
 install_all=0
 list_only=0
@@ -165,6 +168,11 @@ while [ "$#" -gt 0 ]; do
       skills+=("$2")
       shift 2
       ;;
+    --client)
+      [ "$#" -ge 2 ] || die "--client requires a value"
+      client="$2"
+      shift 2
+      ;;
     --target)
       [ "$#" -ge 2 ] || die "--target requires a value"
       target_dir="$2"
@@ -204,6 +212,13 @@ while [ "$#" -gt 0 ]; do
       ;;
   esac
 done
+
+case "$client" in
+  codex) default_target="${CODEX_HOME:-$HOME/.codex}/skills" ;;
+  claude-code) default_target="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills" ;;
+  *) die "unknown client: $client (expected codex or claude-code)" ;;
+esac
+[ -n "$target_dir" ] || target_dir="$default_target"
 
 need_command find
 need_command rsync

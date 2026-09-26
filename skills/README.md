@@ -42,7 +42,12 @@ From the repository root:
 tooling/install-skills.sh --list
 tooling/install-skills.sh --all --dry-run
 tooling/install-skills.sh --all --merge-existing
+tooling/install-skills.sh --all --client claude-code   # ~/.claude/skills instead of ~/.codex/skills
 ```
+
+One canonical source serves both clients: the `SKILL.md` frontmatter (`name`,
+`description`) is what Claude Code reads, and `agents/openai.yaml` carries the
+Codex interface. `--client` only changes the default destination.
 
 The [`ai-toolkit` CLI](../docs/install.md) installs the same canonical skills
 for Codex (`.agents/skills`) and Claude Code (`.claude/skills`) without
@@ -62,13 +67,22 @@ Install behavior:
 
 ## Skill Catalog
 
-The requested starter set is the Phase 2 foundation:
+### Action skills
 
-- `dependency-upgrade`
-- `generate-unit-tests`
-- `fix-ci`
-- `fix-security-finding`
-- `address-pr-findings`
+These five skills change code and prove the change. Each defines its inputs,
+permitted changes, stop conditions, verification, and outcome report, ships a
+seeded fixture under `tooling/tests/fixtures/skills/<name>/`, and keeps a
+`VERIFICATION.md` ledger with one row per supported client (Codex, Claude
+Code). A skill is verified only when a live run is recorded there;
+`tooling/validate-skills.py` requires both rows. `ai-toolkit check` names the
+applicable action skill for each failed capability; running it is a separate,
+explicit step.
+
+- `fix-ci` — make a red check green by fixing the cause, never by weakening the check.
+- `generate-unit-tests` — write behavior-protecting tests for changed or untested code.
+- `fix-security-finding` — confirm, remediate, and regression-test one security finding.
+- `dependency-upgrade` — move one dependency forward with compatibility proof and rollback notes.
+- `address-pr-findings` — resolve or decide every review finding with verification.
 
 The additional skills below are optional shared capabilities. They remain in
 this repository because they are reusable, but application repositories should
@@ -133,6 +147,10 @@ install only the skills they actually need.
 - Use `qa-bootstrap` to set up agent-driven functional QA in a product repo: a
   `qa` orchestrator, per-app `qa-<app>` flow menus, and optional GitHub Actions
   workflows with a read-only advisory QA check and trusted sticky-comment reporting.
+- Use `fix-ci`, `generate-unit-tests`, `fix-security-finding`,
+  `dependency-upgrade`, or `address-pr-findings` when a check, coverage gap,
+  scanner finding, advisory, or review has named the work to do; they act and
+  verify, where the review skills only report.
 - Use `skill-installer` to install or refresh canonical skills locally.
 - Use `toolkit-setup` to install, diagnose, or refresh the whole toolkit
   through the shared `ai-toolkit` CLI; it runs the same discovery and
