@@ -49,6 +49,14 @@ declares which subject type each capability accepts.
 Every result also requires a non-empty `producer`. Evidence records must not
 contain credentials or secret values.
 
+Adapters written by this toolkit start a `blocked` or `not_run` reason with a
+standard code followed by a colon: `configuration-missing`,
+`credential-missing`, `authentication-failed`, `execution-error`,
+`analysis-incomplete`, `revision-mismatch`, `unsupported-project`, or
+`timed-out`. The code is a prefix of `reason`, so the evidence schema is
+unchanged; reports use it to choose a next action. See the
+[reason code reference](../providers/README.md#reason-codes).
+
 ## Provider selection
 
 `.guardrails/providers.yaml` defines each provider's capabilities, display name,
@@ -81,7 +89,9 @@ cannot pass merely because the scanner exits successfully.
 External adapters may place `*.json` fragments in
 `.artifacts/guardrails/evidence/`. The scanner accepts only nested v2 fragments
 with the same subject. Different results for the same capability/provider pair
-are a contract error.
+are a contract error. The installed `.guardrails/adapter.py` writes such
+fragments for Snyk Code, Snyk Open Source, and FOSSA after running the
+adapter-owned command sequence for the exact `HEAD`.
 
 ## GitHub evidence
 

@@ -8,6 +8,7 @@ Guardrails. Start with the task you need to perform.
 | Understand the direction and current maturity | [Vision](vision.md) |
 | Set up the toolkit with one CLI | [Install with `ai-toolkit`](install.md) |
 | Install and run Guardrails in a repository | [Quickstart](quickstart.md) |
+| Add SonarQube, Snyk, or FOSSA evidence | [Providers](providers/README.md) |
 | Install reusable agent skills | [Skill catalog](../skills/README.md) |
 | Set up functional QA | [QA bootstrap](../skills/qa-bootstrap/SKILL.md) |
 | Develop and check this toolkit | [Self-check](self-check.md), [contributing](../CONTRIBUTING.md) |
@@ -19,6 +20,7 @@ Guardrails. Start with the task you need to perform.
 | Directory | Contents |
 | --- | --- |
 | [guardrails/](guardrails/README.md) | Runtime model, architecture, providers, configuration, operation, and scorecards |
+| [providers/](providers/README.md) | External provider guides, adapter-owned commands, reason codes, and the live verification ledger |
 | [standards/](standards/README.md) | Agent guidance, commits, error handling, release evidence, and specification-driven development |
 | [agent-workflows/](agent-workflows/README.md) | Repository administration and dependency remediation workflows |
 | [examples/](examples/sample-scorecard.md) | Illustrative scorecards and workflow examples |

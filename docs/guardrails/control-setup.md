@@ -292,17 +292,21 @@ same capability.
 ## Optional vendor providers
 
 These definitions are available but are not runnable profiles and are not
-installed as active integrations. Snyk, FOSSA, and the QA Bootstrap Workflow have
-no shipped workflow template; consumers must supply their own reviewed workflow
-or adapter.
+installed as active integrations. SonarQube, Snyk, and FOSSA ship workflow
+templates (`workflows/sonar.yml`, `workflows/snyk.yml`, `workflows/fossa.yml`)
+that a consumer copies into `.github/workflows/`; Snyk and FOSSA run through
+the installed `.guardrails/adapter.py`, which owns the command shape and maps
+outcomes to evidence with a reason code. Semgrep AppSec Platform and the QA
+Bootstrap Workflow have no shipped template. See the
+[provider guides](../providers/README.md) for prerequisites and outcomes.
 
 | Provider | Capabilities | Declared credential | Activation responsibility |
 | --- | --- | --- | --- |
 | SonarQube | Static quality, changed-code coverage | `SONAR_TOKEN` | Configure project/host settings and a workflow or adapter that emits exact-head `SonarQube Quality Gate` evidence. |
-| Snyk Code | Deep SAST | `SNYK_TOKEN` | Supply a repository or organization workflow/adapter and exact-head `Snyk Code` evidence. |
-| Snyk Open Source | Dependency vulnerability | `SNYK_TOKEN` | Supply a repository or organization workflow/adapter and exact-head `Snyk Open Source` evidence. |
+| Snyk Code | Deep SAST | `SNYK_TOKEN` | Copy `workflows/snyk.yml`, add the secret, and verify exact-head `Snyk Code` evidence on a representative PR. |
+| Snyk Open Source | Dependency vulnerability | `SNYK_TOKEN` | Copy `workflows/snyk.yml`, set `GUARDRAILS_SETUP_COMMAND` so dependencies resolve, and verify exact-head `Snyk Open Source` evidence. |
 | Semgrep AppSec Platform | Custom static analysis, deep SAST | `SEMGREP_APP_TOKEN` | Supply an organization-approved integration and exact-head `Semgrep` evidence. |
-| FOSSA | Dependency vulnerability, license compliance | `FOSSA_API_KEY` | Supply a repository or organization workflow/adapter and exact-head `FOSSA` evidence. |
+| FOSSA | Dependency vulnerability, license compliance | `FOSSA_API_KEY` | Copy `workflows/fossa.yml` (adapter runs `fossa analyze` then `fossa test`) and verify exact-head `FOSSA` evidence. |
 | QA Bootstrap Workflow | Functional QA | None (the agent API key and app test credentials are repository secrets named in `config.yaml`) | Generate the read-only `.github/workflows/qa.yml` advisory check and trusted `.github/workflows/qa-report.yml` reporter with the `qa-bootstrap` skill, verify the `QA / report` check on a representative pull request, then set `functional-qa=advisory`. Guardrails records the exact-head check result; it does not run the agent. |
 | Codex Code Review | AI engineering review | None | Connect the repository to Codex, enable native automatic reviews in Codex settings (recommended) or comment `@codex review`, then set `ai-engineering-review=advisory`. Guardrails accepts only an exact-head review from `chatgpt-codex-connector[bot]`. |
 
