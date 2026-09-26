@@ -23,6 +23,10 @@ on:
         description: FOSSA API key.
         required: true
 
+concurrency:
+  group: fossa-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
