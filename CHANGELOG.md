@@ -8,6 +8,27 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Add the shared `ai-toolkit` CLI (`tooling/ai_toolkit`) with `discover`,
+  `init`, `doctor`, `check`, `providers`, `skills`, `qa`, and `update`. The CLI
+  dispatches to the existing installer, diagnostics, scanner, configuration,
+  and skill sources; it does not reimplement evaluation, and installed
+  repositories never import it at evaluation time. `init` detects Python and
+  Node projects, candidate commands, existing workflows and provider
+  integrations, and agent clients; previews before writing; installs selected
+  components; and records `toolkit.toml` (components, agent clients, paths to
+  the authoritative `.guardrails/` files) and `toolkit.lock.json` (revision
+  and managed-file hashes). Discovered repository commands are proposed as
+  GitHub repository variables and never written to committed files. `doctor`
+  adds installed / configured / verified states, where `verified` comes only
+  from existing revision-bound evidence. `check` groups results into what ran,
+  what failed, what remains unverified, and the next action, naming the repair
+  skill for failed capabilities. `update` refreshes unmodified managed files,
+  preserves modified ones as reported conflicts, keeps a backup, and supports
+  `--rollback`. Add `tooling/build_archive.py` for a checksummed
+  `ai-toolkit.pyz`, the `toolkit-setup` skill, the `AI Toolkit Setup` starter
+  workflow, and the install guide. The `.guardrails/` runtime contract,
+  installer behavior, and existing check identities are unchanged.
+
 - Format the public PR scorecard as a responsive dashboard with clear policy
   status, separate enforced/advisory counts, readable timestamps, and source
   evidence links. Preserve the bounded public metadata, badge URLs, and
