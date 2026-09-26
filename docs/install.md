@@ -47,6 +47,8 @@ python3 ai-toolkit.pyz init --target . --yes       # apply
 `discover` detects Python and Node projects, candidate build/test/lint
 commands, existing workflows and provider integrations (SonarQube, Snyk,
 FOSSA, CodeQL, Semgrep, Gitleaks), documentation, and installed agent clients.
+In a polyglot repository the commands for one capability are chained with
+`&&` so every detected suite must run and pass.
 `init` previews the files it would write and applies them only after `--yes`
 or an interactive confirmation. Options:
 
