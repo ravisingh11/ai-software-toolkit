@@ -80,9 +80,15 @@ def _reject_symlinks(destination_root: Path, path: Path) -> None:
 
 
 def install_skills(names: list[str], destination_root: Path, *, existing: str = "skip", dry_run: bool = False) -> list[dict[str, Any]]:
-    """Copy skills; returns one row per skill with the action taken and the files written."""
-    if existing not in {"skip", "merge", "replace"}:
-        raise ToolkitError("existing must be skip, merge, or replace")
+    """Copy skills; returns one row per skill with the action taken and the files written.
+
+    ``existing`` decides what happens to a skill directory that is already there:
+    ``skip`` leaves it, ``merge`` adds only missing files, ``refresh`` rewrites the
+    canonical files and keeps anything else, ``replace`` makes it identical to the
+    canonical copy (deleting extras).
+    """
+    if existing not in {"skip", "merge", "replace", "refresh"}:
+        raise ToolkitError("existing must be skip, merge, replace, or refresh")
     selected = list(names)
     if selected and SHARED_BUNDLE not in selected and (source_dir() / SHARED_BUNDLE).is_dir():
         selected.append(SHARED_BUNDLE)
