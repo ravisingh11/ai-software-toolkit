@@ -139,6 +139,23 @@ def render_check(card: dict[str, Any], *, evidence_path: str | None = None, repo
     return "\n".join(lines) + "\n"
 
 
+def authoritative_selections(target: Path) -> dict[str, str]:
+    """Capability -> authoritative provider id from the installed provider configuration."""
+    path = target / ".guardrails" / "providers.yaml"
+    if not path.is_file():
+        return {}
+    try:
+        document = load_json(path)
+    except ValueError:
+        return {}
+    selections = document.get("selections", {})
+    return {
+        capability: selection["authoritative"]
+        for capability, selection in selections.items()
+        if isinstance(selection, dict) and isinstance(selection.get("authoritative"), str)
+    } if isinstance(selections, dict) else {}
+
+
 def verified_rows(target: Path, doctor_report: dict[str, Any]) -> list[dict[str, Any]]:
     """Per-capability installed / configured / verified rows from doctor output and evidence.
 
@@ -156,6 +173,7 @@ def verified_rows(target: Path, doctor_report: dict[str, Any]) -> list[dict[str,
         and not identifier.startswith("local.tool.")
     })
     results = evidence.get("results", {}) if evidence and binding["bound"] else {}
+    selections = authoritative_selections(target)
     rows = []
     installed = checks.get("runtime", {}).get("status") == "configured"
     for capability in capabilities:
@@ -163,8 +181,12 @@ def verified_rows(target: Path, doctor_report: dict[str, Any]) -> list[dict[str,
         workflow = checks.get(f"workflow.{capability}")
         configured = (command is None or command["status"] == "configured") and (workflow is None or workflow["status"] == "configured")
         provider_results = results.get(capability, {}) if isinstance(results, dict) else {}
-        statuses = [row.get("status") for row in provider_results.values() if isinstance(row, dict)]
-        observed = next((status for status in statuses if status in {"passed", "failed"}), None)
+        # Only the selected authoritative provider can verify a capability; supplemental
+        # evidence is advisory and never counts.
+        authority = selections.get(capability)
+        authoritative_result = provider_results.get(authority) if authority and isinstance(provider_results, dict) else None
+        status = authoritative_result.get("status") if isinstance(authoritative_result, dict) else None
+        observed = status if status in {"passed", "failed"} else None
         state = "verified" if installed and observed else "configured" if installed and configured else "installed" if installed else "missing"
         if state == "verified":
             action = f"Latest evidence for HEAD shows {observed}; keep it current by rerunning check after changes."

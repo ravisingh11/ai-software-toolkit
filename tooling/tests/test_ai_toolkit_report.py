@@ -92,8 +92,16 @@ class ReportTests(unittest.TestCase):
         empty = report.render_check({"controls": [], "findings": []})
         self.assertEqual(empty.count("(none)"), 3)
 
+    def write_selections(self, selections: dict) -> None:
+        path = self.target / ".guardrails" / "providers.yaml"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"version": 2, "providers": {}, "selections": {
+            capability: {"authoritative": provider, "supplemental": []} for capability, provider in selections.items()
+        }}), encoding="utf-8")
+
     def test_verified_rows_require_bound_evidence(self):
         revision = self.commit()
+        self.write_selections({"build": "prov", "deep-sast": "prov", "unit-tests": "prov"})
         doctor_report = {"checks": [
             {"id": "runtime", "status": "configured", "message": "", "next_step": ""},
             {"id": "local.command.build", "status": "action_needed", "message": "", "next_step": "Export GUARDRAILS_BUILD_COMMAND"},
@@ -124,6 +132,25 @@ class ReportTests(unittest.TestCase):
         missing_runtime = {"checks": [{"id": "local.command.build", "status": "action_needed", "message": "", "next_step": ""}]}
         rows = report.verified_rows(self.target, missing_runtime)
         self.assertEqual(rows[0]["state"], "missing")
+
+    def test_supplemental_evidence_never_verifies(self):
+        revision = self.commit()
+        self.write_selections({"unit-tests": "authority"})
+        doctor_report = {"checks": [
+            {"id": "runtime", "status": "configured", "message": "", "next_step": ""},
+            {"id": "local.command.unit-tests", "status": "configured", "message": "", "next_step": ""},
+        ]}
+        self.write_evidence(revision, {"unit-tests": {"authority": {"status": "not_run"}, "helper": {"status": "passed"}}})
+        rows = {row["capability"]: row for row in report.verified_rows(self.target, doctor_report)}
+        self.assertEqual(rows["unit-tests"]["state"], "configured")
+        self.assertIsNone(rows["unit-tests"]["observed"])
+        self.write_evidence(revision, {"unit-tests": {"authority": {"status": "passed"}}})
+        rows = {row["capability"]: row for row in report.verified_rows(self.target, doctor_report)}
+        self.assertEqual(rows["unit-tests"]["state"], "verified")
+        (self.target / ".guardrails" / "providers.yaml").write_text("{broken", encoding="utf-8")
+        self.assertEqual(report.authoritative_selections(self.target), {})
+        (self.target / ".guardrails" / "providers.yaml").write_text(json.dumps({"selections": []}), encoding="utf-8")
+        self.assertEqual(report.authoritative_selections(self.target), {})
 
     def test_render_doctor_reports_unbound_or_absent_evidence(self):
         rendered = report.render_doctor(self.target, {"checks": []}, [], {})

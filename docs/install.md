@@ -88,10 +88,15 @@ skills_dir = ".agents/skills"
 policy = ".guardrails/policy.yaml"
 providers = ".guardrails/providers.yaml"
 profiles = ".guardrails/profiles.yaml"
+actions = true            # false after init --no-actions; update never adds workflows then
+github_profile = false    # true after init --profile github
 ```
 
-Policy modes and provider selection stay in `.guardrails/` and change only
-through `.guardrails/configure.py` (or `ai-toolkit providers select`).
+`actions` and `github_profile` record the installation mode chosen at `init`
+so `update` reproduces it even when a workflow file of the same name is
+consumer-owned or the installed policy is missing. Policy modes and provider
+selection stay in `.guardrails/` and change only through
+`.guardrails/configure.py` (or `ai-toolkit providers select CAPABILITY=PROVIDER`).
 
 ### `toolkit.lock.json`
 
@@ -162,7 +167,12 @@ python3 ai-toolkit.pyz update --target . --rollback
 `update` refreshes unmodified managed files from the running toolkit
 revision, preserves modified files and lists them as conflicts with the
 canonical version copied beside them under `.artifacts/ai-toolkit/conflicts/`,
-restores missing files, and rewrites the lock. A backup of every managed file
+restores missing files (including a partially deleted `.guardrails/`), and
+rewrites the lock. Only skills the previous lock recorded are refreshed; a
+directory you created under a canonical skill name is left alone and listed,
+until you adopt it with `ai-toolkit skills install`. Re-running `init` on an
+installed repository keeps the lock's baseline for files it did not rewrite,
+so your local edits still surface as conflicts later. A backup of every managed file
 is kept under `.artifacts/ai-toolkit/backup/<timestamp>/`; `--rollback`
 restores it and the previous lock. Running `update` at the same revision with
 nothing changed is a no-op.
