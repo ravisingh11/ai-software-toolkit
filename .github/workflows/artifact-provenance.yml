@@ -11,6 +11,10 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: artifact-provenance-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
   id-token: write

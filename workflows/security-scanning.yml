@@ -48,6 +48,10 @@ on:
         description: Snyk API token consumed by the repository-owned Snyk adapter.
         required: false
 
+concurrency:
+  group: security-scanning-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pull-requests: read

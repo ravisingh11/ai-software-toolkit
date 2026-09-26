@@ -33,6 +33,10 @@ on:
         type: boolean
         default: false
 
+concurrency:
+  group: ai-toolkit-setup-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
