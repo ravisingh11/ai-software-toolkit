@@ -104,6 +104,7 @@ def runtime_sources(target: Path) -> list[InstallItem]:
         "doctor.py": ROOT / "tooling/doctor.py",
         "github_evidence.py": ROOT / "tooling/github_evidence.py",
         "produce.py": PRODUCER,
+        "adapter.py": ROOT / "tooling/provider_adapter.py",
         "validate_ground_truth.py": ROOT / "tooling/validators/validate_ground_truth.py",
         "semgrep-rules.yml": ROOT / "security/semgrep/guardrails.yml",
     }
