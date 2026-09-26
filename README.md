@@ -133,6 +133,31 @@ inspect setup without executing your commands. Their `configured`,
 `action_needed`, and `unverified` states describe
 setup, not scan results. Exit zero is not a pass.
 
+## Read PR size and LOC
+
+Open the **PR Size / Files & LOC** Actions workflow and its **Files & LOC
+report** job. The report compares the counted changes with the repository's
+configured limits and separates excluded changes from the total diff.
+The check listed on a PR retains the name **PR Change Scope**.
+
+| Measurement | Toolkit default limit |
+| --- | ---: |
+| Counted files | 12 |
+| Added lines | 300 |
+| Added + deleted lines | 500 |
+| Most added lines in one file | 150 |
+
+These defaults warn only. The report states whether the consuming repository
+uses advisory or enforced mode; a within-limit row is not proof that the PR's
+other checks passed. Thresholds and excluded paths are defined in the
+consumer's `.guardrails/change-scope.yaml`.
+
+The [live scorecard dashboard](https://ravisingh11.github.io/ai-software-toolkit/#size-title)
+shows the same measurements for its latest accepted PR snapshot. Its repository
+label identifies whose changes are being measured; this toolkit dashboard does
+not aggregate the reference app's PRs. Older evidence without structured
+measurements shows unavailable. See [report details](docs/guardrails/control-setup.md#reading-the-pr-size-report).
+
 ## Profiles
 
 Core is the default advisory profile: repository/documentation/ground-truth
