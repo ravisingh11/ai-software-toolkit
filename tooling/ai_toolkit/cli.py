@@ -403,6 +403,14 @@ def providers_document(target: Path) -> dict[str, Any]:
     return document
 
 
+def declared_credential_names(provider: dict[str, Any]) -> list[str]:
+    """Names of the GitHub secrets a provider declares. Values are never read or printed."""
+    for key, value in provider.items():
+        if key == "secrets" and isinstance(value, list):
+            return [name for name in value if isinstance(name, str)]
+    return []
+
+
 def cmd_providers(args: argparse.Namespace) -> int:
     target = resolve_target(args.target)
     document = providers_document(target)
@@ -423,7 +431,7 @@ def cmd_providers(args: argparse.Namespace) -> int:
             "activation": provider.get("activation"),
             "capabilities": provider.get("capabilities", []),
             "authoritative_for": authoritative,
-            "credential_names": list(provider.get("secrets", [])),
+            "credential_names": declared_credential_names(provider),
             "template": provider.get("template"),
             "template_available": bool(provider.get("template_available")),
             "enabled_by_default": bool(provider.get("enabled_by_default")),
