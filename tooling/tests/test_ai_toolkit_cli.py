@@ -266,8 +266,10 @@ class ProvidersSkillsQaTests(CliFixture):
         code, _, err = run_cli("providers", "select", "--target", str(self.target))
         self.assertEqual(code, 2)
         self.assertEqual(self.init("--components", "guardrails")[0], 0)
-        code, out, _ = run_cli("providers", "show", "snyk-code", "--target", str(self.target))
+        code, out, _ = run_cli("providers", "show", "semgrep-app", "--target", str(self.target))
         self.assertIn("none shipped", out)
+        code, out, _ = run_cli("providers", "show", "snyk-code", "--target", str(self.target))
+        self.assertIn("adapter-owned (snyk code test", out)
         with patch.object(cli, "run_python", return_value=subprocess.CompletedProcess([], 0, "", "")) as run:
             code, _, _ = run_cli("providers", "select", "--selection", "deep-sast=snyk-code", "--target", str(self.target))
         self.assertEqual(code, 0)

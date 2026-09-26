@@ -35,6 +35,26 @@ REVIEW_SKILLS = {
 }
 
 
+# Standard reason codes emitted by adapters (see tooling/provider_adapter.py REASON_CODES).
+REASON_ACTIONS = {
+    "configuration-missing": "Install the provider CLI or configuration named in the reason, then rerun.",
+    "credential-missing": "Add the provider credential as a GitHub secret (or export it locally), then rerun.",
+    "authentication-failed": "Rotate or fix the provider credential; the current one was rejected.",
+    "execution-error": "Open the provider run log; the command failed before producing a result.",
+    "analysis-incomplete": "The provider did not finish evaluating this revision; rerun once its analysis completes or raise the timeout.",
+    "revision-mismatch": "The evidence is for a different revision; rerun the provider on the exact HEAD.",
+    "unsupported-project": "The provider found nothing to analyze; confirm the working directory and manifests, or deselect the provider.",
+    "timed-out": "The provider exceeded the adapter timeout; rerun or raise --timeout.",
+}
+
+
+def reason_code(reason: str | None) -> str | None:
+    if not isinstance(reason, str):
+        return None
+    head = reason.split(":", 1)[0].strip()
+    return head if head in REASON_ACTIONS else None
+
+
 def latest_evidence(target: Path) -> dict[str, Any] | None:
     path = target / ".artifacts" / "guardrails" / "evidence.json"
     if not path.is_file():
@@ -84,6 +104,10 @@ def next_action(row: dict[str, Any]) -> str:
         if skill:
             return f"Run the `{skill}` skill with this finding attached (review skills today: {REVIEW_SKILLS.get(skill, skill)})."
         return f"Investigate the {provider} result and fix the underlying problem."
+    code = reason_code(reason)
+    if code:
+        action = REASON_ACTIONS[code]
+        return f"[{code}] {action} ({reason.split(':', 1)[1].strip()})"
     if status == "blocked":
         return f"{provider} could not complete: {reason or 'see the evidence'}. Resolve the blocker and rerun."
     if status in {"not_run", "no_result", "missing"}:

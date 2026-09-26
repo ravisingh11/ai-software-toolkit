@@ -138,3 +138,22 @@ class ReportTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReasonCodeTests(unittest.TestCase):
+    def test_reason_codes_drive_next_actions(self):
+        for code in report.REASON_ACTIONS:
+            row = control("deep-sast", "blocked", reason=f"{code}: detail text")
+            action = report.next_action(row)
+            self.assertTrue(action.startswith(f"[{code}]"), action)
+            self.assertIn("detail text", action)
+        self.assertIsNone(report.reason_code("no code here"))
+        self.assertIsNone(report.reason_code(None))
+        self.assertEqual(report.reason_code("timed-out: x"), "timed-out")
+
+    def test_adapter_codes_match_report_codes(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("provider_adapter", ROOT / "tooling" / "provider_adapter.py")
+        adapter = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(adapter)
+        self.assertEqual(set(adapter.REASON_CODES), set(report.REASON_ACTIONS))

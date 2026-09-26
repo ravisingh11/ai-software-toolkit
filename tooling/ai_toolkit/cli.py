@@ -17,6 +17,11 @@ from . import VERSION, config, discovery, report, skills
 from .runtime import ROOT, ToolkitError, installed_runtime, relative, resolve_target, revision, run_python, script_path
 
 INSTALLER_MARKER = "# Guardrails v2 installer-owned workflow."
+ADAPTER_PROVIDERS = {
+    "snyk-code": "snyk code test; SNYK_CODE_ARGS",
+    "snyk-open-source": "snyk test; SNYK_OPEN_SOURCE_ARGS",
+    "fossa": "fossa analyze then fossa test; FOSSA_ARGS",
+}
 
 
 def _installer():
@@ -451,6 +456,8 @@ def cmd_providers(args: argparse.Namespace) -> int:
         if row["credential_names"]:
             lines.append(f"  credentials: {', '.join(row['credential_names'])} (names only; values stay in GitHub secrets)")
         lines.append("  template: " + (row["template"] if row["template_available"] and row["template"] else "none shipped; the consumer owns the workflow"))
+        if row["id"] in ADAPTER_PROVIDERS:
+            lines.append(f"  commands: adapter-owned ({ADAPTER_PROVIDERS[row['id']]}); consumers supply arguments only")
     lines.append("")
     lines.append("Select a provider: ai-toolkit providers select CAPABILITY=PROVIDER (runs .guardrails/configure.py).")
     _print("\n".join(lines))
