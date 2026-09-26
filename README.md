@@ -140,6 +140,10 @@ report** job. The report compares the counted changes with the repository's
 configured limits and separates excluded changes from the total diff.
 The check listed on a PR retains the name **PR Change Scope**.
 
+Large PRs can overwhelm human reviewers. Prefer smaller, focused PRs so
+feedback is easier to act on and each change is easier to verify. Size limits
+are review aids; staying below them does not establish correctness.
+
 | Measurement | Toolkit default limit |
 | --- | ---: |
 | Counted files | 12 |

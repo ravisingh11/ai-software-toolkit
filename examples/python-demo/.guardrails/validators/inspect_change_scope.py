@@ -317,6 +317,8 @@ def render_markdown(result: dict[str, Any], mode: str) -> str:
         "",
         descriptions[mode],
         "",
+        "Large PRs can overwhelm human reviewers. Prefer smaller, focused PRs so feedback is easier to act on and each change is easier to verify.",
+        "",
         "### Counted changes against policy limits",
         "",
         "| Metric | Actual | Limit | Result |",
