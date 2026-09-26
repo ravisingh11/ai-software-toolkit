@@ -16,6 +16,10 @@ on:
         type: string
         default: '.'
 
+concurrency:
+  group: ai-pr-review-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pull-requests: read
