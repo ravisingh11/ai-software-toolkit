@@ -1,0 +1,5 @@
+[
+  {"id": "ENG-001", "severity": "P1", "status": "open", "blocking": true, "title": "put() accepts non-string keys", "surface": "store.put", "evidence": ["store.py:4"], "impact": "Unhashable or None keys raise deep inside callers.", "fixPlan": "Validate that key is a non-empty string and raise ValueError.", "verification": {"method": "targeted test", "command": "python3 -m unittest discover", "result": "pending", "residualRisk": ""}},
+  {"id": "ENG-002", "severity": "P2", "status": "open", "blocking": false, "title": "Cache grows without bound", "surface": "store._CACHE", "evidence": ["store.py:1"], "impact": "Long-running processes exhaust memory.", "fixPlan": "Bound the cache to a documented maximum with eviction.", "verification": {"method": "targeted test", "command": "python3 -m unittest discover", "result": "pending", "residualRisk": ""}},
+  {"id": "STD-001", "severity": "P3", "status": "open", "blocking": false, "title": "Module name store is generic", "surface": "store", "evidence": ["store.py"], "impact": "Discoverability.", "fixPlan": "Rename to kv_store.", "verification": {"method": "none", "command": "", "result": "pending", "residualRisk": ""}}
+]

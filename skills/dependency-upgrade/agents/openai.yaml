@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dependency Upgrade"
+  short_description: "Upgrade one dependency with compatibility proof and rollback notes"
+  default_prompt: "Use $dependency-upgrade to move the named dependency to its target version with the package manager's own command, handle documented breaking changes only, run build and tests, rerun the scanner, and report the rollback path."

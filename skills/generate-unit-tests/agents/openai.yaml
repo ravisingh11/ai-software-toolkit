@@ -1,0 +1,4 @@
+interface:
+  display_name: "Generate Unit Tests"
+  short_description: "Write behavior-protecting tests for changed or untested code"
+  default_prompt: "Use $generate-unit-tests to enumerate the behaviors of the target, write one deterministic test per behavior in the repository's conventions, run them, and report what is and is not covered."

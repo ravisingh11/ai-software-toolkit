@@ -58,6 +58,41 @@ def validate_references(path: Path) -> None:
             fail(f"{path.relative_to(ROOT)} references missing file {raw}")
 
 
+ACTION_SKILLS = ("fix-ci", "generate-unit-tests", "fix-security-finding", "dependency-upgrade", "address-pr-findings")
+SUPPORTED_CLIENTS = ("codex", "claude-code")
+FIXTURES_DIR = ROOT / "tooling" / "tests" / "fixtures" / "skills"
+
+
+def validate_action_skill(name: str) -> None:
+    """Action skills need a seeded fixture and a per-client verification ledger."""
+    skill_dir = SKILLS_DIR / name
+    if not (skill_dir / "SKILL.md").is_file():
+        fail(f"action skill {name} has no SKILL.md")
+    text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+    for heading in ("## Inputs", "## Permitted changes", "## Stop conditions", "## Verification", "## Outcome report"):
+        if heading not in text:
+            fail(f"skills/{name}/SKILL.md is missing the {heading!r} section")
+    fixture = FIXTURES_DIR / name
+    if not (fixture / "TASK.md").is_file():
+        fail(f"action skill {name} is missing its seeded fixture {fixture}/TASK.md")
+    ledger = skill_dir / "VERIFICATION.md"
+    if not ledger.is_file():
+        fail(f"action skill {name} is missing VERIFICATION.md")
+    rows = {}
+    for line in ledger.read_text(encoding="utf-8").splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) >= 4 and cells[0] in SUPPORTED_CLIENTS:
+            rows[cells[0]] = cells
+    for client in SUPPORTED_CLIENTS:
+        if client not in rows:
+            fail(f"skills/{name}/VERIFICATION.md ledger has no row for {client}")
+        verified, revision = rows[client][1].lower(), rows[client][3]
+        if verified not in {"yes", "no"}:
+            fail(f"skills/{name}/VERIFICATION.md {client} row must say yes or no, not {verified!r}")
+        if verified == "yes" and revision in {"", "—", "-"}:
+            fail(f"skills/{name}/VERIFICATION.md {client} row is verified without a toolkit revision")
+
+
 def validate_no_absolute_paths() -> None:
     for path in SKILLS_DIR.rglob("*"):
         if path.is_file() and path.suffix in {".md", ".py", ".yaml", ".yml"}:
@@ -95,6 +130,9 @@ def main() -> None:
         agents_file = skill_file.parent / "agents" / "openai.yaml"
         if not agents_file.exists():
             fail(f"{skill_file.parent.relative_to(ROOT)} is missing agents/openai.yaml")
+
+    for name in ACTION_SKILLS:
+        validate_action_skill(name)
 
     validate_no_absolute_paths()
     run_tests()
