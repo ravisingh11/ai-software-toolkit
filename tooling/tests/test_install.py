@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import subprocess
 import tempfile
@@ -78,6 +79,58 @@ def load_module(path: Path, name: str):
 
 
 class InstallerTests(unittest.TestCase):
+    def test_visibility_detection_reads_target_repository_without_gh_repo_override(self) -> None:
+        target = Path("/tmp/consumer-repository")
+        for visibility in ("PUBLIC", "PRIVATE", "INTERNAL"):
+            with self.subTest(visibility=visibility), mock.patch.dict(
+                MODULE.os.environ, {"GH_REPO": "other/repository"}
+            ), mock.patch.object(MODULE.subprocess, "run", return_value=subprocess.CompletedProcess(
+                [], 0, json.dumps({"visibility": visibility}), ""
+            )) as run:
+                self.assertEqual(MODULE.repository_visibility(target), visibility.lower())
+                self.assertEqual(run.call_args.args[0], ["gh", "repo", "view", "--json", "visibility"])
+                self.assertEqual(run.call_args.kwargs["cwd"], target.resolve())
+                self.assertEqual(run.call_args.kwargs["timeout"], 10)
+                self.assertNotIn("GH_REPO", run.call_args.kwargs["env"])
+
+    def test_visibility_detection_fails_closed_without_disclosing_errors(self) -> None:
+        failures = [
+            subprocess.CompletedProcess([], 1, "", "sensitive diagnostic"),
+            subprocess.CompletedProcess([], 0, "not json", ""),
+            subprocess.CompletedProcess([], 0, '[]', ""),
+            subprocess.CompletedProcess([], 0, '{"visibility": true}', ""),
+            subprocess.CompletedProcess([], 0, '{"visibility": "unsupported"}', ""),
+            FileNotFoundError("gh not installed"),
+            subprocess.TimeoutExpired("gh", 10),
+        ]
+        for failure in failures:
+            with self.subTest(failure=failure), mock.patch.object(MODULE.subprocess, "run") as run:
+                if isinstance(failure, Exception):
+                    run.side_effect = failure
+                else:
+                    run.return_value = failure
+                self.assertEqual(MODULE.repository_visibility(Path("/tmp/consumer")), "unknown")
+
+    def test_cli_reports_visibility_appropriate_guidance_without_enabling_publication(self) -> None:
+        for visibility in ("public", "private", "internal", "unknown"):
+            with self.subTest(visibility=visibility), tempfile.TemporaryDirectory() as directory:
+                target = Path(directory)
+                with mock.patch.object(MODULE, "repository_visibility", return_value=visibility) as detect, \
+                     mock.patch.object(MODULE.sys, "argv", [str(SCRIPT), "--target", str(target), "--dry-run"]), \
+                     mock.patch("sys.stdout", new_callable=io.StringIO) as output:
+                    self.assertEqual(MODULE.main(), 0)
+                detect.assert_called_once_with(target)
+                text = output.getvalue()
+                self.assertIn(f"repository visibility: {visibility}", text)
+                self.assertIn("Actions summaries and artifacts are the default", text)
+                self.assertIn("installing files does not enable publication", text)
+                if visibility == "public":
+                    self.assertIn("Optional Pages dashboard", text)
+                else:
+                    self.assertIn("GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS=private", text)
+                    self.assertIn("unknown visibility blocks publication", text)
+                self.assertFalse((target / ".github").exists())
+
     def workflows(self, target: Path) -> set[str]:
         directory = target / ".github" / "workflows"
         return {path.name for path in directory.glob("*.yml")} if directory.exists() else set()

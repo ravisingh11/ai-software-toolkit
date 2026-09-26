@@ -302,6 +302,46 @@ Then add the observed check context to the repository ruleset. Policy mode and
 GitHub branch protection are separate changes; both are required for a merge
 gate.
 
+## Reporting for private repositories
+
+Scorecard generation works for public, private, and internal repositories.
+The default is a GitHub Actions job summary and downloadable artifacts, with
+access governed by the repository. Installing the toolkit does not publish a
+website. The installer uses a read-only GitHub CLI query scoped to `--target`
+to suggest the appropriate reporting option. If GitHub CLI is unavailable,
+unauthenticated, or cannot confirm visibility, it recommends keeping reports
+inside Actions. This detection is guidance; the publisher independently checks
+live repository visibility before publication.
+
+| Repository | Default | Optional dashboard |
+| --- | --- | --- |
+| Public | Actions summaries and artifacts | Public Pages |
+| Private or internal | Actions summaries and artifacts | Private Pages with verified access controls |
+| Unknown visibility | Actions summaries and artifacts | Publication blocked until visibility can be verified |
+
+A private repository does **not** automatically make its Pages site private.
+[Private Pages access control](https://docs.github.com/en/enterprise-cloud@latest/pages/getting-started-with-github-pages/changing-the-visibility-of-your-github-pages-site)
+requires an eligible organization using GitHub Enterprise Cloud. Configure
+Pages access as **Private** in GitHub before enabling the optional publisher,
+and set `GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS=private`. This variable requests
+a check; it does not create or secure a Pages site. The publisher verifies that
+GitHub reports the configured site as private before rendering or uploading.
+Missing, public, inaccessible, or unverified destinations block publication.
+The repository's normal CI scorecard remains available in Actions.
+
+For private Pages, use the site URL supplied by GitHub rather than assuming
+the public `OWNER.github.io/REPOSITORY` URL. Private publishing selects the
+newest retained CI candidate each run and blocks publication if that candidate
+cannot be verified; it does not fall back to an older report. It does not anonymously
+fetch the previously deployed report, so it cannot compare that report's
+freshness and may publish the same retained result again. Repository visibility
+changes do not remove reports already published: disable or restrict existing
+Pages deployments separately when making a repository private.
+
+Other authenticated internal hosts require a separately managed deployment;
+this installer does not configure an authenticated hosting adapter. Without
+private Pages eligibility, keep the Actions reports as the supported default.
+
 ## Publish the optional scorecard badge
 
 The v1.0.0 installer supports the optional publisher. Run the installation
@@ -336,12 +376,17 @@ python3 tooling/install.py --target /path/to/existing-repo --refresh-existing --
 ```
 
 In repository settings, select **Pages → Build and deployment → GitHub
-Actions**. Then create:
+Actions**. For a public repository and public site, create:
 
 ```text
 GUARDRAILS_SCORECARD_BADGE_ENABLED=true
 GUARDRAILS_SCORECARD_BADGE_PAGES_MODE=dedicated
 ```
+
+For a private destination, also set
+`GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS=private` after configuring private
+Pages access as described above. This setting is required for private/internal
+repositories; private Pages eligibility depends on the GitHub organization and plan.
 
 No PAT or repository secret is required. The workflow uses the scoped
 `GITHUB_TOKEN`. `dedicated` means the publisher owns the complete Pages site;
@@ -356,7 +401,8 @@ Add the badges after the first successful publication:
 ```
 
 For an `OWNER.github.io` repository, use the Pages root without the repository
-segment. The public projection contains aggregate status/counts, source-run
+segment. These example URLs are for public Pages; use GitHub's configured
+site URL for private Pages. The bounded projection contains aggregate status/counts, source-run
 metadata, and a revision digest. Detailed controls, findings, evidence, reasons,
 provider data, check URLs, raw revisions, and source Markdown are excluded from
 Pages and remain in the source Actions artifact under normal repository access.

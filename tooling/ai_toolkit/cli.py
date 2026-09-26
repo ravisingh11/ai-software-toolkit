@@ -274,7 +274,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     no_actions = args.no_actions or (guardrails_was_configured and not existing_configuration["guardrails"]["actions"])
     github_profile = "github" in profiles or "github" in installed_profiles(target, existing_configuration)
     preview: dict[str, Any] = {"target": str(target), "components": components, "clients": clients, "discovery": found,
-                               "guardrails": [], "skills": [], "variables": [], "adopt_existing": already_installed}
+                               "guardrails": [], "skills": [], "variables": [], "adopt_existing": already_installed, "reporting": None}
 
     if "guardrails" in components:
         arguments = ["--target", str(target), "--dry-run"]
@@ -288,6 +288,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         if completed.returncode != 0:
             raise ToolkitError("installer preview failed: " + (completed.stderr or completed.stdout).strip())
         preview["guardrails"] = [line[len("- install: "):] for line in completed.stdout.splitlines() if line.startswith("- install: ")]
+        preview["reporting"] = next((line for line in completed.stdout.splitlines() if line.startswith("Reporting (")), None)
     selected_skills = skills.resolve_skills(args.skills.split(",") if args.skills else ["starter"]) if ("skills" in components or "qa" in components) else []
     if "qa" in components and "qa-bootstrap" not in selected_skills and "qa-bootstrap" in skills.canonical_skills():
         selected_skills.append("qa-bootstrap")
@@ -316,6 +317,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     if preview["variables"]:
         lines.append("  Repository variables (set with --apply-variables, or run these yourself):")
         lines.extend(f"    {row['detail']}" for row in preview["variables"])
+    if preview["reporting"]:
+        lines.append(preview["reporting"])
     lines.append("")
     if args.preview:
         lines.append("Preview only; nothing was written.")
