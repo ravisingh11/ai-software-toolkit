@@ -80,15 +80,30 @@ def guardrails_managed(target: Path, configuration: dict[str, Any] | None = None
     return sorted(relative(item.destination, target) for item in plan)
 
 
-def skills_managed(target: Path, configuration: dict[str, Any] | None) -> list[str]:
+def skill_roots(target: Path, configuration: dict[str, Any] | None) -> list[Path]:
     roots = {target / config.default_configuration("", components=["skills"], clients=[])["agents"]["skills_dir"]}
     if configuration:
         roots.add(target / configuration["agents"]["skills_dir"])
         for client in configuration["agents"]["clients"]:
             roots.add(skills.client_project_dir(client, target))
+    return sorted(roots)
+
+
+def recorded_skills(target: Path, lock: dict[str, Any] | None, root: Path) -> list[str]:
+    """Skill names the lock records under ``root``, whether or not the directory still exists."""
+    prefix = relative(root, target) + "/"
+    names = {path[len(prefix):].split("/", 1)[0] for path in (lock or {}).get("managed", {}) if path.startswith(prefix)}
+    return sorted(name for name in names if name in set(skills.canonical_skills()) | {skills.SHARED_BUNDLE})
+
+
+def skills_managed(target: Path, configuration: dict[str, Any] | None, lock: dict[str, Any] | None = None) -> list[str]:
     managed: list[str] = []
-    for root in sorted(roots):
+    for root in skill_roots(target, configuration):
         managed.extend(skills.managed_skill_files(target, root))
+        # A recorded skill whose directory was deleted stays in the inventory so it is
+        # classified as missing and restored, not silently dropped.
+        for name in recorded_skills(target, lock, root):
+            managed.extend((root / name / source.relative_to(skills.source_dir() / name)).relative_to(target).as_posix() for source in skills.skill_files(name))
     return sorted(set(managed))
 
 
@@ -99,13 +114,13 @@ def guardrails_component(target: Path, configuration: dict[str, Any] | None) -> 
     return (target / ".guardrails").is_dir()
 
 
-def managed_files(target: Path, configuration: dict[str, Any] | None) -> list[str]:
+def managed_files(target: Path, configuration: dict[str, Any] | None, lock: dict[str, Any] | None = None) -> list[str]:
     components = configuration["toolkit"]["components"] if configuration else list(config.COMPONENTS)
     managed: list[str] = []
     if guardrails_component(target, configuration):
         managed.extend(guardrails_managed(target, configuration))
     if "skills" in components or "qa" in components:
-        managed.extend(skills_managed(target, configuration))
+        managed.extend(skills_managed(target, configuration, lock))
     return sorted(set(managed))
 
 
@@ -116,7 +131,7 @@ def canonical_sources(target: Path, configuration: dict[str, Any] | None) -> dic
     if guardrails_component(target, configuration):
         for item in installer.build_plan(target, profiles=installed_profiles(target, configuration), no_actions=False, scorecard_badge=True):
             sources[relative(item.destination, target)] = item.source
-    for relative_path in skills_managed(target, configuration):
+    for relative_path in skills_managed(target, configuration, config.read_lock(target)):
         parts = Path(relative_path).parts
         canonical = next((skills.source_dir().joinpath(*parts[index:]) for index in range(len(parts))
                           if skills.source_dir().joinpath(*parts[index:]).is_file()), None)
@@ -225,6 +240,11 @@ def cmd_init(args: argparse.Namespace) -> int:
         if client not in config.CLIENTS:
             raise ToolkitError(f"unknown agent client: {client}")
     existing_configuration = config.read_configuration(target)
+    if existing_configuration:
+        # Components and clients already installed stay managed; removing one is a separate,
+        # explicit step rather than a side effect of a narrower re-run.
+        components = sorted(set(existing_configuration["toolkit"]["components"]) | set(components), key=config.COMPONENTS.index)
+        clients = list(dict.fromkeys([*existing_configuration["agents"]["clients"], *clients]))
     already_installed = bool(installed_runtime(target))
     profiles = ["github"] if args.profile == "github" else []
     preview: dict[str, Any] = {"target": str(target), "components": components, "clients": clients, "discovery": found,
@@ -497,6 +517,21 @@ def cmd_providers(args: argparse.Namespace) -> int:
     return 0
 
 
+def record_skills_in_lock(target: Path, destination: Path, rows: list[dict[str, Any]]) -> bool:
+    """Add project skill files to toolkit.lock.json so update manages them from now on."""
+    lock = config.read_lock(target)
+    if lock is None:
+        return False
+    written = [(destination / item).relative_to(target).as_posix() for row in rows if row["action"] != "skip" for item in row["files"]]
+    if not written:
+        return False
+    managed = dict(lock.get("managed", {}))
+    managed.update(config.hash_managed(target, written))
+    config.write_lock(target, config.build_lock(lock["toolkit"].get("revision") or revision(), components=lock.get("components", []),
+                                                managed=managed, previous=lock.get("previous")))
+    return True
+
+
 def cmd_skills(args: argparse.Namespace) -> int:
     target = resolve_target(args.target)
     if args.action == "list":
@@ -514,6 +549,8 @@ def cmd_skills(args: argparse.Namespace) -> int:
         destination = skills.client_user_dir(client) if args.user else skills.client_project_dir(client, target)
         rows = skills.install_skills(requested, destination, existing=existing, dry_run=args.dry_run)
         results.append({"client": client, "destination": str(destination), "skills": rows})
+        if not args.user and not args.dry_run:
+            record_skills_in_lock(target, destination, rows)
     lines = []
     for row in results:
         lines.append(f"{row['client']} -> {row['destination']}" + (" (dry run)" if args.dry_run else ""))
@@ -587,7 +624,7 @@ def cmd_update(args: argparse.Namespace) -> int:
     if configuration is None:
         raise ToolkitError(f"{config.TOML_NAME} is missing; run `ai-toolkit init` first")
     current = revision()
-    managed = managed_files(target, configuration)
+    managed = managed_files(target, configuration, lock)
     classification = config.classify(target, lock, managed) if lock else bootstrap_classification(target, managed, configuration)
     preserved = preserved_configuration()
     up_to_date = bool(lock) and lock["toolkit"].get("revision") == current and not classification["modified"] and not classification["missing"] and not classification["new"]
@@ -629,20 +666,15 @@ def cmd_update(args: argparse.Namespace) -> int:
             raise ToolkitError("installer refresh failed; previous files were restored: " + (completed.stderr or completed.stdout).strip())
     skipped_skills: list[str] = []
     if "skills" in components or "qa" in components:
-        recorded_paths = set(lock.get("managed", {})) if lock else set()
-        for client in configuration["agents"]["clients"]:
-            root = skills.client_project_dir(client, target)
-            if not root.is_dir():
-                continue
-            prefix = relative(root, target) + "/"
-            recorded = {path[len(prefix):].split("/", 1)[0] for path in recorded_paths if path.startswith(prefix)}
-            present = [path.name for path in root.iterdir() if path.is_dir() and path.name in set(skills.canonical_skills())]
-            # Only skills the previous lock recorded are refreshed; a directory the consumer
-            # created under a canonical name is theirs until they install it explicitly.
-            refresh = [name for name in present if name in recorded]
-            skipped_skills.extend(f"{prefix}{name}" for name in present if name not in recorded)
-            if refresh:
-                skills.install_skills(refresh, root, existing="replace")
+        for root in skill_roots(target, configuration):
+            recorded = [name for name in recorded_skills(target, lock, root) if name != skills.SHARED_BUNDLE]
+            present = [path.name for path in root.iterdir() if path.is_dir() and path.name in set(skills.canonical_skills())] if root.is_dir() else []
+            # Only skills the previous lock recorded are refreshed (rewriting canonical files,
+            # never deleting extras) or restored when their directory is gone; a directory the
+            # consumer created under a canonical name is theirs until they install it explicitly.
+            skipped_skills.extend(f"{relative(root, target)}/{name}" for name in present if name not in recorded)
+            if recorded:
+                skills.install_skills(recorded, root, existing="refresh")
     sources = canonical_sources(target, configuration)
     for relative_path in classification["modified"]:
         if relative_path in preserved or relative_path not in sources:
@@ -656,7 +688,7 @@ def cmd_update(args: argparse.Namespace) -> int:
                 "managed": lock.get("managed", {}) if lock else {}}
     configuration["toolkit"]["revision"] = current
     config.write_configuration(target, configuration)
-    managed = managed_files(target, configuration)
+    managed = managed_files(target, configuration, lock)
     config.write_lock(target, config.build_lock(current, components=components, managed=config.hash_managed(target, managed), previous=previous))
     payload.update({"applied": True, "conflicts": conflicts, "backup": relative(backup_root, target)})
     lines.append(f"Applied. Backup: {relative(backup_root, target)} (use `ai-toolkit update --rollback` to restore).")

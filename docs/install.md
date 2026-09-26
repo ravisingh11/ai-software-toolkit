@@ -168,11 +168,15 @@ python3 ai-toolkit.pyz update --target . --rollback
 revision, preserves modified files and lists them as conflicts with the
 canonical version copied beside them under `.artifacts/ai-toolkit/conflicts/`,
 restores missing files (including a partially deleted `.guardrails/`), and
-rewrites the lock. Only skills the previous lock recorded are refreshed; a
-directory you created under a canonical skill name is left alone and listed,
-until you adopt it with `ai-toolkit skills install`. Re-running `init` on an
-installed repository keeps the lock's baseline for files it did not rewrite,
-so your local edits still surface as conflicts later. A backup of every managed file
+rewrites the lock. Only skills the previous lock recorded are refreshed
+(their canonical files are rewritten; files you added inside the directory
+are kept) or restored when the directory was deleted; a directory you created
+under a canonical skill name is left alone and listed until you adopt it with
+`ai-toolkit skills install`, which records project installs in the lock.
+Re-running `init` on an installed repository keeps the lock's baseline for
+files it did not rewrite, so your local edits still surface as conflicts
+later, and keeps every component and client already installed; removing one
+is a separate, explicit step. A backup of every managed file
 is kept under `.artifacts/ai-toolkit/backup/<timestamp>/`; `--rollback`
 restores it and the previous lock. Running `update` at the same revision with
 nothing changed is a no-op.

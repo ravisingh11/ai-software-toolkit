@@ -490,3 +490,47 @@ class ReviewRegressionTests(CliFixture):
         self.assertEqual(code, 0, out)
         self.assertNotIn("missing    guardrails", out)
         self.assertIn("installed  skills", out)
+
+    def test_update_keeps_extra_files_in_managed_skills(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        skill = self.target / ".agents" / "skills" / "code-review"
+        (skill / "notes.md").write_text("mine\n", encoding="utf-8")
+        (skill / "SKILL.md").write_text("edited\n", encoding="utf-8")
+        code, out, _ = run_cli("update", "--target", str(self.target), "--force", "--json")
+        self.assertEqual(code, 0, out)
+        self.assertTrue((skill / "notes.md").is_file())
+        self.assertEqual((skill / "SKILL.md").read_text(encoding="utf-8"), "edited\n")
+        self.assertIn(".agents/skills/code-review/SKILL.md", [row["path"] for row in json.loads(out)["conflicts"]])
+
+    def test_update_restores_deleted_skill_directory(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        subprocess.run(["rm", "-rf", str(self.target / ".agents" / "skills" / "code-review")], check=True)
+        code, out, _ = run_cli("update", "--target", str(self.target), "--dry-run", "--json")
+        classification = json.loads(out)["classification"]
+        self.assertIn(".agents/skills/code-review/SKILL.md", classification["missing"])
+        self.assertEqual(classification["removed"], [])
+        self.assertNotIn("Up to date", out)
+        code, out, _ = run_cli("update", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.target / ".agents" / "skills" / "code-review" / "SKILL.md").is_file())
+
+    def test_skills_install_records_project_skills_in_lock(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        code, out, _ = run_cli("skills", "install", "--skill", "security-audit-lite", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertIn(".agents/skills/security-audit-lite/SKILL.md", config.read_lock(self.target)["managed"])
+        skill = self.target / ".agents" / "skills" / "security-audit-lite" / "SKILL.md"
+        skill.write_text("drift\n", encoding="utf-8")
+        code, out, _ = run_cli("update", "--target", str(self.target), "--force", "--json")
+        self.assertIn(".agents/skills/security-audit-lite/SKILL.md", [row["path"] for row in json.loads(out)["conflicts"]])
+        code, out, _ = run_cli("skills", "install", "--skill", "toolkit-setup", "--user", "--target", str(self.target))
+        self.assertNotIn(str(self.home), json.dumps(config.read_lock(self.target)["managed"]))
+        self.assertFalse(cli.record_skills_in_lock(self.root, self.root / "x", []))
+
+    def test_reinit_with_subset_keeps_installed_components(self):
+        self.assertEqual(self.init("--components", "guardrails,skills", "--skills", "code-review")[0], 0)
+        self.assertEqual(self.init("--components", "skills", "--clients", "claude-code")[0], 0)
+        configuration = config.read_configuration(self.target)
+        self.assertEqual(configuration["toolkit"]["components"], ["guardrails", "skills"])
+        self.assertEqual(configuration["agents"]["clients"], ["codex", "claude-code"])
+        self.assertIn(".guardrails/policy.yaml", config.read_lock(self.target)["managed"])
