@@ -41,6 +41,8 @@ skills_dir = {skills_dir}
 policy = {policy}
 providers = {providers}
 profiles = {profiles}
+actions = {actions}
+github_profile = {github_profile}
 """
 
 
@@ -52,7 +54,8 @@ def _toml_list(values: list[str]) -> str:
     return ", ".join(_toml_string(value) for value in values)
 
 
-def default_configuration(revision: str, *, components: list[str], clients: list[str], skills_dir: str = ".agents/skills") -> dict[str, Any]:
+def default_configuration(revision: str, *, components: list[str], clients: list[str], skills_dir: str = ".agents/skills",
+                          actions: bool = True, github_profile: bool = False) -> dict[str, Any]:
     return {
         "toolkit": {"revision": revision, "components": list(components)},
         "agents": {"clients": list(clients), "skills_dir": skills_dir},
@@ -60,6 +63,8 @@ def default_configuration(revision: str, *, components: list[str], clients: list
             "policy": ".guardrails/policy.yaml",
             "providers": ".guardrails/providers.yaml",
             "profiles": ".guardrails/profiles.yaml",
+            "actions": actions,
+            "github_profile": github_profile,
         },
     }
 
@@ -84,12 +89,17 @@ def validate_configuration(configuration: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(value, str) or Path(value).is_absolute() or ".." in Path(value).parts:
             raise ToolkitError(f"{TOML_NAME} guardrails.{key} must be a repository-relative path")
         guardrails[key] = value
+    for key, default in (("actions", True), ("github_profile", False)):
+        value = guardrails.get(key, default)
+        if not isinstance(value, bool):
+            raise ToolkitError(f"{TOML_NAME} guardrails.{key} must be true or false")
+        guardrails[key] = value
     revision = toolkit.get("revision", "")
     if not isinstance(revision, str):
         raise ToolkitError(f"{TOML_NAME} toolkit.revision must be a string")
     return {"toolkit": {"revision": revision, "components": list(components)},
             "agents": {"clients": list(clients), "skills_dir": skills_dir},
-            "guardrails": {key: guardrails[key] for key in ("policy", "providers", "profiles")}}
+            "guardrails": {key: guardrails[key] for key in ("policy", "providers", "profiles", "actions", "github_profile")}}
 
 
 def render_configuration(configuration: dict[str, Any]) -> str:
@@ -102,6 +112,8 @@ def render_configuration(configuration: dict[str, Any]) -> str:
         policy=_toml_string(configuration["guardrails"]["policy"]),
         providers=_toml_string(configuration["guardrails"]["providers"]),
         profiles=_toml_string(configuration["guardrails"]["profiles"]),
+        actions="true" if configuration["guardrails"]["actions"] else "false",
+        github_profile="true" if configuration["guardrails"]["github_profile"] else "false",
     )
 
 

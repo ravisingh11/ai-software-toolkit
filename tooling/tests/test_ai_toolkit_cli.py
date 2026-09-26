@@ -419,3 +419,74 @@ class EntryPointTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewRegressionTests(CliFixture):
+    """Behaviors called out in review: no-actions persistence, lock baselines, skill scope, doctor exit codes."""
+
+    def test_no_actions_choice_survives_update(self):
+        (self.target / ".github" / "workflows").mkdir(parents=True)
+        (self.target / ".github" / "workflows" / "build.yml").write_text("name: My own build\n", encoding="utf-8")
+        self.assertEqual(self.init("--components", "guardrails", "--no-actions")[0], 0)
+        configuration = config.read_configuration(self.target)
+        self.assertFalse(configuration["guardrails"]["actions"])
+        self.assertNotIn(".github/workflows/build.yml", config.read_lock(self.target)["managed"])
+        code, out, _ = run_cli("update", "--target", str(self.target), "--force")
+        self.assertEqual(code, 0, out)
+        self.assertEqual((self.target / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8"), "name: My own build\n")
+        self.assertFalse((self.target / ".github" / "workflows" / "unit-tests.yml").exists())
+        self.assertFalse(cli.actions_installed(self.target, None))
+
+    def test_reinit_keeps_lock_baseline_for_edited_files(self):
+        self.assertEqual(self.init("--components", "guardrails")[0], 0)
+        baseline = config.read_lock(self.target)["managed"][".guardrails/scan.py"]
+        runtime = self.target / ".guardrails" / "scan.py"
+        runtime.write_text(runtime.read_text(encoding="utf-8") + "# local edit\n", encoding="utf-8")
+        self.assertEqual(self.init("--components", "guardrails")[0], 0)
+        self.assertEqual(config.read_lock(self.target)["managed"][".guardrails/scan.py"], baseline)
+        code, out, _ = run_cli("update", "--target", str(self.target), "--force", "--json")
+        self.assertIn(".guardrails/scan.py", [row["path"] for row in json.loads(out)["conflicts"]])
+        self.assertTrue(runtime.read_text(encoding="utf-8").endswith("# local edit\n"))
+
+    def test_incomplete_runtime_is_restored_not_forgotten(self):
+        self.assertEqual(self.init("--components", "guardrails")[0], 0)
+        (self.target / ".guardrails" / "scan.py").unlink()
+        (self.target / ".guardrails" / "policy.yaml").unlink()
+        code, out, _ = run_cli("update", "--target", str(self.target), "--dry-run", "--json")
+        classification = json.loads(out)["classification"]
+        self.assertIn(".guardrails/scan.py", classification["missing"])
+        self.assertIn(".guardrails/policy.yaml", classification["missing"])
+        self.assertEqual(classification["removed"], [])
+        code, out, _ = run_cli("update", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.target / ".guardrails" / "scan.py").is_file())
+        self.assertTrue((self.target / ".guardrails" / "policy.yaml").is_file())
+
+    def test_update_refreshes_only_lock_managed_skills(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        mine = self.target / ".agents" / "skills" / "security-audit-lite"
+        mine.mkdir()
+        (mine / "SKILL.md").write_text("my own version\n", encoding="utf-8")
+        (mine / "notes.md").write_text("keep me\n", encoding="utf-8")
+        code, out, _ = run_cli("update", "--target", str(self.target), "--force")
+        self.assertEqual(code, 0, out)
+        self.assertEqual((mine / "SKILL.md").read_text(encoding="utf-8"), "my own version\n")
+        self.assertTrue((mine / "notes.md").is_file())
+        self.assertIn("Left alone", out)
+        self.assertIn(".agents/skills/security-audit-lite", out)
+
+    def test_providers_select_accepts_positional_selection(self):
+        self.assertEqual(self.init("--components", "guardrails")[0], 0)
+        with patch.object(cli, "run_python", return_value=subprocess.CompletedProcess([], 0, "", "")) as run:
+            code, _, _ = run_cli("providers", "select", "deep-sast=snyk-code", "--target", str(self.target))
+        self.assertEqual(code, 0)
+        self.assertEqual(run.call_args.args[1], ["--select-provider", "deep-sast=snyk-code"])
+        code, _, err = run_cli("providers", "select", "not-a-selection", "--target", str(self.target))
+        self.assertEqual(code, 2)
+
+    def test_doctor_passes_for_skills_only_installation(self):
+        self.assertEqual(self.init("--components", "skills")[0], 0)
+        code, out, _ = run_cli("doctor", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("missing    guardrails", out)
+        self.assertIn("installed  skills", out)

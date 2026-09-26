@@ -40,23 +40,38 @@ def _emit(payload: dict[str, Any], as_json: bool, text: str) -> None:
 
 # --------------------------------------------------------------------------- managed files
 
-def installed_profiles(target: Path) -> list[str]:
+def installed_profiles(target: Path, configuration: dict[str, Any] | None = None) -> list[str]:
+    """Runnable profiles from the installed policy, else from toolkit.toml, else Core."""
+    fallback = ["core", "github"] if configuration and configuration["guardrails"]["github_profile"] else ["core"]
     policy = target / ".guardrails" / "policy.yaml"
     if not policy.is_file():
-        return ["core"]
+        return fallback
     try:
         profiles = json.loads(policy.read_text(encoding="utf-8")).get("profiles", ["core"])
     except (OSError, json.JSONDecodeError, AttributeError):
-        return ["core"]
-    return [profile for profile in profiles if profile in {"core", "github"}] or ["core"]
+        return fallback
+    return [profile for profile in profiles if profile in {"core", "github"}] or fallback
 
 
-def guardrails_managed(target: Path, *, profiles: list[str] | None = None, no_actions: bool | None = None) -> list[str]:
+def actions_installed(target: Path, configuration: dict[str, Any] | None) -> bool:
+    """Whether Guardrails workflows are part of this installation.
+
+    toolkit.toml records the choice made at init. Without it, only an
+    installer-owned core workflow counts; a consumer-owned file that happens to
+    share a name never turns Actions management on.
+    """
+    if configuration is not None:
+        return bool(configuration["guardrails"]["actions"])
     installer = _installer()
-    profiles = profiles if profiles is not None else installed_profiles(target)
+    workflows = target / ".github" / "workflows"
+    return any((workflows / name).is_file() and installer.installer_owned_workflow(workflows / name) for name in installer.CORE_WORKFLOWS)
+
+
+def guardrails_managed(target: Path, configuration: dict[str, Any] | None = None, *, profiles: list[str] | None = None, no_actions: bool | None = None) -> list[str]:
+    installer = _installer()
+    profiles = profiles if profiles is not None else installed_profiles(target, configuration)
     if no_actions is None:
-        workflows = target / ".github" / "workflows"
-        no_actions = not any((workflows / name).is_file() for name in installer.CORE_WORKFLOWS)
+        no_actions = not actions_installed(target, configuration)
     badge = any(
         (target / ".github" / "workflows" / name).is_file() and installer.installer_owned_workflow(target / ".github" / "workflows" / name)
         for name in installer.BADGE_WORKFLOWS
@@ -77,11 +92,18 @@ def skills_managed(target: Path, configuration: dict[str, Any] | None) -> list[s
     return sorted(set(managed))
 
 
+def guardrails_component(target: Path, configuration: dict[str, Any] | None) -> bool:
+    """The Guardrails inventory applies when configured, or when any runtime is present, even incomplete."""
+    if configuration is not None:
+        return "guardrails" in configuration["toolkit"]["components"]
+    return (target / ".guardrails").is_dir()
+
+
 def managed_files(target: Path, configuration: dict[str, Any] | None) -> list[str]:
     components = configuration["toolkit"]["components"] if configuration else list(config.COMPONENTS)
     managed: list[str] = []
-    if "guardrails" in components and installed_runtime(target):
-        managed.extend(guardrails_managed(target))
+    if guardrails_component(target, configuration):
+        managed.extend(guardrails_managed(target, configuration))
     if "skills" in components or "qa" in components:
         managed.extend(skills_managed(target, configuration))
     return sorted(set(managed))
@@ -91,8 +113,8 @@ def canonical_sources(target: Path, configuration: dict[str, Any] | None) -> dic
     """Managed repository-relative path -> canonical source file in this distribution."""
     installer = _installer()
     sources: dict[str, Path] = {}
-    if installed_runtime(target):
-        for item in installer.build_plan(target, profiles=installed_profiles(target), no_actions=False, scorecard_badge=True):
+    if guardrails_component(target, configuration):
+        for item in installer.build_plan(target, profiles=installed_profiles(target, configuration), no_actions=False, scorecard_badge=True):
             sources[relative(item.destination, target)] = item.source
     for relative_path in skills_managed(target, configuration):
         parts = Path(relative_path).parts
@@ -277,11 +299,26 @@ def cmd_init(args: argparse.Namespace) -> int:
         applied["skills"].append({"client": client, "destination": relative(destination, target), "skills": rows})
     if args.apply_variables and found["variables"]:
         applied["variables"] = apply_variables(target, found["variables"], dry_run=False)
-    configuration = config.default_configuration(revision(), components=components, clients=clients,
-                                                 skills_dir=skills.CLIENT_PROJECT_DIRS[clients[0]])
+    configuration = config.default_configuration(
+        revision(), components=components, clients=clients, skills_dir=skills.CLIENT_PROJECT_DIRS[clients[0]],
+        actions=not args.no_actions and "guardrails" in components,
+        github_profile="github" in profiles or "github" in installed_profiles(target),
+    )
     config.write_configuration(target, configuration)
     managed = managed_files(target, configuration)
-    config.write_lock(target, config.build_lock(revision(), components=components, managed=config.hash_managed(target, managed)))
+    written = {relative(Path(path), target) for path in applied["guardrails"]}
+    for row in applied["skills"]:
+        root = Path(row["destination"])
+        written.update((root / item).as_posix() for entry in row["skills"] for item in entry["files"])
+    hashes = config.hash_managed(target, managed)
+    previous_lock = config.read_lock(target)
+    if previous_lock:
+        # Files already under management that init did not rewrite keep their recorded
+        # baseline, so a later update still sees local edits as conflicts.
+        for path, digest in previous_lock.get("managed", {}).items():
+            if path in hashes and path not in written:
+                hashes[path] = digest
+    config.write_lock(target, config.build_lock(revision(), components=components, managed=hashes))
     applied["files"] = [config.TOML_NAME, config.LOCK_NAME]
     if ensure_gitignore(target, found):
         applied["files"].append(".gitignore")
@@ -325,7 +362,7 @@ def component_states(target: Path, configuration: dict[str, Any] | None, lock: d
     components = configuration["toolkit"]["components"] if configuration else list(config.COMPONENTS)
     if "guardrails" in components:
         if runtime:
-            states["guardrails"] = {"state": "installed", "message": f".guardrails/ runtime present (profiles: {', '.join(installed_profiles(target))})."}
+            states["guardrails"] = {"state": "installed", "message": f".guardrails/ runtime present (profiles: {', '.join(installed_profiles(target, configuration))})."}
         else:
             states["guardrails"] = {"state": "missing", "message": ".guardrails/ runtime is not installed.", "next_step": "Run `ai-toolkit init`."}
     if "skills" in components or "qa" in components:
@@ -367,7 +404,9 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         doctor_report = json.loads(completed.stdout)
         rows = report.verified_rows(target, doctor_report)
         exit_code = 1 if doctor_report.get("summary", {}).get("action_needed") else 0
-    else:
+    elif guardrails_component(target, configuration):
+        exit_code = 1
+    if any(row["state"] == "missing" for row in components.values()):
         exit_code = 1
     payload = {"version": 1, "kind": "toolkit-doctor", "components": components, "capabilities": rows, "guardrails": doctor_report}
     _emit(payload, args.json, report.render_doctor(target, doctor_report, rows, components))
@@ -417,9 +456,10 @@ def cmd_providers(args: argparse.Namespace) -> int:
     providers = document.get("providers", {})
     selections = document.get("selections", {})
     if args.action == "select":
-        if not args.selection:
+        selection = args.selection or args.provider_id
+        if not selection or "=" not in selection:
             raise ToolkitError("select requires CAPABILITY=PROVIDER")
-        completed = run_python(script_path("configure", target), ["--select-provider", args.selection], cwd=target)
+        completed = run_python(script_path("configure", target), ["--select-provider", selection], cwd=target)
         return completed.returncode
     rows = []
     for provider_id, provider in sorted(providers.items()):
@@ -577,17 +617,32 @@ def cmd_update(args: argparse.Namespace) -> int:
     conflicts_root = target / ".artifacts" / "ai-toolkit" / "conflicts"
     conflicts: list[dict[str, str]] = []
     components = configuration["toolkit"]["components"]
-    if "guardrails" in components and installed_runtime(target):
-        completed = run_python(script_path("install", target, prefer_installed=False), ["--target", str(target), "--refresh-existing"], cwd=target, capture=True)
+    if "guardrails" in components:
+        arguments = ["--target", str(target), "--refresh-existing"]
+        if not configuration["guardrails"]["actions"]:
+            arguments.append("--no-actions")
+        if configuration["guardrails"]["github_profile"] and not (target / ".guardrails" / "policy.yaml").is_file():
+            arguments.extend(["--profile", "github"])
+        completed = run_python(script_path("install", target, prefer_installed=False), arguments, cwd=target, capture=True)
         if completed.returncode != 0:
             _restore(target, backup_root, managed)
             raise ToolkitError("installer refresh failed; previous files were restored: " + (completed.stderr or completed.stdout).strip())
+    skipped_skills: list[str] = []
     if "skills" in components or "qa" in components:
+        recorded_paths = set(lock.get("managed", {})) if lock else set()
         for client in configuration["agents"]["clients"]:
             root = skills.client_project_dir(client, target)
-            present = [path.name for path in root.iterdir() if path.is_dir() and path.name in set(skills.canonical_skills()) | {skills.SHARED_BUNDLE}] if root.is_dir() else []
-            if present:
-                skills.install_skills([name for name in present if name != skills.SHARED_BUNDLE], root, existing="replace")
+            if not root.is_dir():
+                continue
+            prefix = relative(root, target) + "/"
+            recorded = {path[len(prefix):].split("/", 1)[0] for path in recorded_paths if path.startswith(prefix)}
+            present = [path.name for path in root.iterdir() if path.is_dir() and path.name in set(skills.canonical_skills())]
+            # Only skills the previous lock recorded are refreshed; a directory the consumer
+            # created under a canonical name is theirs until they install it explicitly.
+            refresh = [name for name in present if name in recorded]
+            skipped_skills.extend(f"{prefix}{name}" for name in present if name not in recorded)
+            if refresh:
+                skills.install_skills(refresh, root, existing="replace")
     sources = canonical_sources(target, configuration)
     for relative_path in classification["modified"]:
         if relative_path in preserved or relative_path not in sources:
@@ -608,6 +663,10 @@ def cmd_update(args: argparse.Namespace) -> int:
     if conflicts:
         lines.append("Preserved your modified files; the canonical versions are beside them for comparison:")
         lines.extend(f"  {row['path']}  <->  {row['canonical']}" for row in conflicts)
+    if skipped_skills:
+        payload["unmanaged_skills"] = skipped_skills
+        lines.append("Left alone (not recorded in the lock; run `ai-toolkit skills install` to adopt them):")
+        lines.extend(f"  {path}" for path in skipped_skills)
     lines.append(f"Updated {config.TOML_NAME} and {config.LOCK_NAME}.")
     _emit(payload, args.json, "\n".join(lines))
     return 0
