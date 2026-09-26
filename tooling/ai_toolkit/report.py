@@ -11,28 +11,17 @@ from typing import Any
 
 from .runtime import head_revision, load_json
 
-# Capability -> repair skill recommended when its authoritative result is failed.
-REPAIR_SKILLS = {
-    "build": "fix-ci",
-    "unit-tests": "fix-ci",
-    "format-and-lint": "fix-ci",
-    "migration-validation": "fix-ci",
-    "changed-code-coverage": "generate-unit-tests",
-    "custom-static-analysis": "fix-security-finding",
-    "deep-sast": "fix-security-finding",
-    "secret-detection": "fix-security-finding",
-    "platform-secret-protection": "fix-security-finding",
-    "static-quality": "fix-security-finding",
-    "dependency-change-review": "dependency-upgrade",
-    "dependency-vulnerability": "dependency-upgrade",
-    "dependency-remediation": "dependency-upgrade",
-    "license-compliance": "dependency-upgrade",
-    "ai-engineering-review": "address-pr-findings",
-    "ai-security-review": "address-pr-findings",
-    "ai-qa-review": "address-pr-findings",
-    "ai-repository-standards-review": "address-pr-findings",
-    "functional-qa": "qa",
+# Repair skill -> capabilities whose failed authoritative result it addresses.
+# Capability ids are policy vocabulary, not credentials; only names appear here.
+SKILL_CAPABILITIES = {
+    "fix-ci": ("build", "unit-tests", "format-and-lint", "migration-validation"),
+    "generate-unit-tests": ("changed-code-coverage",),
+    "fix-security-finding": ("custom-static-analysis", "deep-sast", "secret-detection", "platform-secret-protection", "static-quality"),
+    "dependency-upgrade": ("dependency-change-review", "dependency-vulnerability", "dependency-remediation", "license-compliance"),
+    "address-pr-findings": ("ai-engineering-review", "ai-security-review", "ai-qa-review", "ai-repository-standards-review"),
+    "qa": ("functional-qa",),
 }
+REPAIR_SKILLS = {capability: skill for skill, capabilities in SKILL_CAPABILITIES.items() for capability in capabilities}
 
 # Existing review skills that apply before a repair skill exists (Stage 3
 # implements the repair skills; until then the report points at these).

@@ -260,7 +260,7 @@ class ProvidersSkillsQaTests(CliFixture):
         self.assertIn("sonarqube  (SonarQube; external; opt-in)", out)
         code, out, _ = run_cli("providers", "show", "sonarqube", "--target", str(self.target), "--json")
         rows = json.loads(out)["providers"]
-        self.assertEqual(rows[0]["secrets"], ["SONAR_TOKEN"])
+        self.assertEqual(rows[0]["credential_names"], ["SONAR_TOKEN"])
         code, _, err = run_cli("providers", "show", "nope", "--target", str(self.target))
         self.assertEqual(code, 2)
         code, _, err = run_cli("providers", "select", "--target", str(self.target))
