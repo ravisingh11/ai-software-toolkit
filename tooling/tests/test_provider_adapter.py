@@ -162,6 +162,13 @@ class SnykContractTests(AdapterFixture):
         self.assertEqual(tolerated.status, "passed")
         self.assertIn("1 findings below the configured threshold", tolerated.evidence[0])
 
+    def test_changes_during_the_scan_invalidate_the_result(self):
+        script = self.bin / "snyk"
+        script.write_text(FAKE_SNYK.replace("  clean) echo '{\"ok\": true}'; exit 0 ;;", "  clean) echo '{\"ok\": true}'; echo dirty > \"$FAKE_TOUCH\"; exit 0 ;;"), encoding="utf-8")
+        _, outcome = self.run_provider("snyk-code", FAKE_SNYK_MODE="clean", FAKE_TOUCH=str(self.target / "created-by-scan.txt"))
+        self.assertEqual((outcome.status, outcome.code), ("not_run", "revision-mismatch"))
+        self.assertIn("changed while the provider ran", outcome.message)
+
     def test_json_document_ignores_trailing_diagnostics(self):
         self.assertEqual(self.module.json_document('{"issues": [{"id": 1}]}\nWARN: something on stderr'), {"issues": [{"id": 1}]})
         outcome = self.module.fossa_outcome((0, "uploaded"), (1, '{"issues": [{"id": 1}], "count": 1}\n[WARN] telemetry disabled'))

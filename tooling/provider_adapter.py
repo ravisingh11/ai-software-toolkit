@@ -278,8 +278,17 @@ def run_provider(provider_id: str, target: Path, *, revision: str | None, argume
     if not shutil.which(provider["binary"], path=environment.get("PATH")):
         return revision, Outcome("not_run", f"the {provider['binary']} CLI is not on PATH.", code="configuration-missing")
     if provider_id == "fossa":
-        return revision, run_fossa(target, revision=revision, arguments=arguments, timeout=timeout, environment=environment)
-    return revision, run_snyk(provider_id, target, arguments=arguments, timeout=timeout, environment=environment)
+        outcome = run_fossa(target, revision=revision, arguments=arguments, timeout=timeout, environment=environment)
+    else:
+        outcome = run_snyk(provider_id, target, arguments=arguments, timeout=timeout, environment=environment)
+    # The tree must still be the same revision afterwards; otherwise the provider examined
+    # something other than the commit the evidence would be bound to.
+    if head_revision(target) != revision:
+        return revision, Outcome("not_run", "HEAD changed while the provider ran; evidence cannot bind to the revision.", code="revision-mismatch")
+    dirty = worktree_changes(target)
+    if dirty:
+        return revision, Outcome("not_run", f"the worktree changed while the provider ran ({dirty}); evidence cannot bind to the revision.", code="revision-mismatch")
+    return revision, outcome
 
 
 def fragment(provider_id: str, revision: str, outcome: Outcome) -> dict[str, Any]:
