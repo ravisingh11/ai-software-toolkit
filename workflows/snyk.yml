@@ -6,27 +6,15 @@ name: Snyk
 # 3 not_run (no supported projects). Consumers supply arguments through the
 # SNYK_CODE_ARGS and SNYK_OPEN_SOURCE_ARGS repository variables, never the verb.
 # Any non-passing outcome fails the job; the reason code is in the job summary
-# and in the uploaded evidence fragment.
+# and in the uploaded evidence fragment. Set the SNYK_CODE_ENABLED or
+# SNYK_OPEN_SOURCE_ENABLED repository variable to "false" to skip a job whose
+# provider is not selected. The token reaches only the adapter step, never the
+# repository setup command. This workflow is used directly (not through
+# workflow_call) so its check names match the provider contract exactly.
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  workflow_call:
-    inputs:
-      snyk-code-args:
-        description: Extra arguments for `snyk code test`.
-        required: false
-        type: string
-        default: ''
-      snyk-open-source-args:
-        description: Extra arguments for `snyk test`.
-        required: false
-        type: string
-        default: ''
-    secrets:
-      SNYK_TOKEN:
-        description: Snyk API token.
-        required: true
 
 concurrency:
   group: snyk-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
@@ -38,11 +26,11 @@ permissions:
 jobs:
   snyk-code:
     name: Snyk Code
+    if: ${{ vars.SNYK_CODE_ENABLED != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      SNYK_CODE_ARGS: ${{ inputs.snyk-code-args || vars.SNYK_CODE_ARGS }}
+      SNYK_CODE_ARGS: ${{ vars.SNYK_CODE_ARGS }}
       GUARDRAILS_WORKING_DIRECTORY: ${{ vars.GUARDRAILS_WORKING_DIRECTORY || '.' }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
@@ -62,11 +50,14 @@ jobs:
         uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04
       - name: Run Snyk Code through the adapter
         shell: bash
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           set -uo pipefail
           python3 .guardrails/adapter.py snyk-code \
             --target "${GUARDRAILS_WORKING_DIRECTORY}" \
             --revision "${HEAD_SHA}" \
+            --timeout 1200 \
             --evidence-dir "${RUNNER_TEMP}/evidence" | tee "${RUNNER_TEMP}/snyk-code.txt"
           status=${PIPESTATUS[0]}
           printf '### Snyk Code\n\n```text\n%s\n```\n' "$(cat "${RUNNER_TEMP}/snyk-code.txt")" >> "${GITHUB_STEP_SUMMARY}"
@@ -82,11 +73,11 @@ jobs:
 
   snyk-open-source:
     name: Snyk Open Source
+    if: ${{ vars.SNYK_OPEN_SOURCE_ENABLED != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      SNYK_OPEN_SOURCE_ARGS: ${{ inputs.snyk-open-source-args || vars.SNYK_OPEN_SOURCE_ARGS }}
+      SNYK_OPEN_SOURCE_ARGS: ${{ vars.SNYK_OPEN_SOURCE_ARGS }}
       GUARDRAILS_SETUP_COMMAND: ${{ vars.GUARDRAILS_SETUP_COMMAND }}
       GUARDRAILS_WORKING_DIRECTORY: ${{ vars.GUARDRAILS_WORKING_DIRECTORY || '.' }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -112,11 +103,14 @@ jobs:
         uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04
       - name: Run Snyk Open Source through the adapter
         shell: bash
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           set -uo pipefail
           python3 .guardrails/adapter.py snyk-open-source \
             --target "${GUARDRAILS_WORKING_DIRECTORY}" \
             --revision "${HEAD_SHA}" \
+            --timeout 1200 \
             --evidence-dir "${RUNNER_TEMP}/evidence" | tee "${RUNNER_TEMP}/snyk-open-source.txt"
           status=${PIPESTATUS[0]}
           printf '### Snyk Open Source\n\n```text\n%s\n```\n' "$(cat "${RUNNER_TEMP}/snyk-open-source.txt")" >> "${GITHUB_STEP_SUMMARY}"

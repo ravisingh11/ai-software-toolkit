@@ -107,7 +107,8 @@ def next_action(row: dict[str, Any]) -> str:
     code = reason_code(reason)
     if code:
         action = REASON_ACTIONS[code]
-        return f"[{code}] {action} ({reason.split(':', 1)[1].strip()})"
+        detail = reason.split(":", 1)[1].strip() if ":" in reason else ""
+        return f"[{code}] {action}" + (f" ({detail})" if detail else "")
     if status == "blocked":
         return f"{provider} could not complete: {reason or 'see the evidence'}. Resolve the blocker and rerun."
     if status in {"not_run", "no_result", "missing"}:

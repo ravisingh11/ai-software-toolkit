@@ -6,22 +6,13 @@ name: FOSSA
 # (credential-missing, authentication-failed, analysis-incomplete,
 # execution-error, unsupported-project, timed-out). Consumers supply extra
 # `fossa analyze` arguments through the FOSSA_ARGS repository variable. The
-# CLI is pinned by version and SHA-256; update both together.
+# CLI is pinned by version and SHA-256; update both together. The key reaches
+# only the adapter step. This workflow is used directly (not through
+# workflow_call) so its check name matches the provider contract exactly.
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  workflow_call:
-    inputs:
-      fossa-args:
-        description: Extra arguments for `fossa analyze`.
-        required: false
-        type: string
-        default: ''
-    secrets:
-      FOSSA_API_KEY:
-        description: FOSSA API key.
-        required: true
 
 concurrency:
   group: fossa-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
@@ -38,10 +29,9 @@ jobs:
   fossa:
     name: FOSSA
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
-      FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
-      FOSSA_ARGS: ${{ inputs.fossa-args || vars.FOSSA_ARGS }}
+      FOSSA_ARGS: ${{ vars.FOSSA_ARGS }}
       GUARDRAILS_WORKING_DIRECTORY: ${{ vars.GUARDRAILS_WORKING_DIRECTORY || '.' }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
@@ -71,11 +61,14 @@ jobs:
           echo "${RUNNER_TEMP}/fossa-cli" >> "${GITHUB_PATH}"
       - name: Run FOSSA analyze and test through the adapter
         shell: bash
+        env:
+          FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
         run: |
           set -uo pipefail
           python3 .guardrails/adapter.py fossa \
             --target "${GUARDRAILS_WORKING_DIRECTORY}" \
             --revision "${HEAD_SHA}" \
+            --timeout 1200 \
             --evidence-dir "${RUNNER_TEMP}/evidence" | tee "${RUNNER_TEMP}/fossa.txt"
           status=${PIPESTATUS[0]}
           printf '### FOSSA\n\n```text\n%s\n```\n' "$(cat "${RUNNER_TEMP}/fossa.txt")" >> "${GITHUB_STEP_SUMMARY}"

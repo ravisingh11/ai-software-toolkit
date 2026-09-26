@@ -423,6 +423,40 @@ class AdapterDiagnosticTests(DoctorTests):
         self.assertEqual(checks["provider.snyk-code.adapter"]["status"], "action_needed")
         self.assertIn("refresh-existing", checks["provider.snyk-code.adapter"]["next_step"])
 
+    def test_supplemental_external_providers_are_diagnosed(self):
+        providers = self.target / ".guardrails" / "providers.yaml"
+        document = json.loads(providers.read_text(encoding="utf-8"))
+        document["selections"]["deep-sast"] = {"authoritative": "github-codeql", "supplemental": ["snyk-code"]}
+        providers.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+        policy = self.target / ".guardrails" / "policy.yaml"
+        policy_document = json.loads(policy.read_text(encoding="utf-8"))
+        policy_document["overrides"]["change"]["deep-sast"] = "advisory"
+        policy.write_text(json.dumps(policy_document, indent=2) + "\n", encoding="utf-8")
+        self.git("add", ".")
+        self.git("commit", "-qm", "supplemental snyk")
+        checks = self.checks(self.report())
+        self.assertEqual(checks["provider.snyk-code.adapter"]["status"], "configured")
+        self.assertIn("local.credential.SNYK_TOKEN", checks)
+
+    def test_missing_adapter_only_flags_adapter_backed_providers(self):
+        providers = self.target / ".guardrails" / "providers.yaml"
+        document = json.loads(providers.read_text(encoding="utf-8"))
+        document["selections"]["static-quality"] = {"authoritative": "sonarqube", "supplemental": []}
+        providers.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+        policy = self.target / ".guardrails" / "policy.yaml"
+        policy_document = json.loads(policy.read_text(encoding="utf-8"))
+        policy_document["overrides"]["change"]["static-quality"] = "advisory"
+        policy.write_text(json.dumps(policy_document, indent=2) + "\n", encoding="utf-8")
+        (self.target / ".guardrails" / "adapter.py").unlink()
+        self.git("add", ".")
+        self.git("commit", "-qm", "sonar without adapter")
+        installed = load(self.target / ".guardrails" / "doctor.py")
+        with patch.dict(os.environ, {}, clear=True):
+            checks = self.checks(installed.diagnose(self.target))
+        self.assertNotIn("provider.sonarqube.adapter", checks)
+        self.assertIn("local.credential.SONAR_TOKEN", checks)
+        self.assertIn("provider.sonarqube.template", checks)
+
     def test_no_rows_without_external_selection(self):
         checks = self.checks(self.report())
         self.assertFalse([key for key in checks if key.startswith("provider.")])

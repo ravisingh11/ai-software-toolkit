@@ -190,17 +190,20 @@ def fossa_outcome(analyze: tuple[int | None, str], test: tuple[int | None, str] 
         return Outcome("passed", "fossa test: no policy issues", evidence=["fossa analyze: uploaded", "fossa test: exit 0, no issues"])
     text = strip_ansi(test_output)
     if test_code is None:
-        return Outcome("blocked", "fossa test exceeded the adapter timeout while waiting for analysis.", code="analysis-incomplete")
+        return Outcome("blocked", "fossa test exceeded the adapter timeout.", code="timed-out")
     if AUTHENTICATION_PATTERN.search(text):
         return Outcome("blocked", f"fossa test rejected the credential (exit {test_code}).", code="authentication-failed")
     if TIMEOUT_PATTERN.search(text):
         return Outcome("blocked", f"fossa test timed out waiting for the FOSSA analysis (exit {test_code}).", code="analysis-incomplete")
     document = json_document(text)
     issues = document.get("issues") if isinstance(document, dict) else None
-    if isinstance(issues, list) or "issue" in text.lower():
-        count = len(issues) if isinstance(issues, list) else None
-        detail = f"{count} issues" if count is not None else "issues reported"
+    if isinstance(issues, list) and issues:
+        detail = f"{len(issues)} issues"
         return Outcome("failed", f"fossa test: {detail}", evidence=["fossa analyze: uploaded", f"fossa test: exit {test_code}, {detail}"])
+    if re.search(r"number of issues found:\s*[1-9]", text, re.IGNORECASE):
+        return Outcome("failed", "fossa test: issues reported", evidence=["fossa analyze: uploaded", f"fossa test: exit {test_code}, issues reported"])
+    # A nonzero exit without confirmed findings (an operational error, or an empty issue
+    # list) is not a policy failure.
     return classify_failure(text, exit_code=test_code, tool="fossa test")
 
 
@@ -213,6 +216,22 @@ def run_fossa(target: Path, *, revision: str, arguments: list[str], timeout: int
         cwd=target, timeout=timeout + 30, environment=environment,
     )
     return fossa_outcome(analyze, test)
+
+
+NON_SCANNING_OPTIONS = {"--help", "-h", "--version", "-v", "--about", "config", "auth", "monitor", "ignore", "policy"}
+
+
+def worktree_changes(target: Path) -> str | None:
+    """A short description of uncommitted or untracked changes, or None when clean."""
+    if not shutil.which("git"):
+        return None
+    completed = subprocess.run(["git", "status", "--porcelain", "--untracked-files=normal"], cwd=target, text=True, capture_output=True)
+    if completed.returncode != 0:
+        return "git status failed"
+    lines = [line for line in completed.stdout.splitlines() if line.strip()]
+    if not lines:
+        return None
+    return f"{len(lines)} changed or untracked path(s), e.g. {lines[0][3:].strip()}"
 
 
 def head_revision(target: Path) -> str | None:
@@ -229,11 +248,17 @@ def run_provider(provider_id: str, target: Path, *, revision: str | None, argume
     provider = PROVIDERS[provider_id]
     environment = dict(os.environ) if environment is None else environment
     head = head_revision(target)
-    if revision and head and revision != head:
+    if not head:
+        return revision or "unknown", Outcome("not_run", "the target is not a Git checkout with a resolvable HEAD; evidence cannot bind to a revision.", code="revision-mismatch")
+    if revision and revision != head:
         return revision, Outcome("not_run", f"requested revision {revision[:12]} is not the checked-out HEAD {head[:12]}.", code="revision-mismatch")
-    revision = revision or head
-    if not revision:
-        return "unknown", Outcome("not_run", "the target is not a Git checkout with a resolvable HEAD.", code="revision-mismatch")
+    revision = head
+    dirty = worktree_changes(target)
+    if dirty:
+        return revision, Outcome("not_run", f"the worktree differs from {revision[:12]} ({dirty}); commit or discard changes so evidence binds to the revision.", code="revision-mismatch")
+    rejected = [argument for argument in arguments if argument.split("=", 1)[0] in NON_SCANNING_OPTIONS]
+    if rejected:
+        return revision, Outcome("not_run", f"{provider['arguments_variable']} contains options that stop the scan: {' '.join(rejected)}.", code="configuration-missing")
     if not environment.get(provider["credential"], "").strip():
         return revision, Outcome("blocked", f"{provider['credential']} is not set for this run.", code="credential-missing")
     if not shutil.which(provider["binary"], path=environment.get("PATH")):

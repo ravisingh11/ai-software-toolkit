@@ -80,6 +80,7 @@ class AdapterFixture(unittest.TestCase):
         self.target = self.root / "repo"
         self.target.mkdir()
         (self.target / "README.md").write_text("# x\n", encoding="utf-8")
+        (self.target / ".gitignore").write_text(".artifacts/\n", encoding="utf-8")
         self.git("init", "-q")
         self.git("config", "user.email", "test@example.invalid")
         self.git("config", "user.name", "Test")
@@ -140,6 +141,21 @@ class SnykContractTests(AdapterFixture):
         bare.mkdir()
         revision, outcome = self.module.run_provider("snyk-code", bare, revision=None, arguments=[], timeout=5, environment=self.environment())
         self.assertEqual((revision, outcome.code), ("unknown", "revision-mismatch"))
+        # A caller-supplied revision never substitutes for a resolvable checkout.
+        revision, outcome = self.module.run_provider("snyk-code", bare, revision="0" * 40, arguments=[], timeout=5, environment=self.environment(FAKE_SNYK_MODE="clean"))
+        self.assertEqual((revision, outcome.status, outcome.code), ("0" * 40, "not_run", "revision-mismatch"))
+
+    def test_dirty_worktree_and_non_scanning_arguments_never_pass(self):
+        (self.target / "scratch.txt").write_text("uncommitted\n", encoding="utf-8")
+        _, outcome = self.run_provider("snyk-code", FAKE_SNYK_MODE="clean")
+        self.assertEqual((outcome.status, outcome.code), ("not_run", "revision-mismatch"))
+        self.assertIn("scratch.txt", outcome.message)
+        (self.target / "scratch.txt").unlink()
+        for arguments in (["--help"], ["--severity-threshold=high", "--version"], ["auth"]):
+            _, outcome = self.module.run_provider("snyk-open-source", self.target, revision=None, arguments=arguments, timeout=5, environment=self.environment(FAKE_SNYK_MODE="clean"))
+            self.assertEqual((outcome.status, outcome.code), ("not_run", "configuration-missing"), arguments)
+        _, outcome = self.module.run_provider("snyk-open-source", self.target, revision=None, arguments=["--severity-threshold=high"], timeout=5, environment=self.environment(FAKE_SNYK_MODE="clean"))
+        self.assertEqual(outcome.status, "passed")
         with self.assertRaises(ValueError):
             self.module.run_provider("nope", self.target, revision=None, arguments=[], timeout=5)
 
@@ -155,6 +171,12 @@ class FossaContractTests(AdapterFixture):
         self.assertEqual((outcome.status, outcome.message), ("failed", "fossa test: 1 issues"))
         _, outcome = self.run_provider("fossa", FAKE_FOSSA_MODE="issues-text")
         self.assertEqual((outcome.status, outcome.message), ("failed", "fossa test: issues reported"))
+        # An operational error that merely mentions "issue", or an empty issue list with a
+        # nonzero exit, is not a policy finding.
+        outcome = self.module.fossa_outcome((0, "uploaded"), (1, "an issue occurred contacting the service"))
+        self.assertEqual((outcome.status, outcome.code), ("blocked", "execution-error"))
+        outcome = self.module.fossa_outcome((0, "uploaded"), (1, '{"issues": [], "count": 0}'))
+        self.assertEqual((outcome.status, outcome.code), ("blocked", "execution-error"))
 
     def test_partial_scan_and_failures(self):
         _, outcome = self.run_provider("fossa", FAKE_FOSSA_MODE="analyze-auth")
@@ -174,7 +196,7 @@ class FossaContractTests(AdapterFixture):
         outcome = self.module.fossa_outcome((0, "uploaded"), None)
         self.assertEqual((outcome.status, outcome.code), ("blocked", "analysis-incomplete"))
         outcome = self.module.fossa_outcome((0, "uploaded"), (None, ""))
-        self.assertEqual((outcome.status, outcome.code), ("blocked", "analysis-incomplete"))
+        self.assertEqual((outcome.status, outcome.code), ("blocked", "timed-out"))
 
 
 class FragmentAndCliTests(AdapterFixture):

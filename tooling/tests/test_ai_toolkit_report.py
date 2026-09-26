@@ -175,6 +175,8 @@ class ReasonCodeTests(unittest.TestCase):
             self.assertTrue(action.startswith(f"[{code}]"), action)
             self.assertIn("detail text", action)
         self.assertIsNone(report.reason_code("no code here"))
+        bare = report.next_action(control("deep-sast", "blocked", reason="timed-out"))
+        self.assertTrue(bare.startswith("[timed-out]") and not bare.endswith("()"), bare)
         self.assertIsNone(report.reason_code(None))
         self.assertEqual(report.reason_code("timed-out: x"), "timed-out")
 

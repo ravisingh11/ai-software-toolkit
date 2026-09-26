@@ -144,29 +144,34 @@ def github_setup(target: Path, repository: str, selected: dict, providers: dict,
     return rows
 
 
+ADAPTER_BACKED_PROVIDERS = ("snyk-code", "snyk-open-source", "fossa")
+
+
 def adapter_setup(target: Path, selected: dict, providers: dict, environment: dict) -> list[dict]:
     """Diagnose adapter-backed external providers without running them."""
     rows: list[dict] = []
-    adapter_providers = {
-        provider_id for provider_id, selection in
-        ((selection["authoritative"], selection) for selection in selected.values())
+    # Authoritative and supplemental selections both need their workflow and credential.
+    external_providers = {
+        provider_id
+        for selection in selected.values()
+        for provider_id in [selection["authoritative"], *selection.get("supplemental", [])]
         if providers.get(provider_id, {}).get("activation") == "external"
     }
-    if not adapter_providers:
+    if not external_providers:
         return rows
     try:
         adapter = trusted_module("tooling/provider_adapter.py", "adapter.py")
         contracts = adapter.PROVIDERS
     except ValueError:
         contracts = None
-    for provider_id in sorted(adapter_providers):
+    for provider_id in sorted(external_providers):
         provider = providers[provider_id]
         secrets = [name for name in provider.get("secrets", []) if isinstance(name, str)]
-        if contracts is None:
+        if contracts is None and provider_id in ADAPTER_BACKED_PROVIDERS:
             rows.append({"id": f"provider.{provider_id}.adapter", "status": "action_needed",
                          "message": "The installed runtime has no adapter.py; adapter-owned provider commands cannot run.",
                          "next_step": "Run tooling/install.py --target <repo> --refresh-existing from a trusted release."})
-        elif provider_id in contracts:
+        elif contracts is not None and provider_id in contracts:
             contract = contracts[provider_id]
             available = bool(shutil.which(contract["binary"]))
             rows.append({"id": f"provider.{provider_id}.adapter", "status": "configured",
