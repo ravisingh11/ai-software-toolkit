@@ -156,6 +156,16 @@ class SnykContractTests(AdapterFixture):
             self.assertEqual((outcome.status, outcome.code), ("not_run", "configuration-missing"), arguments)
         _, outcome = self.module.run_provider("snyk-open-source", self.target, revision=None, arguments=["--severity-threshold=high"], timeout=5, environment=self.environment(FAKE_SNYK_MODE="clean"))
         self.assertEqual(outcome.status, "passed")
+        _, outcome = self.module.run_provider("snyk-open-source", self.target, revision=None, arguments=["--fail-on=upgradable"], timeout=5, environment=self.environment(FAKE_SNYK_MODE="clean"))
+        self.assertEqual((outcome.status, outcome.code), ("not_run", "configuration-missing"))
+        tolerated = self.module.snyk_outcome(0, '{"vulnerabilities": [{"id": "SNYK-1"}]}', command="snyk test", findings_key="vulnerabilities")
+        self.assertEqual(tolerated.status, "passed")
+        self.assertIn("1 findings below the configured threshold", tolerated.evidence[0])
+
+    def test_json_document_ignores_trailing_diagnostics(self):
+        self.assertEqual(self.module.json_document('{"issues": [{"id": 1}]}\nWARN: something on stderr'), {"issues": [{"id": 1}]})
+        outcome = self.module.fossa_outcome((0, "uploaded"), (1, '{"issues": [{"id": 1}], "count": 1}\n[WARN] telemetry disabled'))
+        self.assertEqual((outcome.status, outcome.message), ("failed", "fossa test: 1 issues"))
         with self.assertRaises(ValueError):
             self.module.run_provider("nope", self.target, revision=None, arguments=[], timeout=5)
 

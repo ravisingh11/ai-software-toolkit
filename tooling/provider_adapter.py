@@ -122,13 +122,13 @@ def strip_ansi(text: str) -> str:
 def json_document(output: str) -> Any:
     """The first JSON object or array in the output, when the tool printed one."""
     text = output.strip()
-    for start in (text.find("{"), text.find("[")):
-        if start < 0:
-            continue
+    decoder = json.JSONDecoder()
+    for start in sorted(index for index in (text.find("{"), text.find("[")) if index >= 0):
         try:
-            return json.loads(text[start:])
+            document, _ = decoder.raw_decode(text[start:])
         except json.JSONDecodeError:
             continue
+        return document
     return None
 
 
@@ -148,20 +148,31 @@ def classify_failure(output: str, *, exit_code: int | None, tool: str) -> Outcom
     return Outcome("blocked", f"{tool} failed with exit {exit_code}: {bounded(text, 300)}", code="execution-error")
 
 
+def findings_count(document: Any, findings_key: str) -> int | None:
+    """Number of findings in a Snyk JSON document, or None when the document has none to count."""
+    if not isinstance(document, dict):
+        return None
+    if findings_key == "sarif":
+        runs = document.get("runs")
+        if isinstance(runs, list) and runs and isinstance(runs[0], dict) and isinstance(runs[0].get("results"), list):
+            return len(runs[0]["results"])
+        return None
+    findings = document.get(findings_key)
+    return len(findings) if isinstance(findings, list) else None
+
+
 def snyk_outcome(exit_code: int | None, output: str, *, command: str, findings_key: str) -> Outcome:
     """Snyk CLI: 0 no issues, 1 issues, 2 error, 3 no supported projects."""
     if exit_code == 0:
+        # Exit 0 with findings in the document means the CLI was told to tolerate them
+        # (a severity threshold); say so rather than claim "no issues".
+        ignored = findings_count(json_document(output), findings_key)
+        if ignored:
+            return Outcome("passed", f"{command}: exit 0 with {ignored} findings below the configured threshold",
+                           evidence=[f"{command}: exit 0; {ignored} findings below the configured threshold were not counted"])
         return Outcome("passed", f"{command}: no issues", evidence=[f"{command}: exit 0, no issues"])
     if exit_code == 1:
-        document = json_document(output)
-        count = None
-        if isinstance(document, dict):
-            if findings_key == "sarif":
-                runs = document.get("runs")
-                if isinstance(runs, list) and runs and isinstance(runs[0], dict) and isinstance(runs[0].get("results"), list):
-                    count = len(runs[0]["results"])
-            elif isinstance(document.get(findings_key), list):
-                count = len(document[findings_key])
+        count = findings_count(json_document(output), findings_key)
         detail = f"{count} findings" if count is not None else "findings reported"
         return Outcome("failed", f"{command}: {detail}", evidence=[f"{command}: exit 1, {detail}"])
     if exit_code == 3:
@@ -219,6 +230,9 @@ def run_fossa(target: Path, *, revision: str, arguments: list[str], timeout: int
 
 
 NON_SCANNING_OPTIONS = {"--help", "-h", "--version", "-v", "--about", "config", "auth", "monitor", "ignore", "policy"}
+# Options that change what a zero exit means (fixability filters); a consumer who needs
+# them must run the CLI outside the adapter, where the result is not evidence.
+EXIT_SEMANTICS_OPTIONS = {"--fail-on"}
 
 
 def worktree_changes(target: Path) -> str | None:
@@ -256,9 +270,9 @@ def run_provider(provider_id: str, target: Path, *, revision: str | None, argume
     dirty = worktree_changes(target)
     if dirty:
         return revision, Outcome("not_run", f"the worktree differs from {revision[:12]} ({dirty}); commit or discard changes so evidence binds to the revision.", code="revision-mismatch")
-    rejected = [argument for argument in arguments if argument.split("=", 1)[0] in NON_SCANNING_OPTIONS]
+    rejected = [argument for argument in arguments if argument.split("=", 1)[0] in NON_SCANNING_OPTIONS | EXIT_SEMANTICS_OPTIONS]
     if rejected:
-        return revision, Outcome("not_run", f"{provider['arguments_variable']} contains options that stop the scan: {' '.join(rejected)}.", code="configuration-missing")
+        return revision, Outcome("not_run", f"{provider['arguments_variable']} contains options that stop the scan or change what a passing exit means: {' '.join(rejected)}.", code="configuration-missing")
     if not environment.get(provider["credential"], "").strip():
         return revision, Outcome("blocked", f"{provider['credential']} is not set for this run.", code="credential-missing")
     if not shutil.which(provider["binary"], path=environment.get("PATH")):

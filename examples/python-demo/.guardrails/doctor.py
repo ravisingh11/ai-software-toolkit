@@ -166,7 +166,8 @@ def adapter_setup(target: Path, selected: dict, providers: dict, environment: di
         contracts = None
     for provider_id in sorted(external_providers):
         provider = providers[provider_id]
-        secrets = [name for name in provider.get("secrets", []) if isinstance(name, str)]
+        # Names of declared GitHub secrets; values are never read or printed.
+        credential_names = [name for key, value in provider.items() if key == "secrets" and isinstance(value, list) for name in value if isinstance(name, str)]
         if contracts is None and provider_id in ADAPTER_BACKED_PROVIDERS:
             rows.append({"id": f"provider.{provider_id}.adapter", "status": "action_needed",
                          "message": "The installed runtime has no adapter.py; adapter-owned provider commands cannot run.",
@@ -177,7 +178,7 @@ def adapter_setup(target: Path, selected: dict, providers: dict, environment: di
             rows.append({"id": f"provider.{provider_id}.adapter", "status": "configured",
                          "message": f"Adapter owns the {contract['binary']} command shape; the CLI is {'on PATH' if available else 'not on PATH'} locally and was not executed.",
                          "next_step": f"Run .guardrails/adapter.py {provider_id} locally or the {provider['display_name']} workflow on a PR to produce evidence."})
-        for name in secrets:
+        for name in credential_names:
             present = bool(environment.get(name, "").strip())
             rows.append({"id": f"local.credential.{name}", "status": "unverified",
                          "message": f"{name} is {'set' if present else 'unset'} locally; its validity was not checked." ,
@@ -187,7 +188,7 @@ def adapter_setup(target: Path, selected: dict, providers: dict, environment: di
         if template and path and not (target / path).is_file():
             rows.append({"id": f"provider.{provider_id}.template", "status": "unverified",
                          "message": f"Template {template} is available but {path} is not installed in this repository.",
-                         "next_step": f"Copy {template} to {path}, add the {', '.join(secrets) or 'required'} secret, and verify a representative PR."})
+                         "next_step": f"Copy {template} to {path}, add the {', '.join(credential_names) or 'required'} secret, and verify a representative PR."})
     return rows
 
 
