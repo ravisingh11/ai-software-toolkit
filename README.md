@@ -27,6 +27,8 @@ Pages updates; the `.guardrails/` runtime contract is unchanged.
 | Skills | Guide agents through repeatable development, QA, security, and release work | [Install shared skills](skills/README.md#install-locally) |
 | Verification | Produce evidence from tests, functional QA, and scanners | [Set up functional QA](skills/qa-bootstrap/SKILL.md) |
 | Guardrails | Evaluate evidence against policy and expose missing results | [Install and configure Guardrails](docs/quickstart.md) |
+| Providers | Bring SonarQube, Snyk, and FOSSA evidence in through adapter-owned commands and reason codes | [Providers](docs/providers/README.md) |
+| Reference app | Prove every change against a real installation | [Reference app](docs/reference-app.md) |
 | Measurement — aspiration | Learn whether delivery is improving across the lifecycle | [Vision and maturity](docs/vision.md) |
 
 QA helps shape acceptance criteria and risk coverage, explores behavior, and

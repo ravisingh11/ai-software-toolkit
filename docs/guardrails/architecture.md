@@ -67,8 +67,12 @@ runtime path. Both profiles default every selected capability to `advisory`.
 
 SonarQube, Snyk, Semgrep AppSec Platform, FOSSA, Codex Code Review, other AI review adapters, and a
 repository soak command are provider definitions, not runnable profiles. A
-repository activates them with a mode override and provider selection after it
-implements the required adapter.
+repository activates them with a mode override and provider selection. SonarQube,
+Snyk, and FOSSA ship workflow templates; Snyk and FOSSA run through the installed
+`.guardrails/adapter.py`, which owns the command shape and the mapping from exit
+codes to evidence with a reason code (see [providers](../providers/README.md)).
+Semgrep AppSec Platform and Codex Code Review rely on their platform
+integrations and produce no toolkit-owned workflow.
 
 Catalog controls also declare an `enforcement_policy`. Most deterministic
 controls are `promotable`; all AI review controls are `advisory-only`. The

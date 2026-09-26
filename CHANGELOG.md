@@ -8,6 +8,17 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Reorganize documentation around six entry points (Install, Guardrails,
+  Skills, QA, Providers, Reference app), add the reference-app page, and
+  rewrite the maturity matrix with shipped / opt-in / planned labels checked
+  against the source tree. The source repository validator now fails when a
+  shipped workflow template, skill, provider, or tooling script is not
+  mentioned in published documentation; the audit it enabled documented the
+  `ai-pr-review.yml`, `security-scanning.yml`, and `soak.yml` templates, the
+  AI review adapters and soak provider, the `prepare-safe-change` skill, and
+  the release asset scripts, and corrected the architecture guide's account of
+  vendor providers.
+
 - Implement the five action skills `fix-ci`, `generate-unit-tests`,
   `fix-security-finding`, `dependency-upgrade`, and `address-pr-findings`,
   replacing their placeholders. Each defines inputs, permitted changes, stop

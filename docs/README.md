@@ -3,17 +3,21 @@
 AI Software Toolkit brings together skills, QA workflows, standards, and
 Guardrails. Start with the task you need to perform.
 
-| Task | Guide |
-| --- | --- |
-| Understand the direction and current maturity | [Vision](vision.md) |
-| Set up the toolkit with one CLI | [Install with `ai-toolkit`](install.md) |
-| Install and run Guardrails in a repository | [Quickstart](quickstart.md) |
-| Add SonarQube, Snyk, or FOSSA evidence | [Providers](providers/README.md) |
-| Install reusable agent skills | [Skill catalog](../skills/README.md) |
-| Set up functional QA | [QA bootstrap](../skills/qa-bootstrap/SKILL.md) |
-| Develop and check this toolkit | [Self-check](self-check.md), [contributing](../CONTRIBUTING.md) |
-| Update an existing clone after the rename | [Repository rename](repository-rename.md) |
-| Review supported releases | [Changelog](../CHANGELOG.md), [v1.0.0](releases/v1.0.0.md) |
+Six entry points, one per component:
+
+| Entry point | Start here | Then |
+| --- | --- | --- |
+| **Install** | [Install with `ai-toolkit`](install.md) — one CLI for discovery, preview, installation, `doctor`, `check`, and `update` | [Quickstart](quickstart.md) for the underlying installer and scanner |
+| **Guardrails** | [Guardrails guides](guardrails/README.md) — runtime model, control setup, operating guide, scorecards | [Producer contract](guardrails/producer-contract.md), [control status](guardrails/control-status.md) |
+| **Skills** | [Skill catalog](../skills/README.md) — review skills, the five action skills, installation for Codex and Claude Code | Each action skill's `VERIFICATION.md` for what has been proven |
+| **QA** | [QA bootstrap](../skills/qa-bootstrap/SKILL.md) — generate the `qa` orchestrator | [Plans, findings, and regression reruns](../skills/qa-bootstrap/references/plans-and-findings.md) |
+| **Providers** | [Providers](providers/README.md) — SonarQube, Snyk, FOSSA, reason codes, adapter-owned commands | [Live verification ledger](providers/verification.md) |
+| **Reference app** | [Reference app](reference-app.md) — what the embedded demo demonstrates and what is still planned | [Demo README](../examples/python-demo/README.md) |
+
+Also: [Vision and maturity](vision.md) (what is shipped, opt-in, or planned),
+[self-check](self-check.md) and [contributing](../CONTRIBUTING.md) for
+developing the toolkit, the [repository rename](repository-rename.md) note,
+and the [changelog](../CHANGELOG.md) with [v1.0.0 release notes](releases/v1.0.0.md).
 
 ## Guides by area
 
