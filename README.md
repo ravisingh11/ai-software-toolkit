@@ -162,6 +162,13 @@ label identifies whose changes are being measured; this toolkit dashboard does
 not aggregate the reference app's PRs. Older evidence without structured
 measurements shows unavailable. See [report details](docs/guardrails/control-setup.md#reading-the-pr-size-report).
 
+For the other controls, the [evidence results guide](docs/guardrails/control-setup.md#reading-scorecard-evidence)
+explains **passed**, **failed**, **blocked**, and **unverified**. An unverified
+result means usable evidence is missing, not that the check failed. The dashboard
+is a published PR snapshot; its timestamp does not prove it matches the current
+PR head or main. **ALLOW** means enforced guardrails were satisfied for that
+snapshot, not that the change is ready to merge or release.
+
 ## Profiles
 
 Core is the default advisory profile: repository/documentation/ground-truth
