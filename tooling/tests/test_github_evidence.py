@@ -1384,6 +1384,30 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
                 trusted_workflow_ref="refs/heads/main",
             )
 
+    def test_scope_artifact_preserves_validated_measurements(self) -> None:
+        metrics = {
+            "files": 1, "added_lines": 84, "changed_lines": 84,
+            "max_added_lines_per_file": 84, "binary_files": 0,
+            "total_files": 2, "total_added_lines": 92, "total_changed_lines": 92,
+            "excluded_files": 1, "excluded_added_lines": 8,
+            "excluded_changed_lines": 8, "excluded_binary_files": 0,
+        }
+        thresholds = {"max_files": 12, "max_added_lines": 300,
+                      "max_changed_lines": 500, "max_added_lines_per_file": 150}
+        document = artifact_document(909, provider_id="repository-change-scope")
+        document.update(metrics=metrics, thresholds=thresholds)
+        contract = artifact_contract(provider_id="repository-change-scope")
+        result = self.prove_artifact(document=document, contract=contract)
+        self.assertEqual(result["change_scope"], {
+            "version": 1, "metrics": metrics, "thresholds": thresholds,
+        })
+        for invalid in (None, {**metrics, "files": True}, {**metrics, "files": -1}):
+            with self.subTest(invalid=invalid):
+                document["metrics"] = invalid
+                result = self.prove_artifact(document=document, contract=contract)
+                self.assertEqual(result["status"], "passed")
+                self.assertNotIn("change_scope", result)
+
     def test_artifact_check_uses_run_id_from_external_id_when_github_rewrites_details_url(self) -> None:
         result = self.prove_artifact(
             details_url="https://github.com/owner/repo/runs/123456",

@@ -257,7 +257,7 @@ class LocalEvidenceTests(unittest.TestCase):
             producer.gitleaks_result.return_value = result("passed", "gitleaks")
 
             with mock.patch.object(MODULE, "local_binding", return_value=("abc123", None)), mock.patch.object(MODULE, "exact_local_revision", return_value=("base123", None)), mock.patch.object(MODULE, "run", side_effect=[(0, "repository ok"), (0, "docs ok"), (0, "ground truth ok"), (0, scope_payload)]):
-                with mock.patch.object(MODULE, "load", return_value={"status": "passed", "metrics": {"files": 1}}), mock.patch.object(MODULE, "producer_module", return_value=producer):
+                with mock.patch.object(MODULE, "load", return_value={"status": "passed", "metrics": {"files": 1}, "thresholds": {"max_files": 12}}), mock.patch.object(MODULE, "producer_module", return_value=producer):
                     evidence = MODULE.local_evidence(target, "abc123", "HEAD~1")
 
             for control_id in ("repository-validation", "documentation-validation", "repository-ground-truth"):
@@ -265,6 +265,10 @@ class LocalEvidenceTests(unittest.TestCase):
             self.assertEqual(
                 set(evidence["results"]["change-scope"]),
                 {"repository-change-scope"},
+            )
+            self.assertEqual(
+                evidence["results"]["change-scope"]["repository-change-scope"]["change_scope"],
+                {"version": 1, "metrics": {"files": 1}, "thresholds": {"max_files": 12}},
             )
             self.assertEqual(set(evidence["results"]["build"]), {"repository-build"})
             self.assertEqual(set(evidence["results"]["unit-tests"]), {"repository-unit-tests"})

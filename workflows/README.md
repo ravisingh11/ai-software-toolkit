@@ -28,7 +28,7 @@ publishing.
 | --- | --- | --- |
 | `guardrails-scorecard.yml` | `Guardrail Scorecard` | Always for supported PR events and manual dispatch |
 | `repository-validation.yml` | `Validate / repository`, `Validate / docs`, `Validate / ground truth` | Installed validators and repository configuration |
-| `change-scope.yml` | `PR Change Scope` | Trusted exact-revision PR size evidence; neutral while advisory, failing when enforced |
+| `change-scope.yml` | `PR Change Scope` | **PR Size / Files & LOC** workflow: measured/limit tables, counted/excluded totals; neutral while advisory, failing when enforced |
 | `pr-metadata.yml` | `PR Metadata` | Trusted mutable PR title/body evidence plus a run-bound custom check on the exact candidate head SHA |
 | `format-and-lint.yml` | `Format and Lint` | `GUARDRAILS_FORMAT_LINT_COMMAND`; the job fails visibly when unset |
 | `migration-validation.yml` | `Migration Validation` | `GUARDRAILS_MIGRATION_VALIDATION_COMMAND`; the job fails visibly when unset |
@@ -112,7 +112,7 @@ The native **Scorecard Workflow** badge reports whether this workflow ran. The
 optional **Latest PR Scorecard** badge reports readiness and passed/active count
 from the newest accepted PR artifact. A successful workflow may publish
 `ORANGE / ALLOW`; the latest PR badge does not attest current `main`. The Pages
-projection includes only aggregate status/counts, source-run metadata, and a
+projection includes only aggregate status/counts, PR-size measurements and thresholds, source-run metadata, and a
 revision digest. Controls, findings, evidence, reasons, provider data, check
 URLs, raw revisions, and source Markdown are excluded from Pages and remain in
 the source Actions artifact under normal repository access.

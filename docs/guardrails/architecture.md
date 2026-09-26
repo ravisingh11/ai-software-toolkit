@@ -166,7 +166,7 @@ set of root-level filenames.
 The optional badge publisher is a post-scorecard reporting component, not a
 provider or control. It executes trusted default-branch code after a completed
 scorecard run, validates the exact run artifact and current PR binding, and
-publishes aggregate status/counts, source-run metadata, and a revision digest.
+publishes aggregate status/counts, PR-size measurements and thresholds, source-run metadata, and a revision digest.
 It never publishes controls, findings, evidence, reasons, provider data, check
 URLs, raw revisions, or source Markdown to Pages, and it never changes `allow`,
 `block`, or branch protection. Those details remain in the source Actions

@@ -16,11 +16,11 @@
       "enabled_by_default": true
     },
     "repository-change-scope": {
-      "display_name": "PR Change Scope",
+      "display_name": "PR Size / Files & LOC",
       "activation": "repository",
       "capabilities": ["change-scope"],
       "checks": {
-        "change-scope": {"check_name": "PR Change Scope", "workflow": "PR Change Scope", "workflow_path": ".github/workflows/change-scope.yml", "external_id_prefix": "guardrails:change-scope:", "artifact_name_prefix": "guardrails-change-scope-", "artifact_member": "guardrails-evidence.json"}
+        "change-scope": {"check_name": "PR Change Scope", "workflow": "PR Size / Files & LOC", "workflow_path": ".github/workflows/change-scope.yml", "external_id_prefix": "guardrails:change-scope:", "artifact_name_prefix": "guardrails-change-scope-", "artifact_member": "guardrails-evidence.json"}
       },
       "template": "workflows/change-scope.yml",
       "template_available": true,

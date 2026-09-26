@@ -277,6 +277,12 @@ def local_evidence(target: Path, revision: str, base_ref: str) -> dict[str, Any]
                     "status": scope["status"],
                     "evidence": [json.dumps(scope["metrics"], sort_keys=True)],
                 }
+                if "thresholds" in scope:
+                    record["change_scope"] = {
+                        "version": 1,
+                        "metrics": scope["metrics"],
+                        "thresholds": scope["thresholds"],
+                    }
             else:
                 record = {
                     "producer": "local change-scope inspection",

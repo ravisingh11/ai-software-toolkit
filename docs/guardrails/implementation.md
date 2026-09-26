@@ -67,7 +67,7 @@ consumer-owned collisions.
 The native **Scorecard Workflow** badge is GitHub's workflow conclusion. The
 optional **Latest PR Scorecard** is the newest accepted PR readiness and
 passed/active count. Publication is downstream reporting only and never affects
-evaluation or merge policy. The public files contain aggregates, source-run
+evaluation or merge policy. The public files contain aggregates including PR-size measurements and thresholds, source-run
 metadata, and a revision digest; detailed evidence is excluded from Pages and
 remains in the source Actions artifact under normal repository access. See
 [quick start](../quickstart.md#publish-the-optional-scorecard-badge).

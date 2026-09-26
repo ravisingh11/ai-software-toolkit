@@ -49,6 +49,23 @@ declares which subject type each capability accepts.
 Every result also requires a non-empty `producer`. Evidence records must not
 contain credentials or secret values.
 
+### Optional PR-size measurements
+
+The `change-scope.repository-change-scope` result may include `change_scope`
+with `version: 1`, aggregate `metrics`, and the four configured `thresholds`.
+This optional display metadata is accepted only for `passed` or `failed`
+results. Counts must be nonnegative integers, thresholds positive integers,
+totals consistent, and the status must match whether a threshold was exceeded.
+The schema defines the exact allowed numeric fields and bounds. No filenames
+or findings belong in this metadata.
+
+Evidence without this field remains valid. Refresh the evaluator, schema,
+collector, scope producer, and renderer together before emitting it; older
+runtimes reject unknown result fields. The GitHub collector retains the trusted
+producer status but omits unavailable or malformed optional measurements.
+The dashboard then displays measurements as unavailable. This extension does
+not change policy evaluation or promote scope from advisory to enforced.
+
 ## Provider selection
 
 `.guardrails/providers.yaml` defines each provider's capabilities, display name,

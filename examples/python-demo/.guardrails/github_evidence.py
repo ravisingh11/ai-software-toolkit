@@ -475,11 +475,26 @@ def run_artifact_evidence(
         return not_run(check_name, "The evidence artifact summary is invalid.")
     url = check.get("details_url") or "unavailable"
     if status in {"passed", "failed"}:
-        return bounded_result({
+        result = {
             "producer": provider_name,
             "status": status,
             "evidence": [f"{summary}; {url}"],
-        })
+        }
+        if provider_id == "repository-change-scope":
+            scope = {
+                "version": 1,
+                "metrics": document.get("metrics"),
+                "thresholds": document.get("thresholds"),
+            }
+            try:
+                evaluator_module().validate_change_scope(scope, status)
+            except ValueError:
+                # Older or malformed optional measurements are unavailable;
+                # the independently verified producer status is unchanged.
+                pass
+            else:
+                result["change_scope"] = scope
+        return bounded_result(result)
     return bounded_result({
         "producer": provider_name,
         "status": "not_run",

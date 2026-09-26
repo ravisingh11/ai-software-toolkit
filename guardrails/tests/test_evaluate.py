@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import importlib.util
 import json
 import unittest
@@ -492,6 +493,112 @@ class EvaluateV2Tests(unittest.TestCase):
                 document["results"]["build"]["repository-build"][field] = value
                 with self.assertRaisesRegex(ValueError, message):
                     self.evaluate(document)
+
+
+class ChangeScopeEvidenceTests(unittest.TestCase):
+    def metadata(self) -> dict:
+        return {
+            "version": 1,
+            "metrics": {
+                "files": 2, "added_lines": 20, "changed_lines": 30,
+                "max_added_lines_per_file": 12, "binary_files": 0,
+                "total_files": 3, "total_added_lines": 25, "total_changed_lines": 40,
+                "excluded_files": 1, "excluded_added_lines": 5,
+                "excluded_changed_lines": 10, "excluded_binary_files": 0,
+            },
+            "thresholds": {
+                "max_files": 12, "max_added_lines": 300,
+                "max_changed_lines": 500, "max_added_lines_per_file": 150,
+            },
+        }
+
+    def document(self) -> dict:
+        return {
+            "version": 2, "subject": {"type": "git-commit", "revision": "abc123"},
+            "results": {"change-scope": {"repository-change-scope": {
+                "producer": "trusted workflow", "status": "passed",
+                "evidence": ["artifact://scope"], "change_scope": self.metadata(),
+            }}},
+        }
+
+    def validate(self, document: dict) -> None:
+        _, _, catalog, providers = contracts()
+        controls = MODULE.catalog_map(catalog)
+        MODULE.validate_evidence(document, controls, providers["providers"])
+
+    def test_metadata_is_optional_and_accepts_valid_pass_and_warning(self) -> None:
+        document = self.document()
+        self.validate(document)
+        row = document["results"]["change-scope"]["repository-change-scope"]
+        row["change_scope"]["thresholds"]["max_files"] = 1
+        row["status"] = "failed"
+        self.validate(document)
+        del row["change_scope"]
+        self.validate(document)
+
+    def test_rejects_wrong_control_or_provider(self) -> None:
+        document = self.document()
+        row = document["results"]["change-scope"]["repository-change-scope"]
+        document["results"] = {"build": {"repository-build": row}}
+        with self.assertRaisesRegex(ValueError, "only valid"):
+            self.validate(document)
+        _, _, catalog, providers = contracts()
+        providers["providers"]["alternate-scope"] = {"capabilities": ["change-scope"]}
+        document["results"] = {"change-scope": {"alternate-scope": row}}
+        with self.assertRaisesRegex(ValueError, "only valid"):
+            MODULE.validate_evidence(document, MODULE.catalog_map(catalog), providers["providers"])
+
+    def test_rejects_malformed_or_inconsistent_metadata(self) -> None:
+        cases = [None, {}, {**self.metadata(), "version": True}, {**self.metadata(), "extra": 1}]
+        for group, key, value in (
+            ("metrics", "files", True), ("metrics", "files", -1),
+            ("metrics", "files", 2.0), ("metrics", "files", 2**53),
+            ("metrics", "files", float("inf")), ("metrics", "extra", 0),
+            ("metrics", "total_added_lines", 24), ("metrics", "binary_files", 3),
+            ("metrics", "binary_files", 2), ("metrics", "max_added_lines_per_file", 21),
+            ("metrics", "max_added_lines_per_file", 9), ("metrics", "excluded_binary_files", 1),
+            ("thresholds", "max_files", True), ("thresholds", "max_files", 0), ("thresholds", "max_files", 1),
+            ("thresholds", "extra", 0),
+        ):
+            value_metadata = copy.deepcopy(self.metadata())
+            value_metadata[group][key] = value
+            cases.append(value_metadata)
+        missing = self.metadata()
+        del missing["metrics"]["files"]
+        cases.append(missing)
+        for metadata in cases:
+            with self.subTest(metadata=metadata), self.assertRaises(ValueError):
+                MODULE.validate_change_scope(metadata, "passed")
+        for status in ("failed", "blocked", "not_run"):
+            with self.subTest(status=status), self.assertRaises(ValueError):
+                MODULE.validate_change_scope(self.metadata(), status)
+
+    def test_schema_restricts_metadata_to_scope_provider_and_bounded_fields(self) -> None:
+        schema = json.loads((ROOT / "guardrails" / "evidence.schema.json").read_text())
+        definitions = schema["$defs"]
+        results = schema["properties"]["results"]
+        scope = results["properties"]["change-scope"]
+        self.assertEqual(scope["properties"]["repository-change-scope"], {"$ref": "#/$defs/result"})
+        self.assertEqual(scope["additionalProperties"], {"$ref": "#/$defs/plainResult"})
+        self.assertEqual(definitions["providerResults"]["additionalProperties"], {"$ref": "#/$defs/plainResult"})
+        self.assertIn({"not": {"required": ["change_scope"]}}, definitions["plainResult"]["allOf"])
+        metadata = definitions["changeScope"]
+        self.assertFalse(metadata["additionalProperties"])
+        for group, minimum in (("metrics", 0), ("thresholds", 1)):
+            fields = metadata["properties"][group]
+            self.assertFalse(fields["additionalProperties"])
+            self.assertEqual(set(fields["required"]), set(self.metadata()[group]))
+            for field in fields["properties"].values():
+                self.assertEqual(field, {"type": "integer", "minimum": minimum, "maximum": 2**53 - 1})
+
+    def test_zero_counts_and_exact_thresholds_are_valid(self) -> None:
+        metadata = self.metadata()
+        metadata["metrics"] = dict.fromkeys(metadata["metrics"], 0)
+        metadata["thresholds"] = dict.fromkeys(metadata["thresholds"], 1)
+        MODULE.validate_change_scope(metadata, "passed")
+        metadata = self.metadata()
+        metadata["thresholds"] = {"max_files": 2, "max_added_lines": 20, "max_changed_lines": 30, "max_added_lines_per_file": 12}
+        MODULE.validate_change_scope(metadata, "passed")
 
 
 if __name__ == "__main__":
