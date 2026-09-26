@@ -90,7 +90,12 @@ Before a toolkit release:
 2. Review workflow permissions, pinned action references, and provider secrets.
 3. Refresh and validate the embedded Python example.
 4. Run a real pull request and inspect the scorecard artifact and PR comment.
-5. Record any provider that remains advisory or not activated.
+5. Record any provider that remains advisory or not activated, and check the
+   [provider verification ledger](docs/providers/verification.md) and each
+   action skill's `VERIFICATION.md` before describing anything as verified.
+6. Build the release assets: `python3 tooling/build_archive.py` for
+   `ai-toolkit.pyz` and its checksum, and `tooling/package-speckit-preset.sh`
+   for the Spec Kit preset archive.
 
 Keep release claims tied to observed evidence. A catalog entry or workflow file
 is not proof that a provider is active.

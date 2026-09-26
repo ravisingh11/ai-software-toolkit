@@ -128,6 +128,7 @@ install only the skills they actually need.
 
 ## Which Skill To Use
 
+- Use `prepare-safe-change` before editing a consumer repository: the Guardrails installer places it under `.agents/skills/` so agents read the repository's ground truth and validation contract first.
 - Use `repo-bootstrap` for a new or newly adopted repo.
 - Use `change-guardrail-control` whenever a capability, provider, producer,
   evidence contract, activation setting, or enforcement mode changes.
