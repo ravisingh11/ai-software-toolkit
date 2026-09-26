@@ -504,12 +504,68 @@ def validate_no_machine_paths() -> None:
             fail(f"{relative_path} contains a machine-local path")
 
 
+DOCUMENTATION_ROOTS = ("README.md", "CONTRIBUTING.md", "AGENTS.md", "docs", "skills/README.md", "workflows/README.md")
+
+
+def documentation_text(root: Path = ROOT) -> str:
+    """All Markdown the repository publishes as documentation, concatenated."""
+    parts = []
+    for relative in DOCUMENTATION_ROOTS:
+        path = root / relative
+        if path.is_file():
+            parts.append(path.read_text(encoding="utf-8"))
+        elif path.is_dir():
+            parts.extend(item.read_text(encoding="utf-8") for item in sorted(path.rglob("*.md")) if item.is_file())
+    return "\n".join(parts)
+
+
+def documentation_gaps(root: Path = ROOT) -> list[str]:
+    """Shipped surfaces that no published documentation mentions.
+
+    Every workflow template must appear in workflows/README.md, every skill in
+    skills/README.md, every provider display name in the provider or control
+    setup guides, and every tooling script somewhere in the published docs.
+    """
+    gaps: list[str] = []
+    workflows_readme = (root / "workflows" / "README.md").read_text(encoding="utf-8") if (root / "workflows" / "README.md").is_file() else ""
+    for path in sorted((root / "workflows").glob("*.yml")):
+        if path.name not in workflows_readme:
+            gaps.append(f"workflows/README.md does not mention workflows/{path.name}")
+    skills_readme = (root / "skills" / "README.md").read_text(encoding="utf-8") if (root / "skills" / "README.md").is_file() else ""
+    for skill in sorted((root / "skills").glob("*/SKILL.md")):
+        name = skill.parent.name
+        if f"`{name}`" not in skills_readme and f"{name}/SKILL.md" not in skills_readme:
+            gaps.append(f"skills/README.md does not mention the {name} skill")
+    provider_docs = "".join(
+        (root / relative).read_text(encoding="utf-8")
+        for relative in ("docs/providers/README.md", "docs/guardrails/control-setup.md", "workflows/README.md")
+        if (root / relative).is_file()
+    )
+    providers_path = root / "policies" / "provider-config.yaml"
+    if providers_path.is_file():
+        for provider_id, provider in load_json_object(providers_path).get("providers", {}).items():
+            display_name = provider.get("display_name", provider_id)
+            if display_name not in provider_docs and f"`{provider_id}`" not in provider_docs:
+                gaps.append(f"provider {provider_id} ({display_name}) is not documented in docs/providers, control setup, or the workflows README")
+    published = documentation_text(root)
+    for path in sorted(list((root / "tooling").glob("*.py")) + list((root / "tooling").glob("*.sh"))):
+        if path.name not in published:
+            gaps.append(f"tooling/{path.name} is not mentioned in any published documentation")
+    return gaps
+
+
+def validate_documentation_coverage() -> None:
+    for gap in documentation_gaps(ROOT):
+        fail(gap)
+
+
 def main() -> int:
     skills = validate_skills()
     controls = validate_control_catalog()
     validate_guardrail_contract()
     validate_links_and_docs()
     validate_no_machine_paths()
+    validate_documentation_coverage()
     print(f"Validated {skills} skills, {controls} controls, guardrail schemas, and documentation")
     return 0
 

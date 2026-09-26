@@ -160,6 +160,14 @@ standard reason code (`credential-missing`, `authentication-failed`,
 `revision-mismatch`, `configuration-missing`) in the job summary and an
 uploaded evidence fragment.
 
+Other templates that are shipped but not installed by any profile:
+
+| Template | Workflow / check names | Activation |
+| --- | --- | --- |
+| `ai-pr-review.yml` | `AI PR Review` / `AI Engineering Review`, `AI QA Review`, `AI Security Review`, `AI Repo Standards Review` | The `ai-engineering-adapter`, `ai-qa-adapter`, `ai-security-adapter`, and `ai-repository-standards-adapter` providers; a repository-owned `AI_REVIEW_COMMAND` writes each role's result; advisory-only and never promotable |
+| `security-scanning.yml` | `Security Scanning` / `CodeQL`, `Dependency Review`, `Semgrep`, `FOSSA`, `Snyk Open Source`, `Secret Scan` | Organization-style bundle that runs consumer-supplied `FOSSA_COMMAND` / `SNYK_OPEN_SOURCE_COMMAND` strings; prefer the adapter templates above, which own the command shape |
+| `soak.yml` | `Soak Check` / `Soak Check` | The `repository-soak` provider for the `runtime-soak` capability; runs `SOAK_COMMAND` on a schedule or dispatch; evidence-only until a consumer verifies it |
+
 Codex Code Review is a native GitHub review provider rather than a check-run
 workflow. The collector requires the configured bot login and exact reviewed
 head SHA. Enable native automatic review in Codex settings; do not create a
