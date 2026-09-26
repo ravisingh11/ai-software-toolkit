@@ -423,7 +423,7 @@ def cmd_providers(args: argparse.Namespace) -> int:
             "activation": provider.get("activation"),
             "capabilities": provider.get("capabilities", []),
             "authoritative_for": authoritative,
-            "secrets": provider.get("secrets", []),
+            "credential_names": list(provider.get("secrets", [])),
             "template": provider.get("template"),
             "template_available": bool(provider.get("template_available")),
             "enabled_by_default": bool(provider.get("enabled_by_default")),
@@ -440,8 +440,8 @@ def cmd_providers(args: argparse.Namespace) -> int:
         lines.append(f"{row['id']}  ({row['display_name']}; {row['activation']}; {'default' if row['enabled_by_default'] else 'opt-in'})")
         lines.append(f"  capabilities: {', '.join(row['capabilities'])}")
         lines.append(f"  authoritative for: {', '.join(row['authoritative_for']) or 'none'}")
-        if row["secrets"]:
-            lines.append(f"  credentials: {', '.join(row['secrets'])} (GitHub secrets; never committed)")
+        if row["credential_names"]:
+            lines.append(f"  credentials: {', '.join(row['credential_names'])} (names only; values stay in GitHub secrets)")
         lines.append("  template: " + (row["template"] if row["template_available"] and row["template"] else "none shipped; the consumer owns the workflow"))
     lines.append("")
     lines.append("Select a provider: ai-toolkit providers select CAPABILITY=PROVIDER (runs .guardrails/configure.py).")
