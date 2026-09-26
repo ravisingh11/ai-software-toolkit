@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 
@@ -7,6 +8,26 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class RepositoryValidationWorkflowTests(unittest.TestCase):
+    def test_coverage_workflow_preserves_provider_identity(self) -> None:
+        providers = json.loads(
+            (ROOT / "policies/provider-config.yaml").read_text(encoding="utf-8")
+        )
+        contract = providers["providers"]["repository-changed-code-coverage"][
+            "checks"
+        ]["changed-code-coverage"]
+        for relative_path in (
+            "workflows/changed-code-coverage.yml",
+            contract["workflow_path"],
+            f"examples/python-demo/{contract['workflow_path']}",
+        ):
+            with self.subTest(workflow=relative_path):
+                workflow = (ROOT / relative_path).read_text(encoding="utf-8")
+                self.assertIn(f"\nname: {contract['workflow']}\n", workflow)
+                self.assertIn(f"    name: {contract['check_name']}\n", workflow)
+                # GitHub exposes custom run-name as the Actions run's name.
+                # The collector verifies that name against the provider contract.
+                self.assertNotIn("\nrun-name:", workflow)
+
     def test_standards_source_validation_is_a_separate_non_authoritative_check(self) -> None:
         workflow = (ROOT / "workflows" / "repository-validation.yml").read_text(
             encoding="utf-8"

@@ -1,9 +1,6 @@
 # Guardrails v2 installer-owned workflow.
 name: Changed Code Coverage
-run-name: >-
-  Coverage check · ${{ github.event_name == 'pull_request'
-  && format('PR #{0}', github.event.pull_request.number)
-  || format('manual run on {0}', github.ref_name) }}
+# Keep the Actions run name aligned with the provider provenance contract.
 
 on:
   pull_request:
