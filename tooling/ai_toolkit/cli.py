@@ -264,10 +264,14 @@ def cmd_init(args: argparse.Namespace) -> int:
         # explicit step rather than a side effect of a narrower re-run.
         components = sorted(set(existing_configuration["toolkit"]["components"]) | set(components), key=config.COMPONENTS.index)
         clients = list(dict.fromkeys([*existing_configuration["agents"]["clients"], *clients]))
-    already_installed = bool(installed_runtime(target))
+    # Any existing .guardrails/ directory, complete or not, is merged into rather than refused,
+    # so init can fill the gap doctor reported.
+    already_installed = (target / ".guardrails").is_dir()
     profiles = ["github"] if args.profile == "github" else []
-    # A re-run inherits the installation mode chosen before unless the flags say otherwise.
-    no_actions = args.no_actions or bool(existing_configuration and not existing_configuration["guardrails"]["actions"])
+    # A re-run inherits the no-actions choice only if Guardrails was already configured;
+    # a skills-only configuration carries no such choice.
+    guardrails_was_configured = bool(existing_configuration and "guardrails" in existing_configuration["toolkit"]["components"])
+    no_actions = args.no_actions or (guardrails_was_configured and not existing_configuration["guardrails"]["actions"])
     github_profile = "github" in profiles or "github" in installed_profiles(target, existing_configuration)
     preview: dict[str, Any] = {"target": str(target), "components": components, "clients": clients, "discovery": found,
                                "guardrails": [], "skills": [], "variables": [], "adopt_existing": already_installed}
@@ -550,6 +554,16 @@ def cmd_providers(args: argparse.Namespace) -> int:
     return 0
 
 
+def adopt_client(target: Path, client: str) -> bool:
+    """Add a client to toolkit.toml so update keeps managing the skills installed for it."""
+    configuration = config.read_configuration(target)
+    if configuration is None or client in configuration["agents"]["clients"]:
+        return False
+    configuration["agents"]["clients"].append(client)
+    config.write_configuration(target, configuration)
+    return True
+
+
 def record_skills_in_lock(target: Path, destination: Path, rows: list[dict[str, Any]]) -> bool:
     """Adopt the requested project skills in toolkit.lock.json so update manages them.
 
@@ -590,6 +604,7 @@ def cmd_skills(args: argparse.Namespace) -> int:
         results.append({"client": client, "destination": str(destination), "skills": rows})
         if not args.user and not args.dry_run:
             record_skills_in_lock(target, destination, rows)
+            adopt_client(target, client)
     lines = []
     for row in results:
         lines.append(f"{row['client']} -> {row['destination']}" + (" (dry run)" if args.dry_run else ""))
@@ -622,6 +637,7 @@ def cmd_qa(args: argparse.Namespace) -> int:
         rows = skills.install_skills(["qa-bootstrap"], destination, existing="merge", dry_run=args.dry_run, boundary=target)
         if not args.dry_run:
             record_skills_in_lock(target, destination, rows)
+            adopt_client(target, client)
         results.append({"client": client, "skills": rows})
     lines = ["Installed the qa-bootstrap skill for: " + ", ".join(clients) + (" (dry run)" if args.dry_run else ""),
              "Next: in your agent, run the qa-bootstrap skill. It analyzes the repository, asks only what it cannot detect, and generates the qa orchestrator; the generated qa skill runs QA."]
@@ -729,6 +745,10 @@ def cmd_update(args: argparse.Namespace) -> int:
     except (ToolkitError, OSError) as error:
         # Every mutation after the backup is undone together; the lock is left untouched.
         _restore(target, backup_root, managed)
+        for relative_path in managed:
+            created = target / relative_path
+            if not (backup_root / relative_path).is_file() and created.is_file():
+                created.unlink()
         raise ToolkitError(f"{error}; previous files were restored") from error
     previous = {"revision": lock["toolkit"].get("revision") if lock else None, "backup": relative(backup_root, target),
                 "managed": lock.get("managed", {}) if lock else {}}

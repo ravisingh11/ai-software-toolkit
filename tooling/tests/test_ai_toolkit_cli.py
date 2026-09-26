@@ -600,3 +600,34 @@ class ReviewRegressionTests(CliFixture):
         payload = json.loads(out)
         self.assertEqual(payload["components"]["skills"]["state"], "missing")
         self.assertIn("claude-code", payload["components"]["skills"]["next_step"])
+
+    def test_adding_guardrails_later_keeps_actions_enabled(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        self.assertEqual(self.init("--components", "guardrails")[0], 0)
+        self.assertTrue(config.read_configuration(self.target)["guardrails"]["actions"])
+        self.assertTrue((self.target / ".github" / "workflows" / "build.yml").is_file())
+
+    def test_init_fills_a_partial_runtime(self):
+        self.assertEqual(self.init("--components", "guardrails")[0], 0)
+        (self.target / ".guardrails" / "scan.py").unlink()
+        code, out, _ = self.init("--components", "guardrails")
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.target / ".guardrails" / "scan.py").is_file())
+
+    def test_skills_install_for_a_new_client_configures_it(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--client", "claude-code", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(config.read_configuration(self.target)["agents"]["clients"], ["codex", "claude-code"])
+        code, out, _ = run_cli("update", "--target", str(self.target), "--force", "--json")
+        self.assertEqual(json.loads(out)["classification"]["removed"], [])
+        self.assertIn(".claude/skills/code-review/SKILL.md", config.read_lock(self.target)["managed"])
+
+    def test_failed_update_removes_files_it_created(self):
+        self.assertEqual(self.init("--components", "guardrails,skills", "--skills", "code-review")[0], 0)
+        (self.target / ".guardrails" / "scan.py").unlink()
+        with patch.object(cli.skills, "install_skills", side_effect=ToolkitError("refresh exploded")):
+            code, _, err = run_cli("update", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertFalse((self.target / ".guardrails" / "scan.py").exists())
+        self.assertIn("previous files were restored", err)
