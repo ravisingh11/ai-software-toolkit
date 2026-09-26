@@ -1,5 +1,5 @@
 # Guardrails v2 installer-owned workflow.
-name: PR Change Scope
+name: PR Size / Files & LOC
 
 on:
   pull_request_target:
@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   scope:
-    name: Evaluate trusted scope
+    name: Files & LOC report
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -43,12 +43,6 @@ jobs:
         run: |
           set -euo pipefail
           git -C candidate fetch --no-tags origin "${BASE_SHA}"
-          python3 trusted/.guardrails/validators/inspect_change_scope.py \
-            --repository-root candidate \
-            --policy trusted/.guardrails/change-scope.yaml \
-            --base-ref "${BASE_SHA}" \
-            --head-ref "${HEAD_SHA}" \
-            --output "${RUNNER_TEMP}/scope.json"
           python3 trusted/.guardrails/configure.py \
             --policy trusted/.guardrails/policy.yaml \
             --profiles trusted/.guardrails/profiles.yaml \
@@ -56,8 +50,16 @@ jobs:
             --providers trusted/.guardrails/providers.yaml \
             --operation change \
             --effective-mode change-scope > "${RUNNER_TEMP}/mode.json"
-          raw_status="$(jq -r '.status' "${RUNNER_TEMP}/scope.json")"
           mode="$(jq -r '.mode' "${RUNNER_TEMP}/mode.json")"
+          python3 trusted/.guardrails/validators/inspect_change_scope.py \
+            --repository-root candidate \
+            --policy trusted/.guardrails/change-scope.yaml \
+            --base-ref "${BASE_SHA}" \
+            --head-ref "${HEAD_SHA}" \
+            --output "${RUNNER_TEMP}/scope.json" \
+            --mode "${mode}" \
+            --markdown-output "${RUNNER_TEMP}/scope-summary.md"
+          raw_status="$(jq -r '.status' "${RUNNER_TEMP}/scope.json")"
           summary="$(jq -r '"Meaningful: \(.metrics.files) files, \(.metrics.changed_lines) changed lines (\(.metrics.added_lines) added). Total: \(.metrics.total_files) files, \(.metrics.total_changed_lines) changed lines. Excluded: \(.metrics.excluded_files) files, \(.metrics.excluded_changed_lines) changed lines."' "${RUNNER_TEMP}/scope.json")"
           jq -n \
             --argjson run_id "${GITHUB_RUN_ID}" \
@@ -70,7 +72,8 @@ jobs:
             --arg summary "${summary}" \
             --arg mode "${mode}" \
             --argjson metrics "$(jq '.metrics' "${RUNNER_TEMP}/scope.json")" \
-            '{version:1,run_id:$run_id,event:$event,base_sha:$base_sha,base_ref:$base_ref,head_sha:$head_sha,revision:$head_sha,repository:$repository,provider_id:"repository-change-scope",status:$status,summary:$summary,mode:$mode,metrics:$metrics}' \
+            --argjson thresholds "$(jq '.thresholds' "${RUNNER_TEMP}/scope.json")" \
+            '{version:1,run_id:$run_id,event:$event,base_sha:$base_sha,base_ref:$base_ref,head_sha:$head_sha,revision:$head_sha,repository:$repository,provider_id:"repository-change-scope",status:$status,summary:$summary,mode:$mode,metrics:$metrics,thresholds:$thresholds}' \
             > "${RUNNER_TEMP}/guardrails-evidence.json"
       - name: Upload run-bound evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -86,7 +89,7 @@ jobs:
           set -euo pipefail
           status="$(jq -r '.status' "${RUNNER_TEMP}/guardrails-evidence.json")"
           mode="$(jq -r '.mode' "${RUNNER_TEMP}/guardrails-evidence.json")"
-          summary="$(jq -r '.summary' "${RUNNER_TEMP}/guardrails-evidence.json")"
+          summary="$(cat "${RUNNER_TEMP}/scope-summary.md")"
           case "${status}:${mode}" in
             passed:*) conclusion=success ;;
             failed:advisory) conclusion=neutral ;;
@@ -96,6 +99,6 @@ jobs:
           esac
           details_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           external_id="guardrails:change-scope:${GITHUB_RUN_ID}:${HEAD_SHA}"
-          payload="$(jq -n --arg sha "${HEAD_SHA}" --arg conclusion "${conclusion}" --arg summary "${summary}" --arg details_url "${details_url}" --arg external_id "${external_id}" '{name:"PR Change Scope",head_sha:$sha,status:"completed",conclusion:$conclusion,details_url:$details_url,external_id:$external_id,output:{title:"PR Change Scope",summary:$summary}}')"
+          payload="$(jq -n --arg sha "${HEAD_SHA}" --arg conclusion "${conclusion}" --arg summary "${summary}" --arg details_url "${details_url}" --arg external_id "${external_id}" '{name:"PR Change Scope",head_sha:$sha,status:"completed",conclusion:$conclusion,details_url:$details_url,external_id:$external_id,output:{title:"PR Size / Files & LOC",summary:$summary}}')"
           printf '%s' "${payload}" | gh api --method POST "repos/${GITHUB_REPOSITORY}/check-runs" --input - >/dev/null
-          printf '### PR Change Scope\n\n%s\n\nPolicy mode: `%s`; check conclusion: `%s`.\n' "${summary}" "${mode}" "${conclusion}" >> "${GITHUB_STEP_SUMMARY}"
+          printf '%s\n\nPolicy mode: `%s`; check conclusion: `%s`.\n' "${summary}" "${mode}" "${conclusion}" >> "${GITHUB_STEP_SUMMARY}"

@@ -8,6 +8,12 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Make PR size reporting explicit with the `PR Size / Files & LOC` workflow,
+  measured-versus-limit tables, and counted/excluded totals. Preserve the
+  `PR Change Scope` check identity and existing advisory/enforced behavior.
+  Carry optional validated aggregate measurements into the public scorecard
+  dashboard; older evidence without measurements displays unavailable.
+
 - Add the shared `ai-toolkit` CLI (`tooling/ai_toolkit`) with `discover`,
   `init`, `doctor`, `check`, `providers`, `skills`, `qa`, and `update`. The CLI
   dispatches to the existing installer, diagnostics, scanner, configuration,

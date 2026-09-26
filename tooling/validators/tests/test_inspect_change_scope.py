@@ -70,6 +70,7 @@ class ChangeScopeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             base, head = diverged_commits(root)
+            report_path = root / "scope-summary.md"
             policy_path = root.parent / f"{root.name}-policy.json"
             policy_path.write_text(json.dumps(policy()), encoding="utf-8")
             try:
@@ -85,15 +86,22 @@ class ChangeScopeTests(unittest.TestCase):
                         base,
                         "--head-ref",
                         head,
+                        "--markdown-output",
+                        str(report_path),
+                        "--mode",
+                        "enforced",
                         "--json",
                     ],
                     cwd=SCRIPT.parent,
                     text=True,
                     capture_output=True,
                 )
+                report = report_path.read_text()
             finally:
                 policy_path.unlink(missing_ok=True)
 
+        self.assertIn("**Enforced mode.**", report)
+        self.assertIn("| Changed files | 1 | 2 | Within limit |", report)
         self.assertEqual(completed.returncode, 0, completed.stderr)
         result = json.loads(completed.stdout)
         self.assertEqual(result["subject"]["revision"], head)
@@ -210,6 +218,44 @@ class ChangeScopeTests(unittest.TestCase):
         self.assertIn("Total: 2 files, 1026 changed lines", output)
         self.assertIn("Excluded: 1 file, 1000 changed lines", output)
         self.assertIn("Largest meaningful addition: 16 lines", output)
+
+    def test_markdown_reports_limits_and_counted_excluded_totals(self) -> None:
+        result = MODULE.inspect("git-tree", "tree-id", [
+            {"path": "src/app.py", "added": 15, "deleted": 2},
+            {"path": "README.md", "added": 1000, "deleted": 5},
+            {"path": "logo.png", "added": None, "deleted": None},
+        ], policy())
+        report = MODULE.render_markdown(result, "advisory")
+        self.assertIn("**Result: Within limits.**", report)
+        self.assertIn("**Warn only (advisory).**", report)
+        self.assertIn("does not block merging", report)
+        self.assertIn("| Changed files | 2 | 2 | Within limit |", report)
+        self.assertIn("| Added lines | 15 | 20 | Within limit |", report)
+        self.assertIn("| Changed lines (added + deleted) | 17 | 30 | Within limit |", report)
+        self.assertIn("| Most added lines in one file | 15 | 15 | Within limit |", report)
+        self.assertIn("| Counted | 2 | 15 | 2 | 17 |", report)
+        self.assertIn("| Excluded by policy | 1 | 1000 | 5 | 1005 |", report)
+        self.assertIn("| Total PR | 3 | 1015 | 7 | 1022 |", report)
+        self.assertIn("Binary files: 1 counted, 0 excluded", report)
+        self.assertIn("stable name **PR Change Scope**", report)
+
+    def test_markdown_distinguishes_warning_and_enforced_failure(self) -> None:
+        result = MODULE.inspect("git-tree", "tree-id", [
+            {"path": "src/app.py", "added": 40, "deleted": 2},
+        ], policy())
+        for mode in ("advisory", "enforced", "not_activated"):
+            with self.subTest(mode=mode):
+                report = MODULE.render_markdown(result, mode)
+                self.assertIn("**Result: Limits exceeded.**", report)
+                self.assertIn("| Added lines | 40 | 20 | Over limit |", report)
+                if mode == "advisory":
+                    self.assertIn("neutral check", report)
+                elif mode == "enforced":
+                    self.assertIn("Exceeding a limit fails the check", report)
+                    self.assertIn("depends on the repository ruleset", report)
+                    self.assertNotIn("Warn only", report)
+                else:
+                    self.assertIn("**Not activated.**", report)
 
     def test_counts_binary_files_without_inventing_line_counts(self) -> None:
         result = MODULE.inspect(

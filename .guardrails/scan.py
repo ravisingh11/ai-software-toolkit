@@ -277,6 +277,20 @@ def local_evidence(target: Path, revision: str, base_ref: str) -> dict[str, Any]
                     "status": scope["status"],
                     "evidence": [json.dumps(scope["metrics"], sort_keys=True)],
                 }
+                if "thresholds" in scope:
+                    metadata = {
+                        "version": 1,
+                        "metrics": scope["metrics"],
+                        "thresholds": scope["thresholds"],
+                    }
+                    try:
+                        evaluator_module().validate_change_scope(metadata, scope["status"])
+                    except ValueError:
+                        # Optional display measurements cannot invalidate the
+                        # producer's independently determined policy result.
+                        pass
+                    else:
+                        record["change_scope"] = metadata
             else:
                 record = {
                     "producer": "local change-scope inspection",

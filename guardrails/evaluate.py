@@ -288,6 +288,56 @@ def validate_policy(policy: dict[str, Any], profile_ids: set[str], controls: dic
                 raise ValueError(f"{control_id} is advisory-only and cannot be enforced")
 
 
+def validate_change_scope(value: Any, status: str) -> None:
+    """Validate optional display metrics without changing control evaluation policy."""
+    metric_limits = {
+        "files": "max_files",
+        "added_lines": "max_added_lines",
+        "changed_lines": "max_changed_lines",
+        "max_added_lines_per_file": "max_added_lines_per_file",
+    }
+    metric_keys = set(metric_limits) | {
+        "binary_files", "total_files", "total_added_lines", "total_changed_lines",
+        "excluded_files", "excluded_added_lines", "excluded_changed_lines",
+        "excluded_binary_files",
+    }
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"version", "metrics", "thresholds"}
+        or type(value["version"]) is not int
+        or value["version"] != 1
+        or status not in {"passed", "failed"}
+    ):
+        raise ValueError("change_scope metadata contract is invalid")
+    metrics, thresholds = value["metrics"], value["thresholds"]
+    for values, keys in ((metrics, metric_keys), (thresholds, set(metric_limits.values()))):
+        if (
+            not isinstance(values, dict)
+            or set(values) != keys
+            or any(type(number) is not int or not 0 <= number <= 2**53 - 1 for number in values.values())
+        ):
+            raise ValueError("change_scope metrics or thresholds are invalid")
+    if any(number == 0 for number in thresholds.values()):
+        raise ValueError("change_scope thresholds must be positive")
+    for key in ("files", "added_lines", "changed_lines"):
+        if metrics[f"total_{key}"] != metrics[key] + metrics[f"excluded_{key}"]:
+            raise ValueError("change_scope totals are inconsistent")
+    for prefix in ("", "excluded_"):
+        files = metrics[f"{prefix}files"]
+        binary = metrics[f"{prefix}binary_files"]
+        added = metrics[f"{prefix}added_lines"]
+        changed = metrics[f"{prefix}changed_lines"]
+        if binary > files or added > changed or (files == binary and changed != 0):
+            raise ValueError("change_scope counts are inconsistent")
+    maximum = metrics["max_added_lines_per_file"]
+    text_files = metrics["files"] - metrics["binary_files"]
+    if maximum > metrics["added_lines"] or metrics["added_lines"] > maximum * text_files:
+        raise ValueError("change_scope per-file maximum is inconsistent")
+    exceeded = any(metrics[metric] > thresholds[limit] for metric, limit in metric_limits.items())
+    if exceeded != (status == "failed"):
+        raise ValueError("change_scope status does not match thresholds")
+
+
 def validate_evidence(
     evidence: dict[str, Any],
     controls: dict[str, dict[str, Any]],
@@ -318,7 +368,7 @@ def validate_evidence(
                 raise ValueError(f"evidence references unknown provider: {provider_id}")
             if control_id not in providers[provider_id]["capabilities"]:
                 raise ValueError(f"provider {provider_id} does not provide {control_id}")
-            if not isinstance(result, dict) or set(result) - {"producer", "status", "evidence", "reason"}:
+            if not isinstance(result, dict) or set(result) - {"producer", "status", "evidence", "reason", "change_scope"}:
                 raise ValueError(f"evidence {control_id}.{provider_id} is invalid")
             if (
                 not isinstance(result.get("producer"), str)
@@ -329,6 +379,10 @@ def validate_evidence(
             status = result.get("status")
             if status not in STATUSES:
                 raise ValueError(f"evidence {control_id}.{provider_id} status is invalid")
+            if "change_scope" in result:
+                if (control_id, provider_id) != ("change-scope", "repository-change-scope"):
+                    raise ValueError("change_scope metadata is only valid for change-scope.repository-change-scope")
+                validate_change_scope(result["change_scope"], status)
             records = result.get("evidence")
             if status in {"passed", "failed"} and (
                 not isinstance(records, list) or not records or any(not isinstance(item, str) or not item.strip() for item in records)

@@ -124,6 +124,73 @@ class RendererTests(unittest.TestCase):
                 ):
                     self.assertNotIn(private, text, path.name)
 
+    def scope_card(self, *, exceeded: bool = False) -> dict[str, Any]:
+        card = scorecard(status="ORANGE" if exceeded else "GREEN", advisory=(3 if exceeded else 4, 4))
+        metrics = {"files": 2, "added_lines": 84, "changed_lines": 90,
+                   "max_added_lines_per_file": 70, "binary_files": 0,
+                   "total_files": 3, "total_added_lines": 92, "total_changed_lines": 100,
+                   "excluded_files": 1, "excluded_added_lines": 8,
+                   "excluded_changed_lines": 10, "excluded_binary_files": 0}
+        card["controls"].append({"id": "change-scope", "effective_mode": "advisory",
+            "authoritative_provider": {"id": "repository-change-scope"},
+            "evidence_status": "failed" if exceeded else "passed",
+            "authoritative_result": {"status": "failed" if exceeded else "passed",
+                "change_scope": {"version": 1, "metrics": metrics,
+                    "thresholds": {"max_files": 1 if exceeded else 12, "max_added_lines": 300,
+                        "max_changed_lines": 500, "max_added_lines_per_file": 150},
+                    "filenames": ["private-file.py"]}}})
+        return card
+
+    def test_scope_table_uses_validated_aggregate_metrics(self) -> None:
+        for exceeded in (False, True):
+            with self.subTest(exceeded=exceeded), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                output = root / "published"
+                metadata = self.render(self.write_source(root, self.scope_card(exceeded=exceeded)), output)
+                self.assertEqual(metadata["change_scope"]["availability"], "available")
+                page = (output / "index.html").read_text()
+                for phrase in ("PR Size · Files &amp; LOC", "Advisory", "does not block", "Counted files", "Excluded", "Added + deleted lines"):
+                    self.assertIn(phrase, page)
+                self.assertIn("Above limit" if exceeded else "Within limit", page)
+                for path in output.iterdir():
+                    self.assertNotIn("private-file.py", path.read_text())
+
+    def test_older_scope_evidence_is_explicitly_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "published"
+            metadata = self.render(self.write_source(root), output)
+            self.assertEqual(metadata["change_scope"]["availability"], "unavailable")
+            self.assertIn("Measurements unavailable", (output / "index.html").read_text())
+
+    def test_enforced_scope_labels_blocking_semantics(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            card = self.scope_card(exceeded=True)
+            card.update(status="RED", decision="block", enforced={"passed": 9, "total": 10}, advisory={"passed": 4, "total": 4})
+            card["controls"][-1]["effective_mode"] = "enforced"
+            output = root / "published"
+            self.render(self.write_source(root, card), output)
+            self.assertIn("Enforced · exceeding a limit blocks", (output / "index.html").read_text())
+
+    def test_untrusted_or_missing_producer_does_not_publish_metrics(self) -> None:
+        for field, value in (("authoritative_provider", {"id": "other"}), ("evidence_status", "no_result"), ("effective_mode", "not_activated")):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                card = self.scope_card()
+                card["controls"][-1][field] = value
+                metadata = self.render(self.write_source(root, card), root / "published")
+                self.assertEqual(metadata["change_scope"], {"availability": "unavailable"})
+
+    def test_invalid_scope_metrics_are_unavailable(self) -> None:
+        for field, value in (("files", True), ("added_lines", -1), ("total_files", 4), ("changed_lines", 1), ("excluded_binary_files", 1)):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                card = self.scope_card()
+                card["controls"][-1]["authoritative_result"]["change_scope"]["metrics"][field] = value
+                metadata = self.render(self.write_source(root, card), root / "published")
+                self.assertEqual(metadata["change_scope"], {"availability": "unavailable"})
+
     def test_orange_and_red_semantics_render(self) -> None:
         cases = (
             (scorecard(status="ORANGE", advisory=(3, 4)), "ORANGE", "13/14"),

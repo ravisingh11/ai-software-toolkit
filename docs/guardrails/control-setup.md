@@ -19,7 +19,7 @@ Core is selected by default. A normal install deploys its runtime and workflows.
 | Repository validation | Repository Validators | `Validate / repository` | Installed validator; no credential |
 | Documentation validation | Repository Validators | `Validate / docs` | Maintain `.guardrails/documentation.yaml` |
 | Repository ground truth | Repository Validators | `Validate / ground truth` | Maintain `.guardrails/ground-truth-ai.yaml` |
-| PR change scope | PR Change Scope | `PR Change Scope` | Maintain `.guardrails/change-scope.yaml`; defaults are advisory |
+| PR size (files and LOC) | PR Size / Files & LOC | `PR Change Scope` | Maintain `.guardrails/change-scope.yaml`; defaults are advisory |
 | PR metadata | Repository PR Metadata | `PR Metadata` | Maintain `.guardrails/pr-metadata.yaml`; binds mutable title/body state independently of the head SHA |
 | Format and lint | Repository Format and Lint Command | `Format and Lint` | Set `GUARDRAILS_FORMAT_LINT_COMMAND` |
 | Migration validation | Repository Migration Validation Command | `Migration Validation` | Set `GUARDRAILS_MIGRATION_VALIDATION_COMMAND` |
@@ -257,7 +257,7 @@ GUARDRAILS_SCORECARD_BADGE_PAGES_MODE=dedicated
 No secret is required. `dedicated` mode owns the complete Pages deployment, so
 repositories with an existing Pages site must integrate the generated output
 into that site's workflow instead. Public output is limited to aggregate
-status/counts, source-run metadata, and a revision digest. Detailed controls,
+status/counts, PR-size measurements and thresholds, source-run metadata, and a revision digest. Detailed controls,
 findings, evidence, reasons, provider data, check URLs, raw revisions, and source
 Markdown are excluded from Pages and remain in the source Actions artifact
 under normal repository access. The publisher is reporting only; do
@@ -354,3 +354,24 @@ vulnerability, deployment policy, dynamic application security, and runtime
 assurance are future evidence contracts only. Guardrails does not install or
 operate container scanners, SBOM generators, policy engines, DAST tools, or
 observability stacks for them.
+
+## Reading the PR size report
+
+The **PR Size / Files & LOC** workflow displays the **Files & LOC report** job.
+Its published check keeps the stable name `PR Change Scope` so existing
+required-check settings remain compatible. Refresh the workflow, provider
+configuration, and runtime together: the trusted collector verifies the new
+workflow display name as well as its unchanged file path.
+
+The report compares counted files, added lines, added plus deleted lines, and
+maximum added lines in one file against `.guardrails/change-scope.yaml`.
+Separate totals show excluded files and lines. Binary files count as files but
+have no text-line count. Exceeding an advisory limit produces a neutral check;
+enforced mode produces a failure. This presentation change does not promote
+advisory controls or alter GitHub branch requirements.
+
+The Pages dashboard shows the same aggregate measurements for its accepted PR
+snapshot, including the policy mode and limit results. It does not combine
+measurements from another repository or revision. Older or invalid optional
+measurements display **unavailable**, never zero or passed. Public output
+contains no per-file paths or raw scope findings.

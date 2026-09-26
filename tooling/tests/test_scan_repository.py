@@ -31,6 +31,21 @@ def result(status: str = "passed", producer: str = "producer") -> dict:
     return value
 
 
+def scope_result() -> dict:
+    return {
+        "status": "passed",
+        "metrics": {
+            "files": 1, "added_lines": 10, "changed_lines": 12,
+            "max_added_lines_per_file": 10, "binary_files": 0,
+            "total_files": 2, "total_added_lines": 15, "total_changed_lines": 20,
+            "excluded_files": 1, "excluded_added_lines": 5,
+            "excluded_changed_lines": 8, "excluded_binary_files": 0,
+        },
+        "thresholds": {"max_files": 12, "max_added_lines": 300,
+                       "max_changed_lines": 500, "max_added_lines_per_file": 150},
+    }
+
+
 class RuntimeResolutionTests(unittest.TestCase):
     def test_installed_runtime_wins_over_consumer_application_package(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -243,7 +258,7 @@ class LocalEvidenceTests(unittest.TestCase):
             ground_truth.mkdir()
             (ground_truth / "validate_ground_truth.py").write_text("# fixture\n", encoding="utf-8")
             (ground_truth / "ground-truth-ai.yaml").write_text("{}\n", encoding="utf-8")
-            scope_payload = json.dumps({"status": "passed", "metrics": {"files": 1}})
+            scope_payload = json.dumps(scope_result())
             producer = mock.Mock()
             producer.repository_command_result.side_effect = [
                 result("not_run", "build"),
@@ -257,7 +272,7 @@ class LocalEvidenceTests(unittest.TestCase):
             producer.gitleaks_result.return_value = result("passed", "gitleaks")
 
             with mock.patch.object(MODULE, "local_binding", return_value=("abc123", None)), mock.patch.object(MODULE, "exact_local_revision", return_value=("base123", None)), mock.patch.object(MODULE, "run", side_effect=[(0, "repository ok"), (0, "docs ok"), (0, "ground truth ok"), (0, scope_payload)]):
-                with mock.patch.object(MODULE, "load", return_value={"status": "passed", "metrics": {"files": 1}}), mock.patch.object(MODULE, "producer_module", return_value=producer):
+                with mock.patch.object(MODULE, "load", return_value=scope_result()), mock.patch.object(MODULE, "producer_module", return_value=producer):
                     evidence = MODULE.local_evidence(target, "abc123", "HEAD~1")
 
             for control_id in ("repository-validation", "documentation-validation", "repository-ground-truth"):
@@ -266,6 +281,10 @@ class LocalEvidenceTests(unittest.TestCase):
                 set(evidence["results"]["change-scope"]),
                 {"repository-change-scope"},
             )
+            self.assertEqual(
+                evidence["results"]["change-scope"]["repository-change-scope"]["change_scope"],
+                {"version": 1, "metrics": scope_result()["metrics"], "thresholds": scope_result()["thresholds"]},
+            )
             self.assertEqual(set(evidence["results"]["build"]), {"repository-build"})
             self.assertEqual(set(evidence["results"]["unit-tests"]), {"repository-unit-tests"})
             self.assertEqual(set(evidence["results"]["changed-code-coverage"]), {"repository-changed-code-coverage"})
@@ -273,6 +292,27 @@ class LocalEvidenceTests(unittest.TestCase):
             self.assertEqual(set(evidence["results"]["migration-validation"]), {"repository-migration-validation"})
             self.assertEqual(set(evidence["results"]["custom-static-analysis"]), {"semgrep-ce"})
             self.assertEqual(set(evidence["results"]["secret-detection"]), {"gitleaks"})
+
+    def test_oversized_optional_scope_threshold_preserves_local_result(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+            validators = target / "tooling" / "validators"
+            validators.mkdir(parents=True)
+            (validators / "inspect_change_scope.py").write_text("# fixture\n")
+            scope = scope_result()
+            scope["thresholds"]["max_files"] = 2**53
+            with (
+                mock.patch.object(MODULE, "local_binding", return_value=("abc123", None)),
+                mock.patch.object(MODULE, "exact_local_revision", return_value=("base123", None)),
+                mock.patch.object(MODULE, "run", return_value=(0, "scope complete")),
+                mock.patch.object(MODULE, "load", return_value=scope),
+                mock.patch.object(MODULE, "producer_module", return_value=self.producer()),
+            ):
+                evidence = MODULE.local_evidence(target, "abc123", "HEAD~1")
+            record = evidence["results"]["change-scope"]["repository-change-scope"]
+            self.assertEqual(record["status"], "passed")
+            self.assertEqual(record["evidence"], [json.dumps(scope["metrics"], sort_keys=True)])
+            self.assertNotIn("change_scope", record)
 
     def test_app_only_change_without_mapped_documentation_fails_local_scan(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
