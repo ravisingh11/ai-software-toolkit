@@ -139,10 +139,26 @@ overall `GREEN`, `ORANGE`, or `RED` status and every capability/provider row.
 ## Optional providers
 
 SonarQube, Snyk, Semgrep AppSec Platform, FOSSA, Codex Code Review, AI review adapters, and soak
-testing are not installed as runnable profiles. A repository must supply a
-workflow or adapter, required credentials/configuration, exact check/evidence
-binding, and an explicit provider selection. A credential alone does not
-activate or satisfy a capability.
+testing are not installed as runnable profiles. A repository must copy a
+template (where one is shipped) or supply its own workflow, add the required
+credentials/configuration, verify exact check/evidence binding, and make an
+explicit provider selection. A credential alone does not activate or satisfy a
+capability.
+
+Shipped vendor templates (copy into `.github/workflows/`; see
+[docs/providers](../docs/providers/README.md)):
+
+| Template | Workflow / check names | Command ownership |
+| --- | --- | --- |
+| `sonar.yml` | `SonarQube` / `SonarQube Quality Gate` | Scanner action, then the quality-gate wait action; `SONAR_TOKEN` |
+| `snyk.yml` | `Snyk` / `Snyk Code`, `Snyk Open Source` | `.guardrails/adapter.py` runs `snyk code test` and `snyk test`; consumers set `SNYK_CODE_ARGS` / `SNYK_OPEN_SOURCE_ARGS`; `SNYK_TOKEN` |
+| `fossa.yml` | `FOSSA` / `FOSSA` | `.guardrails/adapter.py` runs `fossa analyze` then `fossa test` for the exact revision; consumers set `FOSSA_ARGS`; `FOSSA_API_KEY`; CLI pinned by version and SHA-256 |
+
+The adapter templates fail the job for every non-passing outcome and put the
+standard reason code (`credential-missing`, `authentication-failed`,
+`analysis-incomplete`, `execution-error`, `unsupported-project`, `timed-out`,
+`revision-mismatch`, `configuration-missing`) in the job summary and an
+uploaded evidence fragment.
 
 Codex Code Review is a native GitHub review provider rather than a check-run
 workflow. The collector requires the configured bot login and exact reviewed
