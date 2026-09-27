@@ -140,6 +140,12 @@ def require_installable(names: list[str], destination_root: Path, boundary: Path
             continue
         if not os.access(destination, os.W_OK):
             raise ToolkitError(f"skill destination is not writable: {destination}")
+        if existing == "replace":
+            # Replacement deletes every extra entry; a symlink among them could not be
+            # backed up or restored faithfully, so refuse before anything is written.
+            for path in sorted(destination.rglob("*")):
+                if path.is_symlink():
+                    raise ToolkitError(f"refusing to replace a skill directory that contains a symlink: {path}")
         for source in skill_files(name):
             relative_path = source.relative_to(source_dir() / name)
             # Every intermediate directory the copy would create or enter must be a real,

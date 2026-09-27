@@ -651,7 +651,8 @@ def _skill_paths(target: Path, destination: Path, names: list[str]) -> list[str]
         for source in skills.skill_files(name):
             paths.add(relative(root / source.relative_to(skills.source_dir() / name), target))
         if root.is_dir():
-            paths.update(relative(path, target) for path in root.rglob("*") if path.is_file())
+            # Inventory without resolving: a symlink is never backed up as its referent.
+            paths.update(path.relative_to(target).as_posix() for path in root.rglob("*") if path.is_file() and not path.is_symlink())
     return sorted(paths)
 
 

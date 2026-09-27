@@ -929,6 +929,22 @@ class ReviewRegressionTests(CliFixture):
         code, out, _ = run_cli("update", "--target", str(self.target), "--rollback", "--dry-run")
         self.assertEqual(code, 0, out)
 
+    def test_replace_refuses_a_skill_directory_containing_a_symlink(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        skill = self.target / ".agents" / "skills" / "code-review"
+        (self.target / "notes.md").write_text("mine\n", encoding="utf-8")
+        link = skill / "notes-link.md"
+        link.symlink_to(self.target / "notes.md")
+        code, _, err = run_cli("skills", "refresh", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("symlink", err)
+        self.assertTrue(link.is_symlink())
+        self.assertEqual((self.target / "notes.md").read_text(encoding="utf-8"), "mine\n")
+        # Merge and refresh-in-place modes leave extras alone, so they are not gated on it.
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--existing", "merge", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue(link.is_symlink())
+
     def test_update_never_adopts_skipped_skills_into_the_lock(self):
         self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
         mine = self.target / ".agents" / "skills" / "security-audit-lite"
