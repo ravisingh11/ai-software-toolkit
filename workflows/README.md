@@ -72,11 +72,21 @@ use a platform token for Semgrep or the separately licensed Gitleaks Action.
 
 | Installed file | Workflow | Activation |
 | --- | --- | --- |
-| `guardrails-scorecard-badge.yml` | `Guardrail Scorecard Badge` | GitHub Pages uses GitHub Actions; `GUARDRAILS_SCORECARD_BADGE_ENABLED=true`; `GUARDRAILS_SCORECARD_BADGE_PAGES_MODE=dedicated` |
+| `guardrails-scorecard-badge.yml` | `Guardrail Scorecard Badge` | GitHub Pages uses GitHub Actions; `GUARDRAILS_SCORECARD_BADGE_ENABLED=true`; `GUARDRAILS_SCORECARD_BADGE_PAGES_MODE=dedicated`; private or internal repositories also set `GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS=private` |
 
 This workflow is not a provider, capability, or required check. It owns the
 complete Pages deployment in `dedicated` mode; integrate the renderer into an
 existing site workflow instead when the repository already uses Pages.
+
+The workflow passes `GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS` to the
+reconciler, which checks live repository visibility before reading evidence or
+rendering. Public repositories leave the variable unset or set to `public`.
+Private and internal repositories require the variable set to `private` and a
+GitHub Pages API response confirming the site is not public; unknown visibility
+or an unverifiable destination blocks publication. The variable requests a
+check; it does not create or secure a Pages site. See the
+[private repository guidance](../docs/quickstart.md#reporting-for-private-repositories)
+for setup and migration steps.
 
 The settings probes use trusted, no-checkout `pull_request_target` workflows.
 Give `SECURITY_SETTINGS_TOKEN` only repository Administration read and Secret

@@ -97,6 +97,32 @@ class DiscoverAndInitTests(CliFixture):
         self.assertIn(".gitignore: add .artifacts/, __pycache__/", out)
         self.assertIn("Preview only", out)
 
+    def test_preview_surfaces_installer_reporting_guidance_in_text_and_json(self):
+        guidance = (
+            "Reporting (repository visibility: private): Actions summaries and artifacts "
+            "are the default; configure private Pages before enabling publication."
+        )
+        for json_output in (False, True):
+            with self.subTest(json_output=json_output), patch.object(cli, "run_python", return_value=
+                subprocess.CompletedProcess([], 0, "Would apply Guardrails v2:\n" + guidance + "\n", "")
+            ) as installer:
+                arguments = ["init", "--target", str(self.target), "--preview", "--components", "guardrails"]
+                if json_output:
+                    arguments.append("--json")
+                code, out, err = run_cli(*arguments)
+                self.assertEqual(code, 0, err)
+                installer.assert_called_once()
+                if json_output:
+                    self.assertEqual(json.loads(out)["reporting"], guidance)
+                else:
+                    self.assertIn(guidance, out)
+                self.assertFalse((self.target / config.TOML_NAME).exists())
+
+    def test_preview_without_actions_does_not_offer_ci_reporting(self):
+        code, out, err = run_cli("init", "--target", str(self.target), "--preview", "--no-actions", "--json")
+        self.assertEqual(code, 0, err)
+        self.assertIsNone(json.loads(out)["reporting"])
+
     def test_declined_confirmation_writes_nothing(self):
         with patch.object(cli, "_confirm", return_value=False):
             code, out, _ = run_cli("init", "--target", str(self.target))
