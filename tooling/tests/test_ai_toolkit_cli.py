@@ -691,6 +691,56 @@ class ReviewRegressionTests(CliFixture):
         self.assertEqual(code, 0, out)
         self.assertTrue(missing.is_file())
 
+    def test_reinit_for_another_component_keeps_deleted_skills_in_the_lock(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        skill = self.target / ".agents" / "skills" / "code-review"
+        subprocess.run(["rm", "-rf", str(skill)], check=True)
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        self.assertIn(".agents/skills/code-review/SKILL.md", config.read_lock(self.target)["managed"])
+        code, out, _ = run_cli("update", "--target", str(self.target), "--dry-run", "--json")
+        self.assertEqual(code, 0, out)
+        self.assertIn(".agents/skills/code-review/SKILL.md", json.loads(out)["classification"]["missing"])
+        code, out, _ = run_cli("update", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue((skill / "SKILL.md").is_file())
+
+    def test_reinit_without_skills_does_not_adopt_new_clients(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        (self.home / ".claude").mkdir()
+        code, out, _ = run_cli("init", "--target", str(self.target), "--yes", "--components", "proof")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(config.read_configuration(self.target)["agents"]["clients"], ["codex"])
+        self.assertFalse((self.target / ".claude" / "skills").exists())
+        code, _, err = run_cli("init", "--target", str(self.target), "--yes", "--components", "proof", "--clients", "claude-code")
+        self.assertEqual(code, 2)
+        self.assertIn("include skills or qa", err)
+        self.assertEqual(config.read_configuration(self.target)["agents"]["clients"], ["codex"])
+        code, out, _ = run_cli("init", "--target", str(self.target), "--yes", "--components", "skills", "--clients", "claude-code")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(config.read_configuration(self.target)["agents"]["clients"], ["codex", "claude-code"])
+        self.assertTrue((self.target / ".claude" / "skills" / "code-review" / "SKILL.md").is_file())
+
+    def test_update_restore_never_follows_a_record_symlink(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        toml_path = self.target / config.TOML_NAME
+        toml_before = toml_path.read_bytes()
+        outside = self.root / "outside.txt"
+        outside.write_text("untouched\n", encoding="utf-8")
+
+        def swap_then_fail(*_args, **_kwargs):
+            toml_path.unlink()
+            toml_path.symlink_to(outside)
+            raise ToolkitError("disk full")
+
+        with patch.object(config, "write_lock", side_effect=swap_then_fail):
+            code, _, err = run_cli("update", "--target", str(self.target), "--force")
+        self.assertEqual(code, 2)
+        self.assertIn("previous files were restored", err)
+        self.assertEqual(outside.read_text(encoding="utf-8"), "untouched\n")
+        self.assertFalse(toml_path.is_symlink())
+        self.assertEqual(toml_path.read_bytes(), toml_before)
+        self.assertEqual([path.name for path in self.target.iterdir() if path.name.startswith(".toolkit.toml.restore")], [])
+
     def test_update_never_adopts_skipped_skills_into_the_lock(self):
         self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
         mine = self.target / ".agents" / "skills" / "security-audit-lite"

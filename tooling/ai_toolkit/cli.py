@@ -303,7 +303,17 @@ def cmd_init(args: argparse.Namespace) -> int:
         # Components and clients already installed stay managed; removing one is a separate,
         # explicit step rather than a side effect of a narrower re-run.
         components = sorted(set(existing_configuration["toolkit"]["components"]) | set(components), key=config.COMPONENTS.index)
-        clients = list(dict.fromkeys([*existing_configuration["agents"]["clients"], *clients]))
+        existing_clients = list(existing_configuration["agents"]["clients"])
+        if "skills" in requested or "qa" in requested or not existing_clients:
+            clients = list(dict.fromkeys([*existing_clients, *clients]))
+        else:
+            # Adopting a client means installing skills for it. Without a skills or qa request
+            # this run installs nothing, so a detected client is left alone and a named one is
+            # refused rather than recorded as managed with no skills behind it.
+            new_clients = [client for client in clients if client not in existing_clients]
+            if args.clients and new_clients:
+                raise ToolkitError(f"adding agent client {', '.join(new_clients)} installs skills for it; include skills or qa in --components")
+            clients = existing_clients
     # Any existing .proof/ directory, complete or not, is merged into rather than refused,
     # so init can fill the gap doctor reported.
     already_installed = (target / ".proof").is_dir()
@@ -406,9 +416,11 @@ def cmd_init(args: argparse.Namespace) -> int:
     hashes = config.hash_managed(target, managed)
     if previous_lock:
         # Files already under management that init did not rewrite keep their recorded
-        # baseline, so a later update still sees local edits as conflicts.
+        # baseline, so a later update still sees local edits as conflicts and can restore
+        # a managed file that is missing right now instead of forgetting it.
+        retained = set(managed)
         for path, digest in previous_lock.get("managed", {}).items():
-            if path in hashes and path not in written:
+            if path in retained and path not in written:
                 hashes[path] = digest
     config.write_lock(target, config.build_lock(revision(), components=components, managed=hashes))
     applied["files"] = [config.TOML_NAME, config.LOCK_NAME]
@@ -736,6 +748,25 @@ def _restore(target: Path, backup_root: Path, paths: list[str]) -> list[str]:
     return restored
 
 
+def _restore_record(path: Path, data: bytes | None) -> None:
+    """Put a record back without following a symlink that appeared in the meantime.
+
+    The refresh runs subprocesses between the preflight check and the guarded
+    writes, so the path is replaced as a directory entry rather than opened.
+    """
+    if data is None:
+        path.unlink(missing_ok=True)
+        return
+    temporary = path.with_name(f".{path.name}.restore-{os.getpid()}")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o644)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(data)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def cmd_update(args: argparse.Namespace) -> int:
     target = resolve_target(args.target)
     configuration = config.read_configuration(target)
@@ -828,10 +859,7 @@ def cmd_update(args: argparse.Namespace) -> int:
             if not (backup_root / relative_path).is_file() and created.is_file():
                 created.unlink()
         for name, path in records.items():
-            if originals[name] is None:
-                path.unlink(missing_ok=True)
-            else:
-                path.write_bytes(originals[name])
+            _restore_record(path, originals[name])
         raise ToolkitError(f"{error}; previous files were restored") from error
     payload.update({"applied": True, "conflicts": conflicts, "backup": relative(backup_root, target)})
     lines.append(f"Applied. Backup: {relative(backup_root, target)} (use `ai-toolkit update --rollback` to restore).")

@@ -185,13 +185,20 @@ is a separate, explicit step. Only the components named in that run install
 anything new: re-running `init --components proof` on a repository with a
 narrowly selected skill set leaves the selection alone, while asking for
 `skills` or `qa` again installs the default set for any client that lacks it.
+For the same reason a re-run without `skills` or `qa` never adopts a new
+agent client: a detected client is left alone and a client named with
+`--clients` is refused, because adopting one means installing skills for it.
+A managed skill whose directory is missing at re-init time keeps its lock
+entries, so the next `update` restores it instead of forgetting it.
 A backup of every managed file
 is kept under `.artifacts/ai-toolkit/backup/<timestamp>/`; `--rollback`
 restores it and the previous lock. `update` refuses before touching any file
 when `toolkit.toml` or `toolkit.lock.json` cannot be written (for example,
 either is a symlink), and if writing them fails after the refresh, the managed
 files, configuration, and lock are all restored together so the tree never
-disagrees with the lock that describes it. Running `update` at the same
+disagrees with the lock that describes it; the records are put back by
+replacing the directory entry, so a symlink that appeared in the meantime is
+never followed. Running `update` at the same
 revision with nothing changed is a no-op.
 
 ## Trust boundaries
