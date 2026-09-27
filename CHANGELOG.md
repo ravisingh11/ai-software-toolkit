@@ -8,6 +8,10 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Brand the public PR scorecard page as AI Software Toolkit instead of
+  Guardrails, matching the toolkit identity. Page content, badge URLs, bounded
+  metadata, and evaluation semantics are unchanged.
+
 - Make PR size reporting explicit with the `PR Size / Files & LOC` workflow,
   measured-versus-limit tables, and counted/excluded totals. Preserve the
   `PR Change Scope` check identity and existing advisory/enforced behavior.

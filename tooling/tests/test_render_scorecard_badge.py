@@ -123,6 +123,9 @@ class RendererTests(unittest.TestCase):
                     "PRIVATE SOURCE MARKDOWN",
                 ):
                     self.assertNotIn(private, text, path.name)
+            page = (output / "index.html").read_text(encoding="utf-8")
+            self.assertIn('<span class="brand-name">AI Software Toolkit</span>', page)
+            self.assertNotIn('<span class="brand-name">Guardrails</span>', page)
 
     def breakdown_card(self) -> dict[str, Any]:
         card = scorecard(status="ORANGE", enforced=(1, 1), advisory=(1, 4))
