@@ -170,11 +170,16 @@ set of root-level filenames.
 The optional badge publisher is a post-scorecard reporting component, not a
 provider or control. It executes trusted default-branch code after a completed
 scorecard run, validates the exact run artifact and current PR binding, and
-publishes aggregate status/counts, PR-size measurements and thresholds, source-run metadata, and a revision digest.
-It never publishes controls, findings, evidence, reasons, provider data, check
-URLs, raw revisions, or source Markdown to Pages, and it never changes `allow`,
-`block`, or branch protection. Those details remain in the source Actions
-artifact under the repository's normal artifact access.
+publishes aggregate status/counts, PR-size measurements and thresholds,
+source-run metadata, a revision digest, and entries for all trusted built-in
+catalog controls. Catalog-owned IDs, names, and purposes are paired only with
+validated effective modes and evidence statuses from the scorecard. Missing
+rows show **Not reported**, separately from explicit `not_activated` modes.
+The source run is the evidence link. Private or arbitrary control IDs,
+findings, detailed evidence, reasons, provider data, check URLs, raw revisions,
+and source Markdown remain excluded from Pages and available in the source
+Actions artifact under the repository's normal artifact access. Publication
+never changes `allow`, `block`, or branch protection.
 
 GitHub's native **Scorecard Workflow** badge reports workflow execution. The
 optional **Latest PR Scorecard** badge reports the newest accepted PR

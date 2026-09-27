@@ -169,6 +169,98 @@ def _result_breakdown(document: dict[str, Any]) -> dict[str, Any]:
     return {"availability": "available", "overall": overall, **counts}
 
 
+# Public display allowlist: never use artifact-supplied names, reasons, or URLs.
+# Kept aligned with the built-in catalog by a regression test.
+PUBLIC_CONTROLS = (
+    ('repository-validation', 'Repository Validation', 'Validate repository-owned contracts and configuration', 'Build & quality'),
+    ('documentation-validation', 'Documentation Validation', 'Validate documentation structure, links, and declared targets', 'Build & quality'),
+    ('repository-ground-truth', 'Repository Ground Truth', 'Validate declared repository architecture and engineering documents', 'Build & quality'),
+    ('change-scope', 'PR Size', 'Detect oversized or unexpectedly broad changes', 'Build & quality'),
+    ('pr-metadata', 'PR Metadata', 'Validate pull-request title and body requirements against mutable PR state', 'Build & quality'),
+    ('format-and-lint', 'Format and Lint', 'Verify repository formatting and lint rules with the repository-owned command', 'Build & quality'),
+    ('migration-validation', 'Migration Validation', 'Validate repository-specific database and data migration safety', 'Build & quality'),
+    ('build', 'Build', 'Detect compilation, packaging, and build-time regressions', 'Build & quality'),
+    ('unit-tests', 'Unit Tests', 'Detect functional regressions in changed behavior', 'Build & quality'),
+    ('functional-qa', 'Functional QA', 'Exercise the running application as a user to detect functional regressions in changed behavior', 'AI & QA'),
+    ('changed-code-coverage', 'Changed Code Coverage', 'Measure test coverage for changed code', 'Build & quality'),
+    ('custom-static-analysis', 'Custom Static Analysis', 'Run repository and organization-specific static rules', 'Build & quality'),
+    ('secret-detection', 'Secret Detection', 'Detect credentials and authentication material in source history', 'Security & dependencies'),
+    ('deep-sast', 'Deep SAST', 'Detect security vulnerabilities through semantic source analysis', 'Security & dependencies'),
+    ('dependency-change-review', 'Dependency Change Review', 'Review security and license risk introduced by dependency changes', 'Security & dependencies'),
+    ('platform-secret-protection', 'Platform Secret Protection', 'Verify platform secret scanning and push protection', 'Security & dependencies'),
+    ('dependency-remediation', 'Dependency Remediation', 'Verify automated dependency security remediation is configured', 'Security & dependencies'),
+    ('artifact-provenance', 'Artifact Provenance', 'Attest where and how a release artifact was built', 'Release & runtime'),
+    ('static-quality', 'Static Quality', 'Evaluate maintainability, reliability, and static quality gates', 'Build & quality'),
+    ('dependency-vulnerability', 'Dependency Vulnerability', 'Detect known vulnerabilities in resolved dependencies', 'Security & dependencies'),
+    ('license-compliance', 'License Compliance', 'Evaluate dependency licenses against repository policy', 'Security & dependencies'),
+    ('ai-engineering-review', 'AI Engineering Review', 'Review correctness, architecture, maintainability, and regression risk', 'AI & QA'),
+    ('ai-qa-review', 'AI QA Review', 'Review tests, edge cases, failure paths, and assertions', 'AI & QA'),
+    ('ai-security-review', 'AI Security Review', 'Review authentication, isolation, injection, secrets, and privilege risks', 'AI & QA'),
+    ('ai-repository-standards-review', 'AI Repository Standards Review', 'Review changes against repository-owned engineering ground truth', 'AI & QA'),
+    ('runtime-soak', 'Runtime Soak', 'Detect runtime degradation, leaks, and performance drift over time', 'Release & runtime'),
+    ('container-vulnerability', 'Container Vulnerability', 'Detect vulnerabilities in container images', 'Release & runtime'),
+    ('iac-misconfiguration', 'IaC Misconfiguration', 'Detect insecure infrastructure-as-code configuration', 'Security & dependencies'),
+    ('artifact-sbom', 'Artifact SBOM', 'Record the software components contained in an artifact', 'Release & runtime'),
+    ('artifact-vulnerability', 'Artifact Vulnerability', 'Detect vulnerabilities in a built release artifact', 'Release & runtime'),
+    ('deployment-policy', 'Deployment Policy', 'Verify deployment approval and environment policy', 'Release & runtime'),
+    ('dynamic-application-security', 'Dynamic Application Security', 'Detect vulnerabilities in a running application', 'Release & runtime'),
+    ('runtime-assurance', 'Runtime Assurance', 'Verify runtime security and operational safeguards', 'Release & runtime'),
+ )
+_CONTROL_RESULTS = {
+    "passed": ("Passed", "good"), "failed": ("Failed", "danger"),
+    "blocked": ("Blocked", "caution"), "no_result": ("Unverified", "neutral"),
+    "not_activated": ("Not activated", "neutral"),
+    "not_reported": ("Not reported", "neutral"),
+}
+_CONTROL_MODES = {"enforced": "Enforced", "advisory": "Advisory",
+                  "not_activated": "Not activated", "not_reported": "Not reported"}
+
+
+def _control_details(document: dict[str, Any]) -> list[dict[str, str]]:
+    """Project enum-only results for known controls; fail closed on bad totals."""
+    consistent = _result_breakdown(document)["availability"] == "available"
+    rows = {row["id"]: row for row in document["controls"]} if consistent else {}
+    details = []
+    for control_id, name, purpose, group in PUBLIC_CONTROLS:
+        row = rows.get(control_id, {})
+        mode, status = row.get("effective_mode"), row.get("evidence_status")
+        valid = (mode in ("enforced", "advisory") and status in ("passed", "failed", "blocked", "no_result")) or (mode == status == "not_activated")
+        details.append({"id": control_id, "name": name, "purpose": purpose, "group": group,
+                        "mode": mode if valid else "not_reported",
+                        "status": status if valid else "not_reported"})
+    return details
+
+
+def _controls_markdown(controls: list[dict[str, str]]) -> str:
+    lines = ["## Individual checks", "", "Every built-in catalog check is listed. Not reported means this snapshot has no validated row; it does not imply disabled or passed.", "",
+             "| Check | Mode | Result | Purpose |", "| --- | --- | --- | --- |"]
+    for row in controls:
+        lines.append(f"| {row['name']} | {_CONTROL_MODES[row['mode']]} | {_CONTROL_RESULTS[row['status']][0]} | {row['purpose']} |")
+    return "\n".join(lines)
+
+
+def _controls_html(controls: list[dict[str, str]], run_url: str) -> str:
+    sections = []
+    for group in ("Build & quality", "Security & dependencies", "AI & QA", "Release & runtime"):
+        cards = []
+        for row in controls:
+            if row["group"] != group:
+                continue
+            label, tone = _CONTROL_RESULTS[row["status"]]
+            safe = {key: html.escape(value, quote=True) for key, value in row.items()}
+            note = {"not_reported": "No validated row in this snapshot. Activation and outcome are unknown.",
+                    "not_activated": "Not activated for this evaluation. Excluded from active-control totals.",
+                    "no_result": "No usable evidence was available. This is not a passing result.",
+                    "passed": "Passing evidence reported for this snapshot.",
+                    "failed": "The producer reported a failure.",
+                    "blocked": "The producer reported a blocker."}[row["status"]]
+            evidence = '' if row["status"] == "not_reported" else f'<a href="{html.escape(run_url, quote=True)}" aria-label="Source report for {safe["name"]}">Source report ↗</a>'
+            size_link = '<a href="#size-title">Files &amp; LOC details ↓</a>' if row["id"] == "change-scope" else ''
+            cards.append(f'<article class="check-card {tone}" id="check-{safe["id"]}"><div class="check-top"><h4>{safe["name"]}</h4><span class="size-result">{label}</span></div><p>{safe["purpose"]}</p><p class="check-mode">{_CONTROL_MODES[row["mode"]]}</p><p class="check-note">{note}</p><div class="check-links">{evidence}{size_link}</div></article>')
+        sections.append(f'<section class="check-group"><h3>{html.escape(group)}</h3><div class="check-grid">{"".join(cards)}</div></section>')
+    return '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title">Individual checks</h2><p class="checks-intro">All built-in catalog checks are listed below. Not reported means this snapshot has no validated row; it does not imply disabled or passed. Custom controls may contribute to the totals but their private names are not published. Source report links open the evaluation run containing the detailed evidence.</p>' + ''.join(sections) + '</section>'
+
+
 def _breakdown_markdown(breakdown: dict[str, Any]) -> str:
     if breakdown["availability"] != "available":
         return "Result breakdown unavailable: this source does not contain complete, consistent control results."
@@ -355,6 +447,7 @@ def _validated_scorecard(source_dir: Path) -> dict[str, Any]:
         "subject_revision": revision,
         "change_scope": _change_scope(document),
         "result_breakdown": _result_breakdown(document),
+        "controls": _control_details(document),
     }
 
 
@@ -413,6 +506,7 @@ def _public_metadata(
         "pages_url": pages_base_url(repository),
         "change_scope": inspected["change_scope"],
         "result_breakdown": inspected["result_breakdown"],
+        "controls": inspected["controls"],
     }
 
 
@@ -465,6 +559,7 @@ ALLOW means the enforced controls are satisfied for this snapshot; it does not e
 This is a published PR snapshot. The source timestamp does not prove it matches the current PR head or current main.
 Test totals, security finding counts, and coverage percentages are not collected in this summary.
 {_scope_markdown(metadata["change_scope"])}
+{_controls_markdown(metadata["controls"])}
 """
 
 
@@ -524,6 +619,12 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .size-result{display:inline-block;white-space:nowrap;padding:3px 9px;border-radius:5px;background:var(--wash);color:var(--tone);font-weight:650}
 .scope-totals{display:grid;grid-template-columns:1fr 1fr;gap:20px}.scope-totals strong{color:var(--ink)}
 .size-footnote{margin-bottom:0}
+.checks{margin-top:36px}.checks h2{font-size:28px;margin:0}.checks-intro{color:var(--muted);max-width:850px;font-size:14px}
+.check-group{margin:28px 0}.check-group h3{font-size:18px;margin:0 0 14px}.check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.check-card{padding:22px;border:1px solid var(--line);border-top:3px solid var(--tone);border-radius:10px;background:var(--paper);display:flex;flex-direction:column}
+.check-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.check-top h4{font-size:16px;line-height:1.4;margin:0}.check-top .size-result{font-size:11px}
+.check-card p{font-size:13px;color:var(--muted);margin:12px 0 0}.check-card .check-mode{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.6px;color:var(--ink)}
+.check-card .check-note{font-size:12px}.check-links{display:flex;flex-wrap:wrap;gap:16px;padding-top:16px;margin-top:auto;font-size:12px}
 .evidence{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:36px;padding:30px;margin-top:24px;background:var(--paper);border:1px solid var(--line);border-radius:12px}
 .evidence h2{margin:0 0 8px;font-size:18px;letter-spacing:-.3px}
 .evidence p{color:var(--muted);font-size:13px;margin:0 0 20px;max-width:420px}
@@ -551,6 +652,7 @@ footer img{display:block;max-width:100%;height:auto}
   .status-panel{align-items:flex-start;padding:20px;gap:16px}
   .status-panel h2{font-size:18px}.decision dd{font-size:17px}
   .metrics{grid-template-columns:1fr;gap:12px}
+  .check-grid{grid-template-columns:1fr}.check-card{padding:18px}
   .scope-panel{padding:20px}.scope-totals{grid-template-columns:1fr;gap:0}
   .size-table{font-size:12px}
   .size-table th,.size-table td{padding:10px 5px}
@@ -624,6 +726,7 @@ def _html(metadata: dict[str, Any]) -> str:
   </section>
   <div class="metrics">{''.join(cards)}</div>
   {_breakdown_html(metadata["result_breakdown"])}
+  {_controls_html(metadata["controls"], metadata["source_run_url"])}
   {_scope_html(metadata["change_scope"])}
   <section class="evidence" aria-labelledby="evidence-title">
     <div><h2 id="evidence-title">Trace it to the evidence</h2>

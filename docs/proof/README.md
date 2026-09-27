@@ -121,10 +121,15 @@ evaluation, and the latest PR score does not attest current `main`.
 
 Badge publication runs after evaluation. It is not a capability, provider,
 policy mode, or required check and cannot influence `allow` or `block`. Its
-public projection is limited to aggregate status/counts, PR-size measurements and thresholds, source-run metadata,
-and a revision digest. Detailed controls, findings, evidence, reasons, provider
-data, check URLs, raw revisions, and source Markdown are excluded from Pages and
-remain in the source Actions artifact under normal repository access. See
+public projection includes aggregate status/counts, PR-size measurements and
+thresholds, source-run metadata, a revision digest, and one entry for every
+trusted built-in catalog control. Control IDs, names, and purposes come from
+the trusted catalog; effective modes and evidence statuses come from validated
+scorecard rows. Missing rows display **Not reported**, separately from an
+explicit `not_activated` mode. Private or arbitrary control IDs, provider data,
+findings, detailed evidence, reasons, check URLs, raw revisions, and source
+Markdown are excluded from Pages and remain in the source Actions artifact
+under normal repository access. See
 [quick start](../quickstart.md#publish-the-optional-scorecard-badge).
 
 ## Future lifecycle contracts
