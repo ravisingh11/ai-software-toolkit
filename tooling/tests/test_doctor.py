@@ -437,6 +437,23 @@ class AdapterDiagnosticTests(DoctorTests):
         checks = self.checks(self.report())
         self.assertEqual(checks["provider.snyk-code.adapter"]["status"], "configured")
         self.assertIn("local.credential.SNYK_TOKEN", checks)
+        for secrets, expected in (([{"secrets": [{"name": "SNYK_TOKEN"}]}], "configured"),
+                                  ([{"secrets": []}], "unverified")):
+            with self.subTest(expected=expected), patch.object(self.module, "probe", side_effect=self.github_probe(secrets=secrets)):
+                rows = self.checks(self.report(github="owner/repo"))
+            self.assertEqual(rows["github.secret.SNYK_TOKEN"]["status"], expected)
+
+    def test_stale_adapter_missing_selected_contract_is_action_needed(self):
+        self.select_external()
+        (self.target / ".guardrails" / "adapter.py").write_text("PROVIDERS = {}\n", encoding="utf-8")
+        self.git("add", ".")
+        self.git("commit", "-qm", "stale adapter")
+        installed = load(self.target / ".guardrails" / "doctor.py")
+        checks = self.checks(installed.diagnose(self.target, environment={}))
+        for provider_id in ("snyk-code", "fossa"):
+            row = checks[f"provider.{provider_id}.adapter"]
+            self.assertEqual(row["status"], "action_needed")
+            self.assertIn("refresh-existing", row["next_step"])
 
     def test_missing_adapter_only_flags_adapter_backed_providers(self):
         providers = self.target / ".guardrails" / "providers.yaml"

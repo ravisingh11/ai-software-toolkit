@@ -13,6 +13,9 @@ or evidence contracts require a major release and migration guidance.
   QA publishes sanitized non-passing reasons while remaining unsuccessful,
   restricts agent-authored provenance, and rejects PR-supplied commands.
 
+- Brand the public PR scorecard page as AI Software Toolkit instead of
+  Guardrails, matching the toolkit identity. Page content, badge URLs, bounded
+  metadata, and evaluation semantics are unchanged.
 - Default installation guidance to Actions scorecard summaries and artifacts,
   with read-only detection of the target repository's visibility. Keep Pages
   publication opt-in. Block publication when live visibility is unknown or a

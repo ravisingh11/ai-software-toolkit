@@ -409,7 +409,8 @@ Pages and remain in the source Actions artifact under normal repository access.
 Publishing is optional reporting and never influences the
 scorecard decision or branch rules.
 
-The report page presents the policy status and decision, separate active,
+The report page uses the AI Software Toolkit name and AI mark. It presents
+the policy status and decision, separate active,
 enforced, and advisory counts, readable UTC timestamps, and a link to the
 source CI run. Verification details expand to show the subject digest; summary
 JSON and Markdown remain available. The layout adapts to narrow screens and
