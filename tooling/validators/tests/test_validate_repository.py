@@ -52,10 +52,6 @@ class RepositoryValidatorTests(unittest.TestCase):
                 MODULE.validate_no_machine_paths()
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class DocumentationCoverageTests(unittest.TestCase):
     def test_repository_documents_every_shipped_surface(self) -> None:
         self.assertEqual(MODULE.documentation_gaps(), [])
@@ -93,3 +89,28 @@ class DocumentationCoverageTests(unittest.TestCase):
                 with self.assertRaises(SystemExit):
                     MODULE.validate_documentation_coverage()
             self.assertIn("orphan.yml", stderr.getvalue())
+
+    def test_nested_scripts_yaml_archives_and_filename_boundaries(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for folder in ("workflows", "tooling/validators", "tooling/tests/fixtures", "docs/archive"):
+                (root / folder).mkdir(parents=True, exist_ok=True)
+            for filename in ("lint.yml", "provider.yaml"):
+                (root / "workflows" / filename).write_text("name: example")
+            (root / "workflows/README.md").write_text("`format-and-lint.yml` `provider.yaml.old`")
+            (root / "tooling/validators/check.py").write_text("")
+            (root / "tooling/tests/fixtures/ignored.py").write_text("")
+            (root / "docs/archive/old.md").write_text("tooling/validators/check.py")
+            (root / "README.md").write_text("`precheck.py` and `check.py.old`")
+            self.assertEqual(MODULE.documentation_gaps(root), [
+                "workflows/README.md does not mention workflows/lint.yml",
+                "workflows/README.md does not mention workflows/provider.yaml",
+                "tooling/validators/check.py is not mentioned in any published documentation",
+            ])
+            (root / "workflows/README.md").write_text("[lint](lint.yml), `workflows/provider.yaml`")
+            (root / "README.md").write_text("Run `tooling/validators/check.py`.")
+            self.assertEqual(MODULE.documentation_gaps(root), [])
+
+
+if __name__ == "__main__":
+    unittest.main()

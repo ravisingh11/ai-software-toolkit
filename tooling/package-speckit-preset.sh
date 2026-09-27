@@ -3,7 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
-preset_dir="$repo_root/speckit/presets/engineering-standards"
+preset_dir="$repo_root/tooling/speckit/engineering-standards"
 version="$(python3 - "$preset_dir/preset.yml" <<'PY'
 from pathlib import Path
 import re

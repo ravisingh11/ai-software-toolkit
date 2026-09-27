@@ -148,8 +148,8 @@ overall `GREEN`, `ORANGE`, or `RED` status and every capability/provider row.
 
 ## Optional providers
 
-SonarQube, Snyk, Semgrep AppSec Platform, FOSSA, Codex Code Review, AI review adapters, and soak
-testing are not installed as runnable profiles. A repository must copy a
+SonarQube, Snyk, Semgrep AppSec Platform, FOSSA, Codex Code Review, and AI review
+adapters are not installed as runnable profiles. A repository must copy a
 template (where one is shipped) or supply its own workflow, add the required
 credentials/configuration, verify exact check/evidence binding, and make an
 explicit provider selection. A credential alone does not activate or satisfy a
@@ -175,8 +175,8 @@ Other templates that are shipped but not installed by any profile:
 | Template | Workflow / check names | Activation |
 | --- | --- | --- |
 | `ai-pr-review.yml` | `AI PR Review` / `AI Engineering Review`, `AI QA Review`, `AI Security Review`, `AI Repo Standards Review` | The `ai-engineering-adapter`, `ai-qa-adapter`, `ai-security-adapter`, and `ai-repository-standards-adapter` providers; a repository-owned `AI_REVIEW_COMMAND` writes each role's result; advisory-only and never promotable |
-| `security-scanning.yml` | `Security Scanning` / `CodeQL`, `Dependency Review`, `Semgrep`, `FOSSA`, `Snyk Open Source`, `Secret Scan` | Organization-style bundle that runs consumer-supplied `FOSSA_COMMAND` / `SNYK_OPEN_SOURCE_COMMAND` strings; prefer the adapter templates above, which own the command shape |
-| `soak.yml` | `Soak Check` / `Soak Check` | The `repository-soak` provider for the `runtime-soak` capability; runs `SOAK_COMMAND` on a schedule or dispatch; evidence-only until a consumer verifies it |
+| `security-scanning.yml` | `Security Scanning` / `CodeQL`, `Dependency Review`, `Semgrep`, `FOSSA`, `Snyk Open Source`, `Secret Scan` | Requires `CODEQL_LANGUAGES` (or reusable input `codeql-languages`); organization-style bundle that runs consumer-supplied `FOSSA_COMMAND` / `SNYK_OPEN_SOURCE_COMMAND` strings; prefer the adapter templates above, which own the command shape |
+| `soak.yml` | `Soak Check` / `Soak Check` | The `repository-soak` provider for the `runtime-soak` capability; runs `SOAK_COMMAND` on a schedule or dispatch; awaiting an environment-evidence producer and collection path; scheduled checks alone do not activate the control |
 
 Codex Code Review is a native GitHub review provider rather than a check-run
 workflow. The collector requires the configured bot login and exact reviewed

@@ -508,15 +508,20 @@ DOCUMENTATION_ROOTS = ("README.md", "CONTRIBUTING.md", "AGENTS.md", "docs", "ski
 
 
 def documentation_text(root: Path = ROOT) -> str:
-    """All Markdown the repository publishes as documentation, concatenated."""
+    """Current published Markdown, excluding archived historical plans."""
     parts = []
     for relative in DOCUMENTATION_ROOTS:
         path = root / relative
         if path.is_file():
             parts.append(path.read_text(encoding="utf-8"))
         elif path.is_dir():
-            parts.extend(item.read_text(encoding="utf-8") for item in sorted(path.rglob("*.md")) if item.is_file())
+            parts.extend(item.read_text(encoding="utf-8") for item in sorted(path.rglob("*.md")) if item.is_file() and "archive" not in item.relative_to(root).parts)
     return "\n".join(parts)
+
+
+def mentions_filename(text: str, name: str) -> bool:
+    """Accept a filename or path mention, never a suffix of another filename."""
+    return re.search(r"(?<![\w.-])" + re.escape(name) + r"(?![\w.-])", text) is not None
 
 
 def documentation_gaps(root: Path = ROOT) -> list[str]:
@@ -528,8 +533,10 @@ def documentation_gaps(root: Path = ROOT) -> list[str]:
     """
     gaps: list[str] = []
     workflows_readme = (root / "workflows" / "README.md").read_text(encoding="utf-8") if (root / "workflows" / "README.md").is_file() else ""
-    for path in sorted((root / "workflows").glob("*.yml")):
-        if path.name not in workflows_readme:
+    for path in sorted((root / "workflows").glob("*")):
+        if path.suffix not in {".yml", ".yaml"} or not path.is_file():
+            continue
+        if not mentions_filename(workflows_readme, path.name):
             gaps.append(f"workflows/README.md does not mention workflows/{path.name}")
     skills_readme = (root / "skills" / "README.md").read_text(encoding="utf-8") if (root / "skills" / "README.md").is_file() else ""
     for skill in sorted((root / "skills").glob("*/SKILL.md")):
@@ -548,9 +555,14 @@ def documentation_gaps(root: Path = ROOT) -> list[str]:
             if display_name not in provider_docs and f"`{provider_id}`" not in provider_docs:
                 gaps.append(f"provider {provider_id} ({display_name}) is not documented in docs/providers, control setup, or the workflows README")
     published = documentation_text(root)
-    for path in sorted(list((root / "tooling").glob("*.py")) + list((root / "tooling").glob("*.sh"))):
-        if path.name not in published:
-            gaps.append(f"tooling/{path.name} is not mentioned in any published documentation")
+    for path in sorted((root / "tooling").rglob("*")):
+        relative = path.relative_to(root)
+        if (not path.is_file() or path.suffix not in {".py", ".sh"}
+                or any(part in {"tests", "fixtures", "__pycache__"} for part in relative.parts)
+                or path.name == "__init__.py"):
+            continue
+        if not mentions_filename(published, path.name):
+            gaps.append(f"{relative.as_posix()} is not mentioned in any published documentation")
     return gaps
 
 

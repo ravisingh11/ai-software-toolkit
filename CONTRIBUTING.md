@@ -99,3 +99,18 @@ Before a toolkit release:
 
 Keep release claims tied to observed evidence. A catalog entry or workflow file
 is not proof that a provider is active.
+
+### Tooling internals
+
+The CLI entry point is `tooling/ai_toolkit/__main__.py`; `cli.py` routes commands,
+`config.py` reads the consumer configuration, `discovery.py` discovers repository
+inputs, `report.py` formats results, `runtime.py` locates the source tree and installed runtime,
+and `skills.py` installs client skill copies. These modules live together under
+`tooling/ai_toolkit/`.
+
+`tooling/coverage-support/sitecustomize.py` supports coverage collection in child
+Python processes. Under `tooling/validators/`, `inspect_change_scope.py` classifies
+changed paths for validation and `validate_ground_truth.py` validates the
+consumer's ground-truth document mapping. Tests and fixtures are excluded from
+shipped-script documentation coverage; historical `docs/archive/` mentions do
+not satisfy current documentation coverage.

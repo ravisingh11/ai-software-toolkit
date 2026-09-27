@@ -3,8 +3,8 @@
 `examples/python-demo/` is the toolkit's executable consumer: a standard-library
 Python application with the Guardrails runtime installed under its own
 `.guardrails/` and the Core and GitHub profile workflows under
-`.github/workflows/`. It is the place where every toolkit change is proven
-against a real installation before it is documented as working.
+`.github/workflows/`. It exercises installation and the local runtime. Optional providers, functional
+QA, and action skills require their own verification evidence.
 
 ## What it demonstrates today
 
@@ -12,7 +12,7 @@ against a real installation before it is documented as working.
 | --- | --- | --- |
 | Install and refresh | `tooling/install.py --target examples/python-demo --refresh-existing`; the repository's own tests (`tooling/tests/test_consumer_lifecycle.py`, `test_python_demo.py`) exercise install, refresh, and validation | Shipped and tested on every change |
 | Local scan and scorecard | `tools/run_guardrails.py` supplies real build and test commands and runs `.guardrails/scan.py` | Shipped |
-| CI workflows | The installed Core and GitHub profile workflows run on this repository's pull requests; the example's own workflow copies are refreshed from `workflows/` | Shipped; every capability advisory |
+| CI workflows | The example's workflow copies are refreshed from `workflows/` and checked for parity; GitHub does not execute nested workflow files in this repository | Templates shipped; advisory configuration not live-verified by these copies |
 | Ground truth | `.guardrails/ground-truth-ai.yaml` maps the demo's architecture, testing, security, and deployment documents | Shipped |
 | Optional scorecard badge | `tools/` and the badge workflow described in the demo README | Shipped, opt-in |
 | `ai-toolkit` CLI | `ai-toolkit init` on a copy of the demo adopts the existing installation and records `toolkit.toml` / `toolkit.lock.json`; `check` and `doctor` run against it | Shipped; the committed demo does not yet carry the two files (see below) |
@@ -42,9 +42,15 @@ python3 tools/run_guardrails.py
 To try the CLI without touching the committed example:
 
 ```sh
-cp -r examples/python-demo /tmp/demo && cd /tmp/demo && git init -q && git add -A && git commit -qm demo
-python3 <toolkit>/tooling/ai_toolkit init --target . --yes --clients codex
-python3 <toolkit>/tooling/ai_toolkit doctor --target .
+toolkit_root="$PWD" # Run from the toolkit repository root.
+demo_root="$(mktemp -d)"
+cp -R examples/python-demo/. "$demo_root/"
+cd "$demo_root"
+git init -q
+git add -A
+git -c user.name="Toolkit Demo" -c user.email="demo@example.invalid" commit -qm demo
+python3 "$toolkit_root/tooling/ai_toolkit" init --target . --yes --clients codex
+python3 "$toolkit_root/tooling/ai_toolkit" doctor --target .
 ```
 
 The demo's own [README](../examples/python-demo/README.md) covers the
