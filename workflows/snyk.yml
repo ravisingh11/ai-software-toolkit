@@ -13,7 +13,9 @@ name: Snyk
 # so a pull request cannot change the code that receives the token. The trusted
 # checkout happens immediately before the adapter step, after the setup
 # command and CLI installation, so nothing that ran earlier in the job can
-# replace it. The token
+# replace it, and the adapter step runs with a reset environment and the
+# interpreter and PATH recorded before the setup command, so nothing the
+# candidate adds to GITHUB_PATH or GITHUB_ENV reaches the token. The token
 # reaches only the adapter step, never the repository setup command. This
 # workflow is used directly (not through workflow_call) so its check names
 # match the provider contract exactly.
@@ -48,6 +50,15 @@ jobs:
           persist-credentials: false
       - name: Install Snyk CLI
         uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04
+      - name: Record trusted tool paths
+        id: tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "python=$(command -v python3)"
+            echo "path=${PATH}"
+          } >> "${GITHUB_OUTPUT}"
       - name: Check out the trusted adapter from the base revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -74,15 +85,23 @@ jobs:
         shell: bash
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          TRUSTED_PATH: ${{ steps.tools.outputs.path }}
+          TRUSTED_PYTHON: ${{ steps.tools.outputs.python }}
         run: |
           set -uo pipefail
-          python3 trusted/.proof/adapter.py snyk-code \
+          # A reset environment, the interpreter and PATH recorded before the setup command
+          # ran, and isolated mode: nothing the candidate added to GITHUB_PATH or GITHUB_ENV
+          # reaches the process that holds the credential.
+          /usr/bin/env -i \
+            PATH="${TRUSTED_PATH}" HOME="${HOME}" CI=true \
+            SNYK_TOKEN="${SNYK_TOKEN}" SNYK_CODE_ARGS="${SNYK_CODE_ARGS}" \
+            "${TRUSTED_PYTHON}" -I trusted/.proof/adapter.py snyk-code \
             --target "candidate/${PROOF_WORKING_DIRECTORY}" \
             --revision "${HEAD_SHA}" \
             --timeout 1200 \
-            --evidence-dir "${RUNNER_TEMP}/evidence" | tee "${RUNNER_TEMP}/snyk-code.txt"
+            --evidence-dir "${RUNNER_TEMP}/evidence" | /usr/bin/tee "${RUNNER_TEMP}/snyk-code.txt"
           status=${PIPESTATUS[0]}
-          printf '### Snyk Code\n\n```text\n%s\n```\n' "$(cat "${RUNNER_TEMP}/snyk-code.txt")" >> "${GITHUB_STEP_SUMMARY}"
+          printf '### Snyk Code\n\n```text\n%s\n```\n' "$(/bin/cat "${RUNNER_TEMP}/snyk-code.txt")" >> "${GITHUB_STEP_SUMMARY}"
           exit "${status}"
       - name: Upload evidence fragment
         if: ${{ always() }}
@@ -110,13 +129,22 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           path: candidate
           persist-credentials: false
+      - name: Install Snyk CLI
+        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04
+      - name: Record trusted tool paths
+        id: tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "python=$(command -v python3)"
+            echo "path=${PATH}"
+          } >> "${GITHUB_OUTPUT}"
       - name: Install dependencies with the repository setup command
         if: ${{ vars.PROOF_SETUP_COMMAND != '' }}
         working-directory: candidate/${{ vars.PROOF_WORKING_DIRECTORY || '.' }}
         shell: bash
         run: bash -euo pipefail -c "${PROOF_SETUP_COMMAND}"
-      - name: Install Snyk CLI
-        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04
       - name: Check out the trusted adapter from the base revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -143,15 +171,23 @@ jobs:
         shell: bash
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          TRUSTED_PATH: ${{ steps.tools.outputs.path }}
+          TRUSTED_PYTHON: ${{ steps.tools.outputs.python }}
         run: |
           set -uo pipefail
-          python3 trusted/.proof/adapter.py snyk-open-source \
+          # A reset environment, the interpreter and PATH recorded before the setup command
+          # ran, and isolated mode: nothing the candidate added to GITHUB_PATH or GITHUB_ENV
+          # reaches the process that holds the credential.
+          /usr/bin/env -i \
+            PATH="${TRUSTED_PATH}" HOME="${HOME}" CI=true \
+            SNYK_TOKEN="${SNYK_TOKEN}" SNYK_OPEN_SOURCE_ARGS="${SNYK_OPEN_SOURCE_ARGS}" \
+            "${TRUSTED_PYTHON}" -I trusted/.proof/adapter.py snyk-open-source \
             --target "candidate/${PROOF_WORKING_DIRECTORY}" \
             --revision "${HEAD_SHA}" \
             --timeout 1200 \
-            --evidence-dir "${RUNNER_TEMP}/evidence" | tee "${RUNNER_TEMP}/snyk-open-source.txt"
+            --evidence-dir "${RUNNER_TEMP}/evidence" | /usr/bin/tee "${RUNNER_TEMP}/snyk-open-source.txt"
           status=${PIPESTATUS[0]}
-          printf '### Snyk Open Source\n\n```text\n%s\n```\n' "$(cat "${RUNNER_TEMP}/snyk-open-source.txt")" >> "${GITHUB_STEP_SUMMARY}"
+          printf '### Snyk Open Source\n\n```text\n%s\n```\n' "$(/bin/cat "${RUNNER_TEMP}/snyk-open-source.txt")" >> "${GITHUB_STEP_SUMMARY}"
           exit "${status}"
       - name: Upload evidence fragment
         if: ${{ always() }}

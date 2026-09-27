@@ -15,8 +15,12 @@ or evidence contracts require a major release and migration guidance.
   so a pull request cannot change the code that receives `SNYK_TOKEN` or
   `FOSSA_API_KEY`. The `snyk-code`, `snyk-open-source`, and `fossa` contracts
   list the adapter as a trusted path, so the scorecard records `not_run` for a
-  pull request whose adapter differs from the base. Check names, evidence
-  fragments, and reason codes are unchanged.
+  pull request whose adapter differs from the base. The trusted checkout is
+  the last step before the adapter runs, and the adapter step uses a reset
+  environment with the interpreter and `PATH` recorded before the setup
+  command, so candidate setup cannot replace the adapter or poison its
+  environment. Check names, evidence fragments, and reason codes are
+  unchanged.
 
 - **Breaking:** rename the Guardrails component to Proof as a hard cutover.
   The installed runtime moves from `.guardrails/` to `.proof/`, repository

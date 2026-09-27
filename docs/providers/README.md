@@ -58,6 +58,13 @@ file differs from the base, including one that refreshes the runtime through
 `ai-toolkit update`. The trusted checkout is the last step before the adapter
 runs, after the repository setup command and the CLI installation, so code
 that executes during setup cannot replace the adapter it finds on disk.
+The adapter step itself runs through a reset environment (`env -i`) with the
+interpreter and `PATH` recorded before the setup command ran, in Python's
+isolated mode, so nothing the setup command or the candidate adds to
+`GITHUB_PATH` or `GITHUB_ENV` reaches the process that holds the credential.
+Tools the setup command puts on the path are therefore not visible to the
+adapter; install them where the recorded `PATH` already looks, or name them
+in `*_ARGS` by a path inside the checkout.
 
 What remains is shared-runner trust. On a same-repository pull request the
 workflow file itself comes from the head, which is the trust GitHub gives

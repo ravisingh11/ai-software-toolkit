@@ -93,10 +93,24 @@ class ProofContractValidationTests(unittest.TestCase):
                 self.assertIn("ref: ${{ github.event.pull_request.base.sha || github.sha }}", text)
                 self.assertIn("path: trusted", text)
                 self.assertIn("path: candidate", text)
-                self.assertIn(f"python3 trusted/.proof/adapter.py {provider_id}", text)
+                self.assertIn(f'"${{TRUSTED_PYTHON}}" -I trusted/.proof/adapter.py {provider_id}', text)
                 self.assertIn('--target "candidate/${PROOF_WORKING_DIRECTORY}"', text)
                 self.assertNotIn(f"python3 .proof/adapter.py {provider_id}", text)
+                self.assertNotIn(f"python3 trusted/.proof/adapter.py {provider_id}", text)
                 self.assertIn("-L trusted/.proof/adapter.py", text)
+                # The credential step runs in a reset environment with tool paths recorded
+                # before any candidate-influenced step, so setup cannot poison it.
+                self.assertIn("/usr/bin/env -i", text)
+                self.assertIn("TRUSTED_PATH: ${{ steps.tools.outputs.path }}", text)
+                self.assertLess(text.index("- name: Record trusted tool paths"), text.index("- name: Check out the trusted adapter"))
+                setup = text.find("- name: Install dependencies with the repository setup command")
+                if setup != -1:
+                    # Within the job that runs the setup command: candidate checkout, then the
+                    # recorded tool paths, then setup, then the trusted checkout and the run.
+                    candidate = text.rfind("- name: Check out the candidate revision", 0, setup)
+                    self.assertLess(candidate, text.rfind("- name: Record trusted tool paths", 0, setup))
+                    self.assertLess(setup, text.find("- name: Check out the trusted adapter", setup))
+                    self.assertLess(text.find("- name: Check out the trusted adapter", setup), text.find("- name: Run ", setup))
 
     def test_adapter_backed_checks_declare_the_adapter_as_a_trusted_path(self) -> None:
         providers = self.providers()
