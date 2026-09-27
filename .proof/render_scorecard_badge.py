@@ -169,6 +169,292 @@ def _result_breakdown(document: dict[str, Any]) -> dict[str, Any]:
     return {"availability": "available", "overall": overall, **counts}
 
 
+# Public display allowlist: never use artifact-supplied names, reasons, or URLs.
+# Kept aligned with the built-in catalog by a regression test.
+PUBLIC_CONTROLS = (
+    ('repository-validation', 'Repository Validation', 'Validate repository-owned contracts and configuration', 'Build & quality'),
+    ('documentation-validation', 'Documentation Validation', 'Validate documentation structure, links, and declared targets', 'Build & quality'),
+    ('repository-ground-truth', 'Repository Ground Truth', 'Validate declared repository architecture and engineering documents', 'Build & quality'),
+    ('change-scope', 'PR Size', 'Detect oversized or unexpectedly broad changes', 'Build & quality'),
+    ('pr-metadata', 'PR Metadata', 'Validate pull-request title and body requirements against mutable PR state', 'Build & quality'),
+    ('format-and-lint', 'Format and Lint', 'Verify repository formatting and lint rules with the repository-owned command', 'Build & quality'),
+    ('migration-validation', 'Migration Validation', 'Validate repository-specific database and data migration safety', 'Build & quality'),
+    ('build', 'Build', 'Detect compilation, packaging, and build-time regressions', 'Build & quality'),
+    ('unit-tests', 'Unit Tests', 'Detect functional regressions in changed behavior', 'Build & quality'),
+    ('functional-qa', 'Functional QA', 'Exercise the running application as a user to detect functional regressions in changed behavior', 'AI & QA'),
+    ('changed-code-coverage', 'Changed Code Coverage', 'Measure test coverage for changed code', 'Build & quality'),
+    ('custom-static-analysis', 'Custom Static Analysis', 'Run repository and organization-specific static rules', 'Build & quality'),
+    ('secret-detection', 'Secret Detection', 'Detect credentials and authentication material in source history', 'Security & dependencies'),
+    ('deep-sast', 'Deep SAST', 'Detect security vulnerabilities through semantic source analysis', 'Security & dependencies'),
+    ('dependency-change-review', 'Dependency Change Review', 'Review security and license risk introduced by dependency changes', 'Security & dependencies'),
+    ('platform-secret-protection', 'Platform Secret Protection', 'Verify platform secret scanning and push protection', 'Security & dependencies'),
+    ('dependency-remediation', 'Dependency Remediation', 'Verify automated dependency security remediation is configured', 'Security & dependencies'),
+    ('artifact-provenance', 'Artifact Provenance', 'Attest where and how a release artifact was built', 'Release & runtime'),
+    ('static-quality', 'Static Quality', 'Evaluate maintainability, reliability, and static quality gates', 'Build & quality'),
+    ('dependency-vulnerability', 'Dependency Vulnerability', 'Detect known vulnerabilities in resolved dependencies', 'Security & dependencies'),
+    ('license-compliance', 'License Compliance', 'Evaluate dependency licenses against repository policy', 'Security & dependencies'),
+    ('ai-engineering-review', 'AI Engineering Review', 'Review correctness, architecture, maintainability, and regression risk', 'AI & QA'),
+    ('ai-qa-review', 'AI QA Review', 'Review tests, edge cases, failure paths, and assertions', 'AI & QA'),
+    ('ai-security-review', 'AI Security Review', 'Review authentication, isolation, injection, secrets, and privilege risks', 'AI & QA'),
+    ('ai-repository-standards-review', 'AI Repository Standards Review', 'Review changes against repository-owned engineering ground truth', 'AI & QA'),
+    ('runtime-soak', 'Runtime Soak', 'Detect runtime degradation, leaks, and performance drift over time', 'Release & runtime'),
+    ('container-vulnerability', 'Container Vulnerability', 'Detect vulnerabilities in container images', 'Release & runtime'),
+    ('iac-misconfiguration', 'IaC Misconfiguration', 'Detect insecure infrastructure-as-code configuration', 'Security & dependencies'),
+    ('artifact-sbom', 'Artifact SBOM', 'Record the software components contained in an artifact', 'Release & runtime'),
+    ('artifact-vulnerability', 'Artifact Vulnerability', 'Detect vulnerabilities in a built release artifact', 'Release & runtime'),
+    ('deployment-policy', 'Deployment Policy', 'Verify deployment approval and environment policy', 'Release & runtime'),
+    ('dynamic-application-security', 'Dynamic Application Security', 'Detect vulnerabilities in a running application', 'Release & runtime'),
+    ('runtime-assurance', 'Runtime Assurance', 'Verify runtime security and operational safeguards', 'Release & runtime'),
+ )
+_CONTROL_RESULTS = {
+    "passed": ("Passed", "good"), "failed": ("Failed", "danger"),
+    "blocked": ("Blocked", "caution"), "no_result": ("Unverified", "neutral"),
+    "not_activated": ("Not activated", "neutral"),
+    "not_reported": ("Not reported", "neutral"),
+}
+_CONTROL_MODES = {"enforced": "Enforced", "advisory": "Advisory",
+                  "not_activated": "Not activated", "not_reported": "Not reported"}
+
+
+# Check-specific assessment criteria; these describe the contract, not claimed measurements.
+_CHECK_ASSESSMENTS = {'repository-validation': ('Repository contracts',
+                           'Schemas, control catalog, provider configuration, and skill registry',
+                           'All repository validation rules succeed',
+                           'Rules checked; validation errors'),
+ 'documentation-validation': ('Documentation integrity',
+                              'Document structure, links, declared targets, and documentation coverage',
+                              'Repository documentation validator succeeds',
+                              'Documents checked; broken links; missing references'),
+ 'repository-ground-truth': ('Declared engineering ground truth',
+                             'Repository-owned architecture, testing, security, and contribution contracts',
+                             'Declared ground-truth targets satisfy repository validation',
+                             'Targets checked; missing or invalid declarations'),
+ 'change-scope': ('Change size',
+                  'Counted files, added lines, changed lines, and maximum additions per file',
+                  'Each measurement is within its configured limit',
+                  'Files and LOC are shown below'),
+ 'pr-metadata': ('PR title and description',
+                 'Configured title expression and required body sections',
+                 'Title and body satisfy repository metadata rules',
+                 'Missing sections; title violations'),
+ 'format-and-lint': ('Formatting and lint rules',
+                     'Repository-configured formatter and lint command',
+                     'Configured command completes successfully',
+                     'Files checked; errors; warnings'),
+ 'migration-validation': ('Migration safety',
+                          'Repository-specific migration checks, or declared absence of migrations',
+                          'Repository migration validator succeeds',
+                          'Migrations checked; unsafe changes'),
+ 'build': ('Build and packaging',
+           'Repository-configured build command',
+           'Build command completes successfully',
+           'Artifacts produced; build errors'),
+ 'unit-tests': ('Automated unit tests',
+                'Repository-configured test command and selected test suites',
+                'Test command completes successfully',
+                'Tests passed; failed; skipped; total'),
+ 'functional-qa': ('Application behavior',
+                   'Configured user journeys and assertions against a running application',
+                   'Executed QA scenarios meet the advisory scenario expectations',
+                   'Scenarios passed; failed; blocked; skipped'),
+ 'changed-code-coverage': ('Coverage of changed code',
+                           'Executable changed lines compared with repository coverage policy',
+                           'Changed-line coverage meets the repository-configured threshold',
+                           'Covered lines; uncovered lines; coverage percentage; configured threshold'),
+ 'custom-static-analysis': ('Custom static rules',
+                            'Repository and organization-specific analysis rules',
+                            'Configured analyzer completes without policy-blocking findings',
+                            'Rules executed; findings by severity'),
+ 'secret-detection': ('Secrets in source history',
+                      'Credential patterns in the configured scan scope',
+                      'Scanner reports no policy-blocking secret findings',
+                      'Files or commits scanned; secret findings'),
+ 'deep-sast': ('Semantic security analysis',
+               'Data flow and security queries for configured languages',
+               'Selected security analysis satisfies its configured policy',
+               'Queries run; vulnerabilities by severity'),
+ 'dependency-change-review': ('Dependency changes',
+                              'New or changed dependencies and associated security/license risk',
+                              'Changes satisfy the configured dependency review policy',
+                              'Dependencies changed; new vulnerabilities; license violations'),
+ 'platform-secret-protection': ('Platform protection settings',
+                                'Secret scanning and push protection capability checks',
+                                'Required platform protections are enabled and verified',
+                                'Secret scanning enabled; push protection enabled'),
+ 'dependency-remediation': ('Remediation configuration',
+                            'Automated dependency security update configuration',
+                            'Required dependency remediation automation is configured',
+                            'Security updates enabled; configuration checks'),
+ 'artifact-provenance': ('Build provenance',
+                         'Attestation tying a release artifact to its build source',
+                         'Artifact provenance satisfies the release policy',
+                         'Artifacts attested; verification failures'),
+ 'static-quality': ('Static quality gate',
+                    'Maintainability, reliability, and quality rules from the selected provider',
+                    'Provider quality gate satisfies its configured policy',
+                    'Quality-gate conditions; bugs; code smells; duplication'),
+ 'dependency-vulnerability': ('Resolved dependency vulnerabilities',
+                              'Known vulnerabilities in the resolved dependency graph',
+                              'Findings satisfy the configured severity and exception policy',
+                              'Dependencies scanned; critical/high/medium/low findings'),
+ 'license-compliance': ('Dependency license policy',
+                        'Detected dependency licenses and configured allow/deny rules',
+                        'Licenses satisfy the configured compliance policy',
+                        'Licenses evaluated; violations; unknown licenses'),
+ 'ai-engineering-review': ('Engineering review dimensions',
+                           'Correctness, architecture, maintainability, and regression risk',
+                           'Advisory review completes with a documented disposition',
+                           'Findings by severity; unresolved findings'),
+ 'ai-qa-review': ('Test adequacy review',
+                  'Test assertions, edge cases, failure paths, and coverage gaps',
+                  'Advisory review completes with a documented disposition',
+                  'Test gaps; missing assertions; unresolved findings'),
+ 'ai-security-review': ('Security review dimensions',
+                        'Authentication, isolation, injection, secrets, and privilege boundaries',
+                        'Advisory review completes with a documented disposition',
+                        'Security findings by severity; unresolved findings'),
+ 'ai-repository-standards-review': ('Repository standards review',
+                                    'Changes compared with repository-owned engineering requirements',
+                                    'Advisory review completes with a documented disposition',
+                                    'Requirements reviewed; deviations; unresolved findings'),
+ 'runtime-soak': ('Sustained runtime behavior',
+                  'Degradation, resource leaks, errors, and performance drift over time',
+                  'Observed runtime stays within configured environment limits',
+                  'Test duration; error rate; latency; resource growth'),
+ 'container-vulnerability': ('Container image security',
+                             'Vulnerabilities in the selected container image',
+                             'Image findings satisfy the configured vulnerability policy',
+                             'Images scanned; vulnerabilities by severity'),
+ 'iac-misconfiguration': ('Infrastructure configuration',
+                          'Security rules for infrastructure-as-code resources',
+                          'Configuration satisfies the selected infrastructure policy',
+                          'Resources scanned; misconfigurations by severity'),
+ 'artifact-sbom': ('Software component inventory',
+                   'Software components recorded in an artifact SBOM',
+                   'SBOM satisfies artifact inventory requirements',
+                   'Components recorded; missing metadata'),
+ 'artifact-vulnerability': ('Release artifact security',
+                            'Vulnerabilities in a built release artifact',
+                            'Artifact findings satisfy the configured vulnerability policy',
+                            'Artifacts scanned; vulnerabilities by severity'),
+ 'deployment-policy': ('Deployment authorization',
+                       'Approval and environment-policy evidence',
+                       'Deployment satisfies required environment policy',
+                       'Approvals verified; policy violations'),
+ 'dynamic-application-security': ('Running application security',
+                                  'Security checks against a deployed application',
+                                  'Runtime security findings satisfy configured scan policy',
+                                  'Endpoints scanned; vulnerabilities by severity'),
+ 'runtime-assurance': ('Operational safeguards',
+                       'Runtime security and operational control evidence',
+                       'Safeguards satisfy the configured environment policy',
+                       'Safeguards verified; policy violations')}
+
+
+def _execution_details(row: dict[str, Any]) -> dict[str, Any]:
+    """Validate optional timing facts again at the public projection boundary."""
+    unavailable = {"availability": "unavailable"}
+    result = row.get("authoritative_result")
+    value = result.get("check_execution") if isinstance(result, dict) else None
+    conclusions = {"success": "passed", "failure": "failed", "cancelled": "blocked",
+                   "timed_out": "blocked", "action_required": "blocked", "stale": "blocked",
+                   "neutral": "no_result", "skipped": "no_result"}
+    if (not isinstance(value, dict)
+            or set(value) != {"version", "started_at", "completed_at", "duration_seconds", "conclusion"}
+            or type(value["version"]) is not int or value["version"] != 1
+            or not isinstance(value["conclusion"], str)
+            or conclusions.get(value["conclusion"]) != row.get("evidence_status")
+            or ("no_result" if result.get("status") == "not_run" else result.get("status")) != row.get("evidence_status")
+            or value["conclusion"] not in conclusions
+            or type(value["duration_seconds"]) is not int
+            or not 0 <= value["duration_seconds"] <= 2**53 - 1):
+        return unavailable
+    try:
+        for key in ("started_at", "completed_at"):
+            timestamp = value[key]
+            if not isinstance(timestamp, str) or re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|[+-][0-9]{2}:[0-9]{2})", timestamp) is None:
+                return unavailable
+            if timestamp[-1:] != "Z" and (int(timestamp[-5:-3]) > 23 or int(timestamp[-2:]) > 59):
+                return unavailable
+        start = _timestamp(value["started_at"], "started_at")
+        end = _timestamp(value["completed_at"], "completed_at")
+        elapsed = (datetime.fromisoformat(end.replace("Z", "+00:00")) - datetime.fromisoformat(start.replace("Z", "+00:00"))).total_seconds()
+        if elapsed < 0 or int(elapsed) != value["duration_seconds"]:
+            return unavailable
+    except (ValueError, TypeError, OverflowError):
+        return unavailable
+    return {"availability": "available", "started_at": start, "completed_at": end,
+            "duration_seconds": value["duration_seconds"], "conclusion": value["conclusion"]}
+
+
+def _control_details(document: dict[str, Any]) -> list[dict[str, Any]]:
+    """Project enum-only results for known controls; fail closed on bad totals."""
+    consistent = _result_breakdown(document)["availability"] == "available"
+    rows = {row["id"]: row for row in document["controls"]} if consistent else {}
+    details = []
+    for control_id, name, purpose, group in PUBLIC_CONTROLS:
+        row = rows.get(control_id, {})
+        mode, status = row.get("effective_mode"), row.get("evidence_status")
+        valid = (mode in ("enforced", "advisory") and status in ("passed", "failed", "blocked", "no_result")) or (mode == status == "not_activated")
+        details.append({"id": control_id, "name": name, "purpose": purpose, "group": group,
+                        "mode": mode if valid else "not_reported",
+                        "status": status if valid else "not_reported",
+                        "execution": _execution_details(row) if valid else {"availability": "unavailable"}})
+    return details
+
+
+def _controls_markdown(controls: list[dict[str, Any]]) -> str:
+    lines = ["## Individual checks", "", "Every built-in catalog check is listed. Not reported means this snapshot has no validated row; it does not imply disabled or passed.", "",
+             "| Check | ID | Mode | Result | Purpose |", "| --- | --- | --- | --- | --- |"]
+    for row in controls:
+        lines.append(f"| {row['name']} | `{row['id']}` | {_CONTROL_MODES[row['mode']]} | {_CONTROL_RESULTS[row['status']][0]} | {row['purpose']} |")
+    return "\n".join(lines)
+
+
+def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str, Any]) -> str:
+    groups = []
+    details = []
+    for group in ("Build & quality", "Security & dependencies", "AI & QA", "Release & runtime"):
+        rows = []
+        for row in controls:
+            if row["group"] != group:
+                continue
+            label, tone = _CONTROL_RESULTS[row["status"]]
+            safe = {key: html.escape(value, quote=True) for key, value in row.items() if isinstance(value, str)}
+            note = {"not_reported": "No validated row in this snapshot. Activation and outcome are unknown.",
+                    "not_activated": "Not activated for this evaluation. Excluded from active-control totals.",
+                    "no_result": "No usable evidence was available. This is not a passing result.",
+                    "passed": "",
+                    "failed": "The producer reported a failure.",
+                    "blocked": "The producer reported a blocker."}[row["status"]]
+            evidence = '' if row["status"] == "not_reported" else f'<a href="{html.escape(run_url, quote=True)}" aria-label="Source report for {safe["name"]}">Source report ↗</a>'
+            target = "size-title" if row["id"] == "change-scope" else f"check-{safe['id']}"
+            mode = "—" if row["mode"] == "not_reported" else _CONTROL_MODES[row["mode"]]
+            rows.append(f'<tr><th scope="row"><a href="#{target}">{safe["name"]}</a> <code class="check-id">{safe["id"]}</code></th><td><span class="size-result {tone}">{label}</span></td><td>{mode}</td><td><a href="#{target}" aria-label="View details for {safe["name"]}">Details ↓</a></td></tr>')
+            assessment, inputs, condition, metrics = _CHECK_ASSESSMENTS[row["id"]]
+            criteria = [("Assessment", assessment), ("Evaluates", inputs), ("Expected result", condition)]
+            execution = row["execution"]
+            if execution["availability"] == "available":
+                criteria.extend([("Started (UTC)", execution["started_at"]),
+                                 ("Completed (UTC)", execution["completed_at"]),
+                                 ("Execution time", f'{execution["duration_seconds"]:,} seconds'),
+                                 ("Producer conclusion", execution["conclusion"].replace("_", " "))])
+            else:
+                criteria.append(("Execution time", "Not supplied by this source report"))
+            if row["id"] != "change-scope":
+                criteria.append(("Measurements not collected", metrics))
+            criteria_rows = ''.join(f'<tr><th scope="row">{html.escape(key)}</th><td>{html.escape(value)}</td></tr>' for key, value in criteria)
+            measurements = '<table class="assessment-table"><caption>Assessment criteria and available detail</caption><tbody>' + criteria_rows + '</tbody></table>'
+            if row["id"] == "change-scope":
+                measurements += _scope_html(scope)
+            note_html = f'<p class="check-note">{note}</p>' if note else ''
+            details.append(f'<article class="check-detail {tone}" id="check-{safe["id"]}" tabindex="-1"><div class="check-top"><h3>{safe["name"]} <code class="check-id">{safe["id"]}</code></h3><span class="size-result">{label}</span></div><p>{safe["purpose"]}</p><p class="check-mode">{_CONTROL_MODES[row["mode"]]}</p>{note_html}{measurements}<div class="check-links">{evidence}<a href="#checks-title">Back to checks ↑</a></div></article>')
+        groups.append(f'<tbody><tr class="check-category"><th colspan="4" scope="rowgroup">{html.escape(group)}</th></tr>{"".join(rows)}</tbody>')
+    overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title" tabindex="-1">Individual checks</h2><p class="checks-intro">All built-in catalog checks. Select a check to see its purpose and evidence below. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the mode is unknown. Custom controls may contribute to totals without publishing their private names.</p><div class="size-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results and policy modes for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col">Mode</th><th scope="col">Details</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
+    return overview + '<section class="checks" aria-labelledby="check-details-title"><h2 id="check-details-title">Check details</h2><p class="checks-intro">Source report links open the evaluation run containing the detailed evidence.</p>' + ''.join(details) + '</section>'
+
+
+
 def _breakdown_markdown(breakdown: dict[str, Any]) -> str:
     if breakdown["availability"] != "available":
         return "Result breakdown unavailable: this source does not contain complete, consistent control results."
@@ -355,6 +641,7 @@ def _validated_scorecard(source_dir: Path) -> dict[str, Any]:
         "subject_revision": revision,
         "change_scope": _change_scope(document),
         "result_breakdown": _result_breakdown(document),
+        "controls": _control_details(document),
     }
 
 
@@ -413,6 +700,7 @@ def _public_metadata(
         "pages_url": pages_base_url(repository),
         "change_scope": inspected["change_scope"],
         "result_breakdown": inspected["result_breakdown"],
+        "controls": inspected["controls"],
     }
 
 
@@ -465,6 +753,7 @@ ALLOW means the enforced controls are satisfied for this snapshot; it does not e
 This is a published PR snapshot. The source timestamp does not prove it matches the current PR head or current main.
 Test totals, security finding counts, and coverage percentages are not collected in this summary.
 {_scope_markdown(metadata["change_scope"])}
+{_controls_markdown(metadata["controls"])}
 """
 
 
@@ -524,6 +813,20 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .size-result{display:inline-block;white-space:nowrap;padding:3px 9px;border-radius:5px;background:var(--wash);color:var(--tone);font-weight:650}
 .scope-totals{display:grid;grid-template-columns:1fr 1fr;gap:20px}.scope-totals strong{color:var(--ink)}
 .size-footnote{margin-bottom:0}
+.checks{margin-top:36px}.checks h2{font-size:28px;margin:0}.checks-intro{color:var(--muted);max-width:850px;font-size:14px}
+.checks-table{width:100%;border-collapse:collapse;background:var(--paper);font-size:13px}
+.checks-table caption{text-align:left;color:var(--muted);font-size:12px;padding:0 0 10px}
+.checks-table th,.checks-table td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+.checks-table thead{background:#e8eeee}.checks-table tbody th[scope="row"]{font-weight:550}
+.checks-table .check-category th{background:#edf3f3;color:var(--accent);font-size:12px;padding-block:10px}
+.check-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;font-weight:400;color:var(--muted);margin-left:6px}
+.checks-table .size-result{font-size:11px;padding:2px 7px}.checks-table tbody tr:not(.check-category):hover{background:#f5f9f9}
+.assessment-table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px}.assessment-table caption{text-align:left;color:var(--muted);font-size:12px;padding-bottom:8px}.assessment-table th,.assessment-table td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:10px 8px}.assessment-table th{width:180px;font-weight:600}.assessment-table td{overflow-wrap:anywhere}
+.check-detail,#checks-title,#size-title{scroll-margin-top:24px}.check-detail:focus,#checks-title:focus{outline:2px solid var(--accent);outline-offset:4px}
+.check-detail{margin-top:16px;padding:22px;border:1px solid var(--line);border-top:3px solid var(--tone);border-radius:10px;background:var(--paper);display:flex;flex-direction:column}
+.check-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.check-top h3{font-size:16px;line-height:1.4;margin:0}.check-top .size-result{font-size:11px}
+.check-detail p{font-size:13px;color:var(--muted);margin:12px 0 0}.check-detail .check-mode{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.6px;color:var(--ink)}
+.check-detail .check-note{font-size:12px}.check-links{display:flex;flex-wrap:wrap;gap:16px;padding-top:16px;margin-top:auto;font-size:12px}
 .evidence{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:36px;padding:30px;margin-top:24px;background:var(--paper);border:1px solid var(--line);border-radius:12px}
 .evidence h2{margin:0 0 8px;font-size:18px;letter-spacing:-.3px}
 .evidence p{color:var(--muted);font-size:13px;margin:0 0 20px;max-width:420px}
@@ -551,6 +854,7 @@ footer img{display:block;max-width:100%;height:auto}
   .status-panel{align-items:flex-start;padding:20px;gap:16px}
   .status-panel h2{font-size:18px}.decision dd{font-size:17px}
   .metrics{grid-template-columns:1fr;gap:12px}
+  .check-detail{padding:18px}.checks-table th,.checks-table td{padding:7px 9px}
   .scope-panel{padding:20px}.scope-totals{grid-template-columns:1fr;gap:0}
   .size-table{font-size:12px}
   .size-table th,.size-table td{padding:10px 5px}
@@ -624,7 +928,7 @@ def _html(metadata: dict[str, Any]) -> str:
   </section>
   <div class="metrics">{''.join(cards)}</div>
   {_breakdown_html(metadata["result_breakdown"])}
-  {_scope_html(metadata["change_scope"])}
+  {_controls_html(metadata["controls"], metadata["source_run_url"], metadata["change_scope"])}
   <section class="evidence" aria-labelledby="evidence-title">
     <div><h2 id="evidence-title">Trace it to the evidence</h2>
       <p>Open the source CI run for the full scorecard, individual controls, and supporting results.</p>

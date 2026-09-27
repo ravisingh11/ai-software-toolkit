@@ -169,8 +169,13 @@ not aggregate the reference app's PRs. Older evidence without structured
 measurements shows unavailable. See [report details](docs/proof/control-setup.md#reading-the-pr-size-report).
 
 For the other controls, the [evidence results guide](docs/proof/control-setup.md#reading-scorecard-evidence)
-explains **passed**, **failed**, **blocked**, and **unverified**. An unverified
-result means usable evidence is missing, not that the check failed. The dashboard
+explains **passed**, **failed**, **blocked**, and **unverified**. The dashboard
+represents every trusted built-in catalog control individually, with its ID,
+name, purpose, and validated effective mode and evidence status when available.
+Absent rows show **Not reported**, separately from explicit `not_activated`
+modes; neither means a pass. An unverified result means usable evidence is
+missing, not that the check failed. The source CI run links to detailed
+evidence without publishing private provider details or check URLs. The dashboard
 is a published PR snapshot; its timestamp does not prove it matches the current
 PR head or main. **ALLOW** means enforced controls were satisfied for that
 snapshot, not that the change is ready to merge or release.

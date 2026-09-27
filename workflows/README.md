@@ -116,7 +116,10 @@ PR-head policy/configuration as fixed-path non-symlink data, and never executes
 candidate code with the GitHub token. It waits up to 1,800 seconds, writes paired
 timestamped scorecard JSON and Markdown plus timestamped evidence, appends the
 Markdown to the job summary, and uploads `.artifacts/proof` as
-`proof-scorecard-<run-id>`.
+`proof-scorecard-<run-id>`. Both scorecard commands pass
+`--all-catalog-controls`, so a control the policy explicitly sets to
+`not_activated` is published as **Not activated** on the dashboard rather than
+collapsing to **Not reported**; those `GRAY` rows never count toward totals.
 
 The native **Scorecard Workflow** badge reports whether this workflow ran. The
 optional **Latest PR Scorecard** badge reports readiness and passed/active count

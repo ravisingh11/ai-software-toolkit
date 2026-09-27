@@ -601,5 +601,63 @@ class ChangeScopeEvidenceTests(unittest.TestCase):
         MODULE.validate_change_scope(metadata, "passed")
 
 
+class CheckExecutionContractTests(unittest.TestCase):
+    def metadata(self) -> dict:
+        return {"version": 1, "started_at": "2026-09-26T12:00:00Z",
+                "completed_at": "2026-09-26T13:01:02.9+01:00",
+                "duration_seconds": 62, "conclusion": "success"}
+
+    def test_valid_metadata_is_optional_and_preserved_in_results(self) -> None:
+        policy, profiles, catalog, providers = contracts()
+        document = {"version": 2, "subject": {"type": "git-commit", "revision": "abc123"},
+                    "results": {"build": {"repository-build": {
+                        "producer": "GitHub Check: Build", "status": "passed",
+                        "evidence": ["Build succeeded"], "check_execution": self.metadata(),
+                    }}}}
+        MODULE.validate_evidence(document, MODULE.catalog_map(catalog), providers["providers"])
+        scorecard = MODULE.evaluate(policy, profiles, catalog, providers, document,
+                                    "change", "abc123", "git-commit")
+        build = next(row for row in scorecard["controls"] if row["id"] == "build")
+        self.assertEqual(build["authoritative_result"]["check_execution"], self.metadata())
+        del document["results"]["build"]["repository-build"]["check_execution"]
+        MODULE.validate_evidence(document, MODULE.catalog_map(catalog), providers["providers"])
+
+    def test_rejects_malformed_execution_contract(self) -> None:
+        for overrides in (
+            {"version": True}, {"version": 2}, {"extra": "text"},
+            {"duration_seconds": True}, {"duration_seconds": -1},
+            {"duration_seconds": 2**53}, {"duration_seconds": 62.1},
+            {"duration_seconds": 63}, {"conclusion": "failure"},
+            {"conclusion": []}, {"started_at": None},
+            {"started_at": "2026-09-26T12:00:00"},
+            {"started_at": "2026-09-31T12:00:00Z"},
+            {"started_at": "2026-09-26T12:00:00+00:60"},
+            {"started_at": "2026-09-26T12:00:00+24:00"},
+            {"completed_at": "2026-09-26T11:59:59.9Z", "duration_seconds": 0},
+        ):
+            with self.subTest(overrides=overrides), self.assertRaises(ValueError):
+                MODULE.validate_check_execution({**self.metadata(), **overrides}, "passed")
+        for invalid in (None, [], {}, {"version": 1}):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                MODULE.validate_check_execution(invalid, "passed")
+
+    def test_all_conclusions_require_consistent_status(self) -> None:
+        for conclusion, status in MODULE.CHECK_CONCLUSIONS.items():
+            metadata = {**self.metadata(), "conclusion": conclusion}
+            MODULE.validate_check_execution(metadata, status)
+            for wrong in MODULE.STATUSES - {status}:
+                with self.subTest(conclusion=conclusion, status=wrong), self.assertRaises(ValueError):
+                    MODULE.validate_check_execution(metadata, wrong)
+
+    def test_schema_bounds_metadata_and_conclusion_status_pairs(self) -> None:
+        schema = json.loads((ROOT / "proof" / "evidence.schema.json").read_text())
+        definition = schema["$defs"]["checkExecution"]
+        self.assertFalse(definition["additionalProperties"])
+        self.assertEqual(set(definition["required"]), set(self.metadata()))
+        self.assertEqual(definition["properties"]["duration_seconds"]["maximum"], 2**53 - 1)
+        conditions = schema["$defs"]["result"]["allOf"][0]["then"]["oneOf"]
+        self.assertEqual({item["properties"]["status"]["const"] for item in conditions}, MODULE.STATUSES)
+
+
 if __name__ == "__main__":
     unittest.main()

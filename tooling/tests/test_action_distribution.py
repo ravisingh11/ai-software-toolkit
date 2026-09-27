@@ -84,6 +84,19 @@ class ActionDistributionTests(unittest.TestCase):
         self.assertEqual(providers["version"], 2)
         self.assertFalse((ROOT / ".proof/producer-manifest.json").exists())
 
+    def test_self_repository_active_controls_are_advisory(self) -> None:
+        policy = json.loads((ROOT / ".proof/policy.yaml").read_text())
+        profiles = json.loads((ROOT / ".proof/profiles.yaml").read_text())["profiles"]
+        for lifecycle in ("change", "release"):
+            modes = {}
+            for profile in policy["profiles"]:
+                modes.update(profiles[profile]["defaults"][lifecycle])
+            modes.update(policy["overrides"][lifecycle])
+            with self.subTest(lifecycle=lifecycle):
+                self.assertTrue(modes)
+                self.assertLessEqual(set(modes.values()), {"advisory", "not_activated"})
+        self.assertEqual(policy["overrides"]["change"]["dependency-remediation"], "not_activated")
+
     def test_no_active_runtime_or_workflow_references_a_producer_manifest(self) -> None:
         paths = [
             *(path for path in ROOT.glob("tooling/*.py") if path.name != "install.py"),

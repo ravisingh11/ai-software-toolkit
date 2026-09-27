@@ -256,11 +256,15 @@ PROOF_SCORECARD_BADGE_PAGES_MODE=dedicated
 
 No secret is required. `dedicated` mode owns the complete Pages deployment, so
 repositories with an existing Pages site must integrate the generated output
-into that site's workflow instead. Public output is limited to aggregate
-status/counts, PR-size measurements and thresholds, source-run metadata, and a revision digest. Detailed controls,
-findings, evidence, reasons, provider data, check URLs, raw revisions, and source
-Markdown are excluded from Pages and remain in the source Actions artifact
-under normal repository access. The publisher is reporting only; do
+into that site's workflow instead. Public output contains aggregate
+status/counts, PR-size measurements and thresholds, source-run metadata, a
+revision digest, and individual entries for all trusted built-in catalog
+controls. Their IDs, names, and purposes come from the trusted catalog;
+effective modes and evidence statuses come from validated scorecard rows.
+Private or arbitrary control IDs, findings, detailed evidence, reasons,
+provider data, check URLs, raw revisions, and source Markdown are excluded
+from Pages and remain in the source Actions artifact under normal repository
+access. The publisher is reporting only; do
 not add it to required checks. See the complete commands and badge URLs in the
 [quick start](../quickstart.md#publish-the-optional-scorecard-badge).
 
@@ -388,12 +392,37 @@ contains no per-file paths or raw scope findings.
 
 ## Reading scorecard evidence
 
+Check names and Details links jump to the corresponding detail section below
+the table. Each section links back to the checks. PR Size jumps directly to its
+files/LOC measurements. Other sections describe their specific assessment, inputs,
+and expected result. Validated execution timestamps, duration, and producer conclusion
+are shown when supplied; unavailable facts are not inferred from a passing status.
+Measurement gaps name the missing fields, such as test totals or coverage percentage. On narrow screens, the table scrolls horizontally so
+check names, results, and modes remain on one line.
+
+
 A passing control means its declared producer supplied passing evidence for the
 scored revision. Failed evidence, blocked producers, and unverified results are
 different outcomes. Missing, skipped, stale, or unconfigured evidence must never
-be presented as a pass or as a measured failure. The public scorecard reports
-these aggregate outcomes when complete validated control details are available;
-older artifacts without those details cannot supply the breakdown.
+be presented as a pass or as a measured failure. The public scorecard shows
+all 33 trusted built-in catalog controls in a compact table, grouped into quality,
+security, AI/QA, and lifecycle checks. Each entry shows its name, ID, purpose,
+and validated effective mode and evidence status when reported. Evidence
+labels are **Passed**, **Failed**, **Blocked**, **Unverified**,
+**Not activated**, and **Not reported**.
+This includes PR Size alongside the other catalog checks; PR Size also retains
+its dedicated measurements and thresholds panel.
+
+A missing control row displays **Not reported**. It does not establish that the
+control is disabled, passed, or failed. An explicit `not_activated` mode is
+shown separately as **Not activated**: activation state and evidence status
+are different facts.
+Older artifacts without control details therefore show **Not reported** for
+the catalog entries rather than inferred outcomes. Aggregate evidence
+breakdowns still require complete validated control details. Each reported
+control links to the source CI report for detailed producer evidence;
+individual check URLs and private provider details are not published on the
+dashboard.
 
 The policy decision **allow** means the enforced controls were satisfied. It
 does not establish GitHub mergeability or deployment readiness. Advisory issues
@@ -406,7 +435,7 @@ head. The public revision digest identifies the snapshot without exposing a raw
 commit SHA; open the source run to inspect its PR and commit.
 
 Test totals, security finding counts by severity, and numeric coverage are not
-part of the public aggregate evidence contract. A passed check does not imply
+part of the public dashboard evidence contract. A passed check does not imply
 zero findings, a particular test count, or 100% coverage. Read the producer's
 report for those measurements. The coverage report distinguishes changes with
 no measured lines from a measured coverage percentage.

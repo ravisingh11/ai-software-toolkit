@@ -67,7 +67,32 @@ consumer-owned collisions.
 The native **Scorecard Workflow** badge is GitHub's workflow conclusion. The
 optional **Latest PR Scorecard** is the newest accepted PR readiness and
 passed/active count. Publication is downstream reporting only and never affects
-evaluation or merge policy. The public files contain aggregates including PR-size measurements and thresholds, source-run
-metadata, and a revision digest; detailed evidence is excluded from Pages and
-remains in the source Actions artifact under normal repository access. See
+evaluation or merge policy. The public files contain aggregates, PR-size
+measurements and thresholds, source-run metadata, a revision digest, and
+individual entries for all trusted built-in catalog controls. IDs, names, and
+purposes are supplied by the trusted catalog; validated scorecard rows supply
+effective modes and evidence statuses. Absent rows display **Not reported**,
+not a pass or an inferred `not_activated` mode. The source run is the evidence
+link. Private or arbitrary control IDs, provider data, findings, detailed
+evidence, reasons, check URLs, raw revisions, and source Markdown remain
+excluded from Pages and available in the source Actions artifact under normal
+repository access. See
 [quick start](../quickstart.md#publish-the-optional-scorecard-badge).
+
+### Optional check execution facts
+
+GitHub check evidence can include `check_execution` version 1: `started_at`,
+`completed_at`, `duration_seconds`, and an allowlisted `conclusion`. The collector
+adds these facts only for valid completed timestamp pairs. It adds no API calls
+or free-form log content. The evaluator verifies the conclusion against evidence
+status and verifies that duration equals the elapsed whole seconds. Missing
+metadata preserves legacy behavior; invalid supplied metadata is rejected.
+The public renderer independently validates these facts before displaying them.
+They describe check execution, not test totals, scan coverage, or finding counts.
+
+This is an additive evidence-v2 field. Old artifacts remain supported. Upgrade
+collector, evaluator, and schema together with the installer refresh workflow;
+older strict evaluators reject results containing the new optional field.
+Per-control assessment descriptions come from a trusted built-in allowlist,
+not provider-supplied prose. Providers that do not emit execution facts continue
+to show unavailable timing.

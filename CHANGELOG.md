@@ -35,6 +35,15 @@ or evidence contracts require a major release and migration guidance.
   names are unchanged. The next release must be a major version. See
   [migrating from Guardrails](docs/proof/migrating-from-guardrails.md).
 
+- Expand the public scorecard with a compact table linking to check-specific
+  assessment details, validated optional check execution timings, and explicit
+  measurement gaps. Every check shows its canonical catalog ID next to its
+  name, and the scorecard workflow evaluates with `--all-catalog-controls`
+  so a control the policy explicitly leaves `not_activated` is published as
+  **Not activated** instead of **Not reported**. Keep all active controls
+  advisory in this repository's Proof policy; GitHub required-check rules
+  remain separate.
+
 - Harden action-skill verification: reject stale or duplicate client ledger
   claims, package review contracts, and keep seeded scans self-contained.
   QA publishes sanitized non-passing reasons while remaining unsuccessful,
