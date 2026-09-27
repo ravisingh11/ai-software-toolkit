@@ -15,8 +15,9 @@ The seeded repository's unit test fails because `calc.divide` returns the wrong 
 1. Copy the fixture into a fresh Git repository and commit it.
 2. Install this skill for the client (`ai-toolkit skills install --skill fix-ci --client <client>`).
 3. Ask the agent to perform the task using the skill by name.
-4. Capture: the agent's outcome report, `git diff` of the result, and the
-   output of the verification commands the report names.
+4. Commit the fix, then rerun the checks in the clean worktree. Capture the
+   initial and fixed SHAs, `git diff <initial-sha>..<fixed-sha>`, the agent's
+   outcome report, and check output bound to the fixed SHA.
 5. Judge the demonstration against the skill's Verification section; record
    the row below with `yes` only when every listed check passed.
 

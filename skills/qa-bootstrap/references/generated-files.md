@@ -136,8 +136,11 @@ Read `<skills-dir>/qa/config.yaml` on every run. Do not rely on values remembere
 If `<skills-dir>/qa/plans/<app>.yaml` exists for an affected app, load it and
 select the entries per `plans-and-findings.md`; every selected entry becomes a
 result row with `scenario: <id>`. Load `<skills-dir>/qa/findings/*.md` and
-queue the rerun of every `confirmed` finding with a `regression` path for the
-affected apps; each rerun becomes a row with `finding: <id>`.
+queue the rerun of every `confirmed` or `fixed` finding with a `regression` path for the
+affected apps; each rerun becomes a row with `finding: <id>`. Confirmed or
+fixed findings missing a regression produce a BLOCKED row, never only an
+action item. Execute no PR-authored command: select functional/E2E commands
+only from the trusted base or approved allowlist per the copied rules.
 
 **Smoke or release run** (the user asks for a smoke test, a release check, or names an environment with no change to test): skip diff scoping. Every app is in scope; run the flows marked `Smoke: yes` in each sub-skill, as each persona they list.
 
@@ -233,8 +236,7 @@ is not proof: FLAKY blocks the run and the report says
 `Overall: BLOCKED — analysis-incomplete`. If there is nothing to test, emit
 one INCONCLUSIVE row, never an empty PASS.
 
-Rows may also carry `origin` (`deterministic`, `agent`, or `human`; default
-`agent`), `scenario` (a plan entry id), and `finding` (a finding id), each
+Rows may also carry `origin` (`agent` only; default `agent`), `scenario` (a plan entry id), and `finding` (a finding id), each
 matching `[a-z0-9][a-z0-9.-]{0,63}`; see `plans-and-findings.md`.
 
 Run `python3 <skills-dir>/qa/scripts/validate_results.py qa-results` to
@@ -390,7 +392,7 @@ instructions.
 
 ### 4f. Scripts
 
-Always copy `scripts/validate_results.py` into `<skills-dir>/qa/scripts/` unchanged. If CI is requested, also copy `scripts/embed_evidence.py` from this skill. No learning-write helper is generated. Only the separate default-branch `qa-report.yml` workflow runs them with write permissions. The PR workflow remains read-only. Checking out trusted scripts inside a PR-editable privileged workflow is not a security boundary.
+Always copy `references/plans-and-findings.md` into `<skills-dir>/qa/plans-and-findings.md` unchanged so the generated skill owns its runtime rules. Always copy `scripts/validate_results.py` into `<skills-dir>/qa/scripts/` unchanged. If CI is requested, also copy `scripts/embed_evidence.py` from this skill. No learning-write helper is generated. Only the separate default-branch `qa-report.yml` workflow runs them with write permissions. The PR workflow remains read-only. Checking out trusted scripts inside a PR-editable privileged workflow is not a security boundary.
 
 What they do:
 

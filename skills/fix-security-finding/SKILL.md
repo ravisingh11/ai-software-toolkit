@@ -38,8 +38,10 @@ suppressing a true positive.
    rather than a code change.
 2. Choose the remediation that removes the vulnerability class (parameterized
    query, allow-list, safe API) over one that patches the instance.
-3. Write a regression test with the malicious input first; confirm it fails
-   before the fix and passes after.
+3. Write a regression test using an inert canary and mocked dangerous sink,
+   or an isolated disposable sandbox with no credentials, external network, or
+   access to developer files. Never execute an exploit against a live vulnerable
+   environment. Confirm the safe red test fails before the fix and passes after.
 4. Re-run the reporting scanner locally when available (`.guardrails/scan.py`
    or the tool itself) so the same rule no longer fires.
 5. For leaked secrets: remove them from the tree, tell the user which

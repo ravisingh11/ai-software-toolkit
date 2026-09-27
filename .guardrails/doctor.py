@@ -105,7 +105,8 @@ def github_setup(target: Path, repository: str, selected: dict, providers: dict,
 
     variables = collection("/actions/variables", "variables")
     secrets = collection("/actions/secrets", "secrets")
-    selected_providers = {entry["authoritative"] for entry in selected.values()}
+    selected_providers = {provider_id for entry in selected.values()
+                          for provider_id in [entry["authoritative"], *entry.get("supplemental", [])]}
     needed_variables = {command[0]: None for control, command in producer.COMMAND_PRODUCERS.items()
                         if control in selected and command[1] == selected[control]["authoritative"]}
     if "github-codeql" in selected_providers:
@@ -168,9 +169,9 @@ def adapter_setup(target: Path, selected: dict, providers: dict, environment: di
         provider = providers[provider_id]
         # Names of declared GitHub secrets; values are never read or printed.
         credential_names = [name for key, value in provider.items() if key == "secrets" and isinstance(value, list) for name in value if isinstance(name, str)]
-        if contracts is None and provider_id in ADAPTER_BACKED_PROVIDERS:
+        if provider_id in ADAPTER_BACKED_PROVIDERS and (contracts is None or provider_id not in contracts):
             rows.append({"id": f"provider.{provider_id}.adapter", "status": "action_needed",
-                         "message": "The installed runtime has no adapter.py; adapter-owned provider commands cannot run.",
+                         "message": "The installed runtime has no adapter contract for this provider; adapter-owned commands cannot run.",
                          "next_step": "Run tooling/install.py --target <repo> --refresh-existing from a trusted release."})
         elif contracts is not None and provider_id in contracts:
             contract = contracts[provider_id]

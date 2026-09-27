@@ -32,3 +32,7 @@ environment details); link them from the row when they are shareable.
 
 A row is stale once `SKILL.md` or the fixture changes after the recorded
 revision; `tooling/validate-skills.py` requires both rows to exist.
+
+Use `python3 scan.py` as the self-contained originating synthetic check.
+Capture failing and passing scanner output; it is not a Semgrep verification.
+Use a mocked subprocess sink for the red regression, never a live exploit.

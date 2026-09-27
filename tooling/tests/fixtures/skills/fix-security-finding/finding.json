@@ -6,7 +6,7 @@
   "title": "Shell injection through greet()",
   "surface": "runner.greet",
   "evidence": ["runner.py:6"],
-  "impact": "A caller-controlled name such as \"; rm -rf /\" executes arbitrary commands.",
+  "impact": "A caller-controlled name such as \"; echo INERT_CANARY\" executes arbitrary commands.",
   "fixPlan": "Call subprocess with an argument list and no shell.",
   "verification": {"method": "regression test", "command": "python3 -m unittest discover", "result": "pending", "residualRisk": ""}
 }

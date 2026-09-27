@@ -32,3 +32,7 @@ environment details); link them from the row when they are shareable.
 
 A row is stale once `SKILL.md` or the fixture changes after the recorded
 revision; `tooling/validate-skills.py` requires both rows to exist.
+
+This seeded task is manifest-only: lockfile verification is not applicable.
+Use the fixture's documented isolated installation and synthetic advisory
+checker, and label that evidence synthetic rather than a provider scan.

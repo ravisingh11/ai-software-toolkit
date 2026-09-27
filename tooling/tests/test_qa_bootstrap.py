@@ -301,6 +301,24 @@ class QABootstrapTests(unittest.TestCase):
                 self.assertNotIn("PASS", normalized)
             self.assertEqual("validated=true" in output.read_text(), succeeds)
 
+    def test_nonpassing_sanitized_report_is_published_without_passing_policy(self):
+        results = self.root / "qa-results"
+        results.mkdir()
+        payload = self.passing_summary()
+        payload["overall"] = "blocked"
+        payload["counts"].update({"pass": 0, "flaky": 1})
+        payload["rows"][0]["result"] = "flaky"
+        (results / "summary.json").write_text(json.dumps(payload))
+        output = self.root / "outputs"
+        output.write_text("")
+        result = self.shell(self.shell_step("Validate result before publishing", 1),
+                            QA_EXECUTION_OUTCOME="success", ARTIFACT_PATHS_OUTCOME="success",
+                            ARTIFACT_DOWNLOAD_OUTCOME="success", GITHUB_OUTPUT=str(output))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = (self.root / "validated-report.md").read_text()
+        self.assertIn("Overall: BLOCKED", report)
+        self.assertNotIn("validated=true", output.read_text())
+
     @unittest.skipUnless(shutil.which("jq"), "current PR check requires jq")
     def test_stale_report_never_writes_a_comment(self):
         fake_gh = 'gh() { printf "%s\\n" "$*" >> calls; printf "%s" "$PR_JSON"; };\n'

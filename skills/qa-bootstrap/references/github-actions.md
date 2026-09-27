@@ -289,10 +289,15 @@ jobs:
         run: |
           echo 'validated=false' >> "$GITHUB_OUTPUT"
           printf '## QA Report\n\n**Result: FAILED / INCOMPLETE.** QA execution or evidence validation failed. The agent report is withheld; inspect the run logs and artifacts.\n' > validated-report.md
-          if [[ "$QA_EXECUTION_OUTCOME" = success && "$ARTIFACT_PATHS_OUTCOME" = success && "$ARTIFACT_DOWNLOAD_OUTCOME" = success ]] &&
-             python3 trusted/<skills-dir>/qa/scripts/validate_results.py qa-results; then
-            cp qa-results/report.md validated-report.md
-            echo 'validated=true' >> "$GITHUB_OUTPUT"
+          if [[ "$QA_EXECUTION_OUTCOME" = success && "$ARTIFACT_PATHS_OUTCOME" = success && "$ARTIFACT_DOWNLOAD_OUTCOME" = success ]]; then
+            policy_status=0
+            python3 trusted/<skills-dir>/qa/scripts/validate_results.py qa-results || policy_status=$?
+            if [[ "$policy_status" = 0 || "$policy_status" = 2 ]]; then
+              cp qa-results/report.md validated-report.md
+            fi
+            if [[ "$policy_status" = 0 ]]; then
+              echo 'validated=true' >> "$GITHUB_OUTPUT"
+            fi
           fi
 
       - name: Upload inline evidence

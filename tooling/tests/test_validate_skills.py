@@ -4,6 +4,7 @@ import contextlib
 import importlib.util
 import io
 import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -30,7 +31,7 @@ class ActionSkillValidationTests(unittest.TestCase):
         self.fixtures = root / "fixtures"
         shutil.copytree(ROOT / "skills" / "fix-ci", self.skills / "fix-ci")
         shutil.copytree(ROOT / "tooling" / "tests" / "fixtures" / "skills" / "fix-ci", self.fixtures / "fix-ci")
-        self.patches = [patch.object(self.module, "SKILLS_DIR", self.skills), patch.object(self.module, "FIXTURES_DIR", self.fixtures)]
+        self.patches = [patch.object(self.module, "ROOT", root), patch.object(self.module, "SKILLS_DIR", self.skills), patch.object(self.module, "FIXTURES_DIR", self.fixtures)]
         for item in self.patches:
             item.start()
             self.addCleanup(item.stop)
@@ -56,7 +57,7 @@ class ActionSkillValidationTests(unittest.TestCase):
         ledger.write_text(original.replace("| codex | no |", "| codex | maybe |"), encoding="utf-8")
         self.assert_fails("must say yes or no")
         ledger.write_text(original.replace("| codex | no | — | — |", "| codex | yes | 2026-01-01 | v2.1.0 |"), encoding="utf-8")
-        self.module.validate_action_skill("fix-ci")
+        self.assert_fails("invalid toolkit revision")
         ledger.unlink()
         self.assert_fails("missing VERIFICATION.md")
         (self.fixtures / "fix-ci" / "TASK.md").unlink()
@@ -66,6 +67,34 @@ class ActionSkillValidationTests(unittest.TestCase):
         self.assert_fails("Stop conditions")
         skill.unlink()
         self.assert_fails("no SKILL.md")
+
+
+    def test_duplicate_client_rows_rejected(self):
+        ledger = self.skills / "fix-ci" / "VERIFICATION.md"
+        ledger.write_text(ledger.read_text() + "\n| codex | no | — | — | — | — | — |\n")
+        self.assert_fails("duplicate client")
+
+    def test_verified_revision_must_match_skill_and_fixture(self):
+        root = self.skills.parent
+        def git(*args):
+            return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, text=True).stdout.strip()
+        git("init")
+        git("config", "user.email", "fixture@example.test")
+        git("config", "user.name", "Fixture")
+        git("add", ".")
+        git("commit", "-m", "seed")
+        revision = git("rev-parse", "HEAD")
+        ledger = self.skills / "fix-ci" / "VERIFICATION.md"
+        ledger.write_text(ledger.read_text().replace("| codex | no | — | — |", f"| codex | yes | 2026-01-01 | {revision} |"))
+        self.module.validate_action_skill("fix-ci")
+        for path in (self.skills / "fix-ci" / "SKILL.md", self.fixtures / "fix-ci" / "TASK.md"):
+            original = path.read_text()
+            path.write_text(original + "\nChanged\n")
+            self.assert_fails("verification is stale")
+            path.write_text(original)
+        extra = self.fixtures / "fix-ci" / "extra.py"
+        extra.write_text("# new fixture content\n")
+        self.assert_fails("verification is stale")
 
 
 if __name__ == "__main__":
