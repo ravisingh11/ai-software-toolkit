@@ -239,10 +239,11 @@ def _controls_markdown(controls: list[dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
-def _controls_html(controls: list[dict[str, str]], run_url: str) -> str:
-    sections = []
+def _controls_html(controls: list[dict[str, str]], run_url: str, scope: dict[str, Any]) -> str:
+    groups = []
+    details = []
     for group in ("Build & quality", "Security & dependencies", "AI & QA", "Release & runtime"):
-        cards = []
+        rows = []
         for row in controls:
             if row["group"] != group:
                 continue
@@ -255,10 +256,15 @@ def _controls_html(controls: list[dict[str, str]], run_url: str) -> str:
                     "failed": "The producer reported a failure.",
                     "blocked": "The producer reported a blocker."}[row["status"]]
             evidence = '' if row["status"] == "not_reported" else f'<a href="{html.escape(run_url, quote=True)}" aria-label="Source report for {safe["name"]}">Source report ↗</a>'
-            size_link = '<a href="#size-title">Files &amp; LOC details ↓</a>' if row["id"] == "change-scope" else ''
-            cards.append(f'<article class="check-card {tone}" id="check-{safe["id"]}"><div class="check-top"><h4>{safe["name"]}</h4><span class="size-result">{label}</span></div><p>{safe["purpose"]}</p><p class="check-mode">{_CONTROL_MODES[row["mode"]]}</p><p class="check-note">{note}</p><div class="check-links">{evidence}{size_link}</div></article>')
-        sections.append(f'<section class="check-group"><h3>{html.escape(group)}</h3><div class="check-grid">{"".join(cards)}</div></section>')
-    return '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title">Individual checks</h2><p class="checks-intro">All built-in catalog checks are listed below. Not reported means this snapshot has no validated row; it does not imply disabled or passed. Custom controls may contribute to the totals but their private names are not published. Source report links open the evaluation run containing the detailed evidence.</p>' + ''.join(sections) + '</section>'
+            target = "size-title" if row["id"] == "change-scope" else f"check-{safe['id']}"
+            mode = "—" if row["mode"] == "not_reported" else _CONTROL_MODES[row["mode"]]
+            rows.append(f'<tr><th scope="row"><a href="#{target}">{safe["name"]}</a></th><td><span class="size-result {tone}">{label}</span></td><td>{mode}</td><td><a href="#{target}" aria-label="View details for {safe["name"]}">Details ↓</a></td></tr>')
+            measurements = _scope_html(scope) if row["id"] == "change-scope" else ''
+            details.append(f'<article class="check-detail {tone}" id="check-{safe["id"]}" tabindex="-1"><div class="check-top"><h3>{safe["name"]}</h3><span class="size-result">{label}</span></div><p>{safe["purpose"]}</p><p class="check-mode">{_CONTROL_MODES[row["mode"]]}</p><p class="check-note">{note}</p>{measurements}<div class="check-links">{evidence}<a href="#checks-title">Back to checks ↑</a></div></article>')
+        groups.append(f'<tbody><tr class="check-category"><th colspan="4" scope="rowgroup">{html.escape(group)}</th></tr>{"".join(rows)}</tbody>')
+    overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title" tabindex="-1">Individual checks</h2><p class="checks-intro">All built-in catalog checks. Select a check to see its purpose and evidence below. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the mode is unknown. Custom controls may contribute to totals without publishing their private names.</p><div class="size-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results and policy modes for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col">Mode</th><th scope="col">Details</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
+    return overview + '<section class="checks" aria-labelledby="check-details-title"><h2 id="check-details-title">Check details</h2><p class="checks-intro">Source report links open the evaluation run containing the detailed evidence.</p>' + ''.join(details) + '</section>'
+
 
 
 def _breakdown_markdown(breakdown: dict[str, Any]) -> str:
@@ -620,11 +626,17 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .scope-totals{display:grid;grid-template-columns:1fr 1fr;gap:20px}.scope-totals strong{color:var(--ink)}
 .size-footnote{margin-bottom:0}
 .checks{margin-top:36px}.checks h2{font-size:28px;margin:0}.checks-intro{color:var(--muted);max-width:850px;font-size:14px}
-.check-group{margin:28px 0}.check-group h3{font-size:18px;margin:0 0 14px}.check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.check-card{padding:22px;border:1px solid var(--line);border-top:3px solid var(--tone);border-radius:10px;background:var(--paper);display:flex;flex-direction:column}
-.check-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.check-top h4{font-size:16px;line-height:1.4;margin:0}.check-top .size-result{font-size:11px}
-.check-card p{font-size:13px;color:var(--muted);margin:12px 0 0}.check-card .check-mode{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.6px;color:var(--ink)}
-.check-card .check-note{font-size:12px}.check-links{display:flex;flex-wrap:wrap;gap:16px;padding-top:16px;margin-top:auto;font-size:12px}
+.checks-table{width:100%;border-collapse:collapse;background:var(--paper);font-size:13px}
+.checks-table caption{text-align:left;color:var(--muted);font-size:12px;padding:0 0 10px}
+.checks-table th,.checks-table td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+.checks-table thead{background:#e8eeee}.checks-table tbody th[scope="row"]{font-weight:550}
+.checks-table .check-category th{background:#edf3f3;color:var(--accent);font-size:12px;padding-block:10px}
+.checks-table .size-result{font-size:11px;padding:2px 7px}.checks-table tbody tr:not(.check-category):hover{background:#f5f9f9}
+.check-detail,#checks-title,#size-title{scroll-margin-top:24px}.check-detail:focus,#checks-title:focus{outline:2px solid var(--accent);outline-offset:4px}
+.check-detail{margin-top:16px;padding:22px;border:1px solid var(--line);border-top:3px solid var(--tone);border-radius:10px;background:var(--paper);display:flex;flex-direction:column}
+.check-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.check-top h3{font-size:16px;line-height:1.4;margin:0}.check-top .size-result{font-size:11px}
+.check-detail p{font-size:13px;color:var(--muted);margin:12px 0 0}.check-detail .check-mode{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.6px;color:var(--ink)}
+.check-detail .check-note{font-size:12px}.check-links{display:flex;flex-wrap:wrap;gap:16px;padding-top:16px;margin-top:auto;font-size:12px}
 .evidence{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:36px;padding:30px;margin-top:24px;background:var(--paper);border:1px solid var(--line);border-radius:12px}
 .evidence h2{margin:0 0 8px;font-size:18px;letter-spacing:-.3px}
 .evidence p{color:var(--muted);font-size:13px;margin:0 0 20px;max-width:420px}
@@ -652,7 +664,7 @@ footer img{display:block;max-width:100%;height:auto}
   .status-panel{align-items:flex-start;padding:20px;gap:16px}
   .status-panel h2{font-size:18px}.decision dd{font-size:17px}
   .metrics{grid-template-columns:1fr;gap:12px}
-  .check-grid{grid-template-columns:1fr}.check-card{padding:18px}
+  .check-detail{padding:18px}.checks-table th,.checks-table td{padding:7px 9px}
   .scope-panel{padding:20px}.scope-totals{grid-template-columns:1fr;gap:0}
   .size-table{font-size:12px}
   .size-table th,.size-table td{padding:10px 5px}
@@ -726,8 +738,7 @@ def _html(metadata: dict[str, Any]) -> str:
   </section>
   <div class="metrics">{''.join(cards)}</div>
   {_breakdown_html(metadata["result_breakdown"])}
-  {_controls_html(metadata["controls"], metadata["source_run_url"])}
-  {_scope_html(metadata["change_scope"])}
+  {_controls_html(metadata["controls"], metadata["source_run_url"], metadata["change_scope"])}
   <section class="evidence" aria-labelledby="evidence-title">
     <div><h2 id="evidence-title">Trace it to the evidence</h2>
       <p>Open the source CI run for the full scorecard, individual controls, and supporting results.</p>

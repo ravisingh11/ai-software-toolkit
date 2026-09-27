@@ -408,10 +408,18 @@ class RendererTests(unittest.TestCase):
                 for private in ("PRIVATE TITLE", "PRIVATE REASON", "PRIVATE PROVIDER", "private.example"):
                     self.assertNotIn(private, text)
             page = (root / "output/index.html").read_text()
-            self.assertEqual(page.count('<article class="check-card '), len(MODULE.PUBLIC_CONTROLS))
+            self.assertEqual(page.count('<article class="check-detail '), len(MODULE.PUBLIC_CONTROLS))
             for label in ("Passed", "Failed", "Blocked", "Unverified", "Not activated", "Not reported"):
                 self.assertIn(label, page)
             self.assertIn('href="#size-title"', page)
+            self.assertEqual(page.count('scope="rowgroup"'), 4)
+            self.assertEqual(page.count('Back to checks ↑'), len(MODULE.PUBLIC_CONTROLS))
+            self.assertLess(page.index('</table></div></section><section class="checks"'), page.index('id="check-build"'))
+            for control_id, name, *_ in MODULE.PUBLIC_CONTROLS:
+                target = "size-title" if control_id == "change-scope" else f"check-{control_id}"
+                self.assertIn(f'href="#{target}"', page)
+                self.assertEqual(page.count(f'id="{target}"'), 1)
+            self.assertIn('<th scope="col">Check</th><th scope="col">Result</th><th scope="col">Mode</th>', page)
             self.assertIn('aria-label="Source report for Build"', page)
             self.assertNotIn('aria-label="Source report for Artifact SBOM"', page)
 

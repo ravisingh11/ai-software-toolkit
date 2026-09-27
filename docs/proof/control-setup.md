@@ -392,11 +392,17 @@ contains no per-file paths or raw scope findings.
 
 ## Reading scorecard evidence
 
+Check names and Details links jump to the corresponding detail section below
+the table. Each section links back to the checks. PR Size jumps directly to its
+files/LOC measurements. On narrow screens, the table scrolls horizontally so
+check names, results, and modes remain on one line.
+
+
 A passing control means its declared producer supplied passing evidence for the
 scored revision. Failed evidence, blocked producers, and unverified results are
 different outcomes. Missing, skipped, stale, or unconfigured evidence must never
 be presented as a pass or as a measured failure. The public scorecard shows
-all 33 trusted built-in catalog controls individually, grouped into quality,
+all 33 trusted built-in catalog controls in a compact table, grouped into quality,
 security, AI/QA, and lifecycle checks. Each entry shows its name, ID, purpose,
 and validated effective mode and evidence status when reported. Evidence
 labels are **Passed**, **Failed**, **Blocked**, **Unverified**,
