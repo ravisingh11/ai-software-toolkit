@@ -177,7 +177,10 @@ under a canonical skill name is left alone and listed until you adopt it with
 `ai-toolkit skills install`, which records project installs in the lock and
 adds the `skills` component (and `qa bootstrap` the `qa` component) to
 `toolkit.toml`, so a later `update` keeps managing them instead of treating
-them as removed.
+them as removed. The install that first activates a component installs and
+records the selected skills for every client the configuration already lists,
+not only the client named on the command line, so `doctor` never reports a
+managed client with nothing behind it.
 Re-running `init` on an installed repository keeps the lock's baseline for
 files it did not rewrite, so your local edits still surface as conflicts
 later, and keeps every component and client already installed; removing one

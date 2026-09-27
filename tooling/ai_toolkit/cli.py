@@ -642,6 +642,19 @@ def require_writable_records(target: Path) -> None:
             raise ToolkitError(f"{target} is not writable, so {name} cannot be rewritten")
 
 
+def clients_for_adoption(target: Path, clients: list[str], component: str) -> list[str]:
+    """Every configured client takes part in the install that first activates a component.
+
+    Otherwise the component would be recorded as managed for clients that received no
+    files or lock entries, and doctor would report them missing with nothing for update
+    to restore.
+    """
+    configuration = config.read_configuration(target)
+    if configuration is None or component in configuration["toolkit"]["components"]:
+        return clients
+    return list(dict.fromkeys([*clients, *configuration["agents"]["clients"]]))
+
+
 def adopt_component(target: Path, component: str) -> bool:
     """Add a component to toolkit.toml so update keeps managing what was just installed.
 
@@ -691,8 +704,10 @@ def cmd_skills(args: argparse.Namespace) -> int:
         if client not in config.CLIENTS:
             raise ToolkitError(f"unknown agent client: {client}")
     existing = "replace" if args.action == "refresh" else args.existing
-    if not args.user and not args.dry_run:
-        require_writable_records(target)
+    if not args.user:
+        clients = clients_for_adoption(target, clients, "skills")
+        if not args.dry_run:
+            require_writable_records(target)
     results = []
     for client in clients:
         destination = skills.client_user_dir(client) if args.user else skills.client_project_dir(client, target)
@@ -729,6 +744,7 @@ def cmd_qa(args: argparse.Namespace) -> int:
     for client in clients:
         if client not in config.CLIENTS:
             raise ToolkitError(f"unknown agent client: {client}")
+    clients = clients_for_adoption(target, clients, "qa")
     if not args.dry_run:
         require_writable_records(target)
     results = []

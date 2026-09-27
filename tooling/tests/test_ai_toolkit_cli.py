@@ -800,6 +800,33 @@ class ReviewRegressionTests(CliFixture):
         code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
         self.assertEqual(code, 0, out)
 
+    def test_adopting_a_component_installs_for_every_configured_client(self):
+        self.assertEqual(self.init("--components", "proof", "--clients", "claude-code")[0], 0)
+        self.assertEqual(config.read_configuration(self.target)["agents"]["clients"], ["claude-code"])
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.target / ".agents" / "skills" / "code-review" / "SKILL.md").is_file())
+        self.assertTrue((self.target / ".claude" / "skills" / "code-review" / "SKILL.md").is_file())
+        lock = config.read_lock(self.target)["managed"]
+        self.assertIn(".agents/skills/code-review/SKILL.md", lock)
+        self.assertIn(".claude/skills/code-review/SKILL.md", lock)
+        self.assertEqual(config.read_configuration(self.target)["agents"]["clients"], ["claude-code", "codex"])
+        states = cli.component_states(self.target, config.read_configuration(self.target), config.read_lock(self.target))
+        self.assertEqual(states["skills"]["state"], "installed", states["skills"])
+        # Once the component is managed, a later install targets only the named client.
+        code, out, _ = run_cli("skills", "install", "--skill", "security-audit-lite", "--client", "codex", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertFalse((self.target / ".claude" / "skills" / "security-audit-lite").exists())
+
+    def test_qa_bootstrap_adoption_covers_every_configured_client(self):
+        self.assertEqual(self.init("--components", "proof", "--clients", "claude-code")[0], 0)
+        code, out, _ = run_cli("qa", "bootstrap", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.target / ".agents" / "skills" / "qa-bootstrap" / "SKILL.md").is_file())
+        self.assertTrue((self.target / ".claude" / "skills" / "qa-bootstrap" / "SKILL.md").is_file())
+        states = cli.component_states(self.target, config.read_configuration(self.target), config.read_lock(self.target))
+        self.assertEqual(states["skills"]["state"], "installed", states["skills"])
+
     def test_update_never_adopts_skipped_skills_into_the_lock(self):
         self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
         mine = self.target / ".agents" / "skills" / "security-audit-lite"
