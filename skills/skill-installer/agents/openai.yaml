@@ -1,4 +1,4 @@
 interface:
   display_name: "Skill Installer"
-  short_description: "Install Codex skills"
+  short_description: "Install Codex or Claude skills"
   default_prompt: "Use $skill-installer to list, dry-run, install, or refresh canonical agent skills using tooling/install-skills.sh."

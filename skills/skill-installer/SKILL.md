@@ -1,11 +1,11 @@
 ---
 name: skill-installer
-description: "Install Codex skills from this standards repository into a local Codex skills directory using the bundled shell installer. Use when asked to install, refresh, list, or sync canonical skills for Codex."
+description: "Install Codex or Claude Code skills from this standards repository into the selected client skills directory using the bundled shell installer. Use when asked to install, refresh, list, or sync canonical skills for Codex or Claude Code."
 ---
 
 # Skill Installer
 
-Use this skill to install or refresh canonical Codex skills from the standards repository.
+Use this skill to install or refresh canonical Codex or Claude Code skills from the standards repository.
 
 ## Workflow
 
@@ -13,12 +13,19 @@ Use this skill to install or refresh canonical Codex skills from the standards r
 2. List skills before installing when the target set is unclear.
 3. Use `--dry-run` before broad installs when the target directory already has local custom skills.
 4. Choose an existing-skill policy: prompt interactively, `--skip-existing`, `--merge-existing`, or `--replace-existing`.
-5. Install all standards skills or selected skills into `${CODEX_HOME:-$HOME/.codex}/skills`.
+5. Choose the client explicitly: `--client codex` installs into
+   `${CODEX_HOME:-$HOME/.codex}/skills`; `--client claude-code` installs into
+   `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills`. `--target` overrides either.
+   Pass the chosen client on every install and dry-run command.
 6. Verify the installed skill folders contain `SKILL.md` and, for canonical skills, `agents/openai.yaml`.
 
 ## Commands
 
 ```bash
+# Claude Code installation preview and install.
+tooling/install-skills.sh --client claude-code --all --dry-run
+tooling/install-skills.sh --client claude-code --all --skip-existing
+
 # See available skills.
 tooling/install-skills.sh --list
 
@@ -58,10 +65,11 @@ tooling/install-skills.sh --all --target "$HOME/.codex/skills"
 - Run `tooling/install-skills.sh --list` from the standards repo.
 - Run a dry run before a broad install.
 - Test collision handling with `--skip-existing` or `--merge-existing` before using `--replace-existing`.
-- After install, verify a representative target skill contains `SKILL.md`.
+- After install, verify a representative target skill contains `SKILL.md` in
+  the selected client directory; verify it is discoverable by that client.
 
 ## Troubleshooting
 
-- If a skill does not appear after install, confirm `CODEX_HOME` points to the Codex home directory in use.
+- If a skill does not appear after install, confirm the selected client and `--target`; check `CODEX_HOME` for Codex or `CLAUDE_CONFIG_DIR` for Claude Code.
 - If local edits should be preserved, use `--merge-existing`, not `--replace-existing`.
 - If a stale local file must be removed, use `--replace-existing` for that selected skill after reviewing the target directory.

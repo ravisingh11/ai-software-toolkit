@@ -72,6 +72,14 @@ jobs:
           fetch-depth: 0                   # full history, for the merge-base diff
           persist-credentials: false       # PR code must not inherit a git token
 
+      - name: Load trusted QA instructions
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.base_sha }}
+          path: qa-trusted
+          sparse-checkout: <skills-dir>
+          persist-credentials: false
+
       # ── Preview URL (only if the user chose to wait for previews) ──────
       # <Poll the deployments API for the head SHA until the deployment from the
       #  expected creator succeeds; write QA_PREVIEW_URL to $GITHUB_ENV. On failure
@@ -99,12 +107,18 @@ jobs:
           CI: 'true'
           QA_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
           QA_DIFF_BASE: ${{ steps.pr.outputs.base_sha }}
+          QA_TRUSTED_SKILLS_DIR: ${{ github.workspace }}/qa-trusted/<skills-dir>
           <AGENT_API_KEY_SECRET>: ${{ secrets.<AGENT_API_KEY_SECRET> }}
           # <one line per app test credential referenced in config.yaml>
         run: |
           set -o pipefail
           mkdir -p qa-results/evidence
-          <agent.headless_command> "$(cat <skills-dir>/qa/ci-prompt.md)" 2>&1 | tee qa-results/agent-output.txt
+          # Bootstrap must already exist at the exact base revision. Never
+          # fall back to PR-authored instructions when trusted files are absent.
+          test -f "$QA_TRUSTED_SKILLS_DIR/qa/ci-prompt.md"
+          test -f "$QA_TRUSTED_SKILLS_DIR/qa/SKILL.md"
+          test -f "$QA_TRUSTED_SKILLS_DIR/qa/config.yaml"
+          <agent.headless_command> "$(cat "$QA_TRUSTED_SKILLS_DIR/qa/ci-prompt.md")" 2>&1 | tee qa-results/agent-output.txt
 
       - name: Upload results
         if: always()
@@ -214,9 +228,9 @@ jobs:
           ' <<<"$pr" >/dev/null
           jobs=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/attempts/$RUN_ATTEMPT/jobs")
           outcome=failure
-          if [[ $(jq -r .conclusion <<<"$run") = success ]] && jq -e '
-            ([.[].jobs[] | select(.name == "QA / report")] |
-              length == 1 and .[0].status == "completed" and .[0].conclusion == "success") and
+          # A completed execution may produce valid non-passing evidence. The
+          # separate QA / report policy gate then fails; that must not hide why.
+          if jq -e '
             ([.[].jobs[] | select(.name == "QA execution")] |
               length == 1 and (.[0] | .status == "completed" and .conclusion == "success" and
               ([.steps[] | select(.name == "Run QA")] | length == 1 and .[0].conclusion == "success")))' \
@@ -289,10 +303,15 @@ jobs:
         run: |
           echo 'validated=false' >> "$GITHUB_OUTPUT"
           printf '## QA Report\n\n**Result: FAILED / INCOMPLETE.** QA execution or evidence validation failed. The agent report is withheld; inspect the run logs and artifacts.\n' > validated-report.md
-          if [[ "$QA_EXECUTION_OUTCOME" = success && "$ARTIFACT_PATHS_OUTCOME" = success && "$ARTIFACT_DOWNLOAD_OUTCOME" = success ]] &&
-             python3 trusted/<skills-dir>/qa/scripts/validate_results.py qa-results; then
-            cp qa-results/report.md validated-report.md
-            echo 'validated=true' >> "$GITHUB_OUTPUT"
+          if [[ "$QA_EXECUTION_OUTCOME" = success && "$ARTIFACT_PATHS_OUTCOME" = success && "$ARTIFACT_DOWNLOAD_OUTCOME" = success ]]; then
+            policy_status=0
+            python3 trusted/<skills-dir>/qa/scripts/validate_results.py qa-results || policy_status=$?
+            if [[ "$policy_status" = 0 || "$policy_status" = 2 ]]; then
+              cp qa-results/report.md validated-report.md
+            fi
+            if [[ "$policy_status" = 0 ]]; then
+              echo 'validated=true' >> "$GITHUB_OUTPUT"
+            fi
           fi
 
       - name: Upload inline evidence

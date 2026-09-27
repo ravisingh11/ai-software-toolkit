@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from datetime import date
 import re
 import subprocess
 import sys
@@ -58,6 +59,84 @@ def validate_references(path: Path) -> None:
             fail(f"{path.relative_to(ROOT)} references missing file {raw}")
 
 
+ACTION_SKILLS = ("fix-ci", "generate-unit-tests", "fix-security-finding", "dependency-upgrade", "address-pr-findings")
+SUPPORTED_CLIENTS = ("codex", "claude-code")
+FIXTURES_DIR = ROOT / "tooling" / "tests" / "fixtures" / "skills"
+
+
+def validate_action_skill(name: str) -> None:
+    """Action skills need a seeded fixture and a per-client verification ledger."""
+    skill_dir = SKILLS_DIR / name
+    if not (skill_dir / "SKILL.md").is_file():
+        fail(f"action skill {name} has no SKILL.md")
+    text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+    for heading in ("## Inputs", "## Permitted changes", "## Stop conditions", "## Verification", "## Outcome report"):
+        if heading not in text:
+            fail(f"skills/{name}/SKILL.md is missing the {heading!r} section")
+    fixture = FIXTURES_DIR / name
+    if not (fixture / "TASK.md").is_file():
+        fail(f"action skill {name} is missing its seeded fixture {fixture}/TASK.md")
+    ledger = skill_dir / "VERIFICATION.md"
+    if not ledger.is_file():
+        fail(f"action skill {name} is missing VERIFICATION.md")
+    rows = {}
+    for line in ledger.read_text(encoding="utf-8").splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) >= 4 and cells[0] in SUPPORTED_CLIENTS:
+            if cells[0] in rows:
+                fail(f"skills/{name}/VERIFICATION.md has duplicate client {cells[0]}")
+            rows[cells[0]] = cells
+    for client in SUPPORTED_CLIENTS:
+        if client not in rows:
+            fail(f"skills/{name}/VERIFICATION.md ledger has no row for {client}")
+        verified, revision = rows[client][1].lower(), rows[client][3]
+        if verified not in {"yes", "no"}:
+            fail(f"skills/{name}/VERIFICATION.md {client} row must say yes or no, not {verified!r}")
+        if verified == "yes" and revision in {"", "—", "-"}:
+            fail(f"skills/{name}/VERIFICATION.md {client} row is verified without a toolkit revision")
+        if verified == "yes":
+            resolved = subprocess.run(
+                ["git", "rev-parse", "--verify", "--end-of-options", revision + "^{commit}"],
+                cwd=ROOT, capture_output=True, text=True,
+            )
+            if resolved.returncode:
+                fail(f"skills/{name}/VERIFICATION.md {client} has an invalid toolkit revision")
+            row = rows[client]
+            placeholders = {"", "—", "-", "n/a", "none", "unknown"}
+            if len(row) != 7 or any(row[index].lower() in placeholders for index in (2, 4, 5, 6)):
+                fail(f"skills/{name}/VERIFICATION.md {client} verification metadata is incomplete")
+            if row[5].lower() != "passed":
+                fail(f"skills/{name}/VERIFICATION.md {client} verified outcome must be passed")
+            try:
+                recorded_date = date.fromisoformat(row[2])
+                if recorded_date.isoformat() != row[2] or recorded_date > date.today():
+                    raise ValueError("invalid date")
+            except ValueError:
+                fail(f"skills/{name}/VERIFICATION.md {client} verification date is invalid")
+            if not (re.search(r"https://[^\s)]+", row[6]) or
+                    re.fullmatch(r"withheld: \S.{9,}", row[6], re.IGNORECASE)):
+                fail(f"skills/{name}/VERIFICATION.md {client} needs evidence or an explicit withheld reason")
+            commit = resolved.stdout.strip()
+            for directory in (skill_dir, fixture):
+                relative = directory.relative_to(ROOT).as_posix()
+                recorded = subprocess.run(
+                    ["git", "ls-tree", "-r", "--name-only", commit, "--", relative],
+                    cwd=ROOT, capture_output=True, text=True, check=True,
+                ).stdout.splitlines()
+                recorded = {path for path in recorded if not path.endswith("/VERIFICATION.md")}
+                current = {path.relative_to(ROOT).as_posix() for path in directory.rglob("*")
+                           if path.is_file() and path.name != "VERIFICATION.md"
+                           and "__pycache__" not in path.parts and path.suffix != ".pyc"}
+                if current != recorded:
+                    fail(f"skills/{name}/VERIFICATION.md {client} verification is stale")
+                for relative_path in current:
+                    old = subprocess.run(["git", "show", commit + ":" + relative_path],
+                                         cwd=ROOT, capture_output=True, check=True).stdout
+                    if old != (ROOT / relative_path).read_bytes():
+                        fail(f"skills/{name}/VERIFICATION.md {client} verification is stale")
+
+
+
 def validate_no_absolute_paths() -> None:
     for path in SKILLS_DIR.rglob("*"):
         if path.is_file() and path.suffix in {".md", ".py", ".yaml", ".yml"}:
@@ -95,6 +174,9 @@ def main() -> None:
         agents_file = skill_file.parent / "agents" / "openai.yaml"
         if not agents_file.exists():
             fail(f"{skill_file.parent.relative_to(ROOT)} is missing agents/openai.yaml")
+
+    for name in ACTION_SKILLS:
+        validate_action_skill(name)
 
     validate_no_absolute_paths()
     run_tests()

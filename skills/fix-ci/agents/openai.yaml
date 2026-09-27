@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fix CI"
+  short_description: "Diagnose and fix a failing check without weakening it"
+  default_prompt: "Use $fix-ci to reproduce the failing check, apply the smallest safe fix, rerun the exact command, and report the cause, change, and verification."

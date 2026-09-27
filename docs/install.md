@@ -194,3 +194,38 @@ nothing changed is a no-op.
 - Credentials stay in GitHub secrets or the provider platform.
 - The archive is pinned by release tag and checksum; nothing is fetched at
   run time.
+
+## Installing and verifying action skills
+
+The standalone installer supports both agent clients. Preview a selected
+Claude Code install with `tooling/install-skills.sh --client claude-code
+--skill fix-ci --dry-run`; use `--client codex` for Codex. An explicit
+`--target` overrides the selected client's default skills directory.
+
+The five action skills ship seeded tasks and per-client `VERIFICATION.md`
+ledgers. Installation is not evidence that an agent completed a task.
+`tooling/validate-skills.py` rejects duplicate client rows and requires each
+verified row's Git revision to match the current skill bundle and fixture.
+Verified rows also require a real date, agent version, outcome, and an evidence
+link or explicit withholding reason. Both client rows remain unverified until
+representative runs are recorded.
+
+QA bootstrap copies plan and finding rules into the generated QA skill.
+Agent-authored rows may claim only agent provenance. Sanitized non-passing
+reports preserve the failure reason without passing the policy check;
+missing regressions and flaky results remain blocked. Commands from PR
+plans or findings are suggestions, not execution authority: use trusted
+repository configuration or an approved allowlist.
+
+QA CI checks out the exact PR base into `qa-trusted` for its prompt, skills,
+config, plans, and findings. All executable test intent, including exploratory
+prose, comes from that snapshot; missing trusted setup blocks execution. The
+app under test remains at PR head. This does not make the PR-editable QA
+workflow a tamper-resistant security gate.
+
+A standalone `address-pr-findings` install bundles review contracts but does
+not install sibling action skills. A routed finding blocks with the missing
+skill named until its required sibling is installed; triage is still available.
+
+Affirmative skill verification rows require Outcome `passed`; a failed, blocked,
+or inconclusive run must remain unverified even when its evidence is recorded.

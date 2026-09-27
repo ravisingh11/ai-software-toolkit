@@ -8,6 +8,11 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Harden action-skill verification: reject stale or duplicate client ledger
+  claims, package review contracts, and keep seeded scans self-contained.
+  QA publishes sanitized non-passing reasons while remaining unsuccessful,
+  restricts agent-authored provenance, and rejects PR-supplied commands.
+
 - Brand the public PR scorecard page as AI Software Toolkit instead of
   Guardrails, matching the toolkit identity. Page content, badge URLs, bounded
   metadata, and evaluation semantics are unchanged.
@@ -26,6 +31,42 @@ or evidence contracts require a major release and migration guidance.
   `PR Change Scope` check identity and existing advisory/enforced behavior.
   Carry optional validated aggregate measurements into the public scorecard
   dashboard; older evidence without measurements displays unavailable.
+- Implement the five action skills `fix-ci`, `generate-unit-tests`,
+  `fix-security-finding`, `dependency-upgrade`, and `address-pr-findings`,
+  replacing their placeholders. Each defines inputs, permitted changes, stop
+  conditions, verification, and an outcome report; reuses the canonical review
+  skills; ships a seeded fixture; and keeps a per-client `VERIFICATION.md`
+  ledger that `tooling/validate-skills.py` now requires. No action skill is
+  labelled verified until a live run in Codex and Claude Code is recorded.
+  `tooling/install-skills.sh` gains `--client codex|claude-code`.
+- QA: `qa-bootstrap` documents version-controlled test plans
+  (`plans/<app>.yaml`), findings with regression links (`findings/<id>.md`),
+  and rerun reporting; result rows may carry `origin`, `scenario`, and
+  `finding`, rendered in the trusted report. FLAKY now maps to `blocked`
+  (`analysis-incomplete`) instead of passing, so a pass on retry can never
+  satisfy the advisory `QA / report` check; non-passing reports state the
+  overall status and reason. Functional QA remains advisory-only.
+
+- Ship adapter-owned Snyk and FOSSA workflow templates (`workflows/snyk.yml`,
+  `workflows/fossa.yml`) and install `.guardrails/adapter.py`, which runs
+  `snyk code test`, `snyk test`, and `fossa analyze` followed by `fossa test`
+  for the exact revision, maps exit codes and output to the four evidence
+  statuses, and writes nested v2 evidence fragments that `scan.py` merges.
+  Consumers supply arguments (`SNYK_CODE_ARGS`, `SNYK_OPEN_SOURCE_ARGS`,
+  `FOSSA_ARGS`), never the verb, so an upload alone cannot pass, and any
+  argument whose path resolves outside the checkout is rejected as
+  `revision-mismatch` before the provider runs. Non-passing
+  results carry a standard reason code as the prefix of `reason`
+  (`configuration-missing`, `credential-missing`, `authentication-failed`,
+  `execution-error`, `analysis-incomplete`, `revision-mismatch`,
+  `unsupported-project`, `timed-out`); the evidence schema is unchanged. The
+  FOSSA CLI is pinned by version and SHA-256. `doctor` adds adapter, local
+  credential, and template rows for selected external providers; `ai-toolkit
+  check` turns reason codes into next actions. Add provider guides, a reason
+  code reference, contract tests for every outcome, and a live verification
+  ledger; no adapter is labelled verified until a live run is recorded there.
+  Existing `snyk-code`, `snyk-open-source`, and `fossa` check identities are
+  unchanged.
 
 - Ship adapter-owned Snyk and FOSSA workflow templates (`workflows/snyk.yml`,
   `workflows/fossa.yml`) and install `.guardrails/adapter.py`, which runs
