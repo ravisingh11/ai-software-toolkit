@@ -20,7 +20,9 @@ or evidence contracts require a major release and migration guidance.
   for the exact revision, maps exit codes and output to the four evidence
   statuses, and writes nested v2 evidence fragments that `scan.py` merges.
   Consumers supply arguments (`SNYK_CODE_ARGS`, `SNYK_OPEN_SOURCE_ARGS`,
-  `FOSSA_ARGS`), never the verb, so an upload alone cannot pass. Non-passing
+  `FOSSA_ARGS`), never the verb, so an upload alone cannot pass, and any
+  argument whose path resolves outside the checkout is rejected as
+  `revision-mismatch` before the provider runs. Non-passing
   results carry a standard reason code as the prefix of `reason`
   (`configuration-missing`, `credential-missing`, `authentication-failed`,
   `execution-error`, `analysis-incomplete`, `revision-mismatch`,

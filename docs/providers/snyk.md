@@ -48,6 +48,7 @@ The Snyk CLI exit code is the contract
 | `SNYK_TOKEN` unset | `blocked` | `credential-missing` |
 | `snyk` not on `PATH` | `not_run` | `configuration-missing` |
 | `--revision` differs from `HEAD`, no resolvable `HEAD`, or a dirty worktree | `not_run` | `revision-mismatch` |
+| arguments naming a path outside the checkout (`--file=/abs/manifest`, `../dir`, a symlink that leaves the tree) | `not_run` | `revision-mismatch` |
 | arguments that stop the scan (`--help`, `--version`, subcommands) | `not_run` | `configuration-missing` |
 
 The workflow fails the job for every outcome except `passed`; the job summary

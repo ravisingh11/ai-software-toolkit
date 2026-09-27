@@ -162,6 +162,44 @@ class SnykContractTests(AdapterFixture):
         self.assertEqual(tolerated.status, "passed")
         self.assertIn("1 findings below the configured threshold", tolerated.evidence[0])
 
+    def test_paths_outside_the_checkout_never_pass(self):
+        outside = self.root / "elsewhere"
+        outside.mkdir()
+        (outside / "package.json").write_text("{}\n", encoding="utf-8")
+        escape = self.target / "escape"
+        escape.symlink_to(outside)
+        subprocess.run(["git", "add", "escape"], cwd=self.target, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-q", "-m", "symlink"], cwd=self.target, check=True, capture_output=True)
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.target, check=True, capture_output=True, text=True).stdout.strip()
+        rejected = (
+            [f"--file={outside / 'package.json'}"],
+            ["--file=../elsewhere/package.json"],
+            ["--policy-path=/"],
+            ["--severity-threshold=high", str(outside)],
+            ["../elsewhere"],
+            ["--file=escape/package.json"],
+            ["--file=sub/../../elsewhere/package.json"],
+        )
+        for arguments in rejected:
+            revision, outcome = self.module.run_provider("snyk-open-source", self.target, revision=None, arguments=arguments, timeout=5, environment=self.environment(FAKE_SNYK_MODE="clean"))
+            self.assertEqual((revision, outcome.status, outcome.code), (head, "not_run", "revision-mismatch"), arguments)
+            self.assertIn("outside the checkout", outcome.message)
+            self.assertIn("SNYK_OPEN_SOURCE_ARGS", outcome.message)
+        accepted = (
+            ["--file=package.json"],
+            ["--file=sub/../package.json"],
+            [f"--file={self.target / 'package.json'}"],
+            ["--severity-threshold=high", "--org=team/../platform", "."],
+            ["--remote-repo-url=https://github.com/example/app"],
+            ["--exclude=vendor,build"],
+        )
+        for arguments in accepted:
+            _, outcome = self.module.run_provider("snyk-open-source", self.target, revision=None, arguments=arguments, timeout=5, environment=self.environment(FAKE_SNYK_MODE="clean"))
+            self.assertEqual(outcome.status, "passed", arguments)
+        _, outcome = self.module.run_provider("fossa", self.target, revision=None, arguments=["--config=../fossa.yml"], timeout=5, environment=self.environment(FAKE_FOSSA_MODE="clean"))
+        self.assertEqual((outcome.status, outcome.code), ("not_run", "revision-mismatch"))
+        self.assertIn("FOSSA_ARGS", outcome.message)
+
     def test_changes_during_the_scan_invalidate_the_result(self):
         script = self.bin / "snyk"
         script.write_text(FAKE_SNYK.replace("  clean) echo '{\"ok\": true}'; exit 0 ;;", "  clean) echo '{\"ok\": true}'; echo dirty > \"$FAKE_TOUCH\"; exit 0 ;;"), encoding="utf-8")

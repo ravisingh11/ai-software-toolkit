@@ -40,7 +40,11 @@ python3 .guardrails/scan.py      # merges .artifacts/guardrails/evidence/*.json
 The adapter exits 0 only for `passed`; the workflow templates fail the job for
 every other outcome and put the reason in the job summary and in an uploaded
 evidence fragment. Evidence binds to a clean checkout: a dirty worktree, an
-unresolvable `HEAD`, or a revision that is not `HEAD` yields `revision-mismatch`.
+unresolvable `HEAD`, or a revision that is not `HEAD` yields `revision-mismatch`,
+and so does any `*_ARGS` value that names a path outside the checkout, such
+as `--file=/elsewhere/package.json`, `--policy-path=../shared`, or a committed
+symlink that leaves the tree, because the provider would then examine or
+filter something other than the revision.
 
 On a same-repository pull request the adapter script itself comes from the PR
 head, so a collaborator with push access could alter it; this is the same

@@ -48,6 +48,7 @@ python3 .guardrails/configure.py --select-provider license-compliance=fossa --se
 | `FOSSA_API_KEY` unset | `blocked` | `credential-missing` |
 | `fossa` not on `PATH` | `not_run` | `configuration-missing` |
 | `--revision` differs from `HEAD`, no resolvable `HEAD`, or a dirty worktree | `not_run` | `revision-mismatch` |
+| arguments naming a path outside the checkout (`--file=/abs/manifest`, `../dir`, a symlink that leaves the tree) | `not_run` | `revision-mismatch` |
 
 `FOSSA_API_KEY` is injected only into the adapter step. The template runs
 only on `pull_request` so its check name matches the provider contract.

@@ -235,6 +235,38 @@ NON_SCANNING_OPTIONS = {"--help", "-h", "--version", "-v", "--about", "config", 
 EXIT_SEMANTICS_OPTIONS = {"--fail-on"}
 
 
+def escaping_paths(target: Path, arguments: list[str]) -> list[str]:
+    """Arguments whose value resolves outside the target checkout.
+
+    Options such as Snyk's ``--file=<FILE>`` or ``--policy-path=<DIR>`` and
+    positional directories select what the provider examines. A value that
+    resolves outside the checkout (an absolute path, ``..`` segments, or a
+    symlink that leaves the tree) would scan or filter something other than
+    the revision the evidence is bound to, so it is rejected before any
+    provider runs. Values that are not paths resolve inside the checkout and
+    pass through unchanged.
+    """
+    root = target.resolve()
+    rejected: list[str] = []
+    for argument in arguments:
+        if argument.startswith("-"):
+            if "=" not in argument:
+                continue
+            value = argument.split("=", 1)[1]
+        else:
+            value = argument
+        if not value:
+            continue
+        try:
+            resolved = (root / value).resolve()
+        except (OSError, RuntimeError):
+            rejected.append(argument)
+            continue
+        if not resolved.is_relative_to(root):
+            rejected.append(argument)
+    return rejected
+
+
 def worktree_changes(target: Path) -> str | None:
     """A short description of uncommitted or untracked changes, or None when clean."""
     if not shutil.which("git"):
@@ -273,6 +305,9 @@ def run_provider(provider_id: str, target: Path, *, revision: str | None, argume
     rejected = [argument for argument in arguments if argument.split("=", 1)[0] in NON_SCANNING_OPTIONS | EXIT_SEMANTICS_OPTIONS]
     if rejected:
         return revision, Outcome("not_run", f"{provider['arguments_variable']} contains options that stop the scan or change what a passing exit means: {' '.join(rejected)}.", code="configuration-missing")
+    escaping = escaping_paths(target, arguments)
+    if escaping:
+        return revision, Outcome("not_run", f"{provider['arguments_variable']} names paths outside the checkout, so the result would not describe {revision[:12]}: {' '.join(escaping)}.", code="revision-mismatch")
     if not environment.get(provider["credential"], "").strip():
         return revision, Outcome("blocked", f"{provider['credential']} is not set for this run.", code="credential-missing")
     if not shutil.which(provider["binary"], path=environment.get("PATH")):
