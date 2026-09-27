@@ -112,6 +112,34 @@ def require_installable_root(destination_root: Path, boundary: Path | None) -> N
         raise ToolkitError(f"skill destination is not writable: {existing}")
 
 
+def require_installable(names: list[str], destination_root: Path, boundary: Path | None) -> None:
+    """Refuse a destination where any requested skill (or the shared bundle) cannot land.
+
+    Runs the same checks ``install_skills`` applies while writing, but for every
+    path up front, so a multi-destination install never fails part-way through.
+    """
+    require_installable_root(destination_root, boundary)
+    selected = list(names)
+    if selected and SHARED_BUNDLE not in selected and (source_dir() / SHARED_BUNDLE).is_dir():
+        selected.append(SHARED_BUNDLE)
+    for name in selected:
+        destination = destination_root / name
+        if destination.is_symlink():
+            raise ToolkitError(f"refusing to install skills through a symlink: {destination}")
+        if not destination.exists():
+            continue
+        if not destination.is_dir():
+            raise ToolkitError(f"skill destination exists but is not a directory: {destination}")
+        if not os.access(destination, os.W_OK):
+            raise ToolkitError(f"skill destination is not writable: {destination}")
+        for source in skill_files(name):
+            file_destination = destination / source.relative_to(source_dir() / name)
+            if file_destination.is_symlink() or any(parent.is_symlink() for parent in file_destination.parents if parent != destination and destination in parent.parents):
+                raise ToolkitError(f"refusing to install skills through a symlink: {file_destination}")
+            if file_destination.exists() and not file_destination.is_file():
+                raise ToolkitError(f"skill file destination is not a regular file: {file_destination}")
+
+
 def install_skills(names: list[str], destination_root: Path, *, existing: str = "skip", dry_run: bool = False,
                    boundary: Path | None = None) -> list[dict[str, Any]]:
     """Copy skills; returns one row per skill with the action taken and the files written.

@@ -714,7 +714,7 @@ def cmd_skills(args: argparse.Namespace) -> int:
         # and then fails on another.
         require_writable_records(target)
         for destination in destinations.values():
-            skills.require_installable_root(destination, target)
+            skills.require_installable(requested, destination, target)
     results = []
     for client, destination in destinations.items():
         rows = skills.install_skills(requested, destination, existing=existing, dry_run=args.dry_run, boundary=None if args.user else target)
@@ -756,7 +756,7 @@ def cmd_qa(args: argparse.Namespace) -> int:
     if not args.dry_run:
         require_writable_records(target)
         for destination in destinations.values():
-            skills.require_installable_root(destination, target)
+            skills.require_installable(["qa-bootstrap"], destination, target)
     results = []
     for client, destination in destinations.items():
         rows = skills.install_skills(["qa-bootstrap"], destination, existing="merge", dry_run=args.dry_run, boundary=target)
