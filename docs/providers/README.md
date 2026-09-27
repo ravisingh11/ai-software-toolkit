@@ -55,12 +55,21 @@ installation is merged. The provider contracts also list the adapter as a
 trusted path, so the scorecard refuses `Snyk Code`, `Snyk Open Source`, and
 `FOSSA` evidence (`not_run`) from any pull request whose adapter or workflow
 file differs from the base, including one that refreshes the runtime through
-`ai-toolkit update`. What remains is the trust GitHub gives every
-`pull_request` workflow that uses a secret: on a same-repository pull request
-the workflow file itself comes from the head, so protect `.github/workflows/`
-with review requirements; fork pull requests receive no secret at all. The
-provider CLI runs against candidate code and may execute the repository's own
-build tooling, which is inherent to those scanners.
+`ai-toolkit update`. The trusted checkout is the last step before the adapter
+runs, after the repository setup command and the CLI installation, so code
+that executes during setup cannot replace the adapter it finds on disk.
+
+What remains is shared-runner trust. On a same-repository pull request the
+workflow file itself comes from the head, which is the trust GitHub gives
+every `pull_request` workflow that uses a secret, so protect
+`.github/workflows/` with review requirements; fork pull requests receive no
+secret at all. The setup command is a repository variable, but it executes
+the candidate's package manifests and lifecycle hooks, and the provider CLI
+runs the repository's own build integration, all on the same runner and
+before or during the secret-bearing step. A pull request that compromises
+the runner that way is outside what the workflow can detect; if that matters,
+run setup on a separate job or runner, or require review for changes to
+manifests and hooks.
 
 ## Reason codes
 
