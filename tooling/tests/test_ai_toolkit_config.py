@@ -53,6 +53,8 @@ class ConfigurationTests(unittest.TestCase):
         cases = [
             {"toolkit": {"components": ["guardrails"]}, "agents": {}, "proof": {}},
             {"toolkit": {"components": ["skills"]}, "agents": {}, "guardrails": {}},
+            {"toolkit": {"components": ["proof"]}, "agents": {}, "proof": {"policy": ".guardrails/policy.yaml"}},
+            {"toolkit": {"components": ["proof"]}, "agents": {}, "proof": {"providers": "./.guardrails/providers.yaml"}},
         ]
         for document in cases:
             with self.subTest(document=document), self.assertRaisesRegex(ToolkitError, r"retired Guardrails.*\[proof\]"):

@@ -74,7 +74,11 @@ def validate_configuration(configuration: dict[str, Any]) -> dict[str, Any]:
     agents = configuration.get("agents", {})
     proof = configuration.get("proof", {})
     legacy_components = toolkit.get("components") if isinstance(toolkit, dict) else None
-    if "guardrails" in configuration or (isinstance(legacy_components, list) and "guardrails" in legacy_components):
+    legacy_paths = isinstance(proof, dict) and any(
+        isinstance(proof.get(key), str) and Path(proof[key]).parts[:1] == (".guardrails",)
+        for key in ("policy", "providers", "profiles")
+    )
+    if "guardrails" in configuration or legacy_paths or (isinstance(legacy_components, list) and "guardrails" in legacy_components):
         raise ToolkitError(
             f"{TOML_NAME} uses the retired Guardrails names: rename the [guardrails] table to [proof], "
             'the "guardrails" component to "proof", and .guardrails/ paths to .proof/ '
