@@ -46,11 +46,37 @@ as `--file=/elsewhere/package.json`, `--policy-path=../shared`, or a committed
 symlink that leaves the tree, because the provider would then examine or
 filter something other than the revision.
 
-On a same-repository pull request the adapter script itself comes from the PR
-head, so a collaborator with push access could alter it; this is the same
-trust level GitHub gives every `pull_request` workflow that uses a secret, and
-fork pull requests receive no secret at all. Running the adapter from the
-trusted base revision is tracked as follow-up work.
+The workflow templates check out `.proof/adapter.py` from the pull request's
+base revision into `trusted/` and run it against the head revision in
+`candidate/`, so a pull request cannot change the code that receives the
+credential. The base revision must already contain the adapter; the first
+pull request that installs it fails the job with that message until the
+installation is merged. The provider contracts also list the adapter as a
+trusted path, so the scorecard refuses `Snyk Code`, `Snyk Open Source`, and
+`FOSSA` evidence (`not_run`) from any pull request whose adapter or workflow
+file differs from the base, including one that refreshes the runtime through
+`ai-toolkit update`. The trusted checkout is the last step before the adapter
+runs, after the repository setup command and the CLI installation, so code
+that executes during setup cannot replace the adapter it finds on disk.
+The adapter step itself runs through a reset environment (`env -i`) with the
+interpreter and `PATH` recorded before the setup command ran, in Python's
+isolated mode, so nothing the setup command or the candidate adds to
+`GITHUB_PATH` or `GITHUB_ENV` reaches the process that holds the credential.
+Tools the setup command puts on the path are therefore not visible to the
+adapter; install them where the recorded `PATH` already looks, or name them
+in `*_ARGS` by a path inside the checkout.
+
+What remains is shared-runner trust. On a same-repository pull request the
+workflow file itself comes from the head, which is the trust GitHub gives
+every `pull_request` workflow that uses a secret, so protect
+`.github/workflows/` with review requirements; fork pull requests receive no
+secret at all. The setup command is a repository variable, but it executes
+the candidate's package manifests and lifecycle hooks, and the provider CLI
+runs the repository's own build integration, all on the same runner and
+before or during the secret-bearing step. A pull request that compromises
+the runner that way is outside what the workflow can detect; if that matters,
+run setup on a separate job or runner, or require review for changes to
+manifests and hooks.
 
 ## Reason codes
 
