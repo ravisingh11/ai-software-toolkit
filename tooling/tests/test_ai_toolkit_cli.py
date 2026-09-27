@@ -945,6 +945,34 @@ class ReviewRegressionTests(CliFixture):
         self.assertEqual(code, 0, out)
         self.assertTrue(link.is_symlink())
 
+    def test_project_install_requires_both_records_and_a_valid_lock(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        lock_path = self.target / config.LOCK_NAME
+        toml_before = (self.target / config.TOML_NAME).read_bytes()
+        lock_bytes = lock_path.read_bytes()
+        lock_path.unlink()
+        for arguments in (("skills", "install", "--skill", "code-review"), ("qa", "bootstrap")):
+            code, _, err = run_cli(*arguments, "--target", str(self.target))
+            self.assertEqual(code, 2, arguments)
+            self.assertIn("toolkit.lock.json is missing", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        self.assertFalse((self.target / ".agents" / "skills" / "qa-bootstrap").exists())
+        self.assertEqual((self.target / config.TOML_NAME).read_bytes(), toml_before)
+        self.assertFalse(lock_path.exists())
+        lock = json.loads(lock_bytes)
+        lock["components"] = ["proof", "bogus"]
+        lock_path.write_text(json.dumps(lock), encoding="utf-8")
+        code, _, err = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("components must be a list", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        code, _, err = run_cli("update", "--target", str(self.target), "--dry-run")
+        self.assertEqual(code, 2)
+        self.assertIn("components must be a list", err)
+        lock_path.write_bytes(lock_bytes)
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+
     def test_update_never_adopts_skipped_skills_into_the_lock(self):
         self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
         mine = self.target / ".agents" / "skills" / "security-audit-lite"

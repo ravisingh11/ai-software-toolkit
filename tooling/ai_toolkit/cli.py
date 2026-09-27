@@ -665,6 +665,12 @@ def install_and_record(target: Path, names: list[str], destinations: dict[str, P
     tree never carries files the records do not describe.
     """
     require_writable_records(target)
+    # Reading both records up front also validates them, so a malformed lock fails here
+    # rather than after files have been written. A repository that was never initialized
+    # gets an unrecorded install as before; a configuration without its lock is refused,
+    # because adopting a component there would leave nothing for update to manage.
+    if config.read_configuration(target) is not None and config.read_lock(target) is None:
+        raise ToolkitError(f"{config.LOCK_NAME} is missing while {config.TOML_NAME} exists; run `ai-toolkit update` to rebuild it before installing project skills")
     for destination in destinations.values():
         skills.require_installable(names, destination, target, existing=existing)
     records = {name: target / name for name in (config.TOML_NAME, config.LOCK_NAME)}
@@ -688,7 +694,7 @@ def install_and_record(target: Path, names: list[str], destinations: dict[str, P
             record_skills_in_lock(target, Path(row["destination"]), row["skills"], component=component)
             adopt_client(target, row["client"])
         adopt_component(target, component)
-    except (ToolkitError, OSError) as error:
+    except Exception as error:  # noqa: BLE001 - every failure undoes the whole install
         _restore(target, backup_root, tracked)
         for relative_path in tracked:
             created = target / relative_path
@@ -701,7 +707,9 @@ def install_and_record(target: Path, names: list[str], destinations: dict[str, P
         for name, path in records.items():
             _restore_record(path, originals[name])
         shutil.rmtree(backup_root, ignore_errors=True)
-        raise ToolkitError(f"{error}; previous files were restored") from error
+        if isinstance(error, (ToolkitError, OSError)):
+            raise ToolkitError(f"{error}; previous files were restored") from error
+        raise
     shutil.rmtree(backup_root, ignore_errors=True)
     return results
 

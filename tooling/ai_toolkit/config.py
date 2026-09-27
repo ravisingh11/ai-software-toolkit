@@ -174,6 +174,9 @@ def read_lock(target: Path) -> dict[str, Any] | None:
     for relative_path, digest in managed.items():
         if not isinstance(relative_path, str) or Path(relative_path).is_absolute() or ".." in Path(relative_path).parts or not isinstance(digest, str):
             raise ToolkitError(f"{LOCK_NAME} contains an invalid managed entry")
+    components = lock.get("components", [])
+    if not isinstance(components, list) or any(component not in COMPONENTS for component in components):
+        raise ToolkitError(f"{LOCK_NAME} components must be a list drawn from {', '.join(COMPONENTS)}; delete it and run update to rebuild it")
     return lock
 
 
