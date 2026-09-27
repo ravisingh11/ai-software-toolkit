@@ -183,6 +183,22 @@ class InstalledScorecardWorkflowTests(unittest.TestCase):
             )
             self.assertEqual(missing, [])
 
+    def test_scorecard_commands_publish_every_catalog_control(self) -> None:
+        # Explicit not_activated modes reach the dashboard only when the evaluation
+        # includes the whole catalog; otherwise they collapse to "Not reported".
+        with tempfile.TemporaryDirectory() as temporary:
+            trusted_checkout = Path(temporary) / ".proof-trusted"
+            trusted_checkout.mkdir()
+            MODULE.install(trusted_checkout, dry_run=False, profiles=["github"])
+            workflow = (
+                trusted_checkout / ".github/workflows/proof-scorecard.yml"
+            ).read_text(encoding="utf-8")
+            segments = workflow.split("python3 .proof-trusted/.proof/scorecard.py")
+            commands = [segment.split("||", 1)[0] for segment in segments[1:]]
+            self.assertEqual(len(commands), 2)
+            for command in commands:
+                self.assertIn("--all-catalog-controls", command)
+
 
 if __name__ == "__main__":
     unittest.main()

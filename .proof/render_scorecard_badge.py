@@ -405,9 +405,9 @@ def _control_details(document: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _controls_markdown(controls: list[dict[str, Any]]) -> str:
     lines = ["## Individual checks", "", "Every built-in catalog check is listed. Not reported means this snapshot has no validated row; it does not imply disabled or passed.", "",
-             "| Check | Mode | Result | Purpose |", "| --- | --- | --- | --- |"]
+             "| Check | ID | Mode | Result | Purpose |", "| --- | --- | --- | --- | --- |"]
     for row in controls:
-        lines.append(f"| {row['name']} | {_CONTROL_MODES[row['mode']]} | {_CONTROL_RESULTS[row['status']][0]} | {row['purpose']} |")
+        lines.append(f"| {row['name']} | `{row['id']}` | {_CONTROL_MODES[row['mode']]} | {_CONTROL_RESULTS[row['status']][0]} | {row['purpose']} |")
     return "\n".join(lines)
 
 
@@ -430,7 +430,7 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
             evidence = '' if row["status"] == "not_reported" else f'<a href="{html.escape(run_url, quote=True)}" aria-label="Source report for {safe["name"]}">Source report ↗</a>'
             target = "size-title" if row["id"] == "change-scope" else f"check-{safe['id']}"
             mode = "—" if row["mode"] == "not_reported" else _CONTROL_MODES[row["mode"]]
-            rows.append(f'<tr><th scope="row"><a href="#{target}">{safe["name"]}</a></th><td><span class="size-result {tone}">{label}</span></td><td>{mode}</td><td><a href="#{target}" aria-label="View details for {safe["name"]}">Details ↓</a></td></tr>')
+            rows.append(f'<tr><th scope="row"><a href="#{target}">{safe["name"]}</a> <code class="check-id">{safe["id"]}</code></th><td><span class="size-result {tone}">{label}</span></td><td>{mode}</td><td><a href="#{target}" aria-label="View details for {safe["name"]}">Details ↓</a></td></tr>')
             assessment, inputs, condition, metrics = _CHECK_ASSESSMENTS[row["id"]]
             criteria = [("Assessment", assessment), ("Evaluates", inputs), ("Expected result", condition)]
             execution = row["execution"]
@@ -448,7 +448,7 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
             if row["id"] == "change-scope":
                 measurements += _scope_html(scope)
             note_html = f'<p class="check-note">{note}</p>' if note else ''
-            details.append(f'<article class="check-detail {tone}" id="check-{safe["id"]}" tabindex="-1"><div class="check-top"><h3>{safe["name"]}</h3><span class="size-result">{label}</span></div><p>{safe["purpose"]}</p><p class="check-mode">{_CONTROL_MODES[row["mode"]]}</p>{note_html}{measurements}<div class="check-links">{evidence}<a href="#checks-title">Back to checks ↑</a></div></article>')
+            details.append(f'<article class="check-detail {tone}" id="check-{safe["id"]}" tabindex="-1"><div class="check-top"><h3>{safe["name"]} <code class="check-id">{safe["id"]}</code></h3><span class="size-result">{label}</span></div><p>{safe["purpose"]}</p><p class="check-mode">{_CONTROL_MODES[row["mode"]]}</p>{note_html}{measurements}<div class="check-links">{evidence}<a href="#checks-title">Back to checks ↑</a></div></article>')
         groups.append(f'<tbody><tr class="check-category"><th colspan="4" scope="rowgroup">{html.escape(group)}</th></tr>{"".join(rows)}</tbody>')
     overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title" tabindex="-1">Individual checks</h2><p class="checks-intro">All built-in catalog checks. Select a check to see its purpose and evidence below. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the mode is unknown. Custom controls may contribute to totals without publishing their private names.</p><div class="size-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results and policy modes for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col">Mode</th><th scope="col">Details</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
     return overview + '<section class="checks" aria-labelledby="check-details-title"><h2 id="check-details-title">Check details</h2><p class="checks-intro">Source report links open the evaluation run containing the detailed evidence.</p>' + ''.join(details) + '</section>'
@@ -819,6 +819,7 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .checks-table th,.checks-table td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
 .checks-table thead{background:#e8eeee}.checks-table tbody th[scope="row"]{font-weight:550}
 .checks-table .check-category th{background:#edf3f3;color:var(--accent);font-size:12px;padding-block:10px}
+.check-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;font-weight:400;color:var(--muted);margin-left:6px}
 .checks-table .size-result{font-size:11px;padding:2px 7px}.checks-table tbody tr:not(.check-category):hover{background:#f5f9f9}
 .assessment-table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px}.assessment-table caption{text-align:left;color:var(--muted);font-size:12px;padding-bottom:8px}.assessment-table th,.assessment-table td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:10px 8px}.assessment-table th{width:180px;font-weight:600}.assessment-table td{overflow-wrap:anywhere}
 .check-detail,#checks-title,#size-title{scroll-margin-top:24px}.check-detail:focus,#checks-title:focus{outline:2px solid var(--accent);outline-offset:4px}

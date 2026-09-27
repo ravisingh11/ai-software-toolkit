@@ -168,6 +168,7 @@ jobs:
             --operation change \
             --revision "${REVISION}" \
             --subject-type git-commit \
+            --all-catalog-controls \
             --json \
             > "${SCORECARD_JSON}" || json_status=$?
           markdown_status=0
@@ -180,6 +181,7 @@ jobs:
             --operation change \
             --revision "${REVISION}" \
             --subject-type git-commit \
+            --all-catalog-controls \
             > "${SCORECARD_MARKDOWN}" || markdown_status=$?
           cat "${SCORECARD_MARKDOWN}" >> "${GITHUB_STEP_SUMMARY}"
           if [ "${json_status}" -ne 0 ]; then

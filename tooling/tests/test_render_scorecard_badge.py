@@ -451,6 +451,12 @@ class RendererTests(unittest.TestCase):
                 self.assertIn(f'href="#{target}"', page)
                 self.assertEqual(page.count(f'id="{target}"'), 1)
             self.assertIn('<th scope="col">Check</th><th scope="col">Result</th><th scope="col">Mode</th>', page)
+            # Each check shows its canonical catalog ID, in the table row and in its detail heading.
+            self.assertIn('<a href="#check-build">Build</a> <code class="check-id">build</code>', page)
+            self.assertIn('<h3>Build <code class="check-id">build</code></h3>', page)
+            markdown = (root / "output/scorecard.md").read_text()
+            self.assertIn("| Check | ID | Mode | Result | Purpose |", markdown)
+            self.assertIn("| Build | `build` |", markdown)
             self.assertIn('aria-label="Source report for Build"', page)
             self.assertNotIn('aria-label="Source report for Artifact SBOM"', page)
 
