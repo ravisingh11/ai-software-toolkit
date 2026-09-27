@@ -216,3 +216,13 @@ reports preserve the failure reason without passing the policy check;
 missing regressions and flaky results remain blocked. Commands from PR
 plans or findings are suggestions, not execution authority: use trusted
 repository configuration or an approved allowlist.
+
+QA CI checks out the exact PR base into `qa-trusted` for its prompt, skills,
+config, plans, and findings. All executable test intent, including exploratory
+prose, comes from that snapshot; missing trusted setup blocks execution. The
+app under test remains at PR head. This does not make the PR-editable QA
+workflow a tamper-resistant security gate.
+
+A standalone `address-pr-findings` install bundles review contracts but does
+not install sibling action skills. A routed finding blocks with the missing
+skill named until its required sibling is installed; triage is still available.

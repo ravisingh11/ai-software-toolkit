@@ -27,5 +27,26 @@ class SeededScannerTests(unittest.TestCase):
                 self.assertEqual(after.returncode, 0, after.stderr)
 
 
+    def test_standalone_findings_install_includes_contracts_and_blocks_missing_routes(self):
+        root = FIXTURES.parents[3]
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "skills"
+            result = subprocess.run(
+                ["bash", str(root / "tooling/install-skills.sh"), "--skill", "address-pr-findings",
+                 "--target", str(target), "--skip-existing"],
+                cwd=root, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            installed = target / "address-pr-findings"
+            self.assertTrue((installed / "references/finding-format.md").is_file())
+            self.assertTrue((installed / "references/dedupe-rules.md").is_file())
+            for sibling in ("fix-ci", "fix-security-finding", "dependency-upgrade", "generate-unit-tests"):
+                self.assertFalse((target / sibling).exists())
+            instructions = (installed / "SKILL.md").read_text()
+            self.assertIn("BLOCKED: missing", instructions)
+            self.assertIn("Load it before", instructions)
+            self.assertIn("first apply the routing dependency check", instructions)
+
+
 if __name__ == "__main__":
     unittest.main()
