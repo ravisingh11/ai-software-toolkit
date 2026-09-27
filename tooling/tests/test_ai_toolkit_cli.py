@@ -5,6 +5,7 @@ import io
 import json
 import os
 import stat
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -518,6 +519,36 @@ class ReviewRegressionTests(CliFixture):
         self.assertEqual(code, 0, out)
         self.assertNotIn("missing    proof", out)
         self.assertIn("installed  skills", out)
+
+    def test_update_rejects_retired_guardrails_skill_and_prints_replacement(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "change-proof-control")[0], 0)
+        skills_root = self.target / ".agents" / "skills"
+        (skills_root / "change-proof-control").rename(skills_root / "change-guardrail-control")
+        lock_path = self.target / "toolkit.lock.json"
+        lock_path.write_text(lock_path.read_text(encoding="utf-8").replace("change-proof-control", "change-guardrail-control"), encoding="utf-8")
+
+        code, _, err = run_cli("update", "--target", str(self.target), "--force")
+
+        self.assertEqual(code, 2)
+        for expected in (
+            "retired Guardrails skills",
+            "git rm -r -q --ignore-unmatch .agents/skills/change-guardrail-control",
+            "rm -rf .agents/skills/change-guardrail-control",
+            "ai-toolkit skills install --skill change-proof-control --client codex",
+        ):
+            self.assertIn(expected, err)
+        self.assertTrue((skills_root / "change-guardrail-control").is_dir())
+
+        shutil.rmtree(skills_root / "change-guardrail-control")
+        code, _, err = run_cli("update", "--target", str(self.target), "--force")
+        self.assertEqual(code, 2, "a recorded retired skill without its replacement is not silently dropped")
+        self.assertIn("ai-toolkit skills install --skill change-proof-control --client codex", err)
+        self.assertEqual(run_cli("skills", "install", "--skill", "change-proof-control", "--client", "codex", "--target", str(self.target))[0], 0)
+        code, out, _ = run_cli("update", "--target", str(self.target), "--force")
+        self.assertEqual(code, 0, out)
+        managed = json.loads(lock_path.read_text(encoding="utf-8"))["managed"]
+        self.assertIn(".agents/skills/change-proof-control/SKILL.md", managed)
+        self.assertFalse([path for path in managed if "change-guardrail-control" in path])
 
     def test_update_keeps_extra_files_in_managed_skills(self):
         self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)

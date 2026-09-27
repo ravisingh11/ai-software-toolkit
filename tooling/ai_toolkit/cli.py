@@ -94,6 +94,37 @@ def skill_roots(target: Path, configuration: dict[str, Any] | None) -> list[Path
     return sorted(roots)
 
 
+RETIRED_SKILLS = {"change-guardrail-control": "change-proof-control"}
+
+
+def reject_retired_skills(target: Path, configuration: dict[str, Any] | None, lock: dict[str, Any] | None) -> None:
+    """Refuse to update over a retired skill name and print its exact replacement."""
+    clients = {skills.client_project_dir(client, target): client for client in config.CLIENTS}
+    managed = (lock or {}).get("managed", {})
+    steps: list[str] = []
+    for root in skill_roots(target, configuration):
+        prefix = relative(root, target) + "/"
+        for old, new in RETIRED_SKILLS.items():
+            recorded = any(path.startswith(f"{prefix}{old}/") for path in managed)
+            # A recorded retired skill is resolved once its replacement is installed; update
+            # then drops the retired lock entries because they are no longer canonical.
+            if not ((root / old).exists() or (recorded and not (root / new).is_dir())):
+                continue
+            steps.append(f"git rm -r -q --ignore-unmatch {prefix}{old}")
+            steps.append(f"rm -rf {prefix}{old}")
+            client = clients.get(root)
+            steps.append(
+                f"ai-toolkit skills install --skill {new} --client {client}" if client
+                else f"ai-toolkit skills install --skill {new}  # then copy it into {prefix}"
+            )
+    if steps:
+        raise ToolkitError(
+            "retired Guardrails skills are installed; Proof renamed them. Replace them with:\n"
+            + "\n".join(f"  {step}" for step in steps)
+            + "\nSee docs/proof/migrating-from-guardrails.md."
+        )
+
+
 def recorded_skills(target: Path, lock: dict[str, Any] | None, root: Path) -> list[str]:
     """Skill names the lock records under ``root``, whether or not the directory still exists."""
     prefix = relative(root, target) + "/"
@@ -691,6 +722,7 @@ def cmd_update(args: argparse.Namespace) -> int:
         return _rollback(target, configuration, lock, args)
     if configuration is None:
         raise ToolkitError(f"{config.TOML_NAME} is missing; run `ai-toolkit init` first")
+    reject_retired_skills(target, configuration, lock)
     current = revision()
     managed = managed_files(target, configuration, lock)
     classification = config.classify(target, lock, managed) if lock else bootstrap_classification(target, managed, configuration)

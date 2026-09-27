@@ -68,6 +68,8 @@ LEGACY_RUNTIME = Path(".guardrails")
 LEGACY_WORKFLOW_MARKER = "# Guardrails v2 installer-owned workflow."
 LEGACY_REFERENCES = (".guardrails/", "guardrails-", "guardrails:", "GUARDRAILS_")
 MIGRATED_CONFIGURATION = (*sorted(PRESERVED_CONFIGURATION), Path(".proof/providers.yaml"))
+# Consumer-kept files that may name the retired layout: generated local hooks.
+REWRITTEN_FILES = (*MIGRATED_CONFIGURATION, Path(".pre-commit-config.yaml"))
 
 
 class InstallItem(NamedTuple):
@@ -211,7 +213,7 @@ def reject_legacy_layout(target: Path) -> None:
         if legacy_present and (legacy / relative.relative_to(".proof")).is_file()
     ]
     edited = sorted(
-        relative for relative in MIGRATED_CONFIGURATION
+        relative for relative in REWRITTEN_FILES
         if stale(target / relative) or (relative in moves and stale(legacy / relative.relative_to(".proof")))
     )
     if not (legacy_present or legacy_workflows or edited):
@@ -222,11 +224,13 @@ def reject_legacy_layout(target: Path) -> None:
         steps.extend(f"git mv {LEGACY_RUNTIME / relative.relative_to('.proof')} {relative}" for relative in moves)
     if edited:
         steps.append(
-            "perl -pi -e 's#\\.guardrails/#.proof/#g; s/guardrails([-:])/proof$1/g; s/GUARDRAILS_/PROOF_/g' "
+            "perl -pi -e 's#\\.guardrails/#.proof/#g; s/guardrails([-:])/proof$1/g; s/GUARDRAILS_/PROOF_/g; s/Guardrails /Proof /g' "
             + " ".join(map(str, edited))
         )
     if legacy_present:
-        steps.append(f"git rm -r {LEGACY_RUNTIME}")
+        # Ignored files such as __pycache__ survive git rm and would keep the layout detected.
+        steps.append(f"git rm -r -q {LEGACY_RUNTIME}")
+        steps.append(f"rm -rf {LEGACY_RUNTIME}")
     steps.extend(f"git rm {path.relative_to(target)}" for path in legacy_workflows)
     badge = any(path.name == "guardrails-scorecard-badge.yml" for path in legacy_workflows)
     steps.append(

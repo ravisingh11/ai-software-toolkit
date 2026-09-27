@@ -561,6 +561,9 @@ class InstallerTests(unittest.TestCase):
         for name in ("guardrails-scorecard.yml", "guardrails-scorecard-badge.yml", "build.yml"):
             (workflows / name).write_text(MODULE.LEGACY_WORKFLOW_MARKER + "\nname: Legacy\n")
         (workflows / "consumer.yml").write_text("name: Consumer guardrails\n")
+        (target / ".pre-commit-config.yaml").write_text(
+            "      - id: guardrails-semgrep-ce\n        entry: semgrep --config .guardrails/semgrep-rules.yml\n"
+        )
 
     def test_rejects_retired_guardrails_layout_with_exact_migration_in_every_mode(self) -> None:
         modes = (
@@ -583,11 +586,11 @@ class InstallerTests(unittest.TestCase):
                     "mkdir -p .proof",
                     "git mv .guardrails/policy.yaml .proof/policy.yaml",
                     "git mv .guardrails/documentation.yaml .proof/documentation.yaml",
-                    "git rm -r .guardrails",
+                    "git rm -r -q .guardrails\n  rm -rf .guardrails\n",
                     "git rm .github/workflows/build.yml",
                     "git rm .github/workflows/guardrails-scorecard.yml",
                     "--refresh-existing --scorecard-badge",
-                    "g; s/GUARDRAILS_/PROOF_/g' .proof/documentation.yaml\n",
+                    "s/Guardrails /Proof /g' .pre-commit-config.yaml .proof/documentation.yaml\n",
                     "PROOF_*",
                     "'Proof Scorecard'",
                 ):
