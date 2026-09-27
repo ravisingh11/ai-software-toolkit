@@ -85,7 +85,22 @@ class ActionSkillValidationTests(unittest.TestCase):
         git("commit", "-m", "seed")
         revision = git("rev-parse", "HEAD")
         ledger = self.skills / "fix-ci" / "VERIFICATION.md"
-        ledger.write_text(ledger.read_text().replace("| codex | no | — | — |", f"| codex | yes | 2026-01-01 | {revision} |"))
+        original_ledger = ledger.read_text()
+        good = f"| codex | yes | 2026-01-01 | {revision} | client 1.0 | Fixed with passing checks | https://example.test/evidence |"
+        original_row = "| codex | no | — | — | — | — | — |"
+        ledger.write_text(original_ledger.replace(original_row, good))
+        self.module.validate_action_skill("fix-ci")
+        for index in (2, 4, 5, 6):
+            cells = [cell.strip() for cell in good.strip("|").split("|")]
+            cells[index] = "—"
+            ledger.write_text(original_ledger.replace(original_row, "| " + " | ".join(cells) + " |"))
+            self.assert_fails("metadata is incomplete")
+        for bad_date in ("2026-02-30", "2099-01-01", "20260101"):
+            ledger.write_text(original_ledger.replace(original_row, good.replace("2026-01-01", bad_date)))
+            self.assert_fails("date is invalid")
+        ledger.write_text(original_ledger.replace(original_row, good.replace("https://example.test/evidence", "not shared")))
+        self.assert_fails("needs evidence")
+        ledger.write_text(original_ledger.replace(original_row, good.replace("https://example.test/evidence", "withheld: private environment transcript retained by maintainer")))
         self.module.validate_action_skill("fix-ci")
         for path in (self.skills / "fix-ci" / "SKILL.md", self.fixtures / "fix-ci" / "TASK.md"):
             original = path.read_text()

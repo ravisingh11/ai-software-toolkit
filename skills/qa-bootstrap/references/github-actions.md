@@ -214,9 +214,9 @@ jobs:
           ' <<<"$pr" >/dev/null
           jobs=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/attempts/$RUN_ATTEMPT/jobs")
           outcome=failure
-          if [[ $(jq -r .conclusion <<<"$run") = success ]] && jq -e '
-            ([.[].jobs[] | select(.name == "QA / report")] |
-              length == 1 and .[0].status == "completed" and .[0].conclusion == "success") and
+          # A completed execution may produce valid non-passing evidence. The
+          # separate QA / report policy gate then fails; that must not hide why.
+          if jq -e '
             ([.[].jobs[] | select(.name == "QA execution")] |
               length == 1 and (.[0] | .status == "completed" and .conclusion == "success" and
               ([.steps[] | select(.name == "Run QA")] | length == 1 and .[0].conclusion == "success")))' \

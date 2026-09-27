@@ -237,7 +237,7 @@ class QABootstrapTests(unittest.TestCase):
         self.assertNotEqual(self.validate_origin(run, pr, jobs)[0].returncode, 0)
 
     @unittest.skipUnless(shutil.which("jq"), "trusted outcome validation requires jq")
-    def test_trusted_reporter_requires_run_gate_and_execution_success(self):
+    def test_trusted_reporter_requires_execution_success_independently_of_policy(self):
         for failed in ("run", "gate", "execution", "step"):
             run, pr, jobs = self.origin_fixture()
             if failed == "run":
@@ -250,7 +250,7 @@ class QABootstrapTests(unittest.TestCase):
                 jobs[0]["jobs"][0]["steps"][0]["conclusion"] = "failure"
             result, output = self.validate_origin(run, pr, jobs)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("execution_outcome=failure", output)
+            self.assertIn("execution_outcome=" + ("success" if failed in ("run", "gate") else "failure"), output)
 
     @unittest.skipUnless(shutil.which("jq"), "artifact provenance validation requires jq")
     def test_trusted_reporter_accepts_only_one_bounded_artifact_from_exact_run(self):
@@ -311,8 +311,19 @@ class QABootstrapTests(unittest.TestCase):
         (results / "summary.json").write_text(json.dumps(payload))
         output = self.root / "outputs"
         output.write_text("")
+        # Model the real lifecycle: execution succeeded, then the read-only
+        # policy gate failed on flaky evidence, making the whole run fail.
+        policy = self.shell(self.shell_step("Apply result policy", 0), QA_EXECUTION_OUTCOME="success")
+        self.assertNotEqual(policy.returncode, 0)
+        run, pr, jobs = self.origin_fixture()
+        run["conclusion"] = "failure"
+        jobs[0]["jobs"][1]["conclusion"] = "failure"
+        origin, origin_output = self.validate_origin(run, pr, jobs)
+        self.assertEqual(origin.returncode, 0, origin.stderr)
+        outcome = dict(line.split("=", 1) for line in origin_output.splitlines())["execution_outcome"]
+        output.write_text("")
         result = self.shell(self.shell_step("Validate result before publishing", 1),
-                            QA_EXECUTION_OUTCOME="success", ARTIFACT_PATHS_OUTCOME="success",
+                            QA_EXECUTION_OUTCOME=outcome, ARTIFACT_PATHS_OUTCOME="success",
                             ARTIFACT_DOWNLOAD_OUTCOME="success", GITHUB_OUTPUT=str(output))
         self.assertEqual(result.returncode, 0, result.stderr)
         report = (self.root / "validated-report.md").read_text()

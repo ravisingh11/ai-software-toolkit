@@ -36,3 +36,7 @@ revision; `tooling/validate-skills.py` requires both rows to exist.
 This seeded task is manifest-only: lockfile verification is not applicable.
 Use the fixture's documented isolated installation and synthetic advisory
 checker, and label that evidence synthetic rather than a provider scan.
+
+A verified row must include an actual ISO date, agent version, concrete outcome,
+and an HTTPS evidence link or `withheld: <reason>` explaining why retained
+evidence cannot be shared. Placeholder metadata cannot support a yes claim.

@@ -36,3 +36,7 @@ revision; `tooling/validate-skills.py` requires both rows to exist.
 Use `python3 scan.py` as the self-contained originating synthetic check.
 Capture failing and passing scanner output; it is not a Semgrep verification.
 Use a mocked subprocess sink for the red regression, never a live exploit.
+
+A verified row must include an actual ISO date, agent version, concrete outcome,
+and an HTTPS evidence link or `withheld: <reason>` explaining why retained
+evidence cannot be shared. Placeholder metadata cannot support a yes claim.

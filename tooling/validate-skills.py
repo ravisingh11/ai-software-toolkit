@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from datetime import date
 import re
 import subprocess
 import sys
@@ -100,6 +101,19 @@ def validate_action_skill(name: str) -> None:
             )
             if resolved.returncode:
                 fail(f"skills/{name}/VERIFICATION.md {client} has an invalid toolkit revision")
+            row = rows[client]
+            placeholders = {"", "—", "-", "n/a", "none", "unknown"}
+            if len(row) != 7 or any(row[index].lower() in placeholders for index in (2, 4, 5, 6)):
+                fail(f"skills/{name}/VERIFICATION.md {client} verification metadata is incomplete")
+            try:
+                recorded_date = date.fromisoformat(row[2])
+                if recorded_date.isoformat() != row[2] or recorded_date > date.today():
+                    raise ValueError("invalid date")
+            except ValueError:
+                fail(f"skills/{name}/VERIFICATION.md {client} verification date is invalid")
+            if not (re.search(r"https://[^\s)]+", row[6]) or
+                    re.fullmatch(r"withheld: \S.{9,}", row[6], re.IGNORECASE)):
+                fail(f"skills/{name}/VERIFICATION.md {client} needs evidence or an explicit withheld reason")
             commit = resolved.stdout.strip()
             for directory in (skill_dir, fixture):
                 relative = directory.relative_to(ROOT).as_posix()
