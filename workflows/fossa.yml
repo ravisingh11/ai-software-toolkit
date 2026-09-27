@@ -6,9 +6,16 @@ name: FOSSA
 # (credential-missing, authentication-failed, analysis-incomplete,
 # execution-error, unsupported-project, timed-out). Consumers supply extra
 # `fossa analyze` arguments through the FOSSA_ARGS repository variable. The
-# CLI is pinned by version and SHA-256; update both together. The key reaches
-# only the adapter step. This workflow is used directly (not through
-# workflow_call) so its check name matches the provider contract exactly.
+# CLI is pinned by version and SHA-256; update both together. The adapter is
+# checked out from the pull request's base revision (`trusted/`) and runs
+# against the head revision (`candidate/`), so a pull request cannot change
+# the code that receives the key. The trusted checkout happens immediately
+# before the adapter step, after the CLI installation, so nothing that ran
+# earlier in the job can replace it. The adapter step runs with a reset
+# environment and the interpreter and PATH recorded beforehand, so nothing
+# the candidate adds to GITHUB_PATH or GITHUB_ENV reaches the key. The key reaches only the adapter step. This
+# workflow is used directly (not through workflow_call) so its check name
+# matches the provider contract exactly.
 
 on:
   pull_request:
@@ -35,18 +42,12 @@ jobs:
       PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY || '.' }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Check out the candidate revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: candidate
           persist-credentials: false
-      - name: Require the installed adapter
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ ! -f .proof/adapter.py ]]; then
-            echo "::error::.proof/adapter.py is missing; refresh the Proof installation (tooling/install.py --refresh-existing)." >&2
-            exit 1
-          fi
       - name: Install the pinned FOSSA CLI
         shell: bash
         run: |
@@ -59,19 +60,58 @@ jobs:
           unzip -q -o "${RUNNER_TEMP}/fossa-cli/fossa.zip" fossa -d "${RUNNER_TEMP}/fossa-cli"
           chmod +x "${RUNNER_TEMP}/fossa-cli/fossa"
           echo "${RUNNER_TEMP}/fossa-cli" >> "${GITHUB_PATH}"
-      - name: Run FOSSA analyze and test through the adapter
+      - name: Record trusted tool paths
+        id: tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "python=$(command -v python3)"
+            echo "path=${PATH}"
+          } >> "${GITHUB_OUTPUT}"
+      - name: Check out the trusted adapter from the base revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: trusted
+          fetch-depth: 1
+          persist-credentials: false
+          sparse-checkout: |
+            .proof/adapter.py
+          sparse-checkout-cone-mode: false
+      - name: Require the trusted adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -L trusted/.proof || -L trusted/.proof/adapter.py ]]; then
+            echo "::error::.proof/adapter.py is a symlink in the base revision; refusing to run it." >&2
+            exit 1
+          fi
+          if [[ ! -f trusted/.proof/adapter.py ]]; then
+            echo "::error::the base revision does not contain .proof/adapter.py; merge the Proof installation (tooling/install.py --refresh-existing) before this check can produce evidence." >&2
+            exit 1
+          fi
+      - name: Run FOSSA analyze and test through the trusted adapter
         shell: bash
         env:
           FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
+          TRUSTED_PATH: ${{ steps.tools.outputs.path }}
+          TRUSTED_PYTHON: ${{ steps.tools.outputs.python }}
         run: |
           set -uo pipefail
-          python3 .proof/adapter.py fossa \
-            --target "${PROOF_WORKING_DIRECTORY}" \
+          # A reset environment, the interpreter and PATH recorded before the setup command
+          # ran, and isolated mode: nothing the candidate added to GITHUB_PATH or GITHUB_ENV
+          # reaches the process that holds the credential.
+          /usr/bin/env -i \
+            PATH="${TRUSTED_PATH}" HOME="${HOME}" CI=true \
+            FOSSA_API_KEY="${FOSSA_API_KEY}" FOSSA_ARGS="${FOSSA_ARGS}" \
+            "${TRUSTED_PYTHON}" -I trusted/.proof/adapter.py fossa \
+            --target "candidate/${PROOF_WORKING_DIRECTORY}" \
             --revision "${HEAD_SHA}" \
             --timeout 1200 \
-            --evidence-dir "${RUNNER_TEMP}/evidence" | tee "${RUNNER_TEMP}/fossa.txt"
+            --evidence-dir "${RUNNER_TEMP}/evidence" | /usr/bin/tee "${RUNNER_TEMP}/fossa.txt"
           status=${PIPESTATUS[0]}
-          printf '### FOSSA\n\n```text\n%s\n```\n' "$(cat "${RUNNER_TEMP}/fossa.txt")" >> "${GITHUB_STEP_SUMMARY}"
+          printf '### FOSSA\n\n```text\n%s\n```\n' "$(/bin/cat "${RUNNER_TEMP}/fossa.txt")" >> "${GITHUB_STEP_SUMMARY}"
           exit "${status}"
       - name: Upload evidence fragment
         if: ${{ always() }}

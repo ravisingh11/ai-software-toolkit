@@ -34,10 +34,11 @@ published release. Ignored artifacts do not make the checkout dirty.
 
 The launcher uses `.proof/scan.py` from the repository root and explicitly
 selects this repository's installed `.proof/policy.yaml`, `profiles.yaml`,
-`control-catalog.yaml`, and `providers.yaml`. This preserves the repository's
-enforced controls instead of using the shared advisory defaults in the source
-distribution. It binds these repository producers, overriding inherited command
-settings:
+`control-catalog.yaml`, and `providers.yaml`. All active controls in this
+repository are advisory. Dependency remediation remains `not_activated`, and
+unselected providers are not activated by this policy. These scorecard policy
+modes do not change GitHub required-check rules. The launcher binds these
+repository producers, overriding inherited command settings:
 
 | Producer | Command |
 | --- | --- |

@@ -409,10 +409,14 @@ Add the badges after the first successful publication:
 
 For an `OWNER.github.io` repository, use the Pages root without the repository
 segment. These example URLs are for public Pages; use GitHub's configured
-site URL for private Pages. The bounded projection contains aggregate status/counts, source-run
-metadata, and a revision digest. Detailed controls, findings, evidence, reasons,
-provider data, check URLs, raw revisions, and source Markdown are excluded from
-Pages and remain in the source Actions artifact under normal repository access.
+site URL for private Pages. The bounded projection contains aggregate
+status/counts, PR-size measurements and thresholds, source-run metadata, a
+revision digest, and every trusted built-in catalog control. IDs, names, and
+purposes come from the trusted catalog; effective modes and evidence statuses
+come from validated scorecard rows. Private or arbitrary control IDs, findings,
+detailed evidence, reasons, provider data, check URLs, raw revisions, and source
+Markdown are excluded from Pages and remain in the source Actions artifact
+under normal repository access.
 Publishing is optional reporting and never influences the
 scorecard decision or branch rules.
 
@@ -423,7 +427,18 @@ source CI run. Verification details expand to show the subject digest; summary
 JSON and Markdown remain available. The layout adapts to narrow screens and
 loads without JavaScript or external fonts. “Not passed” includes failed,
 missing, and unresolved evidence; zero configured controls are labeled
-explicitly. This is the latest published PR evaluation, not an assessment of
-the current default branch.
+explicitly. Each catalog control has an individual entry; absent rows display
+**Not reported**, not an inferred pass or disabled state. An explicit
+`not_activated` mode is shown separately. The source CI run is the evidence
+link for the control results. PR Size retains its measurements panel; other
+controls do not acquire invented test totals, coverage percentages, or
+security finding counts. This is the latest published PR evaluation, not an
+assessment of the current default branch.
 
 Continue with [control setup](proof/control-setup.md) and [rulesets](../rulesets/README.md).
+
+Per-check details also show trusted assessment criteria and validated optional
+execution timestamps, duration, and conclusion. These facts do not imply test
+counts or security finding totals. Missing measurements are explicitly named;
+no numerical result is inferred from a passing check. See the
+[execution evidence contract](proof/implementation.md#optional-check-execution-facts) for upgrade compatibility.

@@ -8,9 +8,17 @@ name: Snyk
 # Any non-passing outcome fails the job; the reason code is in the job summary
 # and in the uploaded evidence fragment. Set the SNYK_CODE_ENABLED or
 # SNYK_OPEN_SOURCE_ENABLED repository variable to "false" to skip a job whose
-# provider is not selected. The token reaches only the adapter step, never the
-# repository setup command. This workflow is used directly (not through
-# workflow_call) so its check names match the provider contract exactly.
+# provider is not selected. The adapter is checked out from the pull request's
+# base revision (`trusted/`) and runs against the head revision (`candidate/`),
+# so a pull request cannot change the code that receives the token. The trusted
+# checkout happens immediately before the adapter step, after the setup
+# command and CLI installation, so nothing that ran earlier in the job can
+# replace it, and the adapter step runs with a reset environment and the
+# interpreter and PATH recorded before the setup command, so nothing the
+# candidate adds to GITHUB_PATH or GITHUB_ENV reaches the token. The token
+# reaches only the adapter step, never the repository setup command. This
+# workflow is used directly (not through workflow_call) so its check names
+# match the provider contract exactly.
 
 on:
   pull_request:
@@ -34,33 +42,66 @@ jobs:
       PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY || '.' }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Check out the candidate revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: candidate
           persist-credentials: false
-      - name: Require the installed adapter
+      - name: Install Snyk CLI
+        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04
+      - name: Record trusted tool paths
+        id: tools
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! -f .proof/adapter.py ]]; then
-            echo "::error::.proof/adapter.py is missing; refresh the Proof installation (tooling/install.py --refresh-existing)." >&2
+          {
+            echo "python=$(command -v python3)"
+            echo "path=${PATH}"
+          } >> "${GITHUB_OUTPUT}"
+      - name: Check out the trusted adapter from the base revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: trusted
+          fetch-depth: 1
+          persist-credentials: false
+          sparse-checkout: |
+            .proof/adapter.py
+          sparse-checkout-cone-mode: false
+      - name: Require the trusted adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -L trusted/.proof || -L trusted/.proof/adapter.py ]]; then
+            echo "::error::.proof/adapter.py is a symlink in the base revision; refusing to run it." >&2
             exit 1
           fi
-      - name: Install Snyk CLI
-        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04
-      - name: Run Snyk Code through the adapter
+          if [[ ! -f trusted/.proof/adapter.py ]]; then
+            echo "::error::the base revision does not contain .proof/adapter.py; merge the Proof installation (tooling/install.py --refresh-existing) before this check can produce evidence." >&2
+            exit 1
+          fi
+      - name: Run Snyk Code through the trusted adapter
         shell: bash
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          TRUSTED_PATH: ${{ steps.tools.outputs.path }}
+          TRUSTED_PYTHON: ${{ steps.tools.outputs.python }}
         run: |
           set -uo pipefail
-          python3 .proof/adapter.py snyk-code \
-            --target "${PROOF_WORKING_DIRECTORY}" \
+          # A reset environment, the interpreter and PATH recorded before the setup command
+          # ran, and isolated mode: nothing the candidate added to GITHUB_PATH or GITHUB_ENV
+          # reaches the process that holds the credential.
+          /usr/bin/env -i \
+            PATH="${TRUSTED_PATH}" HOME="${HOME}" CI=true \
+            SNYK_TOKEN="${SNYK_TOKEN}" SNYK_CODE_ARGS="${SNYK_CODE_ARGS}" \
+            "${TRUSTED_PYTHON}" -I trusted/.proof/adapter.py snyk-code \
+            --target "candidate/${PROOF_WORKING_DIRECTORY}" \
             --revision "${HEAD_SHA}" \
             --timeout 1200 \
-            --evidence-dir "${RUNNER_TEMP}/evidence" | tee "${RUNNER_TEMP}/snyk-code.txt"
+            --evidence-dir "${RUNNER_TEMP}/evidence" | /usr/bin/tee "${RUNNER_TEMP}/snyk-code.txt"
           status=${PIPESTATUS[0]}
-          printf '### Snyk Code\n\n```text\n%s\n```\n' "$(cat "${RUNNER_TEMP}/snyk-code.txt")" >> "${GITHUB_STEP_SUMMARY}"
+          printf '### Snyk Code\n\n```text\n%s\n```\n' "$(/bin/cat "${RUNNER_TEMP}/snyk-code.txt")" >> "${GITHUB_STEP_SUMMARY}"
           exit "${status}"
       - name: Upload evidence fragment
         if: ${{ always() }}
@@ -82,38 +123,71 @@ jobs:
       PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY || '.' }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Check out the candidate revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: candidate
           persist-credentials: false
-      - name: Require the installed adapter
+      - name: Install Snyk CLI
+        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04
+      - name: Record trusted tool paths
+        id: tools
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! -f .proof/adapter.py ]]; then
-            echo "::error::.proof/adapter.py is missing; refresh the Proof installation (tooling/install.py --refresh-existing)." >&2
-            exit 1
-          fi
+          {
+            echo "python=$(command -v python3)"
+            echo "path=${PATH}"
+          } >> "${GITHUB_OUTPUT}"
       - name: Install dependencies with the repository setup command
         if: ${{ vars.PROOF_SETUP_COMMAND != '' }}
-        working-directory: ${{ vars.PROOF_WORKING_DIRECTORY || '.' }}
+        working-directory: candidate/${{ vars.PROOF_WORKING_DIRECTORY || '.' }}
         shell: bash
         run: bash -euo pipefail -c "${PROOF_SETUP_COMMAND}"
-      - name: Install Snyk CLI
-        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04
-      - name: Run Snyk Open Source through the adapter
+      - name: Check out the trusted adapter from the base revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: trusted
+          fetch-depth: 1
+          persist-credentials: false
+          sparse-checkout: |
+            .proof/adapter.py
+          sparse-checkout-cone-mode: false
+      - name: Require the trusted adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -L trusted/.proof || -L trusted/.proof/adapter.py ]]; then
+            echo "::error::.proof/adapter.py is a symlink in the base revision; refusing to run it." >&2
+            exit 1
+          fi
+          if [[ ! -f trusted/.proof/adapter.py ]]; then
+            echo "::error::the base revision does not contain .proof/adapter.py; merge the Proof installation (tooling/install.py --refresh-existing) before this check can produce evidence." >&2
+            exit 1
+          fi
+      - name: Run Snyk Open Source through the trusted adapter
         shell: bash
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          TRUSTED_PATH: ${{ steps.tools.outputs.path }}
+          TRUSTED_PYTHON: ${{ steps.tools.outputs.python }}
         run: |
           set -uo pipefail
-          python3 .proof/adapter.py snyk-open-source \
-            --target "${PROOF_WORKING_DIRECTORY}" \
+          # A reset environment, the interpreter and PATH recorded before the setup command
+          # ran, and isolated mode: nothing the candidate added to GITHUB_PATH or GITHUB_ENV
+          # reaches the process that holds the credential.
+          /usr/bin/env -i \
+            PATH="${TRUSTED_PATH}" HOME="${HOME}" CI=true \
+            SNYK_TOKEN="${SNYK_TOKEN}" SNYK_OPEN_SOURCE_ARGS="${SNYK_OPEN_SOURCE_ARGS}" \
+            "${TRUSTED_PYTHON}" -I trusted/.proof/adapter.py snyk-open-source \
+            --target "candidate/${PROOF_WORKING_DIRECTORY}" \
             --revision "${HEAD_SHA}" \
             --timeout 1200 \
-            --evidence-dir "${RUNNER_TEMP}/evidence" | tee "${RUNNER_TEMP}/snyk-open-source.txt"
+            --evidence-dir "${RUNNER_TEMP}/evidence" | /usr/bin/tee "${RUNNER_TEMP}/snyk-open-source.txt"
           status=${PIPESTATUS[0]}
-          printf '### Snyk Open Source\n\n```text\n%s\n```\n' "$(cat "${RUNNER_TEMP}/snyk-open-source.txt")" >> "${GITHUB_STEP_SUMMARY}"
+          printf '### Snyk Open Source\n\n```text\n%s\n```\n' "$(/bin/cat "${RUNNER_TEMP}/snyk-open-source.txt")" >> "${GITHUB_STEP_SUMMARY}"
           exit "${status}"
       - name: Upload evidence fragment
         if: ${{ always() }}

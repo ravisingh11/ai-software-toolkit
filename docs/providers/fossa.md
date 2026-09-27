@@ -51,7 +51,10 @@ python3 .proof/configure.py --select-provider license-compliance=fossa --set lic
 | arguments naming a path outside the checkout (`--file=/abs/manifest`, `../dir`, a symlink that leaves the tree) | `not_run` | `revision-mismatch` |
 
 `FOSSA_API_KEY` is injected only into the adapter step. The template runs
-only on `pull_request` so its check name matches the provider contract.
+only on `pull_request` so its check name matches the provider contract. The
+adapter is checked out from the base revision (`trusted/`) and scans the head
+checkout (`candidate/`); a pull request that changes `.proof/adapter.py` or
+the workflow file yields `not_run` evidence until it is merged.
 
 ## Verify
 

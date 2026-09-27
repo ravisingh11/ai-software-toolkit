@@ -1680,5 +1680,36 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
         self.assertLessEqual(len(result["evidence"][0]), 1000)
 
 
+class CheckExecutionMetadataTests(unittest.TestCase):
+    def check(self) -> dict:
+        return {**check_run("Build", 1), "started_at": "2026-09-26T12:00:00Z",
+                "completed_at": "2026-09-26T12:01:02.900000Z"}
+
+    def test_completed_check_retains_timing_and_conclusion(self) -> None:
+        for conclusion, status in MODULE.CONCLUSIONS.items():
+            with self.subTest(conclusion=conclusion):
+                check = {**self.check(), "conclusion": conclusion}
+                result = MODULE.check_run_evidence("build", "Build", check)
+                self.assertEqual(result["status"], status)
+                self.assertEqual(result["check_execution"], {
+                    "version": 1, "started_at": check["started_at"],
+                    "completed_at": check["completed_at"], "duration_seconds": 62,
+                    "conclusion": conclusion,
+                })
+
+    def test_unusable_optional_metadata_does_not_change_result(self) -> None:
+        baseline = MODULE.check_run_evidence("build", "Build", check_run("Build", 1))
+        for overrides in (
+            {"started_at": None}, {"started_at": 123}, {"completed_at": "bogus"},
+            {"completed_at": "2026-09-26T11:00:00Z"},
+            {"started_at": "2026-09-26T12:00:00"},
+            {"completed_at": "2026-09-31T12:00:00Z"},
+            {"status": "in_progress"},
+        ):
+            with self.subTest(overrides=overrides):
+                result = MODULE.check_run_evidence("build", "Build", {**self.check(), **overrides})
+                self.assertEqual(result, baseline)
+
+
 if __name__ == "__main__":
     unittest.main()

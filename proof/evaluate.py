@@ -7,6 +7,7 @@ import argparse
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -288,6 +289,42 @@ def validate_policy(policy: dict[str, Any], profile_ids: set[str], controls: dic
                 raise ValueError(f"{control_id} is advisory-only and cannot be enforced")
 
 
+CHECK_CONCLUSIONS = {
+    "success": "passed", "failure": "failed", "cancelled": "blocked",
+    "timed_out": "blocked", "action_required": "blocked", "stale": "blocked",
+    "neutral": "not_run", "skipped": "not_run",
+}
+CHECK_TIMESTAMP_PATTERN = r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|[+-][0-9]{2}:[0-9]{2})"
+
+
+def check_timestamp(value: Any) -> datetime:
+    """Parse bounded, timezone-aware RFC3339 execution timestamps."""
+    if not isinstance(value, str) or re.fullmatch(CHECK_TIMESTAMP_PATTERN, value) is None:
+        raise ValueError("check_execution timestamp is invalid")
+    # datetime normalizes oversized offset minutes; reject those explicitly.
+    if value[-1] != "Z" and (int(value[-5:-3]) > 23 or int(value[-2:]) > 59):
+        raise ValueError("check_execution timezone offset is invalid")
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def validate_check_execution(value: Any, status: str) -> None:
+    """Validate optional execution facts independently of enforcement mode."""
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"version", "started_at", "completed_at", "duration_seconds", "conclusion"}
+        or type(value["version"]) is not int or value["version"] != 1
+        or not isinstance(value["conclusion"], str)
+        or value["conclusion"] not in CHECK_CONCLUSIONS
+        or CHECK_CONCLUSIONS[value["conclusion"]] != status
+        or type(value["duration_seconds"]) is not int
+        or not 0 <= value["duration_seconds"] <= 2**53 - 1
+    ):
+        raise ValueError("check_execution metadata contract is invalid")
+    elapsed = (check_timestamp(value["completed_at"]) - check_timestamp(value["started_at"])).total_seconds()
+    if elapsed < 0 or int(elapsed) != value["duration_seconds"]:
+        raise ValueError("check_execution duration is inconsistent")
+
+
 def validate_change_scope(value: Any, status: str) -> None:
     """Validate optional display metrics without changing control evaluation policy."""
     metric_limits = {
@@ -368,7 +405,7 @@ def validate_evidence(
                 raise ValueError(f"evidence references unknown provider: {provider_id}")
             if control_id not in providers[provider_id]["capabilities"]:
                 raise ValueError(f"provider {provider_id} does not provide {control_id}")
-            if not isinstance(result, dict) or set(result) - {"producer", "status", "evidence", "reason", "change_scope"}:
+            if not isinstance(result, dict) or set(result) - {"producer", "status", "evidence", "reason", "change_scope", "check_execution"}:
                 raise ValueError(f"evidence {control_id}.{provider_id} is invalid")
             if (
                 not isinstance(result.get("producer"), str)
@@ -379,6 +416,8 @@ def validate_evidence(
             status = result.get("status")
             if status not in STATUSES:
                 raise ValueError(f"evidence {control_id}.{provider_id} status is invalid")
+            if "check_execution" in result:
+                validate_check_execution(result["check_execution"], status)
             if "change_scope" in result:
                 if (control_id, provider_id) != ("change-scope", "repository-change-scope"):
                     raise ValueError("change_scope metadata is only valid for change-scope.repository-change-scope")

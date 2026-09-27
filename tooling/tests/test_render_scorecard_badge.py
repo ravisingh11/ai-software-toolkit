@@ -383,6 +383,97 @@ class RendererTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.render(source, root / "published")
 
+    def test_execution_details_are_bounded_and_status_consistent(self) -> None:
+        execution = {"version": 1, "started_at": "2026-09-27T01:00:00Z",
+                     "completed_at": "2026-09-27T01:00:12Z", "duration_seconds": 12,
+                     "conclusion": "success"}
+        row = {"evidence_status": "passed", "authoritative_result": {"status": "passed", "check_execution": execution}}
+        details = MODULE._execution_details(row)
+        self.assertEqual(details["duration_seconds"], 12)
+        self.assertEqual(details["availability"], "available")
+        for mutation in ({"version": True}, {"duration_seconds": True}, {"duration_seconds": 11},
+                         {"duration_seconds": -1}, {"conclusion": "failure"}, {"conclusion": []},
+                         {"completed_at": "2026-09-27T01:00:12.123456789Z"}, {"completed_at": "invalid"}, {"started_at": "2026-09-27T02:00:00Z"},
+                         {"started_at": "2026-09-27T01:00:00+00:99"}, {"started_at": None},
+                         {"unexpected": "PRIVATE"}):
+            with self.subTest(mutation=mutation):
+                changed = {**row, "authoritative_result": {"status": "passed", "check_execution": {**execution, **mutation}}}
+                self.assertEqual(MODULE._execution_details(changed), {"availability": "unavailable"})
+        contradictory = {**row, "authoritative_result": {"status": "failed", "check_execution": execution}}
+        self.assertEqual(MODULE._execution_details(contradictory), {"availability": "unavailable"})
+        card = scorecard(enforced=(1, 1), advisory=(0, 0))
+        card["controls"] = [{**row, "id": "build", "effective_mode": "enforced"}]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.render(self.write_source(root, card), root / "output")
+            page = (root / "output/index.html").read_text()
+            self.assertIn("12 seconds", page)
+            self.assertIn("2026-09-27T01:00:12Z", page)
+            self.assertNotIn("Passing evidence reported for this snapshot", page)
+            self.assertIn("Tests passed; failed; skipped; total", page)
+            self.assertIn("Measurements not collected", page)
+
+    def test_public_catalog_matches_canonical_controls(self) -> None:
+        catalog = json.loads((ROOT / "policies/control-catalog.yaml").read_text())["controls"]
+        expected = [(row["id"], "PR Size" if row["id"] == "change-scope" else row["name"], row["purpose"]) for row in catalog]
+        self.assertEqual([row[:3] for row in MODULE.PUBLIC_CONTROLS], expected)
+        self.assertEqual(set(MODULE._CHECK_ASSESSMENTS), {row["id"] for row in catalog})
+        self.assertEqual(SCRIPT.read_bytes(), (ROOT / ".proof/render_scorecard_badge.py").read_bytes())
+
+    def test_individual_checks_preserve_results_without_private_fields(self) -> None:
+        card = self.breakdown_card()
+        ids = ["build", "unit-tests", "change-scope", "deep-sast", "functional-qa", "runtime-soak"]
+        for row, control_id in zip(card["controls"], ids):
+            row.update(id=control_id, name="PRIVATE TITLE <script>", reason="PRIVATE REASON",
+                       provider="PRIVATE PROVIDER", evidence_url="https://private.example")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = self.render(self.write_source(root, card), root / "output")
+            rows = {row["id"]: row for row in metadata["controls"]}
+            self.assertEqual([rows[key]["status"] for key in ids],
+                             ["passed", "passed", "failed", "blocked", "no_result", "not_activated"])
+            self.assertEqual(rows["artifact-sbom"]["status"], "not_reported")
+            for filename in ("index.html", "scorecard.md", "scorecard.json"):
+                text = (root / "output" / filename).read_text()
+                self.assertIn("PR Size", text)
+                for private in ("PRIVATE TITLE", "PRIVATE REASON", "PRIVATE PROVIDER", "private.example"):
+                    self.assertNotIn(private, text)
+            page = (root / "output/index.html").read_text()
+            self.assertEqual(page.count('<article class="check-detail '), len(MODULE.PUBLIC_CONTROLS))
+            for label in ("Passed", "Failed", "Blocked", "Unverified", "Not activated", "Not reported"):
+                self.assertIn(label, page)
+            self.assertIn('href="#size-title"', page)
+            self.assertEqual(page.count('scope="rowgroup"'), 4)
+            self.assertEqual(page.count('Back to checks ↑'), len(MODULE.PUBLIC_CONTROLS))
+            self.assertLess(page.index('</table></div></section><section class="checks"'), page.index('id="check-build"'))
+            for control_id, name, *_ in MODULE.PUBLIC_CONTROLS:
+                target = "size-title" if control_id == "change-scope" else f"check-{control_id}"
+                self.assertIn(f'href="#{target}"', page)
+                self.assertEqual(page.count(f'id="{target}"'), 1)
+            self.assertIn('<th scope="col">Check</th><th scope="col">Result</th><th scope="col">Mode</th>', page)
+            # Each check shows its canonical catalog ID, in the table row and in its detail heading.
+            self.assertIn('<a href="#check-build">Build</a> <code class="check-id">build</code>', page)
+            self.assertIn('<h3>Build <code class="check-id">build</code></h3>', page)
+            markdown = (root / "output/scorecard.md").read_text()
+            self.assertIn("| Check | ID | Mode | Result | Purpose |", markdown)
+            self.assertIn("| Build | `build` |", markdown)
+            self.assertIn('aria-label="Source report for Build"', page)
+            self.assertNotIn('aria-label="Source report for Artifact SBOM"', page)
+
+    def test_inconsistent_rows_do_not_publish_individual_passes(self) -> None:
+        card = scorecard()
+        card["controls"] = [{"id": "build", "effective_mode": "enforced", "evidence_status": "passed"}]
+        for rows in (card["controls"], card["controls"] * 2, None):
+            card["controls"] = rows
+            self.assertTrue(all(row["status"] == "not_reported" for row in MODULE._control_details(card)))
+
+    def test_unknown_control_names_remain_private(self) -> None:
+        card = scorecard(enforced=(1, 1), advisory=(0, 0))
+        card["controls"] = [{"id": "private-customer-control", "effective_mode": "enforced", "evidence_status": "passed"}]
+        projected = MODULE._control_details(card)
+        self.assertNotIn("private-customer-control", json.dumps(projected))
+        self.assertTrue(all(row["status"] == "not_reported" for row in projected))
+
     def test_inspection_and_pages_urls(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -390,7 +481,7 @@ class RendererTests(unittest.TestCase):
             inspected = MODULE.inspect_scorecard(source)
             self.assertEqual(inspected["subject_revision"], REVISION)
             self.assertEqual(inspected["status"], "GREEN")
-            self.assertNotIn("controls", inspected)
+            self.assertTrue(all(row["status"] == "not_reported" for row in inspected["controls"]))
             self.assertEqual(
                 MODULE.pages_base_url("owner/repo"), "https://owner.github.io/repo/"
             )

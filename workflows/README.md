@@ -116,7 +116,10 @@ PR-head policy/configuration as fixed-path non-symlink data, and never executes
 candidate code with the GitHub token. It waits up to 1,800 seconds, writes paired
 timestamped scorecard JSON and Markdown plus timestamped evidence, appends the
 Markdown to the job summary, and uploads `.artifacts/proof` as
-`proof-scorecard-<run-id>`.
+`proof-scorecard-<run-id>`. Both scorecard commands pass
+`--all-catalog-controls`, so a control the policy explicitly sets to
+`not_activated` is published as **Not activated** on the dashboard rather than
+collapsing to **Not reported**; those `GRAY` rows never count toward totals.
 
 The native **Scorecard Workflow** badge reports whether this workflow ran. The
 optional **Latest PR Scorecard** badge reports readiness and passed/active count
@@ -161,8 +164,8 @@ Shipped vendor templates (copy into `.github/workflows/`; see
 | Template | Workflow / check names | Command ownership |
 | --- | --- | --- |
 | `sonar.yml` | `SonarQube` / `SonarQube Quality Gate` | Scanner action, then the quality-gate wait action; `SONAR_TOKEN` |
-| `snyk.yml` | `Snyk` / `Snyk Code`, `Snyk Open Source` | `.proof/adapter.py` runs `snyk code test` and `snyk test`; consumers set `SNYK_CODE_ARGS` / `SNYK_OPEN_SOURCE_ARGS`; `SNYK_TOKEN` |
-| `fossa.yml` | `FOSSA` / `FOSSA` | `.proof/adapter.py` runs `fossa analyze` then `fossa test` for the exact revision; consumers set `FOSSA_ARGS`; `FOSSA_API_KEY`; CLI pinned by version and SHA-256 |
+| `snyk.yml` | `Snyk` / `Snyk Code`, `Snyk Open Source` | `.proof/adapter.py` from the base revision runs `snyk code test` and `snyk test` against the head checkout; consumers set `SNYK_CODE_ARGS` / `SNYK_OPEN_SOURCE_ARGS`; `SNYK_TOKEN` |
+| `fossa.yml` | `FOSSA` / `FOSSA` | `.proof/adapter.py` from the base revision runs `fossa analyze` then `fossa test` against the head checkout for the exact revision; consumers set `FOSSA_ARGS`; `FOSSA_API_KEY`; CLI pinned by version and SHA-256 |
 
 The adapter templates fail the job for every non-passing outcome and put the
 standard reason code (`credential-missing`, `authentication-failed`,
