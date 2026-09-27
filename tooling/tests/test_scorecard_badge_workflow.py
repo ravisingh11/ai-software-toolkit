@@ -50,6 +50,7 @@ class ScorecardBadgeWorkflowTests(unittest.TestCase):
                     "GUARDRAILS_SCORECARD_BADGE_PAGES_MODE == 'dedicated'", text
                 )
                 self.assertIn("environment:\n      name: github-pages", text)
+                self.assertIn("GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS: ${{ vars.GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS }}", text)
                 self.assertIn("fetch-depth: 0", text)
                 self.assertIn("persist-credentials: false", text)
                 self.assertNotIn("github.event.pull_request.head", text)

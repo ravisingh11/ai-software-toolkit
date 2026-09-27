@@ -8,6 +8,16 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Default installation guidance to Actions scorecard summaries and artifacts,
+  with read-only detection of the target repository's visibility. Keep Pages
+  publication opt-in. Block publication when live visibility is unknown or a
+  private/internal repository lacks an explicitly configured and verified
+  private Pages destination (`GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS=private`).
+  Existing nonpublic publishers must configure private Pages and this variable
+  before their next publication; normal CI scorecards remain available.
+  Private publishing selects retained CI evidence without fetching the previous
+  authenticated report. Previously deployed public reports are not removed.
+
 - Make PR size reporting explicit with the `PR Size / Files & LOC` workflow,
   measured-versus-limit tables, and counted/excluded totals. Preserve the
   `PR Change Scope` check identity and existing advisory/enforced behavior.

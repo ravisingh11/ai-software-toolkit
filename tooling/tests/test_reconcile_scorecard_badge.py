@@ -424,7 +424,7 @@ class ReconcilerTests(unittest.TestCase):
             class Client:
                 def json(self, url: str) -> Any:
                     if url == "https://api.github.com/repos/owner/repo":
-                        return {"default_branch": DEFAULT_BRANCH}
+                        return {"default_branch": DEFAULT_BRANCH, "visibility": "public"}
                     if "/actions/workflows/" in url:
                         return {"workflow_runs": [newest, fallback]}
                     if "/actions/runs/200/artifacts" in url:
@@ -479,11 +479,35 @@ class ReconcilerTests(unittest.TestCase):
             published = json.loads((output / "scorecard.json").read_text())
             self.assertEqual(published["source_run_id"], 199)
 
+            class PrivateClient(Client):
+                def json(self, url: str) -> Any:
+                    if url == "https://api.github.com/repos/owner/repo":
+                        return {"default_branch": DEFAULT_BRANCH, "visibility": "private"}
+                    if url.endswith("/pages"):
+                        return {"public": False, "html_url": "https://private.pages.github.io/"}
+                    if "/actions/workflows/" in url:
+                        return {"workflow_runs": [fallback]}
+                    return super().json(url)
+
+            loader = mock.Mock(side_effect=AssertionError("private Pages must not be fetched"))
+            private_output = root / "private-site"
+            selected, rejected, publish = MODULE.reconcile(
+                REPOSITORY, "token", repository_root,
+                ROOT / "tooling" / "render_scorecard_badge.py", private_output,
+                pages_access="private", client=PrivateClient(), published_loader=loader,
+            )
+            self.assertTrue(publish)
+            self.assertEqual(selected["pages_url"], "https://private.pages.github.io/")
+            self.assertEqual(selected["run"]["id"], 199)
+            self.assertEqual(rejected, [])
+            self.assertTrue((private_output / "index.html").is_file())
+            loader.assert_not_called()
+
     def test_reconcile_propagates_malformed_api_state_without_output(self) -> None:
         class Client:
             def json(self, url: str) -> Any:
                 if url == "https://api.github.com/repos/owner/repo":
-                    return {"default_branch": DEFAULT_BRANCH}
+                    return {"default_branch": DEFAULT_BRANCH, "visibility": "public"}
                 if "/actions/workflows/" in url:
                     return {"workflow_runs": [run()]}
                 if "/artifacts" in url:
@@ -512,7 +536,7 @@ class ReconcilerTests(unittest.TestCase):
         class Client:
             def json(self, url: str) -> Any:
                 if url == "https://api.github.com/repos/owner/repo":
-                    return {"default_branch": DEFAULT_BRANCH}
+                    return {"default_branch": DEFAULT_BRANCH, "visibility": "public"}
                 if "/actions/workflows/" in url:
                     return {"workflow_runs": [run()]}
                 if "/artifacts" in url:
@@ -723,6 +747,65 @@ class ReconcilerTests(unittest.TestCase):
                     self.assertIn(selected["run_url"], github_output.read_text())
                     self.assertIn(selected["pages_url"], summary.read_text())
                     self.assertIn(selected["run_url"], summary.read_text())
+
+    def test_private_selection_refuses_older_fallback(self) -> None:
+        validate = mock.Mock(side_effect=[MODULE.CandidateRejected("stale head"), {"run": run(100)}])
+        with self.assertRaisesRegex(ValueError, "cannot fall back.*stale head"):
+            MODULE.select_candidate([run(200), run(100)], None, validate, allow_fallback=False)
+        self.assertEqual(validate.call_count, 1)
+
+    def test_private_pages_rejects_invalid_url_and_api_failure(self) -> None:
+        client = mock.Mock()
+        for url in (None, "http://example.com/", "https://user:pass@example.com/", "https://example.com/?token=x", "https://example.com/\n"):
+            with self.subTest(url=url):
+                client.json.return_value = {"public": False, "html_url": url}
+                with self.assertRaises(ValueError):
+                    MODULE.publication_destination(REPOSITORY, {"visibility": "private"}, "private", client)
+        client.json.side_effect = HTTPError("https://api.github.com/", 404, "missing", {}, None)
+        with self.assertRaises(HTTPError):
+            MODULE.publication_destination(REPOSITORY, {"visibility": "private"}, "private", client)
+
+    def test_publication_access_matrix(self) -> None:
+        for visibility in ("public", "private", "internal", None, "unexpected"):
+            for access in ("", "public", "private", "invalid"):
+                for public in (True, False, None, "false", 0):
+                    with self.subTest(visibility=visibility, access=access, public=public):
+                        client = mock.Mock()
+                        client.json.return_value = {"public": public, "html_url": "https://private.pages.github.io/"}
+                        allowed = visibility in {"public", "private", "internal"} and (
+                            (visibility == "public" and access in {"", "public"})
+                            or (access == "private" and public is False)
+                        )
+                        if allowed:
+                            url, private = MODULE.publication_destination(REPOSITORY, {"visibility": visibility}, access, client)
+                            self.assertEqual(private, access == "private")
+                            self.assertTrue(url.startswith("https://"))
+                        else:
+                            with self.assertRaises(ValueError):
+                                MODULE.publication_destination(REPOSITORY, {"visibility": visibility}, access, client)
+
+    def test_nonpublic_reconcile_blocks_before_evidence_or_public_fetch(self) -> None:
+        client = mock.Mock()
+        client.json.return_value = {"default_branch": "main", "visibility": "private"}
+        loader = mock.Mock()
+        with self.assertRaisesRegex(ValueError, "nonpublic"):
+            MODULE.reconcile(REPOSITORY, "token", ROOT, SCRIPT, ROOT / "unused",
+                             client=client, published_loader=loader)
+        self.assertEqual(client.json.call_count, 1)
+        loader.assert_not_called()
+
+    def test_private_reconcile_never_fetches_public_site(self) -> None:
+        client = mock.Mock()
+        client.json.side_effect = [
+            {"default_branch": "main", "visibility": "private"},
+            {"public": False, "html_url": "https://private.pages.github.io/"},
+        ]
+        loader = mock.Mock()
+        with mock.patch.object(MODULE, "select_candidate", side_effect=MODULE.StalePublication("no candidates")):
+            result = MODULE.reconcile(REPOSITORY, "token", ROOT, SCRIPT, ROOT / "unused",
+                                      pages_access="private", client=client, published_loader=loader)
+        self.assertFalse(result[2])
+        loader.assert_not_called()
 
     def test_cli_normalizes_missing_token_to_exit_two(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
