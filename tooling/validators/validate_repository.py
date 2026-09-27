@@ -529,7 +529,8 @@ def documentation_gaps(root: Path = ROOT) -> list[str]:
 
     Every workflow template must appear in workflows/README.md, every skill in
     skills/README.md, every provider display name in the provider or control
-    setup guides, and every tooling script somewhere in the published docs.
+    setup guides, and Python/shell files plus executable or shebang-bearing
+    tooling commands somewhere in the published docs.
     """
     gaps: list[str] = []
     workflows_readme = (root / "workflows" / "README.md").read_text(encoding="utf-8") if (root / "workflows" / "README.md").is_file() else ""

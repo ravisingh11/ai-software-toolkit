@@ -73,3 +73,13 @@ Current guides formerly at `docs/architecture.md`, `docs/guardrails.md`,
 The five `docs/*-standard*.md` guides are now under `docs/standards/`, and
 `docs/superpowers/` became `docs/archive/`. Runtime paths and release tags did
 not move.
+
+## Documentation coverage check
+
+`tooling/validators/validate_repository.py` checks workflow templates, skill
+entries, provider names, and tooling references against current documentation.
+For tooling it recognizes Python and shell files plus executable or
+shebang-bearing commands, including extensionless commands. It excludes test
+fixtures, tests, bytecode caches, and package initializer files. Archived plans
+do not satisfy the check. Other source-file types still need review; a filename
+mention establishes documentation coverage, not the accuracy of its contents.
