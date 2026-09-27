@@ -101,3 +101,8 @@ Fixtures prove the mapping; only a live run against the real service proves
 the adapter. The [verification ledger](verification.md) records which adapters
 have been verified live, when, at which toolkit revision, and by whom. An
 adapter is labelled verified only in the pull request that adds its ledger row.
+
+Doctor checks both authoritative and supplemental providers, including GitHub
+secret-name metadata when `--github` is requested. A missing or stale adapter
+contract is reported as action needed; refresh the installed runtime before
+running that provider. Secret presence never proves credential validity.
