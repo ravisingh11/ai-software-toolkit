@@ -1,4 +1,4 @@
 interface:
   display_name: "Fix Security Finding"
-  short_description: "Confirm, remediate, and regression-test one security finding"
-  default_prompt: "Use $fix-security-finding to confirm the reported finding is reachable, apply the minimal remediation that removes the vulnerability class, add a failing-then-passing regression test, rerun the scanner, and report residual risk."
+  short_description: "Assess and remediate one finding with appropriate evidence"
+  default_prompt: "Use $fix-security-finding to classify the finding and select its verification path: a safe red-green test for a behavioral defect, approved analysis and scanner evidence for a false positive, or removal and owner-confirmed revocation for exposed credentials. Never put secrets in tests. Apply the minimal justified remediation and report residual risk and incomplete actions."
