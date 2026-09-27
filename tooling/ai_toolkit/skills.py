@@ -112,17 +112,23 @@ def require_installable_root(destination_root: Path, boundary: Path | None) -> N
         raise ToolkitError(f"skill destination is not writable: {existing}")
 
 
-def require_installable(names: list[str], destination_root: Path, boundary: Path | None) -> None:
-    """Refuse a destination where any requested skill (or the shared bundle) cannot land.
-
-    Runs the same checks ``install_skills`` applies while writing, but for every
-    path up front, so a multi-destination install never fails part-way through.
-    """
-    require_installable_root(destination_root, boundary)
+def selected_with_bundle(names: list[str]) -> list[str]:
+    """The requested skills plus the shared bundle every install carries."""
     selected = list(names)
     if selected and SHARED_BUNDLE not in selected and (source_dir() / SHARED_BUNDLE).is_dir():
         selected.append(SHARED_BUNDLE)
-    for name in selected:
+    return selected
+
+
+def require_installable(names: list[str], destination_root: Path, boundary: Path | None, *, existing: str = "skip") -> None:
+    """Refuse a destination where any requested skill (or the shared bundle) cannot land.
+
+    Runs the same checks ``install_skills`` applies while writing, for every path
+    and for the writes the ``existing`` mode would actually make, so a
+    multi-destination install never fails part-way through.
+    """
+    require_installable_root(destination_root, boundary)
+    for name in selected_with_bundle(names):
         destination = destination_root / name
         if destination.is_symlink():
             raise ToolkitError(f"refusing to install skills through a symlink: {destination}")
@@ -130,24 +136,35 @@ def require_installable(names: list[str], destination_root: Path, boundary: Path
             continue
         if not destination.is_dir():
             raise ToolkitError(f"skill destination exists but is not a directory: {destination}")
+        if existing == "skip":
+            continue
         if not os.access(destination, os.W_OK):
             raise ToolkitError(f"skill destination is not writable: {destination}")
         for source in skill_files(name):
             relative_path = source.relative_to(source_dir() / name)
-            # Every intermediate directory the copy would create or enter must already be a
-            # real directory or absent; a file or symlink in the way fails the whole install.
+            # Every intermediate directory the copy would create or enter must be a real,
+            # writable directory or absent; a file or symlink in the way fails the whole install.
             current = destination
             for part in relative_path.parts[:-1]:
                 current = current / part
                 if current.is_symlink():
                     raise ToolkitError(f"refusing to install skills through a symlink: {current}")
-                if current.exists() and not current.is_dir():
+                if not current.exists():
+                    break
+                if not current.is_dir():
                     raise ToolkitError(f"skill path exists but is not a directory: {current}")
+                if not os.access(current, os.W_OK):
+                    raise ToolkitError(f"skill path is not writable: {current}")
             file_destination = destination / relative_path
             if file_destination.is_symlink():
                 raise ToolkitError(f"refusing to install skills through a symlink: {file_destination}")
-            if file_destination.exists() and not file_destination.is_file():
+            if not file_destination.exists():
+                continue
+            if not file_destination.is_file():
                 raise ToolkitError(f"skill file destination is not a regular file: {file_destination}")
+            overwritten = existing in {"refresh", "replace"} and sha256_file(file_destination) != sha256_file(source)
+            if overwritten and not os.access(file_destination, os.W_OK):
+                raise ToolkitError(f"skill file is not writable: {file_destination}")
 
 
 def install_skills(names: list[str], destination_root: Path, *, existing: str = "skip", dry_run: bool = False,
@@ -161,9 +178,7 @@ def install_skills(names: list[str], destination_root: Path, *, existing: str = 
     """
     if existing not in {"skip", "merge", "replace", "refresh"}:
         raise ToolkitError("existing must be skip, merge, replace, or refresh")
-    selected = list(names)
-    if selected and SHARED_BUNDLE not in selected and (source_dir() / SHARED_BUNDLE).is_dir():
-        selected.append(SHARED_BUNDLE)
+    selected = selected_with_bundle(names)
     if selected and not dry_run:
         reject_symlinked_root(destination_root, boundary)
     rows = []

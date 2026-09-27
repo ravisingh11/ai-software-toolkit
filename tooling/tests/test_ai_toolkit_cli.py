@@ -868,6 +868,52 @@ class ReviewRegressionTests(CliFixture):
         self.assertEqual(code, 0, out)
         self.assertTrue((self.target / ".claude" / "skills" / "code-review" / "SKILL.md").is_file())
 
+    @unittest.skipIf(os.geteuid() == 0, "root bypasses file permissions")
+    def test_refresh_refuses_a_read_only_file_it_would_overwrite_before_writing(self):
+        self.assertEqual(self.init("--components", "proof", "--clients", "claude-code")[0], 0)
+        stale = self.target / ".claude" / "skills" / "code-review" / "SKILL.md"
+        stale.parent.mkdir(parents=True)
+        stale.write_text("stale\n", encoding="utf-8")
+        stale.chmod(0o444)
+        self.addCleanup(stale.chmod, 0o644)
+        lock_before = (self.target / config.LOCK_NAME).read_bytes()
+        code, _, err = run_cli("skills", "refresh", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("not writable", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        self.assertEqual(stale.read_text(encoding="utf-8"), "stale\n")
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        # A merge leaves that file alone, so it is not gated on it.
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--existing", "merge", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(stale.read_text(encoding="utf-8"), "stale\n")
+        self.assertTrue((self.target / ".agents" / "skills" / "code-review" / "SKILL.md").is_file())
+
+    def test_failed_record_write_rolls_back_a_multi_client_install(self):
+        self.assertEqual(self.init("--components", "proof", "--clients", "claude-code")[0], 0)
+        toml_before = (self.target / config.TOML_NAME).read_bytes()
+        lock_before = (self.target / config.LOCK_NAME).read_bytes()
+        with patch.object(config, "write_lock", side_effect=ToolkitError("disk full")):
+            code, _, err = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("disk full", err)
+        self.assertIn("previous files were restored", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        self.assertFalse((self.target / ".claude" / "skills" / "code-review").exists())
+        self.assertEqual((self.target / config.TOML_NAME).read_bytes(), toml_before)
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        with patch.object(config, "write_configuration", side_effect=ToolkitError("disk full")):
+            code, _, err = run_cli("qa", "bootstrap", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertFalse((self.target / ".agents" / "skills" / "qa-bootstrap").exists())
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.target / ".claude" / "skills" / "code-review" / "SKILL.md").is_file())
+        # Install backups are transient: none survive, whether the install failed or succeeded.
+        backups = self.target / ".artifacts" / "ai-toolkit" / "backup"
+        self.assertEqual(sorted(backups.iterdir()) if backups.is_dir() else [], [])
+
     def test_update_never_adopts_skipped_skills_into_the_lock(self):
         self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
         mine = self.target / ".agents" / "skills" / "security-audit-lite"

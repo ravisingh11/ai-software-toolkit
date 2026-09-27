@@ -642,6 +642,63 @@ def require_writable_records(target: Path) -> None:
             raise ToolkitError(f"{target} is not writable, so {name} cannot be rewritten")
 
 
+def _skill_paths(target: Path, destination: Path, names: list[str]) -> list[str]:
+    """Repository-relative paths an install may write or delete under ``destination``."""
+    paths: set[str] = set()
+    for name in skills.selected_with_bundle(names):
+        root = destination / name
+        for source in skills.skill_files(name):
+            paths.add(relative(root / source.relative_to(skills.source_dir() / name), target))
+        if root.is_dir():
+            paths.update(relative(path, target) for path in root.rglob("*") if path.is_file())
+    return sorted(paths)
+
+
+def install_and_record(target: Path, names: list[str], destinations: dict[str, Path], *, existing: str, component: str) -> list[dict[str, Any]]:
+    """Install for every destination, then record and adopt; undo all of it on any failure.
+
+    Every destination and both records are validated first. Files the install may
+    touch are backed up, and if an install or a record write fails afterwards the
+    installed files, the configuration, and the lock are restored together, so the
+    tree never carries files the records do not describe.
+    """
+    require_writable_records(target)
+    for destination in destinations.values():
+        skills.require_installable(names, destination, target, existing=existing)
+    records = {name: target / name for name in (config.TOML_NAME, config.LOCK_NAME)}
+    originals = {name: path.read_bytes() if path.is_file() else None for name, path in records.items()}
+    tracked = sorted({path for destination in destinations.values() for path in _skill_paths(target, destination, names)})
+    # Directories the install may create; on rollback the ones that are still empty go too.
+    candidate_dirs = sorted({str(parent) for path in tracked for parent in (target / path).parents if parent != target and target in parent.parents}, key=len, reverse=True)
+    preexisting_dirs = {path for path in candidate_dirs if Path(path).is_dir()}
+    backup_root = _backup(target, tracked)
+    results = []
+    try:
+        for client, destination in destinations.items():
+            rows = skills.install_skills(names, destination, existing=existing, boundary=target)
+            results.append({"client": client, "destination": str(destination), "skills": rows})
+        for row in results:
+            record_skills_in_lock(target, Path(row["destination"]), row["skills"], component=component)
+            adopt_client(target, row["client"])
+        adopt_component(target, component)
+    except (ToolkitError, OSError) as error:
+        _restore(target, backup_root, tracked)
+        for relative_path in tracked:
+            created = target / relative_path
+            if not (backup_root / relative_path).is_file() and created.is_file():
+                created.unlink()
+        for path in candidate_dirs:
+            directory = Path(path)
+            if path not in preexisting_dirs and directory.is_dir() and not any(directory.iterdir()):
+                directory.rmdir()
+        for name, path in records.items():
+            _restore_record(path, originals[name])
+        shutil.rmtree(backup_root, ignore_errors=True)
+        raise ToolkitError(f"{error}; previous files were restored") from error
+    shutil.rmtree(backup_root, ignore_errors=True)
+    return results
+
+
 def clients_for_adoption(target: Path, clients: list[str], component: str) -> list[str]:
     """Every configured client takes part in the install that first activates a component.
 
@@ -704,26 +761,15 @@ def cmd_skills(args: argparse.Namespace) -> int:
         if client not in config.CLIENTS:
             raise ToolkitError(f"unknown agent client: {client}")
     existing = "replace" if args.action == "refresh" else args.existing
-    recording = not args.user and not args.dry_run
     if not args.user:
         clients = clients_for_adoption(target, clients, "skills")
     destinations = {client: (skills.client_user_dir(client) if args.user else skills.client_project_dir(client, target)) for client in clients}
-    if recording:
-        # Every destination and both records are validated before any client receives a
-        # file, so a multi-client adoption never activates the component for some clients
-        # and then fails on another.
-        require_writable_records(target)
-        for destination in destinations.values():
-            skills.require_installable(requested, destination, target)
-    results = []
-    for client, destination in destinations.items():
-        rows = skills.install_skills(requested, destination, existing=existing, dry_run=args.dry_run, boundary=None if args.user else target)
-        results.append({"client": client, "destination": str(destination), "skills": rows})
-    if recording:
-        for row in results:
-            record_skills_in_lock(target, Path(row["destination"]), row["skills"])
-            adopt_client(target, row["client"])
-        adopt_component(target, "skills")
+    if args.user or args.dry_run:
+        results = [{"client": client, "destination": str(destination),
+                    "skills": skills.install_skills(requested, destination, existing=existing, dry_run=args.dry_run, boundary=None if args.user else target)}
+                   for client, destination in destinations.items()]
+    else:
+        results = install_and_record(target, requested, destinations, existing=existing, component="skills")
     lines = []
     for row in results:
         lines.append(f"{row['client']} -> {row['destination']}" + (" (dry run)" if args.dry_run else ""))
@@ -753,19 +799,12 @@ def cmd_qa(args: argparse.Namespace) -> int:
             raise ToolkitError(f"unknown agent client: {client}")
     clients = clients_for_adoption(target, clients, "qa")
     destinations = {client: skills.client_project_dir(client, target) for client in clients}
-    if not args.dry_run:
-        require_writable_records(target)
-        for destination in destinations.values():
-            skills.require_installable(["qa-bootstrap"], destination, target)
-    results = []
-    for client, destination in destinations.items():
-        rows = skills.install_skills(["qa-bootstrap"], destination, existing="merge", dry_run=args.dry_run, boundary=target)
-        results.append({"client": client, "destination": str(destination), "skills": rows})
-    if not args.dry_run:
-        for row in results:
-            record_skills_in_lock(target, Path(row["destination"]), row["skills"], component="qa")
-            adopt_client(target, row["client"])
-        adopt_component(target, "qa")
+    if args.dry_run:
+        results = [{"client": client, "destination": str(destination),
+                    "skills": skills.install_skills(["qa-bootstrap"], destination, existing="merge", dry_run=True, boundary=target)}
+                   for client, destination in destinations.items()]
+    else:
+        results = install_and_record(target, ["qa-bootstrap"], destinations, existing="merge", component="qa")
     lines = ["Installed the qa-bootstrap skill for: " + ", ".join(clients) + (" (dry run)" if args.dry_run else ""),
              "Next: in your agent, run the qa-bootstrap skill. It analyzes the repository, asks only what it cannot detect, and generates the qa orchestrator; the generated qa skill runs QA."]
     _emit({"results": results}, args.json, "\n".join(lines))
