@@ -40,12 +40,12 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(runtime.resolve_target(str(self.target)), self.target)
         self.assertIsNone(runtime.installed_runtime(self.target))
         self.assertEqual(runtime.script_path("doctor", self.target), ROOT / "tooling" / "doctor.py")
-        guardrails = self.target / ".guardrails"
-        guardrails.mkdir()
-        (guardrails / "policy.yaml").write_text("{}", encoding="utf-8")
-        (guardrails / "scan.py").write_text("", encoding="utf-8")
-        self.assertEqual(runtime.installed_runtime(self.target), guardrails)
-        self.assertEqual(runtime.script_path("scan", self.target), guardrails / "scan.py")
+        proof_dir = self.target / ".proof"
+        proof_dir.mkdir()
+        (proof_dir / "policy.yaml").write_text("{}", encoding="utf-8")
+        (proof_dir / "scan.py").write_text("", encoding="utf-8")
+        self.assertEqual(runtime.installed_runtime(self.target), proof_dir)
+        self.assertEqual(runtime.script_path("scan", self.target), proof_dir / "scan.py")
         self.assertEqual(runtime.script_path("doctor", self.target), ROOT / "tooling" / "doctor.py")
         self.assertEqual(runtime.script_path("scan", self.target, prefer_installed=False), ROOT / "tooling" / "scan_repository.py")
         with patch.dict(runtime.SCRIPTS, {"ghost": ("tooling/ghost.py", None)}):

@@ -1,14 +1,14 @@
 # Documentation
 
 AI Software Toolkit brings together skills, QA workflows, standards, and
-Guardrails. Start with the task you need to perform.
+Proof. Start with the task you need to perform.
 
 Six entry points, one per component:
 
 | Entry point | Start here | Then |
 | --- | --- | --- |
 | **Install** | [Install with `ai-toolkit`](install.md) — one CLI for discovery, preview, installation, `doctor`, `check`, and `update` | [Quickstart](quickstart.md) for the underlying installer and scanner |
-| **Guardrails** | [Guardrails guides](guardrails/README.md) — runtime model, control setup, operating guide, scorecards | [Producer contract](guardrails/producer-contract.md), [control status](guardrails/control-status.md) |
+| **Proof** | [Proof guides](proof/README.md) — runtime model, control setup, operating guide, scorecards | [Producer contract](proof/producer-contract.md), [control status](proof/control-status.md) |
 | **Skills** | [Skill catalog](../skills/README.md) — review skills, the five action skills, installation for Codex and Claude Code | Each action skill's `VERIFICATION.md` for what has been proven |
 | **QA** | [QA bootstrap](../skills/qa-bootstrap/SKILL.md) — generate the `qa` orchestrator | [Plans, findings, and regression reruns](../skills/qa-bootstrap/references/plans-and-findings.md) |
 | **Providers** | [Providers](providers/README.md) — SonarQube, Snyk, FOSSA, reason codes, adapter-owned commands | [Live verification ledger](providers/verification.md) |
@@ -17,13 +17,14 @@ Six entry points, one per component:
 Also: [Vision and maturity](vision.md) (what is shipped, opt-in, or planned),
 [self-check](self-check.md) and [contributing](../CONTRIBUTING.md) for
 developing the toolkit, the [repository rename](repository-rename.md) note,
+the [Guardrails to Proof migration](proof/migrating-from-guardrails.md),
 and the [changelog](../CHANGELOG.md) with [v1.0.0 release notes](releases/v1.0.0.md).
 
 ## Guides by area
 
 | Directory | Contents |
 | --- | --- |
-| [guardrails/](guardrails/README.md) | Runtime model, architecture, providers, configuration, operation, and scorecards |
+| [proof/](proof/README.md) | Runtime model, architecture, providers, configuration, operation, and scorecards |
 | [providers/](providers/README.md) | External provider guides, adapter-owned commands, reason codes, and the live verification ledger |
 | [standards/](standards/README.md) | Agent guidance, commits, error handling, release evidence, and specification-driven development |
 | [agent-workflows/](agent-workflows/README.md) | Repository administration and dependency remediation workflows |
@@ -42,11 +43,11 @@ have different roles:
 
 | Source | Installed consumer surface | Editing rule |
 | --- | --- | --- |
-| `guardrails/`, `tooling/` | `.guardrails/*.py`, schemas and validators | Edit the source, test it, then review the installed refresh diff |
-| `policies/`, `guardrails/defaults/` | `.guardrails/*.yaml` | Shared defaults are advisory; preserve this repository's selected policy and configuration |
+| `proof/`, `tooling/` | `.proof/*.py`, schemas and validators | Edit the source, test it, then review the installed refresh diff |
+| `policies/`, `proof/defaults/` | `.proof/*.yaml` | Shared defaults are advisory; preserve this repository's selected policy and configuration |
 | `workflows/` | `.github/workflows/` | Templates are distributed; installed and repository-owned CI runs here |
 | `skills/` | `.agents/skills/` | Publish shared skills from `skills/`; installed skills make this repository a consumer |
-| `security/semgrep/` | `.guardrails/semgrep-rules.yml` and fixtures | Preserve tested scanner rules and installed copies |
+| `security/semgrep/` | `.proof/semgrep-rules.yml` and fixtures | Preserve tested scanner rules and installed copies |
 | Toolkit distribution | `examples/python-demo/` | Keep the runnable consumer example, including its embedded runtime |
 
 The installer defines the copy mapping in [tooling/install.py](../tooling/install.py).
@@ -66,10 +67,10 @@ transcripts there. Curate durable design rationale into `docs/archive/`; current
 instructions belong in the guides above. Removed transient reports and the
 superseded v0.3.0 draft remain available in Git history.
 
-Current guides formerly at `docs/architecture.md`, `docs/guardrails.md`,
-`docs/guardrails-implementation.md`, `docs/producer-contract.md`, and
-`docs/control-*.md` are now under `docs/guardrails/`. The former
-`docs/compliance.md` is now [the operating guide](guardrails/operating-guide.md).
+Current guides formerly at `docs/architecture.md`, `docs/proof.md`,
+`docs/proof-implementation.md`, `docs/producer-contract.md`, and
+`docs/control-*.md` are now under `docs/proof/`. The former
+`docs/compliance.md` is now [the operating guide](proof/operating-guide.md).
 The five `docs/*-standard*.md` guides are now under `docs/standards/`, and
 `docs/superpowers/` became `docs/archive/`. Runtime paths and release tags did
 not move.

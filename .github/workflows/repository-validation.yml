@@ -1,4 +1,4 @@
-# Guardrails v2 installer-owned workflow.
+# Proof installer-owned workflow.
 name: Validate
 
 on:
@@ -23,7 +23,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - run: python3 .guardrails/validators/validate_repository.py
+      - run: python3 .proof/validators/validate_repository.py
 
   standards-source:
     name: Validate / standards source
@@ -50,7 +50,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - run: python3 .guardrails/validators/validate_documentation.py --base-ref "${BASE_REF}" --head-ref "${HEAD_REF}"
+      - run: python3 .proof/validators/validate_documentation.py --base-ref "${BASE_REF}" --head-ref "${HEAD_REF}"
         env:
           BASE_REF: ${{ github.event.pull_request.base.sha || 'HEAD~1' }}
           HEAD_REF: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -63,4 +63,4 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - run: python3 .guardrails/validate_ground_truth.py --policy .guardrails/ground-truth-ai.yaml
+      - run: python3 .proof/validate_ground_truth.py --policy .proof/ground-truth-ai.yaml

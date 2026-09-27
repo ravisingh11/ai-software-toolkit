@@ -43,12 +43,12 @@ class RepositoryCommandTests(unittest.TestCase):
 
     def test_changed_code_coverage_requires_an_exact_comparison_base(self) -> None:
         environment = os.environ.copy()
-        environment.pop("GUARDRAILS_COVERAGE_BASE_REF", None)
+        environment.pop("PROOF_COVERAGE_BASE_REF", None)
 
         completed = self.run_script("tooling/changed_code_coverage.sh", environment)
 
         self.assertEqual(completed.returncode, 2)
-        self.assertIn("GUARDRAILS_COVERAGE_BASE_REF", completed.stderr)
+        self.assertIn("PROOF_COVERAGE_BASE_REF", completed.stderr)
 
     def test_changed_code_coverage_uses_supported_diff_cover_arguments(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -85,7 +85,7 @@ class RepositoryCommandTests(unittest.TestCase):
             environment = os.environ.copy()
             environment.pop("GITHUB_STEP_SUMMARY", None)
             environment["PATH"] = f"{binary_directory}:/usr/bin:/bin"
-            environment["GUARDRAILS_COVERAGE_BASE_REF"] = "base-sha"
+            environment["PROOF_COVERAGE_BASE_REF"] = "base-sha"
             inherited_coverage_file = binary_directory / "outer.coverage"
             inherited_coverage_file.write_text("outer coverage data", encoding="utf-8")
             environment["COVERAGE_FILE"] = str(inherited_coverage_file)
@@ -103,7 +103,7 @@ class RepositoryCommandTests(unittest.TestCase):
             self.assertIn("patch = subprocess", coverage_config)
             self.assertIn("parallel = true", coverage_config)
             self.assertIn("*/tooling/coverage-support/*", coverage_config)
-            for source_directory in ("guardrails", "tooling", "examples/python-demo", "skills", "security"):
+            for source_directory in ("proof", "tooling", "examples/python-demo", "skills", "security"):
                 self.assertIn(f"    {source_directory}\n", coverage_config)
             self.assertIn("combine --quiet", arguments)
             self.assertIn("tooling/coverage-support", (ROOT / "tooling/changed_code_coverage.sh").read_text())

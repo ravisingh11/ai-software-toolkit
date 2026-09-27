@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install the Guardrails v2 runtime and selected advisory profiles."""
+"""Install the Proof runtime and selected advisory profiles."""
 
 from __future__ import annotations
 
@@ -15,16 +15,16 @@ from pathlib import Path
 from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[1]
-POLICY = ROOT / "guardrails" / "baseline.yaml"
-PRODUCER = ROOT / "tooling" / "produce_guardrail_evidence.py"
+POLICY = ROOT / "proof" / "baseline.yaml"
+PRODUCER = ROOT / "tooling" / "produce_proof_evidence.py"
 SEMGREP_IMAGE = "semgrep/semgrep@sha256:b94b53d02fd4a022f9eac4e2af1380f5c3c4c21400e79d3336bdff1d1db5e796"
 GITLEAKS_IMAGE = "ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f"
 VERSION = "2.0.0"
-INSTALLER_MARKER = "# Guardrails v2 installer-owned workflow."
-RUNTIME_MARKER = "# Guardrails v2 installer-owned runtime."
+INSTALLER_MARKER = "# Proof installer-owned workflow."
+RUNTIME_MARKER = "# Proof installer-owned runtime."
 
 CORE_WORKFLOWS = {
-    "guardrails-scorecard.yml": ROOT / "workflows" / "guardrails-scorecard.yml",
+    "proof-scorecard.yml": ROOT / "workflows" / "proof-scorecard.yml",
     "change-scope.yml": ROOT / "workflows" / "change-scope.yml",
     "pr-metadata.yml": ROOT / "workflows" / "pr-metadata.yml",
     "repository-validation.yml": ROOT / "workflows" / "repository-validation.yml",
@@ -44,14 +44,14 @@ GITHUB_WORKFLOWS = {
     "artifact-provenance.yml": ROOT / "workflows" / "artifact-provenance.yml",
 }
 BADGE_WORKFLOWS = {
-    "guardrails-scorecard-badge.yml": ROOT / "workflows" / "guardrails-scorecard-badge.yml",
+    "proof-scorecard-badge.yml": ROOT / "workflows" / "proof-scorecard-badge.yml",
 }
 PRESERVED_CONFIGURATION = {
-    Path(".guardrails/policy.yaml"),
-    Path(".guardrails/documentation.yaml"),
-    Path(".guardrails/change-scope.yaml"),
-    Path(".guardrails/pr-metadata.yaml"),
-    Path(".guardrails/ground-truth-ai.yaml"),
+    Path(".proof/policy.yaml"),
+    Path(".proof/documentation.yaml"),
+    Path(".proof/change-scope.yaml"),
+    Path(".proof/pr-metadata.yaml"),
+    Path(".proof/ground-truth-ai.yaml"),
 }
 V1_PATHS = (
     Path(".guardrails/producer-manifest.json"),
@@ -63,6 +63,11 @@ V1_PATHS = (
     Path(".ai/ground-truth.yaml"),
     Path(".ai/producer-manifest.json"),
 )
+# Retired pre-Proof layout. Detection only: nothing reads or migrates it.
+LEGACY_RUNTIME = Path(".guardrails")
+LEGACY_WORKFLOW_MARKER = "# Guardrails v2 installer-owned workflow."
+LEGACY_REFERENCES = (".guardrails/", "guardrails-", "guardrails:", "GUARDRAILS_")
+MIGRATED_CONFIGURATION = (*sorted(PRESERVED_CONFIGURATION), Path(".proof/providers.yaml"))
 
 
 class InstallItem(NamedTuple):
@@ -89,36 +94,36 @@ def runtime_sources(target: Path) -> list[InstallItem]:
         "profiles.yaml": ROOT / "policies/profiles.yaml",
         "control-catalog.yaml": ROOT / "policies/control-catalog.yaml",
         "providers.yaml": ROOT / "policies/provider-config.yaml",
-        "policy.schema.json": ROOT / "guardrails/policy.schema.json",
-        "evidence.schema.json": ROOT / "guardrails/evidence.schema.json",
-        "profiles.schema.json": ROOT / "guardrails/profiles.schema.json",
-        "providers.schema.json": ROOT / "guardrails/providers.schema.json",
-        "control-catalog.schema.json": ROOT / "guardrails/control-catalog.schema.json",
-        "documentation.yaml": ROOT / "guardrails/defaults/documentation.yaml",
-        "change-scope.yaml": ROOT / "guardrails/defaults/change-scope.yaml",
-        "pr-metadata.yaml": ROOT / "guardrails/defaults/pr-metadata.yaml",
-        "ground-truth-ai.yaml": ROOT / "guardrails/defaults/ground-truth-ai.yaml",
-        "evaluate.py": ROOT / "guardrails/evaluate.py",
-        "scorecard.py": ROOT / "tooling/guardrail_scorecard.py",
-        "configure.py": ROOT / "tooling/configure_guardrails.py",
+        "policy.schema.json": ROOT / "proof/policy.schema.json",
+        "evidence.schema.json": ROOT / "proof/evidence.schema.json",
+        "profiles.schema.json": ROOT / "proof/profiles.schema.json",
+        "providers.schema.json": ROOT / "proof/providers.schema.json",
+        "control-catalog.schema.json": ROOT / "proof/control-catalog.schema.json",
+        "documentation.yaml": ROOT / "proof/defaults/documentation.yaml",
+        "change-scope.yaml": ROOT / "proof/defaults/change-scope.yaml",
+        "pr-metadata.yaml": ROOT / "proof/defaults/pr-metadata.yaml",
+        "ground-truth-ai.yaml": ROOT / "proof/defaults/ground-truth-ai.yaml",
+        "evaluate.py": ROOT / "proof/evaluate.py",
+        "scorecard.py": ROOT / "tooling/proof_scorecard.py",
+        "configure.py": ROOT / "tooling/configure_proof.py",
         "scan.py": ROOT / "tooling/scan_repository.py",
         "doctor.py": ROOT / "tooling/doctor.py",
         "github_evidence.py": ROOT / "tooling/github_evidence.py",
         "produce.py": PRODUCER,
         "adapter.py": ROOT / "tooling/provider_adapter.py",
         "validate_ground_truth.py": ROOT / "tooling/validators/validate_ground_truth.py",
-        "semgrep-rules.yml": ROOT / "security/semgrep/guardrails.yml",
+        "semgrep-rules.yml": ROOT / "security/semgrep/proof.yml",
     }
     validators = {
-        "validate_repository.py": ROOT / "guardrails/validate_repository.py",
+        "validate_repository.py": ROOT / "proof/validate_repository.py",
         "validate_documentation.py": ROOT / "tooling/validators/validate_documentation.py",
         "inspect_change_scope.py": ROOT / "tooling/validators/inspect_change_scope.py",
         "validate_pr_metadata.py": ROOT / "tooling/validators/validate_pr_metadata.py",
     }
-    items = [InstallItem(source, target / ".guardrails" / name) for name, source in files.items()]
-    items.extend(InstallItem(source, target / ".guardrails/validators" / name) for name, source in validators.items())
+    items = [InstallItem(source, target / ".proof" / name) for name, source in files.items()]
+    items.extend(InstallItem(source, target / ".proof/validators" / name) for name, source in validators.items())
     for source_root, destination_root in (
-        (ROOT / "security/semgrep/tests/fixtures", target / ".guardrails/semgrep-tests/fixtures"),
+        (ROOT / "security/semgrep/tests/fixtures", target / ".proof/semgrep-tests/fixtures"),
         (ROOT / "skills/prepare-safe-change", target / ".agents/skills/prepare-safe-change"),
     ):
         items.extend(
@@ -133,11 +138,11 @@ def badge_sources(target: Path) -> list[InstallItem]:
     items = [
         InstallItem(
             ROOT / "tooling" / "render_scorecard_badge.py",
-            target / ".guardrails/render_scorecard_badge.py",
+            target / ".proof/render_scorecard_badge.py",
         ),
         InstallItem(
             ROOT / "tooling" / "reconcile_scorecard_badge.py",
-            target / ".guardrails/reconcile_scorecard_badge.py",
+            target / ".proof/reconcile_scorecard_badge.py",
         ),
     ]
     items.extend(
@@ -151,16 +156,16 @@ def load_object(path: Path) -> dict:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
-        raise ValueError(f"cannot identify existing Guardrails configuration at {path}: {error}") from error
+        raise ValueError(f"cannot identify existing Proof configuration at {path}: {error}") from error
     if not isinstance(value, dict):
-        raise ValueError(f"existing Guardrails configuration must be an object: {path}")
+        raise ValueError(f"existing Proof configuration must be an object: {path}")
     return value
 
 
 def validate_provider_document(document: dict) -> None:
     validator_path = ROOT / "tooling" / "validators" / "validate_repository.py"
     spec = importlib.util.spec_from_file_location(
-        "guardrails_v2_repository_validator", validator_path
+        "proof_v2_repository_validator", validator_path
     )
     if not spec or not spec.loader:
         raise ValueError(f"cannot load provider validator: {validator_path}")
@@ -174,7 +179,7 @@ def validate_provider_document(document: dict) -> None:
 
 def reject_v1(target: Path) -> None:
     conflicts = [path for relative in V1_PATHS if ((path := target / relative).exists() or path.is_symlink())]
-    for relative in (Path(".guardrails/policy.yaml"), Path(".guardrails/control-catalog.yaml"), Path(".guardrails/providers.yaml")):
+    for relative in (Path(".proof/policy.yaml"), Path(".proof/control-catalog.yaml"), Path(".proof/providers.yaml")):
         path = target / relative
         if path.is_file() and load_object(path).get("version") != 2:
             conflicts.append(path)
@@ -183,6 +188,58 @@ def reject_v1(target: Path) -> None:
         raise ValueError(
             f"Guardrails v1 was detected at {rendered}. Back up and remove the v1 runtime/configuration, then perform a clean reinstall; automatic migration is not supported."
         )
+
+
+def reject_legacy_layout(target: Path) -> None:
+    """Refuse a pre-Proof (Guardrails) installation and print the exact migration."""
+
+    def stale(path: Path) -> bool:
+        return path.is_file() and any(
+            marker in path.read_text(encoding="utf-8", errors="replace") for marker in LEGACY_REFERENCES
+        )
+
+    legacy = target / LEGACY_RUNTIME
+    legacy_present = legacy.exists() or legacy.is_symlink()
+    workflows = target / ".github" / "workflows"
+    legacy_workflows = sorted(
+        path for path in workflows.glob("*.yml")
+        if path.is_file() and not path.is_symlink()
+        and path.read_text(encoding="utf-8", errors="replace").startswith(LEGACY_WORKFLOW_MARKER)
+    ) if workflows.is_dir() else []
+    moves = [
+        relative for relative in MIGRATED_CONFIGURATION
+        if legacy_present and (legacy / relative.relative_to(".proof")).is_file()
+    ]
+    edited = sorted(
+        relative for relative in MIGRATED_CONFIGURATION
+        if stale(target / relative) or (relative in moves and stale(legacy / relative.relative_to(".proof")))
+    )
+    if not (legacy_present or legacy_workflows or edited):
+        return
+    steps: list[str] = []
+    if moves:
+        steps.append("mkdir -p .proof")
+        steps.extend(f"git mv {LEGACY_RUNTIME / relative.relative_to('.proof')} {relative}" for relative in moves)
+    if edited:
+        steps.append(
+            "perl -pi -e 's#\\.guardrails/#.proof/#g; s/guardrails([-:])/proof$1/g; s/GUARDRAILS_/PROOF_/g' "
+            + " ".join(map(str, edited))
+        )
+    if legacy_present:
+        steps.append(f"git rm -r {LEGACY_RUNTIME}")
+    steps.extend(f"git rm {path.relative_to(target)}" for path in legacy_workflows)
+    badge = any(path.name == "guardrails-scorecard-badge.yml" for path in legacy_workflows)
+    steps.append(
+        "python3 <toolkit>/tooling/install.py --target . --refresh-existing"
+        + (" --scorecard-badge" if badge else "")
+    )
+    raise ValueError("\n".join([
+        "the retired Guardrails layout was detected; Proof does not read it. Migrate with:",
+        *(f"  {step}" for step in steps),
+        "Then rename GUARDRAILS_* repository variables to PROOF_*, require the 'Proof Scorecard' "
+        "check instead of 'Guardrail Scorecard', and update guardrails-badge.svg links to "
+        "proof-badge.svg. See docs/proof/migrating-from-guardrails.md.",
+    ]))
 
 
 def policy_bytes(existing: Path | None, profiles: list[str]) -> bytes:
@@ -215,7 +272,7 @@ def refreshed_provider_bytes(existing: Path) -> bytes:
         or not isinstance(installed_selections, dict)
     ):
         raise ValueError(
-            "existing Guardrails provider configuration must contain providers and selections objects"
+            "existing Proof provider configuration must contain providers and selections objects"
         )
     custom_providers = {
         provider_id: provider
@@ -277,13 +334,13 @@ def precommit_config() -> str:
     return f"""repos:
   - repo: local
     hooks:
-      - id: guardrails-semgrep-ce
-        name: Guardrails Semgrep CE
+      - id: proof-semgrep-ce
+        name: Proof Semgrep CE
         language: docker_image
-        entry: {SEMGREP_IMAGE} semgrep scan --error --config .guardrails/semgrep-rules.yml --exclude .guardrails/semgrep-tests/fixtures --exclude security/semgrep/tests/fixtures .
+        entry: {SEMGREP_IMAGE} semgrep scan --error --config .proof/semgrep-rules.yml --exclude .proof/semgrep-tests/fixtures --exclude security/semgrep/tests/fixtures .
         pass_filenames: false
-      - id: guardrails-gitleaks
-        name: Guardrails Gitleaks
+      - id: proof-gitleaks
+        name: Proof Gitleaks
         language: docker_image
         entry: {GITLEAKS_IMAGE} git --redact --no-banner .
         pass_filenames: false
@@ -293,7 +350,7 @@ def precommit_config() -> str:
 def prepare_local_hooks(target: Path, *, dry_run: bool) -> tuple[str | None, Path | None]:
     destination = target / ".pre-commit-config.yaml"
     if destination.exists() or destination.is_symlink():
-        raise ValueError(".pre-commit-config.yaml already exists; preserve it and perform a manual merge of the Guardrails hooks.")
+        raise ValueError(".pre-commit-config.yaml already exists; preserve it and perform a manual merge of the Proof hooks.")
     if dry_run:
         return precommit_config(), None
     executable = shutil.which("pre-commit")
@@ -361,15 +418,15 @@ def install(
         raise ValueError("--remove-scorecard-badge requires --refresh-existing")
     explicit_profiles = list(profiles or [])
     selected_profiles: list[str] = []
-    policy_destination = target / ".guardrails/policy.yaml"
-    providers_destination = target / ".guardrails/providers.yaml"
+    policy_destination = target / ".proof/policy.yaml"
+    providers_destination = target / ".proof/providers.yaml"
     if refresh_existing and not remove_scorecard_badge and policy_destination.is_file():
         installed_profiles = load_object(policy_destination).get("profiles")
         if not isinstance(installed_profiles, list) or not all(
             isinstance(profile, str) and profile in {"core", "github"}
             for profile in installed_profiles
         ):
-            raise ValueError("existing Guardrails policy contains invalid runnable profiles")
+            raise ValueError("existing Proof policy contains invalid runnable profiles")
         selected_profiles = list(installed_profiles)
     for profile in explicit_profiles:
         if profile not in {"core", "github"}:
@@ -404,6 +461,7 @@ def install(
     if merge_existing and refresh_existing:
         raise ValueError("--merge-existing and --refresh-existing cannot be combined")
     reject_v1(target)
+    reject_legacy_layout(target)
     hook_text, temporary_hook = prepare_local_hooks(target, dry_run=dry_run) if local_hooks else (None, None)
     plan = [item for item in complete_plan if item.source.resolve() != item.destination.resolve()]
     existing = [item.destination for item in plan if item.destination.exists()]
@@ -500,7 +558,7 @@ def reporting_guidance(target: Path) -> str:
         return default + " Optional Pages dashboard: install with --scorecard-badge and configure Pages."
     return default + (
         " Keep reports inside Actions. For a dashboard, configure a private Pages destination "
-        "and set GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS=private before enabling the publisher. "
+        "and set PROOF_SCORECARD_BADGE_PAGES_ACCESS=private before enabling the publisher. "
         "The publisher verifies repository visibility and Pages access before publishing; "
         "unknown visibility blocks publication. See docs/quickstart.md."
     )
@@ -531,7 +589,7 @@ def main() -> int:
             scorecard_badge=args.scorecard_badge,
             remove_scorecard_badge=args.remove_scorecard_badge,
         )
-        print(("Would apply" if args.dry_run else "Applied") + " Guardrails v2:")
+        print(("Would apply" if args.dry_run else "Applied") + " Proof:")
         for item in plan:
             action = "remove" if item.kind == "remove" else "install"
             print(f"- {action}: {item.destination}")

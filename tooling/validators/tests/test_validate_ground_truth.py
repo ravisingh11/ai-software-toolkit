@@ -126,7 +126,7 @@ class GroundTruthValidatorTests(unittest.TestCase):
 
     def test_installed_starter_requires_readme(self) -> None:
         starter = (
-            SCRIPT.parents[2] / "guardrails" / "defaults" / "ground-truth-ai.yaml"
+            SCRIPT.parents[2] / "proof" / "defaults" / "ground-truth-ai.yaml"
         )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -156,10 +156,10 @@ class GroundTruthValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("cannot read ground-truth policy", result.stdout)
 
-    def test_default_policy_uses_guardrails_configuration(self) -> None:
+    def test_default_policy_uses_proof_configuration(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            policy = root / ".guardrails" / "ground-truth-ai.yaml"
+            policy = root / ".proof" / "ground-truth-ai.yaml"
             policy.parent.mkdir()
             policy.write_text(
                 json.dumps({"version": 1, "documents": []}),

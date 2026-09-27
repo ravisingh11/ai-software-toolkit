@@ -16,18 +16,18 @@ MACHINE_PATH = re.compile(
     rf"(/{'Users'}/|/{'private'}/|\\\\{'Users'}\\\\)"
 )
 CONFIG_PATHS = {
-    "policy": ".guardrails/policy.yaml",
-    "profiles": ".guardrails/profiles.yaml",
-    "catalog": ".guardrails/control-catalog.yaml",
-    "providers": ".guardrails/providers.yaml",
-    "ground_truth": ".guardrails/ground-truth-ai.yaml",
-    "documentation": ".guardrails/documentation.yaml",
-    "change_scope": ".guardrails/change-scope.yaml",
+    "policy": ".proof/policy.yaml",
+    "profiles": ".proof/profiles.yaml",
+    "catalog": ".proof/control-catalog.yaml",
+    "providers": ".proof/providers.yaml",
+    "ground_truth": ".proof/ground-truth-ai.yaml",
+    "documentation": ".proof/documentation.yaml",
+    "change_scope": ".proof/change-scope.yaml",
 }
 RETIRED_CONFIG_PATHS = tuple(
     ".ai" + suffix
     for suffix in (
-        "/guardrails.yaml",
+        "/proof.yaml",
         "/control-catalog.yaml",
         "/ground-truth.yaml",
         "/documentation.yaml",
@@ -35,29 +35,29 @@ RETIRED_CONFIG_PATHS = tuple(
     )
 )
 RUNTIME_CONTRACTS = {
-    ".guardrails/configure.py": (
+    ".proof/configure.py": (
         CONFIG_PATHS["policy"],
         CONFIG_PATHS["profiles"],
         CONFIG_PATHS["catalog"],
         CONFIG_PATHS["providers"],
     ),
-    ".guardrails/evaluate.py": (),
-    ".guardrails/github_evidence.py": (),
-    ".guardrails/produce.py": (),
-    ".guardrails/scan.py": (
+    ".proof/evaluate.py": (),
+    ".proof/github_evidence.py": (),
+    ".proof/produce.py": (),
+    ".proof/scan.py": (
         CONFIG_PATHS["policy"],
         CONFIG_PATHS["profiles"],
         CONFIG_PATHS["catalog"],
         CONFIG_PATHS["providers"],
     ),
-    ".guardrails/scorecard.py": (),
-    ".guardrails/validate_ground_truth.py": (CONFIG_PATHS["ground_truth"],),
-    ".guardrails/validators/inspect_change_scope.py": (),
-    ".guardrails/validators/validate_documentation.py": (),
-    ".guardrails/validators/validate_repository.py": (),
+    ".proof/scorecard.py": (),
+    ".proof/validate_ground_truth.py": (CONFIG_PATHS["ground_truth"],),
+    ".proof/validators/inspect_change_scope.py": (),
+    ".proof/validators/validate_documentation.py": (),
+    ".proof/validators/validate_repository.py": (),
 }
 WORKFLOW_CONTRACTS = (
-    "guardrails-scorecard.yml",
+    "proof-scorecard.yml",
     "repository-validation.yml",
     "build.yml",
     "unit-tests.yml",
@@ -72,7 +72,7 @@ WORKFLOW_CONTRACTS = (
 )
 FORBIDDEN_ACTIVE_GUIDANCE = (
     ".agentic-guardrails/",
-    ".guardrails/producer-manifest.json",
+    ".proof/producer-manifest.json",
     "--github-actions",
     "--no-cleanup",
     "semgrep ci",
@@ -242,7 +242,7 @@ def main() -> int:
     providers = configs.get("providers", {})
     ground_truth = configs.get("ground_truth", {})
 
-    fail_if(policy.get("version") != 2, "policy must use Guardrails v2", failures)
+    fail_if(policy.get("version") != 2, "policy must use contract version 2", failures)
     policy_profiles = policy.get("profiles")
     fail_if(
         policy_profiles != ["core", "github"],
@@ -355,17 +355,17 @@ def main() -> int:
         )
 
     fail_if(
-        (ROOT / ".guardrails/producer-manifest.json").exists(),
+        (ROOT / ".proof/producer-manifest.json").exists(),
         "obsolete producer manifest is present",
         failures,
     )
     for relative in (
-        ".guardrails/profiles.schema.json",
-        ".guardrails/providers.schema.json",
-        ".guardrails/evidence.schema.json",
-        ".guardrails/policy.schema.json",
-        ".guardrails/control-catalog.schema.json",
-        ".guardrails/semgrep-rules.yml",
+        ".proof/profiles.schema.json",
+        ".proof/providers.schema.json",
+        ".proof/evidence.schema.json",
+        ".proof/policy.schema.json",
+        ".proof/control-catalog.schema.json",
+        ".proof/semgrep-rules.yml",
     ):
         fail_if(not (ROOT / relative).is_file(), f"missing required file: {relative}", failures)
 
@@ -380,7 +380,7 @@ def main() -> int:
         for retired in FORBIDDEN_ACTIVE_GUIDANCE:
             fail_if(
                 retired in content.lower(),
-                f"retired Guardrails guidance found in {relative}: {retired}",
+                f"retired Proof guidance found in {relative}: {retired}",
                 failures,
             )
 
@@ -389,12 +389,12 @@ def main() -> int:
 
     if args.documentation:
         run_installed_validator(
-            ".guardrails/validators/validate_documentation.py",
+            ".proof/validators/validate_documentation.py",
             ["--policy", CONFIG_PATHS["documentation"]],
             failures,
         )
         run_installed_validator(
-            ".guardrails/validate_ground_truth.py",
+            ".proof/validate_ground_truth.py",
             ["--policy", CONFIG_PATHS["ground_truth"]],
             failures,
         )

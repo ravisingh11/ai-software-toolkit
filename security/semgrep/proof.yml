@@ -1,0 +1,18 @@
+{
+  "rules": [
+    {
+      "id": "proof.python-disabled-tls-verification",
+      "message": "TLS certificate verification must remain enabled.",
+      "severity": "ERROR",
+      "languages": ["python"],
+      "pattern": "$CLIENT.$METHOD(..., verify=False, ...)"
+    },
+    {
+      "id": "proof.javascript-disabled-tls-verification",
+      "message": "TLS certificate verification must remain enabled.",
+      "severity": "ERROR",
+      "languages": ["javascript", "typescript"],
+      "pattern": "new $AGENT({..., rejectUnauthorized: false, ...})"
+    }
+  ]
+}

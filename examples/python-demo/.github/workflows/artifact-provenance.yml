@@ -1,4 +1,4 @@
-# Guardrails v2 installer-owned workflow.
+# Proof installer-owned workflow.
 name: Artifact Provenance
 
 on:
@@ -24,7 +24,7 @@ permissions:
 jobs:
   attest:
     name: Artifact Provenance
-    if: ${{ inputs.artifact-path != '' || vars.GUARDRAILS_ARTIFACT_PATH != '' }}
+    if: ${{ inputs.artifact-path != '' || vars.PROOF_ARTIFACT_PATH != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -33,10 +33,10 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Build release artifact
-        if: ${{ vars.GUARDRAILS_ARTIFACT_BUILD_COMMAND != '' }}
-        run: bash -euo pipefail -c "${GUARDRAILS_ARTIFACT_BUILD_COMMAND}"
+        if: ${{ vars.PROOF_ARTIFACT_BUILD_COMMAND != '' }}
+        run: bash -euo pipefail -c "${PROOF_ARTIFACT_BUILD_COMMAND}"
         env:
-          GUARDRAILS_ARTIFACT_BUILD_COMMAND: ${{ vars.GUARDRAILS_ARTIFACT_BUILD_COMMAND }}
+          PROOF_ARTIFACT_BUILD_COMMAND: ${{ vars.PROOF_ARTIFACT_BUILD_COMMAND }}
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
-          subject-path: ${{ inputs.artifact-path || vars.GUARDRAILS_ARTIFACT_PATH }}
+          subject-path: ${{ inputs.artifact-path || vars.PROOF_ARTIFACT_PATH }}

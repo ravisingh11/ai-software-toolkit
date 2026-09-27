@@ -1,4 +1,4 @@
-# Guardrails v2 installer-owned workflow.
+# Proof installer-owned workflow.
 name: Unit Tests
 
 on:
@@ -21,25 +21,25 @@ jobs:
     steps:
       - name: Require configured command
         run: |
-          if [[ -z "${GUARDRAILS_UNIT_TEST_COMMAND}" ]]; then
-            echo "::error::GUARDRAILS_UNIT_TEST_COMMAND is not configured"
+          if [[ -z "${PROOF_UNIT_TEST_COMMAND}" ]]; then
+            echo "::error::PROOF_UNIT_TEST_COMMAND is not configured"
             exit 1
           fi
         env:
-          GUARDRAILS_UNIT_TEST_COMMAND: ${{ vars.GUARDRAILS_UNIT_TEST_COMMAND }}
+          PROOF_UNIT_TEST_COMMAND: ${{ vars.PROOF_UNIT_TEST_COMMAND }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Setup repository
-        if: ${{ vars.GUARDRAILS_SETUP_COMMAND != '' }}
-        working-directory: ${{ vars.GUARDRAILS_WORKING_DIRECTORY || '.' }}
-        run: bash -euo pipefail -c "${GUARDRAILS_SETUP_COMMAND}"
+        if: ${{ vars.PROOF_SETUP_COMMAND != '' }}
+        working-directory: ${{ vars.PROOF_WORKING_DIRECTORY || '.' }}
+        run: bash -euo pipefail -c "${PROOF_SETUP_COMMAND}"
         env:
-          GUARDRAILS_SETUP_COMMAND: ${{ vars.GUARDRAILS_SETUP_COMMAND }}
+          PROOF_SETUP_COMMAND: ${{ vars.PROOF_SETUP_COMMAND }}
       - name: Unit tests
-        working-directory: ${{ vars.GUARDRAILS_WORKING_DIRECTORY || '.' }}
-        run: bash -euo pipefail -c "${GUARDRAILS_UNIT_TEST_COMMAND}"
+        working-directory: ${{ vars.PROOF_WORKING_DIRECTORY || '.' }}
+        run: bash -euo pipefail -c "${PROOF_UNIT_TEST_COMMAND}"
         env:
-          GUARDRAILS_UNIT_TEST_COMMAND: ${{ vars.GUARDRAILS_UNIT_TEST_COMMAND }}
-          GUARDRAILS_WORKING_DIRECTORY: ${{ vars.GUARDRAILS_WORKING_DIRECTORY }}
+          PROOF_UNIT_TEST_COMMAND: ${{ vars.PROOF_UNIT_TEST_COMMAND }}
+          PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY }}

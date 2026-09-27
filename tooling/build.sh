@@ -7,7 +7,7 @@ trap 'rm -rf "${bytecode_root}"' EXIT
 
 cd "${repo_root}"
 PYTHONPYCACHEPREFIX="${bytecode_root}" python3 -m compileall -q -f \
-  guardrails \
+  proof \
   tooling \
   examples/python-demo
 

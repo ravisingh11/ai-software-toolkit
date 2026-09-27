@@ -1,6 +1,6 @@
 # Run the toolkit against this repository
 
-This repository consumes its installed Guardrails runtime. From a clean,
+This repository consumes its installed Proof runtime. From a clean,
 committed checkout, run:
 
 ```sh
@@ -32,8 +32,8 @@ a working branch or use an isolated committed snapshot first. A snapshot scan
 proves only that snapshot, not the original checkout, a merged change, or a
 published release. Ignored artifacts do not make the checkout dirty.
 
-The launcher uses `.guardrails/scan.py` from the repository root and explicitly
-selects this repository's installed `.guardrails/policy.yaml`, `profiles.yaml`,
+The launcher uses `.proof/scan.py` from the repository root and explicitly
+selects this repository's installed `.proof/policy.yaml`, `profiles.yaml`,
 `control-catalog.yaml`, and `providers.yaml`. This preserves the repository's
 enforced controls instead of using the shared advisory defaults in the source
 distribution. It binds these repository producers, overriding inherited command
@@ -55,8 +55,8 @@ install hooks, make commits, push, or write GitHub settings.
 ## Reading the result
 
 The scanner prints artifact paths and writes timestamped evidence JSON and a
-Markdown scorecard in `.artifacts/guardrails/`, plus the latest evidence at
-`.artifacts/guardrails/evidence.json`. Inspect each producer's status and reason.
+Markdown scorecard in `.artifacts/proof/`, plus the latest evidence at
+`.artifacts/proof/evidence.json`. Inspect each producer's status and reason.
 Missing, skipped, or unconfigured producers are not passes. Local scans cannot
 supply GitHub-only provider evidence, so advisory gaps can remain.
 

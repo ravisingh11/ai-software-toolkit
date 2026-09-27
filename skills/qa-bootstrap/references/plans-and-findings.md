@@ -114,11 +114,11 @@ entry id), and `finding` (a finding id). The trusted renderer rejects stronger
 provenance labels until independent producer authentication is implemented;
 an agent cannot assert deterministic or human provenance.
 
-## Status semantics at the Guardrails boundary
+## Status semantics at the Proof boundary
 
 `overall` precedence is `fail`, then `blocked` (any BLOCKED **or FLAKY** row),
 then `inconclusive`, then `pass`. A pass on retry is not proof, so a FLAKY row
 blocks the run; the report states `Overall: BLOCKED — analysis-incomplete`.
 The `QA / report` check therefore succeeds only for a fully passing run, and
-the Guardrails `functional-qa` capability records `passed` only from that
+the Proof `functional-qa` capability records `passed` only from that
 check. Functional QA stays advisory.

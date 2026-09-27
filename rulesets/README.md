@@ -43,7 +43,7 @@ is absent.
 | GitHub overlay | `CodeQL`, `Dependency Review`, `GitHub Secret Scan`, `Dependabot Verification` |
 
 `Artifact Provenance` is a release/dispatch attestation job, not a pull-request
-check, and it does not yet produce nested artifact evidence for a Guardrails
+check, and it does not yet produce nested artifact evidence for a Proof
 release scorecard. Do not add it to branch-protection required checks.
 
 GitHub can render a workflow/job combination differently depending on how a
@@ -73,5 +73,5 @@ Rulesets cannot configure credentials, enable GitHub security settings, create
 external vendor projects, or prove a provider ran. Complete those activation
 steps first.
 
-See [control setup](../docs/guardrails/control-setup.md), [status](../docs/guardrails/control-status.md),
+See [control setup](../docs/proof/control-setup.md), [status](../docs/proof/control-status.md),
 and [workflow guidance](../workflows/README.md).

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Proof Profiles",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "profiles"],
+  "properties": {
+    "version": {"const": 2},
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["core", "github"],
+      "properties": {
+        "core": {"$ref": "#/$defs/profile"},
+        "github": {"$ref": "#/$defs/profile"}
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$", "maxLength": 80},
+    "defaults": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/identifier"},
+      "additionalProperties": {"const": "advisory"}
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name", "description", "runnable", "defaults"],
+      "properties": {
+        "display_name": {"type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S"},
+        "description": {"type": "string", "minLength": 1, "maxLength": 500, "pattern": "\\S"},
+        "runnable": {"const": true},
+        "defaults": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["change", "release"],
+          "properties": {
+            "change": {"$ref": "#/$defs/defaults"},
+            "release": {"$ref": "#/$defs/defaults"}
+          }
+        }
+      }
+    }
+  }
+}

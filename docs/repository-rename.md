@@ -4,7 +4,8 @@ The canonical repository is now
 [ravisingh11/ai-software-toolkit](https://github.com/ravisingh11/ai-software-toolkit),
 formerly `ravisingh11/engineering-standards`.
 
-This changes the repository address, not the Guardrails runtime, policy
+This changes the repository address, not the runtime (then named Guardrails;
+see [the Proof rename](proof/migrating-from-guardrails.md)), policy
 schemas, skill names, or Spec Kit preset identifiers. Existing tags and Git
 history remain in the same repository. Local directories do not need renaming.
 
@@ -40,7 +41,7 @@ for actions or reusable workflows, including references pinned to a commit.
 See [GitHub's workflow reference](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations).
 
 Review explicit checkout repositories, download URLs, provider project
-bindings, and repository allowlists too. Copied `.guardrails/` runtime files
+bindings, and repository allowlists too. Copied `.proof/` runtime files
 and installed skills do not need replacing merely because of this rename;
 update any embedded references that actually address the upstream repository.
 The runtime's evidence remains tied to its original subject and provenance.
@@ -50,7 +51,7 @@ The runtime's evidence remains tied to its original subject and provenance.
 The canonical scorecard site is
 [AI Software Toolkit scorecard](https://ravisingh11.github.io/ai-software-toolkit/)
 and its badge is
-[guardrails-badge.svg](https://ravisingh11.github.io/ai-software-toolkit/guardrails-badge.svg).
+[proof-badge.svg](https://ravisingh11.github.io/ai-software-toolkit/proof-badge.svg).
 Update bookmarks and embedded badges. The old project Pages URL is not covered
 by repository redirects. Fork-owned Pages sites keep their own repository URLs.
 

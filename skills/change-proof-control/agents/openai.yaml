@@ -1,0 +1,4 @@
+interface:
+  display_name: "Change Proof Control"
+  short_description: "Change Proof controls without lifecycle drift"
+  default_prompt: "Use $change-proof-control to add or modify a Proof control and verify it end to end."

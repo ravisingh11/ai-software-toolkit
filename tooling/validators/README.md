@@ -17,7 +17,7 @@ Run documentation validation directly:
 python3 tooling/validators/validate_documentation.py
 ```
 
-`.guardrails/documentation.yaml` maps implementation paths to source-of-truth
+`.proof/documentation.yaml` maps implementation paths to source-of-truth
 documents. With `--base-ref` and `--head-ref`, the validator fails when a
 mapped implementation change has no documentation change. It always checks
 local Markdown links and mapped documentation targets.
@@ -28,9 +28,9 @@ Inspect file and line scope:
 python3 tooling/validators/inspect_change_scope.py
 ```
 
-Thresholds come from `.guardrails/change-scope.yaml`. Findings are advisory:
+Thresholds come from `.proof/change-scope.yaml`. Findings are advisory:
 the command records them and exits successfully unless configuration or Git
 input is invalid.
 
-See [Guardrails directories](../../README.md#guardrails-directories) for the
+See [Proof directories](../../README.md#proof-directories) for the
 shared-source and repository-installation boundary.

@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "mappings": [
+    {
+      "name": "control-contract",
+      "triggers": ["policies/**", "proof/**"],
+      "documents": ["README.md", "policies/**", "docs/proof/README.md"]
+    },
+    {
+      "name": "workflow-contract",
+      "triggers": ["workflows/**", ".github/workflows/**"],
+      "documents": ["README.md", "workflows/README.md", "rulesets/**"]
+    },
+    {
+      "name": "agent-capability",
+      "triggers": ["skills/**", "prompts/**", "templates/**"],
+      "documents": ["README.md", "skills/README.md", "docs/standards/ai-agent-standards.md"]
+    },
+    {
+      "name": "tooling-contract",
+      "triggers": ["tooling/**", "action.yml"],
+      "documents": ["README.md", "docs/**"]
+    }
+  ]
+}

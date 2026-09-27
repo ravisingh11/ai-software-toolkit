@@ -1,4 +1,4 @@
-# Guardrails v2 installer-owned workflow.
+# Proof installer-owned workflow.
 name: Semgrep CE
 
 on:
@@ -29,14 +29,14 @@ jobs:
           docker run --rm --network none \
             -v "${GITHUB_WORKSPACE}:/src:ro" -w /src \
             semgrep/semgrep@sha256:b94b53d02fd4a022f9eac4e2af1380f5c3c4c21400e79d3336bdff1d1db5e796 \
-            semgrep scan --metrics off --config .guardrails/semgrep-rules.yml --json \
-            .guardrails/semgrep-tests/fixtures/unsafe \
+            semgrep scan --metrics off --config .proof/semgrep-rules.yml --json \
+            .proof/semgrep-tests/fixtures/unsafe \
             > "${RUNNER_TEMP}/semgrep-unsafe.json"
           docker run --rm --network none \
             -v "${GITHUB_WORKSPACE}:/src:ro" -w /src \
             semgrep/semgrep@sha256:b94b53d02fd4a022f9eac4e2af1380f5c3c4c21400e79d3336bdff1d1db5e796 \
-            semgrep scan --metrics off --config .guardrails/semgrep-rules.yml --json \
-            .guardrails/semgrep-tests/fixtures/safe \
+            semgrep scan --metrics off --config .proof/semgrep-rules.yml --json \
+            .proof/semgrep-tests/fixtures/safe \
             > "${RUNNER_TEMP}/semgrep-safe.json"
           python3 - "${RUNNER_TEMP}/semgrep-unsafe.json" "${RUNNER_TEMP}/semgrep-safe.json" <<'PY'
           import json
@@ -45,14 +45,14 @@ jobs:
           unsafe = json.load(open(sys.argv[1], encoding="utf-8"))
           safe = json.load(open(sys.argv[2], encoding="utf-8"))
           expected = {
-              "guardrails.python-disabled-tls-verification",
-              "guardrails.javascript-disabled-tls-verification",
+              "proof.python-disabled-tls-verification",
+              "proof.javascript-disabled-tls-verification",
           }
           actual = set()
           for result in unsafe["results"]:
               check_id = result["check_id"]
-              if check_id.startswith("guardrails.guardrails."):
-                  check_id = check_id.removeprefix("guardrails.")
+              if check_id.startswith("proof.proof."):
+                  check_id = check_id.removeprefix("proof.")
               actual.add(check_id)
           if actual != expected:
               raise SystemExit(f"unsafe fixtures produced {sorted(actual)}, expected {sorted(expected)}")
@@ -64,7 +64,7 @@ jobs:
           docker run --rm --network none
           -v "${GITHUB_WORKSPACE}:/src:ro" -w /src
           semgrep/semgrep@sha256:b94b53d02fd4a022f9eac4e2af1380f5c3c4c21400e79d3336bdff1d1db5e796
-          semgrep scan --metrics off --error --config .guardrails/semgrep-rules.yml
-          --exclude .guardrails/semgrep-tests/fixtures
-          --exclude examples/python-demo/.guardrails/semgrep-tests/fixtures
+          semgrep scan --metrics off --error --config .proof/semgrep-rules.yml
+          --exclude .proof/semgrep-tests/fixtures
+          --exclude examples/python-demo/.proof/semgrep-tests/fixtures
           --exclude security/semgrep/tests/fixtures .

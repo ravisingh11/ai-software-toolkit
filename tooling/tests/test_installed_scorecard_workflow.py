@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 INSTALLER = Path(__file__).resolve().parents[1] / "install.py"
-SPEC = importlib.util.spec_from_file_location("guardrails_v2_install", INSTALLER)
+SPEC = importlib.util.spec_from_file_location("proof_v2_install", INSTALLER)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
 SPEC.loader.exec_module(MODULE)
@@ -41,9 +41,9 @@ class InstalledScorecardWorkflowTests(unittest.TestCase):
     def test_candidate_validation_rejects_semantically_invalid_policy(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             target = Path(temporary)
-            trusted_checkout = target / ".guardrails-trusted"
+            trusted_checkout = target / ".proof-trusted"
             candidate_policy = (
-                target / ".guardrails-candidate/.guardrails/policy.yaml"
+                target / ".proof-candidate/.proof/policy.yaml"
             )
             trusted_checkout.mkdir()
             candidate_policy.parent.mkdir(parents=True)
@@ -60,7 +60,7 @@ class InstalledScorecardWorkflowTests(unittest.TestCase):
             )
 
             workflow = (
-                trusted_checkout / ".github/workflows/guardrails-scorecard.yml"
+                trusted_checkout / ".github/workflows/proof-scorecard.yml"
             ).read_text(encoding="utf-8")
             result = subprocess.run(
                 [
@@ -83,7 +83,7 @@ class InstalledScorecardWorkflowTests(unittest.TestCase):
             target = Path(temporary)
             MODULE.install(target, dry_run=False, profiles=["github"])
             workflow = (
-                target / ".github/workflows/guardrails-scorecard.yml"
+                target / ".github/workflows/proof-scorecard.yml"
             ).read_text(encoding="utf-8")
             enforcement_scripts = "".join(
                 workflow_step_script(workflow, step_name)
@@ -95,12 +95,12 @@ class InstalledScorecardWorkflowTests(unittest.TestCase):
 
             self.assertEqual(
                 enforcement_scripts.count(
-                    "--policy .guardrails-trusted/.guardrails/policy.yaml"
+                    "--policy .proof-trusted/.proof/policy.yaml"
                 ),
                 3,
             )
             self.assertNotIn(
-                "--policy .guardrails-candidate/.guardrails/policy.yaml",
+                "--policy .proof-candidate/.proof/policy.yaml",
                 enforcement_scripts,
             )
 
@@ -109,7 +109,7 @@ class InstalledScorecardWorkflowTests(unittest.TestCase):
             target = Path(temporary)
             MODULE.install(target, dry_run=False)
             workflows = target / ".github/workflows"
-            scorecard = (workflows / "guardrails-scorecard.yml").read_text(
+            scorecard = (workflows / "proof-scorecard.yml").read_text(
                 encoding="utf-8"
             )
 
@@ -126,7 +126,7 @@ class InstalledScorecardWorkflowTests(unittest.TestCase):
             producer_timeout_minutes = max(
                 int(timeout)
                 for workflow in workflows.glob("*.yml")
-                if workflow.name != "guardrails-scorecard.yml"
+                if workflow.name != "proof-scorecard.yml"
                 for timeout in re.findall(
                     r"timeout-minutes:\s*(\d+)",
                     workflow.read_text(encoding="utf-8"),
@@ -151,28 +151,28 @@ class InstalledScorecardWorkflowTests(unittest.TestCase):
 
     def test_trusted_collection_and_evaluation_paths_exist_after_install(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            trusted_checkout = Path(temporary) / ".guardrails-trusted"
+            trusted_checkout = Path(temporary) / ".proof-trusted"
             trusted_checkout.mkdir()
             MODULE.install(trusted_checkout, dry_run=False, profiles=["github"])
 
             workflow = (
-                trusted_checkout / ".github/workflows/guardrails-scorecard.yml"
+                trusted_checkout / ".github/workflows/proof-scorecard.yml"
             ).read_text(encoding="utf-8")
             invoked_scripts = re.findall(
-                r"python3 (\.guardrails-trusted/[^\s\\]+)", workflow
+                r"python3 (\.proof-trusted/[^\s\\]+)", workflow
             )
             trusted_paths = set(
-                re.findall(r"\.guardrails-trusted/[A-Za-z0-9._/-]+", workflow)
+                re.findall(r"\.proof-trusted/[A-Za-z0-9._/-]+", workflow)
             )
 
             self.assertEqual(
                 invoked_scripts,
                 [
-                    ".guardrails-trusted/.guardrails/configure.py",
-                    ".guardrails-trusted/.guardrails/github_evidence.py",
-                    ".guardrails-trusted/.guardrails/github_evidence.py",
-                    ".guardrails-trusted/.guardrails/scorecard.py",
-                    ".guardrails-trusted/.guardrails/scorecard.py",
+                    ".proof-trusted/.proof/configure.py",
+                    ".proof-trusted/.proof/github_evidence.py",
+                    ".proof-trusted/.proof/github_evidence.py",
+                    ".proof-trusted/.proof/scorecard.py",
+                    ".proof-trusted/.proof/scorecard.py",
                 ],
             )
             self.assertTrue(trusted_paths)

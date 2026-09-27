@@ -40,10 +40,10 @@ class RepositoryValidatorTests(unittest.TestCase):
             self.assertIn("docs/product.md", stderr.getvalue())
             self.assertNotIn(".superpowers/notes.md", stderr.getvalue())
 
-    def test_machine_path_scan_ignores_generated_guardrail_artifacts(self) -> None:
+    def test_machine_path_scan_ignores_generated_proof_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            report = root / ".artifacts" / "guardrails" / "scorecard.md"
+            report = root / ".artifacts" / "proof" / "scorecard.md"
             report.parent.mkdir(parents=True)
             machine_path = "/" + "Users/example/repository/evidence.json"
             report.write_text(f"Evidence: {machine_path}\n", encoding="utf-8")

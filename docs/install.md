@@ -1,6 +1,6 @@
 # Install with the `ai-toolkit` CLI
 
-The `ai-toolkit` command is one front door for Guardrails, shared skills, and
+The `ai-toolkit` command is one front door for Proof, shared skills, and
 QA bootstrap. It is a facade: `init`, `doctor`, `check`, `providers`, `skills`,
 `qa`, and `update` dispatch to the existing installer, diagnostics, scanner,
 configuration, and skill sources under `tooling/`. It adds discovery, the
@@ -54,24 +54,24 @@ or an interactive confirmation. Options:
 
 | Option | Effect |
 | --- | --- |
-| `--components guardrails,skills,qa` | Install a subset; each component is independently adoptable |
+| `--components proof,skills,qa` | Install a subset; each component is independently adoptable |
 | `--clients codex,claude-code` | Project skill directories to populate (`.agents/skills`, `.claude/skills`); defaults to detected clients |
 | `--skills starter\|all\|name,...` | Skills to install; the starter set is small and review-oriented |
 | `--profile github` | Add the optional GitHub provider profile |
 | `--no-actions` | Install the runtime without workflow files |
 | `--apply-variables` | Store discovered commands as GitHub repository variables with `gh` |
 
-On a repository that already has `.guardrails/`, `init` fills gaps only and
+On a repository that already has `.proof/`, `init` fills gaps only and
 records the installation; it never rewrites an installed runtime. Use `update`
 to refresh.
 
 ### Repository commands stay in repository variables
 
-Discovered commands are printed as `gh variable set GUARDRAILS_..._COMMAND`
+Discovered commands are printed as `gh variable set PROOF_..._COMMAND`
 lines and, with `--apply-variables`, set through `gh`. They are never written
 into `toolkit.toml` or any committed file, so a pull request cannot change
 what CI executes. Local scans read the same names from the environment
-(`export GUARDRAILS_UNIT_TEST_COMMAND=...`).
+(`export PROOF_UNIT_TEST_COMMAND=...`).
 
 ### `toolkit.toml`
 
@@ -80,16 +80,16 @@ Commit this file. It holds only what nothing else owns:
 ```toml
 [toolkit]
 revision = "v2.1.0"
-components = ["guardrails", "skills", "qa"]
+components = ["proof", "skills", "qa"]
 
 [agents]
 clients = ["codex", "claude-code"]
 skills_dir = ".agents/skills"
 
-[guardrails]
-policy = ".guardrails/policy.yaml"
-providers = ".guardrails/providers.yaml"
-profiles = ".guardrails/profiles.yaml"
+[proof]
+policy = ".proof/policy.yaml"
+providers = ".proof/providers.yaml"
+profiles = ".proof/profiles.yaml"
 actions = true            # false after init --no-actions; update never adds workflows then
 github_profile = false    # true after init --profile github
 ```
@@ -97,13 +97,13 @@ github_profile = false    # true after init --profile github
 `actions` and `github_profile` record the installation mode chosen at `init`
 so `update` reproduces it even when a workflow file of the same name is
 consumer-owned or the installed policy is missing. Policy modes and provider
-selection stay in `.guardrails/` and change only through
-`.guardrails/configure.py` (or `ai-toolkit providers select CAPABILITY=PROVIDER`).
+selection stay in `.proof/` and change only through
+`.proof/configure.py` (or `ai-toolkit providers select CAPABILITY=PROVIDER`).
 
 ### `toolkit.lock.json`
 
 Commit this file too. It records the toolkit revision, installed components,
-and a SHA-256 for every managed file: the `.guardrails/` runtime, installed
+and a SHA-256 for every managed file: the `.proof/` runtime, installed
 workflows, and installed skills. `update` uses it to tell unmodified files
 (refreshed) from modified ones (preserved and reported) and unmanaged files
 (never touched). Installations made before the lock existed are bootstrapped
@@ -122,7 +122,7 @@ Each component and capability is reported as one of:
 | --- | --- | --- |
 | `installed` | Managed files are present | lock and filesystem |
 | `configured` | Required commands, workflows, and provider selections are declared | the existing setup diagnostic |
-| `verified` | Evidence bound to the current `HEAD` shows `passed` or `failed` from the authoritative provider | `.artifacts/guardrails/evidence.json` from `check`, or a CI scorecard |
+| `verified` | Evidence bound to the current `HEAD` shows `passed` or `failed` from the authoritative provider | `.artifacts/proof/evidence.json` from `check`, or a CI scorecard |
 
 Every gap prints one concrete next action. `verified` describes the evidence
 that exists; it is not a pass.
@@ -133,7 +133,7 @@ that exists; it is not a pass.
 python3 ai-toolkit.pyz check --target .
 ```
 
-`check` runs the installed scanner (`.guardrails/scan.py`) and groups the
+`check` runs the installed scanner (`.proof/scan.py`) and groups the
 result: what ran and passed, what failed, what remains unverified (`blocked`
 or `no_result` with the producer's reason), and what is not activated. Each
 failed capability names the repair skill to run with the finding attached;
@@ -169,7 +169,7 @@ python3 ai-toolkit.pyz update --target . --rollback
 `update` refreshes unmodified managed files from the running toolkit
 revision, preserves modified files and lists them as conflicts with the
 canonical version copied beside them under `.artifacts/ai-toolkit/conflicts/`,
-restores missing files (including a partially deleted `.guardrails/`), and
+restores missing files (including a partially deleted `.proof/`), and
 rewrites the lock. Only skills the previous lock recorded are refreshed
 (their canonical files are rewritten; files you added inside the directory
 are kept) or restored when the directory was deleted; a directory you created
@@ -189,7 +189,7 @@ nothing changed is a no-op.
   revision-bound evidence.
 - Commands live in repository variables and the local environment, never in
   committed files.
-- `.guardrails/` remains the public runtime contract; the CLI writes it
+- `.proof/` remains the public runtime contract; the CLI writes it
   through the installer and reads it through the installed scripts.
 - Credentials stay in GitHub secrets or the provider platform.
 - The archive is pinned by release tag and checksum; nothing is fetched at

@@ -42,7 +42,7 @@ suppressing a true positive.
    or an isolated disposable sandbox with no credentials, external network, or
    access to developer files. Never execute an exploit against a live vulnerable
    environment. Confirm the safe red test fails before the fix and passes after.
-4. Re-run the reporting scanner locally when available (`.guardrails/scan.py`
+4. Re-run the reporting scanner locally when available (`.proof/scan.py`
    or the tool itself) so the same rule no longer fires.
 5. For leaked secrets: remove them from the tree, tell the user which
    credential must be rotated, and never paste the value anywhere.

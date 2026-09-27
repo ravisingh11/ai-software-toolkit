@@ -1,6 +1,6 @@
-# Guardrails v2 quick start
+# Proof quick start
 
-This guide installs the Guardrails component of [AI Software Toolkit](vision.md).
+This guide installs the Proof component of [AI Software Toolkit](vision.md).
 For other entry points, [install skills](../skills/README.md#install-locally)
 or [set up functional QA](../skills/qa-bootstrap/SKILL.md) from a source revision
 containing those capabilities.
@@ -13,8 +13,15 @@ For a copyable, isolated first run, start with the
 refreshes the embedded installation, configures real build/test commands,
 commits the demo, and scans it. Git, Python 3.11+, and a POSIX shell are the
 prerequisites. Docker and GitHub credentials are optional; missing providers
-produce no result, not a pass. “v2” is the runtime and evidence contract;
-v1.0.0 is the repository release version.
+produce no result, not a pass.
+
+> [!NOTE]
+> v1.0.0 predates the rename of Guardrails to Proof and uses `.guardrails/`
+> and `GUARDRAILS_*`. Until the next release, use the
+> [v1.0.0 quick start](https://github.com/ravisingh11/ai-software-toolkit/blob/v1.0.0/docs/quickstart.md)
+> with a v1.0.0 checkout, or run this guide from a `main` checkout. To move an
+> existing installation, see
+> [migrating from Guardrails](proof/migrating-from-guardrails.md).
 
 The numbered steps below adapt that flow to **your own repository**. Use its
 real commands and ground-truth documents, not the demo's paths.
@@ -76,19 +83,19 @@ Core remains selected. The GitHub profile is an additive advisory overlay.
 This verified example matches the embedded Python demo:
 
 ```sh
-export GUARDRAILS_BUILD_COMMAND='python3 -m compileall -q app.py test_app.py tools .guardrails'
-export GUARDRAILS_UNIT_TEST_COMMAND="python3 -m unittest discover -s . -p 'test_*.py'"
-export GUARDRAILS_WORKING_DIRECTORY='.'
+export PROOF_BUILD_COMMAND='python3 -m compileall -q app.py test_app.py tools .proof'
+export PROOF_UNIT_TEST_COMMAND="python3 -m unittest discover -s . -p 'test_*.py'"
+export PROOF_WORKING_DIRECTORY='.'
 ```
 
 Use the same names as GitHub Actions repository variables. Configure
-`GUARDRAILS_SETUP_COMMAND`, `GUARDRAILS_CHANGED_COVERAGE_COMMAND`,
-`GUARDRAILS_FORMAT_LINT_COMMAND`, and `GUARDRAILS_MIGRATION_VALIDATION_COMMAND`
+`PROOF_SETUP_COMMAND`, `PROOF_CHANGED_COVERAGE_COMMAND`,
+`PROOF_FORMAT_LINT_COMMAND`, and `PROOF_MIGRATION_VALIDATION_COMMAND`
 only when the repository has real commands for those capabilities. Unset build,
 test, or coverage commands produce `NO RESULT` rather than pass. The installed
 format/lint and migration Actions jobs fail visibly when their command is absent;
 local scans represent the same absence as `NO RESULT`.
-`GUARDRAILS_WORKING_DIRECTORY` must resolve inside the repository.
+`PROOF_WORKING_DIRECTORY` must resolve inside the repository.
 
 Before opening the first pull request, configure real format/lint and migration
 commands for any installed workflows you intend to run. Do not use a no-op or
@@ -96,7 +103,7 @@ an unrelated validation command: a green check must prove its named capability.
 
 ## 4. Declare repository ground truth
 
-Edit `.guardrails/ground-truth-ai.yaml` so each entry names an existing path:
+Edit `.proof/ground-truth-ai.yaml` so each entry names an existing path:
 
 ```json
 {
@@ -120,10 +127,10 @@ scan. A new repository also needs `git init` and its initial commit; the
 [demo walkthrough](../README.md#start-here) includes both.
 
 ```sh
-python3 .guardrails/configure.py --list
-python3 .guardrails/scan.py --help
-python3 .guardrails/configure.py --help
-python3 .guardrails/scan.py
+python3 .proof/configure.py --list
+python3 .proof/scan.py --help
+python3 .proof/configure.py --help
+python3 .proof/scan.py
 ```
 
 The scan requires a clean worktree for passing local evidence and binds evidence
@@ -131,13 +138,13 @@ to the resolved full `HEAD`. A dirty worktree yields no-result evidence; a
 repository without a commit cannot resolve `HEAD`. It writes:
 
 ```text
-.artifacts/guardrails/evidence-YYYYMMDD-HHMMSSZ.json
-.artifacts/guardrails/evidence.json
-.artifacts/guardrails/scorecard-YYYYMMDD-HHMMSSZ.md
+.artifacts/proof/evidence-YYYYMMDD-HHMMSSZ.json
+.artifacts/proof/evidence.json
+.artifacts/proof/scorecard-YYYYMMDD-HHMMSSZ.md
 ```
 
 The default scorecard omits inactive and `evidence-only` controls. Use
-`python3 .guardrails/scan.py --all-catalog-controls` to inspect the complete
+`python3 .proof/scan.py --all-catalog-controls` to inspect the complete
 catalog with those controls shown as `GRAY` / `not_activated`.
 
 Release policy can activate controls for more than one evidence subject. Select
@@ -145,8 +152,8 @@ one immutable subject contract per invocation instead of combining commit and
 artifact evidence:
 
 ```sh
-python3 .guardrails/scan.py --operation release --subject-type git-commit
-python3 .guardrails/scan.py --operation release --subject-type artifact \
+python3 .proof/scan.py --operation release --subject-type git-commit
+python3 .proof/scan.py --operation release --subject-type artifact \
   --revision 'sha256:<artifact-digest>'
 ```
 
@@ -171,7 +178,7 @@ mismatch produces `NO RESULT`.
 - **Scanner tools unavailable:** install the pinned tools or a working Docker
   runtime if you want their evidence. Do not replace a security scan with a no-op.
 - **Semgrep cannot find its rules inside Docker:** verify the daemon can mount
-  the consumer directory, including `.guardrails/semgrep-rules.yml`; inspect
+  the consumer directory, including `.proof/semgrep-rules.yml`; inspect
   that path inside the container before attributing the failure to a mount.
 - **GitHub checks absent locally:** verify the supported producers on a real PR.
   An advisory `ORANGE / ALLOW` result is not an all-checks-passed result.
@@ -181,16 +188,16 @@ mismatch produces `NO RESULT`.
 
 ## Diagnose installation
 
-The v1.0.0 installer distributes `.guardrails/doctor.py` with the runtime,
+The installer distributes `.proof/doctor.py` with the runtime,
 including runtime-only installs. Refreshing an existing v2 installation adds
 it. Run these commands from the installed consumer repository:
 
 ```sh
-python3 .guardrails/doctor.py
-python3 .guardrails/doctor.py --target /path/to/repo
-python3 .guardrails/doctor.py --target /path/to/repo --json
-python3 .guardrails/doctor.py --github OWNER/REPO
-python3 .guardrails/doctor.py --operation release
+python3 .proof/doctor.py
+python3 .proof/doctor.py --target /path/to/repo
+python3 .proof/doctor.py --target /path/to/repo --json
+python3 .proof/doctor.py --github OWNER/REPO
+python3 .proof/doctor.py --operation release
 ```
 
 `--target` defaults to the current working directory; `--operation change|release`
@@ -222,7 +229,7 @@ all-controls-passed result.
 
 If a required helper is missing or cannot be imported (including syntax damage),
 doctor reports its filename and exits 2 without a traceback; refresh the trusted
-installation. `GUARDRAILS_WORKING_DIRECTORY` is trimmed like the scanner's value,
+installation. `PROOF_WORKING_DIRECTORY` is trimmed like the scanner's value,
 and an empty or whitespace-only value selects the repository root.
 Helper exits are handled as load failures, but user interrupts still propagate.
 
@@ -245,13 +252,13 @@ If the GitHub profile is selected, configure only applicable repository
 variables:
 
 ```text
-GUARDRAILS_CODEQL_LANGUAGES
-GUARDRAILS_DEPENDENCY_REVIEW_ENABLED=true
-GUARDRAILS_ARTIFACT_BUILD_COMMAND
-GUARDRAILS_ARTIFACT_PATH
+PROOF_CODEQL_LANGUAGES
+PROOF_DEPENDENCY_REVIEW_ENABLED=true
+PROOF_ARTIFACT_BUILD_COMMAND
+PROOF_ARTIFACT_PATH
 ```
 
-`GUARDRAILS_CODEQL_LANGUAGES` is the CodeQL language list. Artifact variables
+`PROOF_CODEQL_LANGUAGES` is the CodeQL language list. Artifact variables
 apply to release/workflow-dispatch provenance, not PR commit evidence.
 
 The optional `SECURITY_SETTINGS_TOKEN` is used only by trusted, no-checkout
@@ -267,7 +274,7 @@ disabled.
 
 ```text
 local scan -> push branch -> provider workflows -> exact-head collector
-           -> Guardrail Scorecard -> review -> merge
+           -> Proof Scorecard -> review -> merge
 ```
 
 Provider workflows run independently. The scorecard collector reads only the
@@ -294,8 +301,8 @@ Keep all capabilities advisory while tuning. After a provider has a stable
 check name, reliable exact-subject evidence, and a remediation owner:
 
 ```sh
-python3 .guardrails/configure.py --set unit-tests=enforced --dry-run
-python3 .guardrails/configure.py --set unit-tests=enforced
+python3 .proof/configure.py --set unit-tests=enforced --dry-run
+python3 .proof/configure.py --set unit-tests=enforced
 ```
 
 Then add the observed check context to the repository ruleset. Policy mode and
@@ -323,7 +330,7 @@ A private repository does **not** automatically make its Pages site private.
 [Private Pages access control](https://docs.github.com/en/enterprise-cloud@latest/pages/getting-started-with-github-pages/changing-the-visibility-of-your-github-pages-site)
 requires an eligible organization using GitHub Enterprise Cloud. Configure
 Pages access as **Private** in GitHub before enabling the optional publisher,
-and set `GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS=private`. This variable requests
+and set `PROOF_SCORECARD_BADGE_PAGES_ACCESS=private`. This variable requests
 a check; it does not create or secure a Pages site. The publisher verifies that
 GitHub reports the configured site as private before rendering or uploading.
 Missing, public, inaccessible, or unverified destinations block publication.
@@ -379,12 +386,12 @@ In repository settings, select **Pages → Build and deployment → GitHub
 Actions**. For a public repository and public site, create:
 
 ```text
-GUARDRAILS_SCORECARD_BADGE_ENABLED=true
-GUARDRAILS_SCORECARD_BADGE_PAGES_MODE=dedicated
+PROOF_SCORECARD_BADGE_ENABLED=true
+PROOF_SCORECARD_BADGE_PAGES_MODE=dedicated
 ```
 
 For a private destination, also set
-`GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS=private` after configuring private
+`PROOF_SCORECARD_BADGE_PAGES_ACCESS=private` after configuring private
 Pages access as described above. This setting is required for private/internal
 repositories; private Pages eligibility depends on the GitHub organization and plan.
 
@@ -396,8 +403,8 @@ Instead, render the four generated files into the existing site's artifact.
 Add the badges after the first successful publication:
 
 ```markdown
-[![Scorecard Workflow](https://github.com/OWNER/REPOSITORY/actions/workflows/guardrails-scorecard.yml/badge.svg?event=pull_request_target)](https://github.com/OWNER/REPOSITORY/actions/workflows/guardrails-scorecard.yml)
-[![Latest PR Scorecard](https://OWNER.github.io/REPOSITORY/guardrails-badge.svg)](https://OWNER.github.io/REPOSITORY/)
+[![Scorecard Workflow](https://github.com/OWNER/REPOSITORY/actions/workflows/proof-scorecard.yml/badge.svg?event=pull_request_target)](https://github.com/OWNER/REPOSITORY/actions/workflows/proof-scorecard.yml)
+[![Latest PR Scorecard](https://OWNER.github.io/REPOSITORY/proof-badge.svg)](https://OWNER.github.io/REPOSITORY/)
 ```
 
 For an `OWNER.github.io` repository, use the Pages root without the repository
@@ -419,4 +426,4 @@ missing, and unresolved evidence; zero configured controls are labeled
 explicitly. This is the latest published PR evaluation, not an assessment of
 the current default branch.
 
-Continue with [control setup](guardrails/control-setup.md) and [rulesets](../rulesets/README.md).
+Continue with [control setup](proof/control-setup.md) and [rulesets](../rulesets/README.md).

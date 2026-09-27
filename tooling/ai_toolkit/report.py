@@ -56,7 +56,7 @@ def reason_code(reason: str | None) -> str | None:
 
 
 def latest_evidence(target: Path) -> dict[str, Any] | None:
-    path = target / ".artifacts" / "guardrails" / "evidence.json"
+    path = target / ".artifacts" / "proof" / "evidence.json"
     if not path.is_file():
         return None
     try:
@@ -166,7 +166,7 @@ def render_check(card: dict[str, Any], *, evidence_path: str | None = None, repo
 
 def authoritative_selections(target: Path) -> dict[str, str]:
     """Capability -> authoritative provider id from the installed provider configuration."""
-    path = target / ".guardrails" / "providers.yaml"
+    path = target / ".proof" / "providers.yaml"
     if not path.is_file():
         return {}
     try:
@@ -221,7 +221,7 @@ def verified_rows(target: Path, doctor_report: dict[str, Any]) -> list[dict[str,
             gap = command or workflow or {}
             action = gap.get("next_step", "Configure the capability's command, credential, or workflow.")
         else:
-            action = "Run `ai-toolkit init` to install the Guardrails runtime."
+            action = "Run `ai-toolkit init` to install the Proof runtime."
         rows.append({"capability": capability, "state": state, "observed": observed, "next_step": action})
     return rows
 
@@ -250,7 +250,7 @@ def render_doctor(target: Path, doctor_report: dict[str, Any], rows: list[dict[s
     lines.append("")
     lines.append(" | ".join(f"{state}: {count}" for state, count in counts.items()))
     lines.append("")
-    lines.append("Guardrails diagnostics:")
+    lines.append("Proof diagnostics:")
     for row in doctor_report.get("checks", []):
         lines.append(f"  [{row['status'].upper()}] {row['id']}: {row['message']}")
     return "\n".join(lines) + "\n"

@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SEMGREP_IMAGE = "semgrep/semgrep@sha256:b94b53d02fd4a022f9eac4e2af1380f5c3c4c21400e79d3336bdff1d1db5e796"
 GITLEAKS_IMAGE = "ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f"
 CORE_WORKFLOWS = {
-    "guardrails-scorecard.yml",
+    "proof-scorecard.yml",
     "change-scope.yml",
     "pr-metadata.yml",
     "repository-validation.yml",
@@ -35,27 +35,27 @@ GITHUB_WORKFLOWS = {
 class ActionDistributionTests(unittest.TestCase):
     def test_installed_runtime_and_configuration_match_canonical_sources(self) -> None:
         copies = {
-            ".guardrails/profiles.yaml": "policies/profiles.yaml",
-            ".guardrails/control-catalog.yaml": "policies/control-catalog.yaml",
-            ".guardrails/providers.yaml": "policies/provider-config.yaml",
-            ".guardrails/policy.schema.json": "guardrails/policy.schema.json",
-            ".guardrails/evidence.schema.json": "guardrails/evidence.schema.json",
-            ".guardrails/profiles.schema.json": "guardrails/profiles.schema.json",
-            ".guardrails/providers.schema.json": "guardrails/providers.schema.json",
-            ".guardrails/control-catalog.schema.json": "guardrails/control-catalog.schema.json",
-            ".guardrails/evaluate.py": "guardrails/evaluate.py",
-            ".guardrails/scorecard.py": "tooling/guardrail_scorecard.py",
-            ".guardrails/configure.py": "tooling/configure_guardrails.py",
-            ".guardrails/scan.py": "tooling/scan_repository.py",
-            ".guardrails/doctor.py": "tooling/doctor.py",
-            ".guardrails/github_evidence.py": "tooling/github_evidence.py",
-            ".guardrails/produce.py": "tooling/produce_guardrail_evidence.py",
-            ".guardrails/validate_ground_truth.py": "tooling/validators/validate_ground_truth.py",
-            ".guardrails/semgrep-rules.yml": "security/semgrep/guardrails.yml",
-            ".guardrails/validators/validate_repository.py": "guardrails/validate_repository.py",
-            ".guardrails/validators/validate_documentation.py": "tooling/validators/validate_documentation.py",
-            ".guardrails/validators/inspect_change_scope.py": "tooling/validators/inspect_change_scope.py",
-            ".guardrails/validators/validate_pr_metadata.py": "tooling/validators/validate_pr_metadata.py",
+            ".proof/profiles.yaml": "policies/profiles.yaml",
+            ".proof/control-catalog.yaml": "policies/control-catalog.yaml",
+            ".proof/providers.yaml": "policies/provider-config.yaml",
+            ".proof/policy.schema.json": "proof/policy.schema.json",
+            ".proof/evidence.schema.json": "proof/evidence.schema.json",
+            ".proof/profiles.schema.json": "proof/profiles.schema.json",
+            ".proof/providers.schema.json": "proof/providers.schema.json",
+            ".proof/control-catalog.schema.json": "proof/control-catalog.schema.json",
+            ".proof/evaluate.py": "proof/evaluate.py",
+            ".proof/scorecard.py": "tooling/proof_scorecard.py",
+            ".proof/configure.py": "tooling/configure_proof.py",
+            ".proof/scan.py": "tooling/scan_repository.py",
+            ".proof/doctor.py": "tooling/doctor.py",
+            ".proof/github_evidence.py": "tooling/github_evidence.py",
+            ".proof/produce.py": "tooling/produce_proof_evidence.py",
+            ".proof/validate_ground_truth.py": "tooling/validators/validate_ground_truth.py",
+            ".proof/semgrep-rules.yml": "security/semgrep/proof.yml",
+            ".proof/validators/validate_repository.py": "proof/validate_repository.py",
+            ".proof/validators/validate_documentation.py": "tooling/validators/validate_documentation.py",
+            ".proof/validators/inspect_change_scope.py": "tooling/validators/inspect_change_scope.py",
+            ".proof/validators/validate_pr_metadata.py": "tooling/validators/validate_pr_metadata.py",
         }
         for installed, source in copies.items():
             with self.subTest(installed=installed):
@@ -63,34 +63,34 @@ class ActionDistributionTests(unittest.TestCase):
 
     def test_scorecard_badge_runtime_and_self_workflow_match_canonical_sources(self) -> None:
         copies = {
-            ".guardrails/render_scorecard_badge.py": "tooling/render_scorecard_badge.py",
-            ".guardrails/reconcile_scorecard_badge.py": "tooling/reconcile_scorecard_badge.py",
-            ".github/workflows/guardrails-scorecard-badge.yml": "workflows/guardrails-scorecard-badge.yml",
+            ".proof/render_scorecard_badge.py": "tooling/render_scorecard_badge.py",
+            ".proof/reconcile_scorecard_badge.py": "tooling/reconcile_scorecard_badge.py",
+            ".github/workflows/proof-scorecard-badge.yml": "workflows/proof-scorecard-badge.yml",
         }
         for installed, source in copies.items():
             with self.subTest(installed=installed):
                 self.assertEqual((ROOT / installed).read_bytes(), (ROOT / source).read_bytes())
 
     def test_self_repository_uses_core_and_github_profiles_without_a_manifest(self) -> None:
-        policy = json.loads((ROOT / ".guardrails/policy.yaml").read_text())
-        baseline = json.loads((ROOT / "guardrails/baseline.yaml").read_text())
-        catalog = json.loads((ROOT / ".guardrails/control-catalog.yaml").read_text())
-        providers = json.loads((ROOT / ".guardrails/providers.yaml").read_text())
+        policy = json.loads((ROOT / ".proof/policy.yaml").read_text())
+        baseline = json.loads((ROOT / "proof/baseline.yaml").read_text())
+        catalog = json.loads((ROOT / ".proof/control-catalog.yaml").read_text())
+        providers = json.loads((ROOT / ".proof/providers.yaml").read_text())
         self.assertEqual(policy["version"], 2)
         self.assertEqual(policy["profiles"], ["core", "github"])
         self.assertEqual(policy["overrides"]["change"]["dependency-remediation"], "not_activated")
         self.assertEqual(baseline["profiles"], ["core"])
         self.assertEqual(catalog["version"], 2)
         self.assertEqual(providers["version"], 2)
-        self.assertFalse((ROOT / ".guardrails/producer-manifest.json").exists())
+        self.assertFalse((ROOT / ".proof/producer-manifest.json").exists())
 
     def test_no_active_runtime_or_workflow_references_a_producer_manifest(self) -> None:
         paths = [
             *(path for path in ROOT.glob("tooling/*.py") if path.name != "install.py"),
-            *ROOT.glob("guardrails/*.py"),
+            *ROOT.glob("proof/*.py"),
             *ROOT.glob("workflows/*.yml"),
             *ROOT.glob(".github/workflows/*.yml"),
-            *ROOT.glob(".guardrails/*"),
+            *ROOT.glob(".proof/*"),
         ]
         failures = [str(path.relative_to(ROOT)) for path in paths if path.is_file() and "producer-manifest" in path.read_text(errors="ignore")]
         self.assertEqual(failures, [])
@@ -105,10 +105,10 @@ class ActionDistributionTests(unittest.TestCase):
 
     def test_configurable_command_producers_fail_when_command_is_unavailable(self) -> None:
         cases = {
-            "build.yml": "GUARDRAILS_BUILD_COMMAND",
-            "format-and-lint.yml": "GUARDRAILS_FORMAT_LINT_COMMAND",
-            "migration-validation.yml": "GUARDRAILS_MIGRATION_VALIDATION_COMMAND",
-            "unit-tests.yml": "GUARDRAILS_UNIT_TEST_COMMAND",
+            "build.yml": "PROOF_BUILD_COMMAND",
+            "format-and-lint.yml": "PROOF_FORMAT_LINT_COMMAND",
+            "migration-validation.yml": "PROOF_MIGRATION_VALIDATION_COMMAND",
+            "unit-tests.yml": "PROOF_UNIT_TEST_COMMAND",
         }
 
         for filename, variable in cases.items():
@@ -159,7 +159,7 @@ class ActionDistributionTests(unittest.TestCase):
                 if filename == "pr-metadata.yml":
                     self.assertIn("pull_request_target:", text)
                     self.assertIn("ref: ${{ github.event.pull_request.base.sha || github.sha }}", text)
-                    self.assertNotIn("python3 .guardrails-candidate/", text)
+                    self.assertNotIn("python3 .proof-candidate/", text)
 
     def test_core_producers_use_exact_images_and_safe_modes(self) -> None:
         semgrep = (ROOT / "workflows/semgrep-ce.yml").read_text()
@@ -167,10 +167,10 @@ class ActionDistributionTests(unittest.TestCase):
         self.assertIn(SEMGREP_IMAGE, semgrep)
         self.assertIn("semgrep scan", semgrep)
         self.assertNotIn("semgrep --test", semgrep)
-        self.assertIn("semgrep scan --metrics off --config .guardrails/semgrep-rules.yml --json", semgrep)
+        self.assertIn("semgrep scan --metrics off --config .proof/semgrep-rules.yml --json", semgrep)
         self.assertIn("semgrep scan --metrics off --error", semgrep)
-        self.assertIn(".guardrails/semgrep-rules.yml", semgrep)
-        self.assertIn(".guardrails/semgrep-tests/fixtures", semgrep)
+        self.assertIn(".proof/semgrep-rules.yml", semgrep)
+        self.assertIn(".proof/semgrep-tests/fixtures", semgrep)
         self.assertIn("security/semgrep/tests/fixtures", semgrep)
         self.assertNotIn("--config auto", semgrep)
         self.assertNotIn("semgrep ci", semgrep)
@@ -180,7 +180,7 @@ class ActionDistributionTests(unittest.TestCase):
         self.assertNotIn(f"{GITLEAKS_IMAGE}\n          gitleaks git", gitleaks)
         combined = "\n".join(
             path.read_text()
-            for directory in (ROOT / "tooling", ROOT / "workflows", ROOT / ".github/workflows", ROOT / ".guardrails")
+            for directory in (ROOT / "tooling", ROOT / "workflows", ROOT / ".github/workflows", ROOT / ".proof")
             for path in directory.glob("*")
             if path.is_file() and path.suffix in {".py", ".yml", ".yaml"}
         )
@@ -191,15 +191,15 @@ class ActionDistributionTests(unittest.TestCase):
     def test_advisory_changed_coverage_skips_when_unconfigured(self) -> None:
         text = (ROOT / "workflows" / "changed-code-coverage.yml").read_text()
 
-        self.assertIn("vars.GUARDRAILS_CHANGED_COVERAGE_COMMAND != ''", text)
-        self.assertIn("GUARDRAILS_SETUP_COMMAND", text)
-        self.assertIn("GUARDRAILS_WORKING_DIRECTORY", text)
+        self.assertIn("vars.PROOF_CHANGED_COVERAGE_COMMAND != ''", text)
+        self.assertIn("PROOF_SETUP_COMMAND", text)
+        self.assertIn("PROOF_WORKING_DIRECTORY", text)
 
     def test_changed_coverage_exports_the_exact_comparison_base(self) -> None:
         workflow = (ROOT / "workflows/changed-code-coverage.yml").read_text()
 
         self.assertIn(
-            "GUARDRAILS_COVERAGE_BASE_REF: ${{ github.event.pull_request.base.sha || 'HEAD~1' }}",
+            "PROOF_COVERAGE_BASE_REF: ${{ github.event.pull_request.base.sha || 'HEAD~1' }}",
             workflow,
         )
 
@@ -226,7 +226,7 @@ class ActionDistributionTests(unittest.TestCase):
                     self.assertRegex(text, rf"{field}:\(?\$")
                 self.assertIn('provider_id:"github-', text)
                 self.assertRegex(text, r"actions/upload-artifact@[0-9a-f]{40}")
-                self.assertIn("guardrails-evidence.json", text)
+                self.assertIn("proof-evidence.json", text)
                 self.assertLess(text.index("actions/upload-artifact@"), text.index('"repos/${GITHUB_REPOSITORY}/check-runs"'))
                 self.assertIn("if ", text)
                 self.assertIn("gh api", text)
@@ -236,53 +236,53 @@ class ActionDistributionTests(unittest.TestCase):
 
     def test_scorecard_executes_only_trusted_base_runtime_with_token(self) -> None:
         for path in (
-            ROOT / "workflows/guardrails-scorecard.yml",
-            ROOT / ".github/workflows/guardrails-scorecard.yml",
+            ROOT / "workflows/proof-scorecard.yml",
+            ROOT / ".github/workflows/proof-scorecard.yml",
         ):
             with self.subTest(path=path):
                 text = path.read_text()
                 self.assertIn("pull_request_target:", text)
                 self.assertIn("actions: read", text)
-                self.assertIn("path: .guardrails-trusted", text)
+                self.assertIn("path: .proof-trusted", text)
                 self.assertIn("ref: ${{ github.event.pull_request.base.sha || github.sha }}", text)
-                self.assertIn("path: .guardrails-candidate", text)
+                self.assertIn("path: .proof-candidate", text)
                 self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", text)
                 self.assertIn("repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}", text)
                 self.assertIn("sparse-checkout:", text)
-                self.assertIn("python3 .guardrails-trusted/.guardrails/github_evidence.py", text)
-                self.assertIn("python3 .guardrails-trusted/.guardrails/scorecard.py", text)
-                self.assertNotIn("python3 .guardrails-candidate/", text)
+                self.assertIn("python3 .proof-trusted/.proof/github_evidence.py", text)
+                self.assertIn("python3 .proof-trusted/.proof/scorecard.py", text)
+                self.assertNotIn("python3 .proof-candidate/", text)
                 self.assertEqual(
-                    text.count("--policy .guardrails-candidate/.guardrails/policy.yaml"),
+                    text.count("--policy .proof-candidate/.proof/policy.yaml"),
                     1,
                 )
-                self.assertIn("python3 .guardrails-trusted/.guardrails/configure.py", text)
-                self.assertIn("--policy .guardrails-trusted/.guardrails/policy.yaml", text)
+                self.assertIn("python3 .proof-trusted/.proof/configure.py", text)
+                self.assertIn("--policy .proof-trusted/.proof/policy.yaml", text)
                 for filename in ("profiles.yaml", "control-catalog.yaml", "providers.yaml"):
-                    self.assertNotIn(f".guardrails-candidate/.guardrails/{filename}", text)
-                    self.assertIn(f".guardrails-trusted/.guardrails/{filename}", text)
+                    self.assertNotIn(f".proof-candidate/.proof/{filename}", text)
+                    self.assertIn(f".proof-trusted/.proof/{filename}", text)
                 self.assertIn("--trusted-base-revision", text)
                 self.assertIn("--trusted-workflow-ref", text)
-                self.assertIn("candidate Guardrails input must be a regular non-symlink file", text)
+                self.assertIn("candidate Proof input must be a regular non-symlink file", text)
 
     def test_scorecard_writes_paired_timestamped_json_markdown_and_job_summary(self) -> None:
-        text = (ROOT / "workflows/guardrails-scorecard.yml").read_text()
+        text = (ROOT / "workflows/proof-scorecard.yml").read_text()
 
-        self.assertIn('GUARDRAILS_TIMESTAMP="$(date -u +%Y%m%d-%H%M%SZ)"', text)
-        self.assertIn("evidence-${GUARDRAILS_TIMESTAMP}.json", text)
-        self.assertIn("scorecard-${GUARDRAILS_TIMESTAMP}.json", text)
-        self.assertIn("scorecard-${GUARDRAILS_TIMESTAMP}.md", text)
+        self.assertIn('PROOF_TIMESTAMP="$(date -u +%Y%m%d-%H%M%SZ)"', text)
+        self.assertIn("evidence-${PROOF_TIMESTAMP}.json", text)
+        self.assertIn("scorecard-${PROOF_TIMESTAMP}.json", text)
+        self.assertIn("scorecard-${PROOF_TIMESTAMP}.md", text)
         self.assertIn("--json", text)
         self.assertIn('cat "${SCORECARD_MARKDOWN}" >> "${GITHUB_STEP_SUMMARY}"', text)
 
     def test_scorecard_refreshes_when_pull_request_review_state_changes(self) -> None:
-        text = (ROOT / "workflows/guardrails-scorecard.yml").read_text()
+        text = (ROOT / "workflows/proof-scorecard.yml").read_text()
 
         self.assertIn("pull_request_review:", text)
         self.assertIn("types: [submitted, dismissed]", text)
         self.assertIn("concurrency:", text)
         self.assertIn(
-            "group: guardrail-scorecard-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}",
+            "group: proof-scorecard-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}",
             text,
         )
         self.assertIn("cancel-in-progress: true", text)
@@ -307,9 +307,9 @@ class ActionDistributionTests(unittest.TestCase):
             "HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
             text,
         )
-        self.assertIn("guardrails-pr-metadata-${{ github.run_id }}", text)
+        self.assertIn("proof-pr-metadata-${{ github.run_id }}", text)
         self.assertIn(
-            'external_id="guardrails:pr-metadata:${GITHUB_RUN_ID}:${HEAD_SHA}"',
+            'external_id="proof:pr-metadata:${GITHUB_RUN_ID}:${HEAD_SHA}"',
             text,
         )
         self.assertIn('name:"PR Metadata",head_sha:$sha', text)
@@ -335,7 +335,7 @@ class ActionDistributionTests(unittest.TestCase):
 
     def test_repository_validation_runs_portable_and_optional_standards_validator(self) -> None:
         text = (ROOT / "workflows/repository-validation.yml").read_text()
-        self.assertIn("python3 .guardrails/validators/validate_repository.py", text)
+        self.assertIn("python3 .proof/validators/validate_repository.py", text)
         self.assertIn("hashFiles('tooling/validators/validate_repository.py')", text)
         self.assertIn("python3 tooling/validators/validate_repository.py", text)
 

@@ -1,4 +1,4 @@
-# Guardrails v2 installer-owned workflow.
+# Proof installer-owned workflow.
 name: PR Metadata
 
 on:
@@ -23,11 +23,11 @@ jobs:
       BASE_REF: ${{ github.event.pull_request.base.ref && format('refs/heads/{0}', github.event.pull_request.base.ref) || github.ref }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - name: Check out trusted Guardrails runtime
+      - name: Check out trusted Proof runtime
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.base.sha || github.sha }}
-          path: .guardrails-trusted
+          path: .proof-trusted
           persist-credentials: false
       - name: Evaluate pull-request metadata
         id: evaluate
@@ -35,26 +35,26 @@ jobs:
           EVENT_PATH: ${{ github.event_path }}
         run: |
           set -euo pipefail
-          mkdir -p .artifacts/guardrails
+          mkdir -p .artifacts/proof
           mode=enforced
           status=failed
           summary="Trusted PR metadata evaluation could not complete. See workflow logs."
           revision=""
-          if python3 .guardrails-trusted/.guardrails/configure.py \
-            --policy .guardrails-trusted/.guardrails/policy.yaml \
-            --profiles .guardrails-trusted/.guardrails/profiles.yaml \
-            --catalog .guardrails-trusted/.guardrails/control-catalog.yaml \
-            --providers .guardrails-trusted/.guardrails/providers.yaml \
+          if python3 .proof-trusted/.proof/configure.py \
+            --policy .proof-trusted/.proof/policy.yaml \
+            --profiles .proof-trusted/.proof/profiles.yaml \
+            --catalog .proof-trusted/.proof/control-catalog.yaml \
+            --providers .proof-trusted/.proof/providers.yaml \
             --operation change \
             --effective-mode pr-metadata > "${RUNNER_TEMP}/mode.json"; then
             mode="$(jq -er '.mode | select(. == "advisory" or . == "enforced" or . == "not_activated")' "${RUNNER_TEMP}/mode.json")"
           fi
-          if revision="$(python3 .guardrails-trusted/.guardrails/validators/validate_pr_metadata.py \
+          if revision="$(python3 .proof-trusted/.proof/validators/validate_pr_metadata.py \
             --event "${EVENT_PATH}" \
-            --config .guardrails-trusted/.guardrails/pr-metadata.yaml \
-            --output .artifacts/guardrails/pr-metadata-evidence.json)"; then
-            status="$(jq -er '.results["pr-metadata"]["repository-pr-metadata"].status | select(. == "passed" or . == "failed")' .artifacts/guardrails/pr-metadata-evidence.json)"
-            summary="$(jq -r '.results["pr-metadata"]["repository-pr-metadata"] | (.evidence // [.reason]) | join(" ") | .[0:1000]' .artifacts/guardrails/pr-metadata-evidence.json)"
+            --config .proof-trusted/.proof/pr-metadata.yaml \
+            --output .artifacts/proof/pr-metadata-evidence.json)"; then
+            status="$(jq -er '.results["pr-metadata"]["repository-pr-metadata"].status | select(. == "passed" or . == "failed")' .artifacts/proof/pr-metadata-evidence.json)"
+            summary="$(jq -r '.results["pr-metadata"]["repository-pr-metadata"] | (.evidence // [.reason]) | join(" ") | .[0:1000]' .artifacts/proof/pr-metadata-evidence.json)"
             echo "revision=${revision}" >> "${GITHUB_OUTPUT}"
           fi
           jq -n \
@@ -70,7 +70,7 @@ jobs:
             --arg mode "${mode}" \
             --arg pull_request_revision "${revision}" \
             '{version:1,run_id:$run_id,event:$event,base_sha:$base_sha,base_ref:$base_ref,head_sha:$head_sha,revision:$head_sha,repository:$repository,provider_id:$provider_id,status:$status,summary:$summary,mode:$mode,pull_request_revision:$pull_request_revision}' \
-            > "${RUNNER_TEMP}/guardrails-evidence.json"
+            > "${RUNNER_TEMP}/proof-evidence.json"
       - name: Render pull-request scorecard
         if: steps.evaluate.outputs.revision != ''
         env:
@@ -78,23 +78,23 @@ jobs:
         run: |
           set -euo pipefail
           status=0
-          python3 .guardrails-trusted/.guardrails/scorecard.py \
-            --policy .guardrails-trusted/.guardrails/policy.yaml \
-            --profiles .guardrails-trusted/.guardrails/profiles.yaml \
-            --catalog .guardrails-trusted/.guardrails/control-catalog.yaml \
-            --providers .guardrails-trusted/.guardrails/providers.yaml \
-            --evidence .artifacts/guardrails/pr-metadata-evidence.json \
+          python3 .proof-trusted/.proof/scorecard.py \
+            --policy .proof-trusted/.proof/policy.yaml \
+            --profiles .proof-trusted/.proof/profiles.yaml \
+            --catalog .proof-trusted/.proof/control-catalog.yaml \
+            --providers .proof-trusted/.proof/providers.yaml \
+            --evidence .artifacts/proof/pr-metadata-evidence.json \
             --operation change \
             --revision "${PR_REVISION}" \
             --subject-type pull-request \
-            > .artifacts/guardrails/pr-metadata-scorecard.md || status=$?
-          cat .artifacts/guardrails/pr-metadata-scorecard.md >> "${GITHUB_STEP_SUMMARY}"
+            > .artifacts/proof/pr-metadata-scorecard.md || status=$?
+          cat .artifacts/proof/pr-metadata-scorecard.md >> "${GITHUB_STEP_SUMMARY}"
           exit "${status}"
       - name: Ensure exact-head proof exists
         if: always()
         run: |
           set -euo pipefail
-          if [[ ! -s "${RUNNER_TEMP}/guardrails-evidence.json" ]]; then
+          if [[ ! -s "${RUNNER_TEMP}/proof-evidence.json" ]]; then
             jq -n \
               --argjson run_id "${GITHUB_RUN_ID}" \
               --arg event "${GITHUB_EVENT_NAME}" \
@@ -103,15 +103,15 @@ jobs:
               --arg head_sha "${HEAD_SHA}" \
               --arg repository "${GITHUB_REPOSITORY}" \
               '{version:1,run_id:$run_id,event:$event,base_sha:$base_sha,base_ref:$base_ref,head_sha:$head_sha,revision:$head_sha,repository:$repository,provider_id:"repository-pr-metadata",status:"failed",summary:"Trusted PR metadata evaluation did not produce run-bound evidence.",mode:"enforced",pull_request_revision:""}' \
-              > "${RUNNER_TEMP}/guardrails-evidence.json"
+              > "${RUNNER_TEMP}/proof-evidence.json"
           fi
       - name: Upload run-bound PR metadata evidence
         id: proof-upload
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: guardrails-pr-metadata-${{ github.run_id }}
-          path: ${{ runner.temp }}/guardrails-evidence.json
+          name: proof-pr-metadata-${{ github.run_id }}
+          path: ${{ runner.temp }}/proof-evidence.json
           if-no-files-found: error
           retention-days: 7
       - name: Publish exact-head PR Metadata check
@@ -121,9 +121,9 @@ jobs:
           PROOF_UPLOAD_OUTCOME: ${{ steps.proof-upload.outcome }}
         run: |
           set -euo pipefail
-          status="$(jq -r '.status' "${RUNNER_TEMP}/guardrails-evidence.json")"
-          mode="$(jq -r '.mode' "${RUNNER_TEMP}/guardrails-evidence.json")"
-          summary="$(jq -r '.summary' "${RUNNER_TEMP}/guardrails-evidence.json")"
+          status="$(jq -r '.status' "${RUNNER_TEMP}/proof-evidence.json")"
+          mode="$(jq -r '.mode' "${RUNNER_TEMP}/proof-evidence.json")"
+          summary="$(jq -r '.summary' "${RUNNER_TEMP}/proof-evidence.json")"
           if [[ "${PROOF_UPLOAD_OUTCOME}" != "success" ]]; then
             conclusion=failure
             summary="Run-bound PR metadata evidence could not be uploaded; this check cannot pass."
@@ -138,7 +138,7 @@ jobs:
             esac
           fi
           details_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          external_id="guardrails:pr-metadata:${GITHUB_RUN_ID}:${HEAD_SHA}"
+          external_id="proof:pr-metadata:${GITHUB_RUN_ID}:${HEAD_SHA}"
           payload="$(jq -n --arg sha "${HEAD_SHA}" --arg conclusion "${conclusion}" --arg summary "${summary}" --arg details_url "${details_url}" --arg external_id "${external_id}" '{name:"PR Metadata",head_sha:$sha,status:"completed",conclusion:$conclusion,details_url:$details_url,external_id:$external_id,output:{title:"PR Metadata",summary:$summary}}')"
           printf '%s' "${payload}" | gh api --method POST "repos/${GITHUB_REPOSITORY}/check-runs" --input - >/dev/null
           printf '### PR Metadata\n\n%s\n\nPolicy mode: `%s`; check conclusion: `%s`.\n' "${summary}" "${mode}" "${conclusion}" >> "${GITHUB_STEP_SUMMARY}"
@@ -147,6 +147,6 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: pr-metadata-report-${{ github.run_id }}
-          path: .artifacts/guardrails
+          path: .artifacts/proof
           if-no-files-found: error
           retention-days: 7

@@ -16,7 +16,7 @@ SPEC.loader.exec_module(MODULE)
 def payload(**overrides) -> dict:
     pull_request = {
         "number": 42,
-        "title": "ENG-123 Add migration guardrail",
+        "title": "ENG-123 Add migration proof",
         "body": "## Summary\nSafe migration.\n\n## Testing\nValidated.",
         "updated_at": "2026-08-31T12:00:00Z",
         "head": {"sha": "abc123"},

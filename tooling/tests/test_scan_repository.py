@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scan_repository.py"
-SPEC = importlib.util.spec_from_file_location("guardrails_v2_scan", SCRIPT)
+SPEC = importlib.util.spec_from_file_location("proof_v2_scan", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
 SPEC.loader.exec_module(MODULE)
@@ -50,8 +50,8 @@ class RuntimeResolutionTests(unittest.TestCase):
     def test_installed_runtime_wins_over_consumer_application_package(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
-            installed = target / ".guardrails" / "evaluate.py"
-            application = target / "guardrails" / "evaluate.py"
+            installed = target / ".proof" / "evaluate.py"
+            application = target / "proof" / "evaluate.py"
             installed.parent.mkdir()
             application.parent.mkdir()
             installed.write_text("SOURCE = 'installed'\n", encoding="utf-8")
@@ -59,9 +59,9 @@ class RuntimeResolutionTests(unittest.TestCase):
 
             resolved = MODULE.runtime_path(
                 target,
-                scanner_path=target / ".guardrails/scan.py",
-                installed_relative=Path(".guardrails/evaluate.py"),
-                source_relative=Path("guardrails/evaluate.py"),
+                scanner_path=target / ".proof/scan.py",
+                installed_relative=Path(".proof/evaluate.py"),
+                source_relative=Path("proof/evaluate.py"),
             )
 
             self.assertEqual(resolved, installed)
@@ -69,23 +69,23 @@ class RuntimeResolutionTests(unittest.TestCase):
     def test_installed_runtime_fails_closed_when_sibling_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
-            application = target / "guardrails" / "evaluate.py"
+            application = target / "proof" / "evaluate.py"
             application.parent.mkdir()
             application.write_text("SOURCE = 'application'\n", encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "installed runtime is missing"):
                 MODULE.runtime_path(
                     target,
-                    scanner_path=target / ".guardrails/scan.py",
-                    installed_relative=Path(".guardrails/evaluate.py"),
-                    source_relative=Path("guardrails/evaluate.py"),
+                    scanner_path=target / ".proof/scan.py",
+                    installed_relative=Path(".proof/evaluate.py"),
+                    source_relative=Path("proof/evaluate.py"),
                 )
 
     def test_source_scanner_resolves_only_the_canonical_source_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
             scanner = target / "tooling" / "scan_repository.py"
-            source = target / "guardrails" / "evaluate.py"
+            source = target / "proof" / "evaluate.py"
             scanner.parent.mkdir()
             source.parent.mkdir()
             scanner.write_text("# scanner\n", encoding="utf-8")
@@ -94,8 +94,8 @@ class RuntimeResolutionTests(unittest.TestCase):
             resolved = MODULE.runtime_path(
                 target,
                 scanner_path=scanner,
-                installed_relative=Path(".guardrails/evaluate.py"),
-                source_relative=Path("guardrails/evaluate.py"),
+                installed_relative=Path(".proof/evaluate.py"),
+                source_relative=Path("proof/evaluate.py"),
             )
 
             self.assertEqual(resolved, source)
@@ -208,9 +208,9 @@ class LocalEvidenceTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        guardrails = target / ".guardrails"
-        guardrails.mkdir()
-        (guardrails / "documentation.yaml").write_text(
+        proof_dir = target / ".proof"
+        proof_dir.mkdir()
+        (proof_dir / "documentation.yaml").write_text(
             json.dumps(
                 {
                     "version": 1,
@@ -236,10 +236,10 @@ class LocalEvidenceTests(unittest.TestCase):
         validators.mkdir(parents=True)
         for filename in ("validate_repository.py", "validate_documentation.py", "inspect_change_scope.py"):
             (validators / filename).write_text("raise SystemExit('local validator must not run')\n", encoding="utf-8")
-        guardrails = target / ".guardrails"
-        guardrails.mkdir()
-        (guardrails / "validate_ground_truth.py").write_text("raise SystemExit('ground truth must not run')\n", encoding="utf-8")
-        (guardrails / "ground-truth-ai.yaml").write_text("{}\n", encoding="utf-8")
+        proof_dir = target / ".proof"
+        proof_dir.mkdir()
+        (proof_dir / "validate_ground_truth.py").write_text("raise SystemExit('ground truth must not run')\n", encoding="utf-8")
+        (proof_dir / "ground-truth-ai.yaml").write_text("{}\n", encoding="utf-8")
         (target / "README.md").write_text("clean\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=target, check=True)
         subprocess.run(["git", "commit", "-q", "-m", "fixture"], cwd=target, check=True)
@@ -254,7 +254,7 @@ class LocalEvidenceTests(unittest.TestCase):
             validators.mkdir(parents=True)
             for filename in ("validate_repository.py", "validate_documentation.py", "inspect_change_scope.py"):
                 (validators / filename).write_text("# fixture\n", encoding="utf-8")
-            ground_truth = target / ".guardrails"
+            ground_truth = target / ".proof"
             ground_truth.mkdir()
             (ground_truth / "validate_ground_truth.py").write_text("# fixture\n", encoding="utf-8")
             (ground_truth / "ground-truth-ai.yaml").write_text("{}\n", encoding="utf-8")
@@ -442,14 +442,14 @@ class ArtifactPathTests(unittest.TestCase):
 
         evidence, latest, report = MODULE.default_artifact_paths(Path("/repo"), timestamp)
 
-        self.assertEqual(evidence, Path("/repo/.artifacts/guardrails/evidence-20260828-120304Z.json"))
-        self.assertEqual(latest, Path("/repo/.artifacts/guardrails/evidence.json"))
-        self.assertEqual(report, Path("/repo/.artifacts/guardrails/scorecard-20260828-120304Z.md"))
+        self.assertEqual(evidence, Path("/repo/.artifacts/proof/evidence-20260828-120304Z.json"))
+        self.assertEqual(latest, Path("/repo/.artifacts/proof/evidence.json"))
+        self.assertEqual(report, Path("/repo/.artifacts/proof/scorecard-20260828-120304Z.md"))
 
     def test_json_output_card_identifies_primary_timestamped_artifacts(self) -> None:
         card = {"version": 2, "status": "ORANGE"}
-        evidence = Path("/repo/.artifacts/guardrails/evidence-20260828-120304Z.json")
-        report = Path("/repo/.artifacts/guardrails/scorecard-20260828-120304Z.md")
+        evidence = Path("/repo/.artifacts/proof/evidence-20260828-120304Z.json")
+        report = Path("/repo/.artifacts/proof/scorecard-20260828-120304Z.md")
 
         MODULE.add_artifact_locations(card, evidence, report)
 
@@ -458,7 +458,7 @@ class ArtifactPathTests(unittest.TestCase):
 
 class ScanSubjectContractTests(unittest.TestCase):
     def documents(self, profiles: list[str], release_overrides: dict[str, str]) -> list[dict]:
-        policy = json.loads((MODULE.ROOT / "guardrails" / "baseline.yaml").read_text(encoding="utf-8"))
+        policy = json.loads((MODULE.ROOT / "proof" / "baseline.yaml").read_text(encoding="utf-8"))
         policy["profiles"] = profiles
         policy["overrides"]["release"] = release_overrides
         return [

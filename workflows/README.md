@@ -1,6 +1,6 @@
-# Guardrails v2 workflows
+# Proof workflows
 
-These workflows provide Guardrails evidence within [AI Software Toolkit](../docs/vision.md).
+These workflows provide Proof evidence within [AI Software Toolkit](../docs/vision.md).
 For consumer-specific functional QA workflows, start with
 [QA bootstrap](../skills/qa-bootstrap/SKILL.md).
 
@@ -26,20 +26,20 @@ publishing.
 
 | Installed file | Workflow / check names | Activation |
 | --- | --- | --- |
-| `guardrails-scorecard.yml` | `Guardrail Scorecard` | Always for supported PR events and manual dispatch |
+| `proof-scorecard.yml` | `Proof Scorecard` | Always for supported PR events and manual dispatch |
 | `repository-validation.yml` | `Validate / repository`, `Validate / docs`, `Validate / ground truth` | Installed validators and repository configuration |
 | `change-scope.yml` | `PR Change Scope` | **PR Size / Files & LOC** workflow: measured/limit tables, counted/excluded totals; neutral while advisory, failing when enforced |
 | `pr-metadata.yml` | `PR Metadata` | Trusted mutable PR title/body evidence plus a run-bound custom check on the exact candidate head SHA |
-| `format-and-lint.yml` | `Format and Lint` | `GUARDRAILS_FORMAT_LINT_COMMAND`; the job fails visibly when unset |
-| `migration-validation.yml` | `Migration Validation` | `GUARDRAILS_MIGRATION_VALIDATION_COMMAND`; the job fails visibly when unset |
-| `build.yml` | `Build` | `GUARDRAILS_BUILD_COMMAND`; the job fails visibly when unset |
-| `unit-tests.yml` | `Unit Tests` | `GUARDRAILS_UNIT_TEST_COMMAND`; the job fails visibly when unset |
-| `changed-code-coverage.yml` | `Changed Code Coverage` | `GUARDRAILS_CHANGED_COVERAGE_COMMAND` |
+| `format-and-lint.yml` | `Format and Lint` | `PROOF_FORMAT_LINT_COMMAND`; the job fails visibly when unset |
+| `migration-validation.yml` | `Migration Validation` | `PROOF_MIGRATION_VALIDATION_COMMAND`; the job fails visibly when unset |
+| `build.yml` | `Build` | `PROOF_BUILD_COMMAND`; the job fails visibly when unset |
+| `unit-tests.yml` | `Unit Tests` | `PROOF_UNIT_TEST_COMMAND`; the job fails visibly when unset |
+| `changed-code-coverage.yml` | `Changed Code Coverage` | `PROOF_CHANGED_COVERAGE_COMMAND` |
 | `semgrep-ce.yml` | `Semgrep CE` | Installed tested rules; no secret |
 | `gitleaks.yml` | `Gitleaks` | Full Git history; no secret |
 
-Repository command workflows use optional `GUARDRAILS_SETUP_COMMAND` and
-default `GUARDRAILS_WORKING_DIRECTORY` to `.`. Build, unit tests, format/lint,
+Repository command workflows use optional `PROOF_SETUP_COMMAND` and
+default `PROOF_WORKING_DIRECTORY` to `.`. Build, unit tests, format/lint,
 and migration validation always create their named job; an absent command
 fails the job so a promoted required context cannot be satisfied by a skipped
 producer. Changed-code coverage remains inactive until configured and
@@ -62,8 +62,8 @@ use a platform token for Semgrep or the separately licensed Gitleaks Action.
 
 | Installed file | Workflow / check | Activation |
 | --- | --- | --- |
-| `codeql.yml` | `CodeQL` | `GUARDRAILS_CODEQL_LANGUAGES` |
-| `dependency-review.yml` | `Dependency Review` | `GUARDRAILS_DEPENDENCY_REVIEW_ENABLED=true` |
+| `codeql.yml` | `CodeQL` | `PROOF_CODEQL_LANGUAGES` |
+| `dependency-review.yml` | `Dependency Review` | `PROOF_DEPENDENCY_REVIEW_ENABLED=true` |
 | `github-secret-protection.yml` | `Secret Scan` / published `GitHub Secret Scan` | Optional `SECURITY_SETTINGS_TOKEN` and enabled platform settings |
 | `dependabot-verification.yml` | `Dependabot Verification` | Optional `SECURITY_SETTINGS_TOKEN` and enabled platform settings |
 | `artifact-provenance.yml` | `Artifact Provenance` | Release/dispatch attestation only; not PR or scorecard evidence |
@@ -72,13 +72,13 @@ use a platform token for Semgrep or the separately licensed Gitleaks Action.
 
 | Installed file | Workflow | Activation |
 | --- | --- | --- |
-| `guardrails-scorecard-badge.yml` | `Guardrail Scorecard Badge` | GitHub Pages uses GitHub Actions; `GUARDRAILS_SCORECARD_BADGE_ENABLED=true`; `GUARDRAILS_SCORECARD_BADGE_PAGES_MODE=dedicated`; private or internal repositories also set `GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS=private` |
+| `proof-scorecard-badge.yml` | `Proof Scorecard Badge` | GitHub Pages uses GitHub Actions; `PROOF_SCORECARD_BADGE_ENABLED=true`; `PROOF_SCORECARD_BADGE_PAGES_MODE=dedicated`; private or internal repositories also set `PROOF_SCORECARD_BADGE_PAGES_ACCESS=private` |
 
 This workflow is not a provider, capability, or required check. It owns the
 complete Pages deployment in `dedicated` mode; integrate the renderer into an
 existing site workflow instead when the repository already uses Pages.
 
-The workflow passes `GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS` to the
+The workflow passes `PROOF_SCORECARD_BADGE_PAGES_ACCESS` to the
 reconciler, which checks live repository visibility before reading evidence or
 rendering. Public repositories leave the variable unset or set to `public`.
 Private and internal repositories require the variable set to `private` and a
@@ -94,9 +94,9 @@ scanning alerts read access. Missing or insufficient access publishes skipped
 exact-head checks; it never passes the capability.
 
 The release attestation workflow requires an artifact supplied by dispatch
-input or `GUARDRAILS_ARTIFACT_PATH`. `GUARDRAILS_ARTIFACT_BUILD_COMMAND` is
+input or `PROOF_ARTIFACT_PATH`. `PROOF_ARTIFACT_BUILD_COMMAND` is
 optional. The workflow does not emit the nested artifact evidence contract or
-invoke a release scorecard, so it is not yet a fully runnable Guardrails
+invoke a release scorecard, so it is not yet a fully runnable Proof
 artifact-provenance path.
 
 ## Scorecard flow
@@ -110,13 +110,13 @@ provider workflows in parallel
         -. optional trusted reconciliation .-> bounded Pages badge/report
 ```
 
-`guardrails-scorecard.yml` runs as trusted `pull_request_target` code. It checks
+`proof-scorecard.yml` runs as trusted `pull_request_target` code. It checks
 out executable runtime only from the exact base SHA, sparse-checks out the exact
 PR-head policy/configuration as fixed-path non-symlink data, and never executes
 candidate code with the GitHub token. It waits up to 1,800 seconds, writes paired
 timestamped scorecard JSON and Markdown plus timestamped evidence, appends the
-Markdown to the job summary, and uploads `.artifacts/guardrails` as
-`guardrail-scorecard-<run-id>`.
+Markdown to the job summary, and uploads `.artifacts/proof` as
+`proof-scorecard-<run-id>`.
 
 The native **Scorecard Workflow** badge reports whether this workflow ran. The
 optional **Latest PR Scorecard** badge reports readiness and passed/active count
@@ -161,8 +161,8 @@ Shipped vendor templates (copy into `.github/workflows/`; see
 | Template | Workflow / check names | Command ownership |
 | --- | --- | --- |
 | `sonar.yml` | `SonarQube` / `SonarQube Quality Gate` | Scanner action, then the quality-gate wait action; `SONAR_TOKEN` |
-| `snyk.yml` | `Snyk` / `Snyk Code`, `Snyk Open Source` | `.guardrails/adapter.py` runs `snyk code test` and `snyk test`; consumers set `SNYK_CODE_ARGS` / `SNYK_OPEN_SOURCE_ARGS`; `SNYK_TOKEN` |
-| `fossa.yml` | `FOSSA` / `FOSSA` | `.guardrails/adapter.py` runs `fossa analyze` then `fossa test` for the exact revision; consumers set `FOSSA_ARGS`; `FOSSA_API_KEY`; CLI pinned by version and SHA-256 |
+| `snyk.yml` | `Snyk` / `Snyk Code`, `Snyk Open Source` | `.proof/adapter.py` runs `snyk code test` and `snyk test`; consumers set `SNYK_CODE_ARGS` / `SNYK_OPEN_SOURCE_ARGS`; `SNYK_TOKEN` |
+| `fossa.yml` | `FOSSA` / `FOSSA` | `.proof/adapter.py` runs `fossa analyze` then `fossa test` for the exact revision; consumers set `FOSSA_ARGS`; `FOSSA_API_KEY`; CLI pinned by version and SHA-256 |
 
 The adapter templates fail the job for every non-passing outcome and put the
 standard reason code (`credential-missing`, `authentication-failed`,

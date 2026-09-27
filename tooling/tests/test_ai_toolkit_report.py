@@ -48,7 +48,7 @@ class ReportTests(unittest.TestCase):
         return self.git("rev-parse", "HEAD")
 
     def write_evidence(self, revision: str, results: dict) -> None:
-        path = self.target / ".artifacts" / "guardrails" / "evidence.json"
+        path = self.target / ".artifacts" / "proof" / "evidence.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"version": 2, "subject": {"type": "git-commit", "revision": revision}, "results": results}), encoding="utf-8")
 
@@ -61,7 +61,7 @@ class ReportTests(unittest.TestCase):
                 control("deep-sast", "failed"),
                 control("mystery", "failed"),
                 control("secret-detection", "blocked", reason="timed out"),
-                control("build", "no_result", reason="GUARDRAILS_BUILD_COMMAND is not configured; this capability has NO RESULT."),
+                control("build", "no_result", reason="PROOF_BUILD_COMMAND is not configured; this capability has NO RESULT."),
                 control("format-and-lint", "not_run", reason="Local evidence requires a clean worktree before providers run."),
                 control("deep-sast-2", "no_result", reason="provider produced nothing."),
                 control("license-compliance", "missing"),
@@ -93,7 +93,7 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(empty.count("(none)"), 3)
 
     def write_selections(self, selections: dict) -> None:
-        path = self.target / ".guardrails" / "providers.yaml"
+        path = self.target / ".proof" / "providers.yaml"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"version": 2, "providers": {}, "selections": {
             capability: {"authoritative": provider, "supplemental": []} for capability, provider in selections.items()
@@ -104,7 +104,7 @@ class ReportTests(unittest.TestCase):
         self.write_selections({"build": "prov", "deep-sast": "prov", "unit-tests": "prov"})
         doctor_report = {"checks": [
             {"id": "runtime", "status": "configured", "message": "", "next_step": ""},
-            {"id": "local.command.build", "status": "action_needed", "message": "", "next_step": "Export GUARDRAILS_BUILD_COMMAND"},
+            {"id": "local.command.build", "status": "action_needed", "message": "", "next_step": "Export PROOF_BUILD_COMMAND"},
             {"id": "workflow.build", "status": "configured", "message": "", "next_step": ""},
             {"id": "producer.deep-sast", "status": "unverified", "message": "", "next_step": ""},
             {"id": "workflow.deep-sast", "status": "configured", "message": "", "next_step": ""},
@@ -115,7 +115,7 @@ class ReportTests(unittest.TestCase):
         rows = {row["capability"]: row for row in report.verified_rows(self.target, doctor_report)}
         self.assertEqual(set(rows), {"build", "deep-sast", "unit-tests"})
         self.assertEqual(rows["build"]["state"], "installed")
-        self.assertIn("GUARDRAILS_BUILD_COMMAND", rows["build"]["next_step"])
+        self.assertIn("PROOF_BUILD_COMMAND", rows["build"]["next_step"])
         self.assertEqual(rows["deep-sast"]["state"], "configured")
         self.write_evidence("0" * 40, {"unit-tests": {"prov": {"status": "passed"}}})
         rows = {row["capability"]: row for row in report.verified_rows(self.target, doctor_report)}
@@ -125,7 +125,7 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(rows["unit-tests"]["state"], "verified")
         self.assertEqual(rows["unit-tests"]["observed"], "failed")
         self.assertEqual(rows["deep-sast"]["state"], "configured")
-        rendered = report.render_doctor(self.target, doctor_report, list(rows.values()), {"guardrails": {"state": "installed", "message": "ok", "next_step": "none"}})
+        rendered = report.render_doctor(self.target, doctor_report, list(rows.values()), {"proof": {"state": "installed", "message": "ok", "next_step": "none"}})
         self.assertIn("bound to HEAD", rendered)
         self.assertIn("verified: 1", rendered)
         self.assertIn("Next: none", rendered)
@@ -147,9 +147,9 @@ class ReportTests(unittest.TestCase):
         self.write_evidence(revision, {"unit-tests": {"authority": {"status": "passed"}}})
         rows = {row["capability"]: row for row in report.verified_rows(self.target, doctor_report)}
         self.assertEqual(rows["unit-tests"]["state"], "verified")
-        (self.target / ".guardrails" / "providers.yaml").write_text("{broken", encoding="utf-8")
+        (self.target / ".proof" / "providers.yaml").write_text("{broken", encoding="utf-8")
         self.assertEqual(report.authoritative_selections(self.target), {})
-        (self.target / ".guardrails" / "providers.yaml").write_text(json.dumps({"selections": []}), encoding="utf-8")
+        (self.target / ".proof" / "providers.yaml").write_text(json.dumps({"selections": []}), encoding="utf-8")
         self.assertEqual(report.authoritative_selections(self.target), {})
 
     def test_render_doctor_reports_unbound_or_absent_evidence(self):
@@ -159,7 +159,7 @@ class ReportTests(unittest.TestCase):
         self.write_evidence("f" * 40, {})
         rendered = report.render_doctor(self.target, {"checks": []}, [], {})
         self.assertIn("not HEAD", rendered)
-        (self.target / ".artifacts" / "guardrails" / "evidence.json").write_text("nope", encoding="utf-8")
+        (self.target / ".artifacts" / "proof" / "evidence.json").write_text("nope", encoding="utf-8")
         self.assertIsNone(report.latest_evidence(self.target))
 
 

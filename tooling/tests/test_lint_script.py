@@ -29,8 +29,8 @@ class LintScriptTests(unittest.TestCase):
         self.environment["PATH"] = f"{tool_directory}:{self.environment['PATH']}"
 
         self.git("init", "-b", "main")
-        self.git("config", "user.name", "Guardrails Test")
-        self.git("config", "user.email", "guardrails-test@example.invalid")
+        self.git("config", "user.name", "Proof Test")
+        self.git("config", "user.email", "proof-test@example.invalid")
         (self.repository / "example.txt").write_text("clean\n")
         self.git("add", ".")
         self.git("commit", "-m", "test: create clean repository")

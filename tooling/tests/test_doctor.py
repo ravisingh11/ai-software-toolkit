@@ -54,11 +54,11 @@ class DoctorTests(unittest.TestCase):
     def test_reports_missing_commands_without_running_configured_commands(self):
         sentinel = self.target / "must-not-exist"
         before = self.git("status", "--porcelain")
-        report = self.report(environment={"GUARDRAILS_BUILD_COMMAND": f"touch {sentinel}"})
+        report = self.report(environment={"PROOF_BUILD_COMMAND": f"touch {sentinel}"})
         rows = self.checks(report)
         self.assertEqual(rows["local.command.build"]["status"], "configured")
         self.assertEqual(rows["local.command.unit-tests"]["status"], "action_needed")
-        self.assertIn("GUARDRAILS_UNIT_TEST_COMMAND", rows["local.command.unit-tests"]["next_step"])
+        self.assertIn("PROOF_UNIT_TEST_COMMAND", rows["local.command.unit-tests"]["next_step"])
         self.assertFalse(sentinel.exists())
         self.assertEqual(before, self.git("status", "--porcelain"))
         self.assertNotIn("touch", json.dumps(report))
@@ -67,8 +67,8 @@ class DoctorTests(unittest.TestCase):
     def test_installed_cli_works_without_canonical_checkout_and_does_not_write(self):
         before = self.git("status", "--porcelain")
         environment = {key: value for key, value in os.environ.items()
-                       if not key.startswith("GUARDRAILS_")}
-        result = subprocess.run([sys.executable, str(self.target / ".guardrails/doctor.py"),
+                       if not key.startswith("PROOF_")}
+        result = subprocess.run([sys.executable, str(self.target / ".proof/doctor.py"),
                                  "--json"], cwd=self.target, capture_output=True, text=True,
                                 env=environment)
         self.assertEqual(result.returncode, 1, result.stderr)
@@ -79,24 +79,24 @@ class DoctorTests(unittest.TestCase):
         self.assertFalse((self.target / ".artifacts").exists())
 
     def test_incomplete_runtime_and_invalid_policy_have_actionable_errors(self):
-        (self.target / ".guardrails/scan.py").unlink()
+        (self.target / ".proof/scan.py").unlink()
         report = self.report()
         self.assertEqual(self.checks(report)["runtime"]["status"], "action_needed")
         self.assertIn("scan.py", self.checks(report)["runtime"]["message"])
-        policy = self.target / ".guardrails/policy.yaml"
+        policy = self.target / ".proof/policy.yaml"
         policy.write_text("not-json SECRET-VALUE")
         report = self.report()
         self.assertEqual(self.checks(report)["configuration"]["status"], "action_needed")
         self.assertNotIn("SECRET-VALUE", json.dumps(report))
 
     def test_doctor_does_not_execute_target_runtime_when_inspecting_another_repo(self):
-        (self.target / ".guardrails/evaluate.py").write_text("raise RuntimeError('must not execute')")
+        (self.target / ".proof/evaluate.py").write_text("raise RuntimeError('must not execute')")
         report = self.report()
         self.assertEqual(self.checks(report)["configuration"]["status"], "configured")
 
     def test_missing_ground_truth_and_escaping_working_directory_are_reported(self):
         (self.target / "README.md").unlink()
-        rows = self.checks(self.report(environment={"GUARDRAILS_WORKING_DIRECTORY": ".."}))
+        rows = self.checks(self.report(environment={"PROOF_WORKING_DIRECTORY": ".."}))
         self.assertEqual(rows["ground-truth"]["status"], "action_needed")
         self.assertEqual(rows["local.working-directory"]["status"], "action_needed")
         self.assertEqual(rows["git.clean"]["status"], "action_needed")
@@ -105,18 +105,18 @@ class DoctorTests(unittest.TestCase):
         (self.target / "src").mkdir()
         for value in (" ./src ", " \t ", ""):
             with self.subTest(value=value):
-                rows = self.checks(self.report(environment={"GUARDRAILS_WORKING_DIRECTORY": value}))
+                rows = self.checks(self.report(environment={"PROOF_WORKING_DIRECTORY": value}))
                 self.assertEqual(rows["local.working-directory"]["status"], "configured")
 
     def test_installed_helper_load_failure_is_usage_error_without_traceback(self):
-        helper = self.target / ".guardrails/evaluate.py"
+        helper = self.target / ".proof/evaluate.py"
         for content in ("def malformed_helper(:\n", "import nonexistent_doctor_test_dependency\n",
                         "raise RuntimeError('private helper detail')\n",
                         "raise SystemExit(0)\n", "raise SystemExit(7)\n"):
             with self.subTest(content=content):
                 helper.write_text(content)
                 completed = subprocess.run(
-                    [sys.executable, str(self.target / ".guardrails/doctor.py"), "--json"],
+                    [sys.executable, str(self.target / ".proof/doctor.py"), "--json"],
                     cwd=self.target, text=True, capture_output=True, timeout=20,
                 )
                 self.assertEqual(completed.returncode, 2, completed.stderr)
@@ -126,13 +126,13 @@ class DoctorTests(unittest.TestCase):
                 self.assertEqual(completed.stdout, "")
         helper.write_text("raise KeyboardInterrupt\n")
         previous = sys.dont_write_bytecode
-        with patch.object(self.module, "__file__", str(self.target / ".guardrails/doctor.py")):
+        with patch.object(self.module, "__file__", str(self.target / ".proof/doctor.py")):
             with self.assertRaises(KeyboardInterrupt):
                 self.module.trusted_module("unused.py", "evaluate.py")
         self.assertEqual(sys.dont_write_bytecode, previous)
 
     def enable_github(self):
-        path = self.target / ".guardrails/policy.yaml"
+        path = self.target / ".proof/policy.yaml"
         policy = json.loads(path.read_text())
         policy["profiles"].append("github")
         path.write_text(json.dumps(policy))
@@ -158,17 +158,17 @@ class DoctorTests(unittest.TestCase):
         self.enable_github()
         security = {"secret_scanning": {"status": "enabled"},
                     "secret_scanning_push_protection": {"status": "enabled"}}
-        variables = [{"variables": [{"name": "GUARDRAILS_CODEQL_LANGUAGES", "value": "python"}]},
-                     {"variables": [{"name": "GUARDRAILS_BUILD_COMMAND", "value": "SECRET-COMMAND"},
-                                    {"name": "GUARDRAILS_DEPENDENCY_REVIEW_ENABLED", "value": "true"}]}]
+        variables = [{"variables": [{"name": "PROOF_CODEQL_LANGUAGES", "value": "python"}]},
+                     {"variables": [{"name": "PROOF_BUILD_COMMAND", "value": "SECRET-COMMAND"},
+                                    {"name": "PROOF_DEPENDENCY_REVIEW_ENABLED", "value": "true"}]}]
         secrets = [{"secrets": [{"name": "SECURITY_SETTINGS_TOKEN"}]}]
         with patch.object(self.module, "probe", side_effect=self.github_probe(security, variables, secrets)):
             report = self.report(github="owner/repo")
         rows = self.checks(report)
         self.assertEqual(rows["github.secret-protection"]["status"], "configured")
         self.assertEqual(rows["github.secret.SECURITY_SETTINGS_TOKEN"]["status"], "configured")
-        self.assertEqual(rows["github.variable.GUARDRAILS_BUILD_COMMAND"]["status"], "configured")
-        self.assertEqual(rows["github.variable.GUARDRAILS_DEPENDENCY_REVIEW_ENABLED"]["status"], "configured")
+        self.assertEqual(rows["github.variable.PROOF_BUILD_COMMAND"]["status"], "configured")
+        self.assertEqual(rows["github.variable.PROOF_DEPENDENCY_REVIEW_ENABLED"]["status"], "configured")
         self.assertNotIn("SECRET-COMMAND", json.dumps(report))
         self.assertEqual(rows["local.command.build"]["status"], "action_needed")
         self.assertEqual(rows["github.producer-evidence"]["status"], "unverified")
@@ -203,13 +203,13 @@ class DoctorTests(unittest.TestCase):
     def test_text_and_json_cli_exit_codes_distinguish_gaps_and_usage_errors(self):
         environment = os.environ.copy()
         for variable in (
-            "GUARDRAILS_BUILD_COMMAND",
-            "GUARDRAILS_CHANGED_COVERAGE_COMMAND",
-            "GUARDRAILS_FORMAT_LINT_COMMAND",
-            "GUARDRAILS_MIGRATION_VALIDATION_COMMAND",
-            "GUARDRAILS_SETUP_COMMAND",
-            "GUARDRAILS_UNIT_TEST_COMMAND",
-            "GUARDRAILS_WORKING_DIRECTORY",
+            "PROOF_BUILD_COMMAND",
+            "PROOF_CHANGED_COVERAGE_COMMAND",
+            "PROOF_FORMAT_LINT_COMMAND",
+            "PROOF_MIGRATION_VALIDATION_COMMAND",
+            "PROOF_SETUP_COMMAND",
+            "PROOF_UNIT_TEST_COMMAND",
+            "PROOF_WORKING_DIRECTORY",
         ):
             environment.pop(variable, None)
         for arguments, expected in (([], 1), (["--target", str(self.target / "absent")], 2),
@@ -220,9 +220,9 @@ class DoctorTests(unittest.TestCase):
             if expected == 1:
                 self.assertIn("Configuration is not passing evidence", completed.stdout)
                 self.assertIn("Next:", completed.stdout)
-        policy_path = self.target / ".guardrails/policy.yaml"
+        policy_path = self.target / ".proof/policy.yaml"
         policy = json.loads(policy_path.read_text())
-        profiles = json.loads((self.target / ".guardrails/profiles.yaml").read_text())
+        profiles = json.loads((self.target / ".proof/profiles.yaml").read_text())
         policy["overrides"]["change"] = {key: "not_activated" for key in profiles["profiles"]["core"]["defaults"]["change"]}
         policy_path.write_text(json.dumps(policy))
         self.git("add", ".")
@@ -247,7 +247,7 @@ class DoctorTests(unittest.TestCase):
             self.module.read_object(self.target, "bad.json")
 
     def test_ground_truth_rejects_empty_malformed_and_outside_documents(self):
-        path = self.target / ".guardrails/ground-truth-ai.yaml"
+        path = self.target / ".proof/ground-truth-ai.yaml"
         cases = [{"version": 1, "documents": []},
                  {"version": 1, "documents": ["README.md"]},
                  {"version": 1, "documents": [{"path": "../outside"}]},
@@ -275,17 +275,17 @@ class DoctorTests(unittest.TestCase):
 
     def test_github_malformed_pages_and_disabled_variable_are_not_configured(self):
         self.enable_github()
-        for pages in ([], [{}], [{"variables": [None]}], [{"variables": [{"name": "GUARDRAILS_DEPENDENCY_REVIEW_ENABLED", "value": "false"}]}]):
+        for pages in ([], [{}], [{"variables": [None]}], [{"variables": [{"name": "PROOF_DEPENDENCY_REVIEW_ENABLED", "value": "false"}]}]):
             with patch.object(self.module, "probe", side_effect=self.github_probe(variables=pages)):
                 rows = self.checks(self.report(github="owner/repo"))
-            self.assertIn(rows["github.variable.GUARDRAILS_DEPENDENCY_REVIEW_ENABLED"]["status"], {"action_needed", "unverified"})
+            self.assertIn(rows["github.variable.PROOF_DEPENDENCY_REVIEW_ENABLED"]["status"], {"action_needed", "unverified"})
 
     def test_release_reports_artifact_configuration_not_change_commands(self):
         self.enable_github()
         with patch.object(self.module, "probe", side_effect=self.github_probe()):
             report = self.report(github="owner/repo", operation="release")
         self.assertEqual(report["operation"], "release")
-        self.assertIn("github.variable.GUARDRAILS_ARTIFACT_PATH", self.checks(report))
+        self.assertIn("github.variable.PROOF_ARTIFACT_PATH", self.checks(report))
 
     def test_runtime_only_refresh_installs_diagnostic_without_actions(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -293,10 +293,10 @@ class DoctorTests(unittest.TestCase):
             installer = load(ROOT / "tooling/install.py")
             with contextlib.redirect_stdout(io.StringIO()):
                 installer.install(target, dry_run=False, no_actions=True)
-                (target / ".guardrails/doctor.py").unlink()
+                (target / ".proof/doctor.py").unlink()
                 installer.install(target, dry_run=False, no_actions=True, refresh_existing=True)
             self.assertFalse((target / ".github/workflows").exists())
-            completed = subprocess.run([sys.executable, str(target / ".guardrails/doctor.py"), "--json"],
+            completed = subprocess.run([sys.executable, str(target / ".proof/doctor.py"), "--json"],
                                        cwd=target, text=True, capture_output=True)
             self.assertEqual(completed.returncode, 1, completed.stderr)
             self.assertEqual(self.checks(json.loads(completed.stdout))["runtime"]["status"], "configured")
@@ -318,7 +318,7 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(rows["git.clean"]["status"], "action_needed")
 
     def test_invalid_secret_metadata_is_action_needed_not_a_traceback(self):
-        path = self.target / ".guardrails/providers.yaml"
+        path = self.target / ".proof/providers.yaml"
         original = json.loads(path.read_text())
         for secrets in (None, "TOKEN", [None], [{"name": "TOKEN"}], [""], ["unsafe\nname"]):
             with self.subTest(secrets=secrets):
@@ -379,12 +379,12 @@ if __name__ == "__main__":
 
 class AdapterDiagnosticTests(DoctorTests):
     def select_external(self):
-        providers = self.target / ".guardrails" / "providers.yaml"
+        providers = self.target / ".proof" / "providers.yaml"
         document = json.loads(providers.read_text(encoding="utf-8"))
         document["selections"]["deep-sast"] = {"authoritative": "snyk-code", "supplemental": []}
         document["selections"]["license-compliance"] = {"authoritative": "fossa", "supplemental": []}
         providers.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-        policy = self.target / ".guardrails" / "policy.yaml"
+        policy = self.target / ".proof" / "policy.yaml"
         policy_document = json.loads(policy.read_text(encoding="utf-8"))
         policy_document["overrides"]["change"]["license-compliance"] = "advisory"
         policy_document["overrides"]["change"]["deep-sast"] = "advisory"
@@ -414,21 +414,21 @@ class AdapterDiagnosticTests(DoctorTests):
 
     def test_missing_adapter_is_action_needed(self):
         self.select_external()
-        (self.target / ".guardrails" / "adapter.py").unlink()
+        (self.target / ".proof" / "adapter.py").unlink()
         self.git("add", ".")
         self.git("commit", "-qm", "remove adapter")
-        installed = load(self.target / ".guardrails" / "doctor.py")
+        installed = load(self.target / ".proof" / "doctor.py")
         with patch.dict(os.environ, {}, clear=True):
             checks = self.checks(installed.diagnose(self.target))
         self.assertEqual(checks["provider.snyk-code.adapter"]["status"], "action_needed")
         self.assertIn("refresh-existing", checks["provider.snyk-code.adapter"]["next_step"])
 
     def test_supplemental_external_providers_are_diagnosed(self):
-        providers = self.target / ".guardrails" / "providers.yaml"
+        providers = self.target / ".proof" / "providers.yaml"
         document = json.loads(providers.read_text(encoding="utf-8"))
         document["selections"]["deep-sast"] = {"authoritative": "github-codeql", "supplemental": ["snyk-code"]}
         providers.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-        policy = self.target / ".guardrails" / "policy.yaml"
+        policy = self.target / ".proof" / "policy.yaml"
         policy_document = json.loads(policy.read_text(encoding="utf-8"))
         policy_document["overrides"]["change"]["deep-sast"] = "advisory"
         policy.write_text(json.dumps(policy_document, indent=2) + "\n", encoding="utf-8")
@@ -445,10 +445,10 @@ class AdapterDiagnosticTests(DoctorTests):
 
     def test_stale_adapter_missing_selected_contract_is_action_needed(self):
         self.select_external()
-        (self.target / ".guardrails" / "adapter.py").write_text("PROVIDERS = {}\n", encoding="utf-8")
+        (self.target / ".proof" / "adapter.py").write_text("PROVIDERS = {}\n", encoding="utf-8")
         self.git("add", ".")
         self.git("commit", "-qm", "stale adapter")
-        installed = load(self.target / ".guardrails" / "doctor.py")
+        installed = load(self.target / ".proof" / "doctor.py")
         checks = self.checks(installed.diagnose(self.target, environment={}))
         for provider_id in ("snyk-code", "fossa"):
             row = checks[f"provider.{provider_id}.adapter"]
@@ -456,18 +456,18 @@ class AdapterDiagnosticTests(DoctorTests):
             self.assertIn("refresh-existing", row["next_step"])
 
     def test_missing_adapter_only_flags_adapter_backed_providers(self):
-        providers = self.target / ".guardrails" / "providers.yaml"
+        providers = self.target / ".proof" / "providers.yaml"
         document = json.loads(providers.read_text(encoding="utf-8"))
         document["selections"]["static-quality"] = {"authoritative": "sonarqube", "supplemental": []}
         providers.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-        policy = self.target / ".guardrails" / "policy.yaml"
+        policy = self.target / ".proof" / "policy.yaml"
         policy_document = json.loads(policy.read_text(encoding="utf-8"))
         policy_document["overrides"]["change"]["static-quality"] = "advisory"
         policy.write_text(json.dumps(policy_document, indent=2) + "\n", encoding="utf-8")
-        (self.target / ".guardrails" / "adapter.py").unlink()
+        (self.target / ".proof" / "adapter.py").unlink()
         self.git("add", ".")
         self.git("commit", "-qm", "sonar without adapter")
-        installed = load(self.target / ".guardrails" / "doctor.py")
+        installed = load(self.target / ".proof" / "doctor.py")
         with patch.dict(os.environ, {}, clear=True):
             checks = self.checks(installed.diagnose(self.target))
         self.assertNotIn("provider.sonarqube.adapter", checks)

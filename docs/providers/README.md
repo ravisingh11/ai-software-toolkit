@@ -1,7 +1,7 @@
 # Providers
 
 A provider produces evidence for one or more capabilities. Repository and
-GitHub providers are installed by the Guardrails installer; external providers
+GitHub providers are installed by the Proof installer; external providers
 are opt-in and need a credential the consumer owns. This section documents
 each external provider's prerequisites, credential, check identity, outcomes,
 and the diagnostics that tell you where setup stands.
@@ -12,16 +12,16 @@ and the diagnostics that tell you where setup stands.
 | Snyk Code | `deep-sast` | `SNYK_TOKEN` | `workflows/snyk.yml` | Adapter: `snyk code test` | [snyk.md](snyk.md) |
 | Snyk Open Source | `dependency-vulnerability` | `SNYK_TOKEN` | `workflows/snyk.yml` | Adapter: `snyk test` | [snyk.md](snyk.md) |
 | FOSSA | `dependency-vulnerability`, `license-compliance` | `FOSSA_API_KEY` | `workflows/fossa.yml` | Adapter: `fossa analyze` then `fossa test` | [fossa.md](fossa.md) |
-| Semgrep AppSec Platform (`semgrep-app`) | `custom-static-analysis`, `deep-sast` | `SEMGREP_APP_TOKEN` | none | Organization integration; evidence is the `Semgrep` app check | [control setup](../guardrails/control-setup.md#optional-vendor-providers) |
+| Semgrep AppSec Platform (`semgrep-app`) | `custom-static-analysis`, `deep-sast` | `SEMGREP_APP_TOKEN` | none | Organization integration; evidence is the `Semgrep` app check | [control setup](../proof/control-setup.md#optional-vendor-providers) |
 
 Every provider is opt-in: selecting it as authoritative for a capability with
-`.guardrails/configure.py --select-provider CAPABILITY=PROVIDER` (or
+`.proof/configure.py --select-provider CAPABILITY=PROVIDER` (or
 `ai-toolkit providers select`) and activating the capability is what makes its
 evidence count. Selection is not a pass; only exact-revision evidence is.
 
 ## Adapter-owned commands
 
-Snyk and FOSSA run through `.guardrails/adapter.py` (source:
+Snyk and FOSSA run through `.proof/adapter.py` (source:
 `tooling/provider_adapter.py`). The adapter, not the consumer, decides the
 command sequence and how exit codes and output map to evidence. Consumers
 supply arguments through `SNYK_CODE_ARGS`, `SNYK_OPEN_SOURCE_ARGS`, and
@@ -33,8 +33,8 @@ Run an adapter locally to produce a fragment that `scan.py` merges:
 
 ```sh
 export SNYK_TOKEN=...            # never committed
-python3 .guardrails/adapter.py snyk-open-source --target .
-python3 .guardrails/scan.py      # merges .artifacts/guardrails/evidence/*.json
+python3 .proof/adapter.py snyk-open-source --target .
+python3 .proof/scan.py      # merges .artifacts/proof/evidence/*.json
 ```
 
 The adapter exits 0 only for `passed`; the workflow templates fail the job for
@@ -85,7 +85,7 @@ not used here.
 
 ## Diagnostics
 
-`ai-toolkit doctor` (and `.guardrails/doctor.py`) adds, for each selected
+`ai-toolkit doctor` (and `.proof/doctor.py`) adds, for each selected
 external provider:
 
 - `provider.<id>.adapter` — whether the installed runtime carries the adapter

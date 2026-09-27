@@ -23,14 +23,14 @@ when `test` does not finish.
 ## Prerequisites
 
 - A FOSSA account and an API key stored as the `FOSSA_API_KEY` secret.
-- The Guardrails runtime installed with `.guardrails/adapter.py`.
+- The Proof runtime installed with `.proof/adapter.py`.
 - Optional `.fossa.yml` in the repository for project and target settings.
 
 ## Install
 
 ```sh
 cp <toolkit>/workflows/fossa.yml .github/workflows/fossa.yml
-python3 .guardrails/configure.py --select-provider license-compliance=fossa --set license-compliance=advisory
+python3 .proof/configure.py --select-provider license-compliance=fossa --set license-compliance=advisory
 ```
 
 ## Outcomes

@@ -1,0 +1,12 @@
+{
+  "$schema": "../../proof/policy.schema.json",
+  "version": 2,
+  "name": "example-core-policy",
+  "profiles": ["core"],
+  "overrides": {
+    "change": {
+      "unit-tests": "enforced"
+    },
+    "release": {}
+  }
+}

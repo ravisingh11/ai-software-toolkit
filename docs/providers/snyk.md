@@ -16,17 +16,17 @@ Two providers share one workflow template and one credential.
 
 - A Snyk organization and an API token stored as the `SNYK_TOKEN` repository
   or organization secret. Snyk Code must be enabled for the organization.
-- The Guardrails runtime installed with `.guardrails/adapter.py` (refresh an
+- The Proof runtime installed with `.proof/adapter.py` (refresh an
   older installation with `tooling/install.py --refresh-existing`).
 - For Snyk Open Source, dependencies must be resolvable; set
-  `GUARDRAILS_SETUP_COMMAND` so the workflow installs them first.
+  `PROOF_SETUP_COMMAND` so the workflow installs them first.
 
 ## Install
 
 ```sh
 cp <toolkit>/workflows/snyk.yml .github/workflows/snyk.yml
-python3 .guardrails/configure.py --select-provider dependency-vulnerability=snyk-open-source --set dependency-vulnerability=advisory
-python3 .guardrails/configure.py --select-provider deep-sast=snyk-code --set deep-sast=advisory   # replaces CodeQL as authoritative
+python3 .proof/configure.py --select-provider dependency-vulnerability=snyk-open-source --set dependency-vulnerability=advisory
+python3 .proof/configure.py --select-provider deep-sast=snyk-code --set deep-sast=advisory   # replaces CodeQL as authoritative
 ```
 
 Keep CodeQL authoritative for `deep-sast` and add Snyk Code as supplemental

@@ -8,11 +8,11 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CANONICAL = ROOT / "workflows" / "guardrails-scorecard-badge.yml"
-INSTALLED = ROOT / ".github" / "workflows" / "guardrails-scorecard-badge.yml"
+CANONICAL = ROOT / "workflows" / "proof-scorecard-badge.yml"
+INSTALLED = ROOT / ".github" / "workflows" / "proof-scorecard-badge.yml"
 SOURCE_WORKFLOWS = (
-    ROOT / "workflows" / "guardrails-scorecard.yml",
-    ROOT / ".github" / "workflows" / "guardrails-scorecard.yml",
+    ROOT / "workflows" / "proof-scorecard.yml",
+    ROOT / ".github" / "workflows" / "proof-scorecard.yml",
 )
 
 
@@ -22,12 +22,12 @@ class ScorecardBadgeWorkflowTests(unittest.TestCase):
             with self.subTest(path=path):
                 text = path.read_text(encoding="utf-8")
                 self.assertIn("workflow_run:", text)
-                self.assertIn("workflows: [Guardrail Scorecard]", text)
+                self.assertIn("workflows: [Proof Scorecard]", text)
                 self.assertIn("types: [completed]", text)
                 self.assertIn("schedule:", text)
                 self.assertIn('cron: "17 */6 * * *"', text)
                 self.assertNotIn("workflow_dispatch", text)
-                self.assertIn("group: guardrails-scorecard-pages", text)
+                self.assertIn("group: proof-scorecard-pages", text)
                 self.assertIn("cancel-in-progress: false", text)
                 expected_permissions = {
                     "actions": "read",
@@ -45,17 +45,17 @@ class ScorecardBadgeWorkflowTests(unittest.TestCase):
                     )
                 )
                 self.assertEqual(actual, expected_permissions)
-                self.assertIn("GUARDRAILS_SCORECARD_BADGE_ENABLED == 'true'", text)
+                self.assertIn("PROOF_SCORECARD_BADGE_ENABLED == 'true'", text)
                 self.assertIn(
-                    "GUARDRAILS_SCORECARD_BADGE_PAGES_MODE == 'dedicated'", text
+                    "PROOF_SCORECARD_BADGE_PAGES_MODE == 'dedicated'", text
                 )
                 self.assertIn("environment:\n      name: github-pages", text)
-                self.assertIn("GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS: ${{ vars.GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS }}", text)
+                self.assertIn("PROOF_SCORECARD_BADGE_PAGES_ACCESS: ${{ vars.PROOF_SCORECARD_BADGE_PAGES_ACCESS }}", text)
                 self.assertIn("fetch-depth: 0", text)
                 self.assertIn("persist-credentials: false", text)
                 self.assertNotIn("github.event.pull_request.head", text)
                 self.assertNotIn("github.event.workflow_run.head", text)
-                self.assertIn("python3 .guardrails/reconcile_scorecard_badge.py", text)
+                self.assertIn("python3 .proof/reconcile_scorecard_badge.py", text)
                 self.assertIn('--github-output "${GITHUB_OUTPUT}"', text)
                 self.assertIn('--job-summary "${GITHUB_STEP_SUMMARY}"', text)
                 for pin in (
@@ -95,7 +95,7 @@ class ScorecardBadgeWorkflowTests(unittest.TestCase):
                     text.index("name: Render scorecard"),
                 )
                 self.assertIn(
-                    "name: guardrail-scorecard-${{ github.run_id }}-${{ github.run_attempt }}",
+                    "name: proof-scorecard-${{ github.run_id }}-${{ github.run_attempt }}",
                     text,
                 )
                 self.assertIn("source.json", text)

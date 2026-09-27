@@ -93,7 +93,7 @@ class RendererTests(unittest.TestCase):
             self.assertEqual(
                 names,
                 {
-                    "guardrails-badge.svg",
+                    "proof-badge.svg",
                     "scorecard.json",
                     "scorecard.md",
                     "index.html",
@@ -125,7 +125,7 @@ class RendererTests(unittest.TestCase):
                     self.assertNotIn(private, text, path.name)
             page = (output / "index.html").read_text(encoding="utf-8")
             self.assertIn('<span class="brand-name">AI Software Toolkit</span>', page)
-            self.assertNotIn('<span class="brand-name">Guardrails</span>', page)
+            self.assertNotIn('<span class="brand-name">Proof</span>', page)
 
     def breakdown_card(self) -> dict[str, Any]:
         card = scorecard(status="ORANGE", enforced=(1, 1), advisory=(1, 4))
@@ -267,7 +267,7 @@ class RendererTests(unittest.TestCase):
                 metadata = self.render(self.write_source(root, card), output)
                 self.assertEqual(metadata["status"], status)
                 self.assertIn(
-                    f"{status} {count}", (output / "guardrails-badge.svg").read_text()
+                    f"{status} {count}", (output / "proof-badge.svg").read_text()
                 )
 
     def test_invalid_scorecard_semantics_fail_without_output(self) -> None:

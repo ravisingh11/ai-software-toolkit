@@ -1,4 +1,4 @@
-# Guardrails v2 installer-owned workflow.
+# Proof installer-owned workflow.
 name: Dependency Review
 
 on:
@@ -16,7 +16,7 @@ permissions:
 jobs:
   dependency-review:
     name: Dependency Review
-    if: ${{ vars.GUARDRAILS_DEPENDENCY_REVIEW_ENABLED == 'true' }}
+    if: ${{ vars.PROOF_DEPENDENCY_REVIEW_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

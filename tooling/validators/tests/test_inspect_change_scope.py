@@ -27,8 +27,8 @@ def git(root: Path, *arguments: str) -> str:
 
 def diverged_commits(root: Path) -> tuple[str, str]:
     git(root, "init", "-q", "-b", "main")
-    git(root, "config", "user.name", "Guardrails Test")
-    git(root, "config", "user.email", "guardrails@example.invalid")
+    git(root, "config", "user.name", "Proof Test")
+    git(root, "config", "user.email", "proof@example.invalid")
     (root / "README.md").write_text("initial\n", encoding="utf-8")
     git(root, "add", "README.md")
     git(root, "commit", "-q", "-m", "initial")
@@ -60,10 +60,10 @@ def policy() -> dict:
 
 
 class ChangeScopeTests(unittest.TestCase):
-    def test_default_policy_uses_guardrails_configuration(self) -> None:
+    def test_default_policy_uses_proof_configuration(self) -> None:
         self.assertEqual(
             MODULE.DEFAULT_POLICY,
-            MODULE.ROOT / ".guardrails" / "change-scope.yaml",
+            MODULE.ROOT / ".proof" / "change-scope.yaml",
         )
 
     def test_cli_inspects_an_explicit_repository_root_with_trusted_policy(self) -> None:
