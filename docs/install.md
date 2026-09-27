@@ -192,9 +192,10 @@ A managed skill whose directory is missing at re-init time keeps its lock
 entries, so the next `update` restores it instead of forgetting it.
 A backup of every managed file
 is kept under `.artifacts/ai-toolkit/backup/<timestamp>/`; `--rollback`
-restores it and the previous lock. `update` refuses before touching any file
-when `toolkit.toml` or `toolkit.lock.json` cannot be written (for example,
-either is a symlink), and if writing them fails after the refresh, the managed
+restores it and the previous lock. `update`, a project `skills install`, and
+`qa bootstrap` refuse before touching any file when `toolkit.toml` or
+`toolkit.lock.json` cannot be rewritten (either is a symlink, a directory, or
+another non-regular entry), and if writing them fails after the refresh, the managed
 files, configuration, and lock are all restored together so the tree never
 disagrees with the lock that describes it; the records are put back by
 replacing the directory entry, so a symlink that appeared in the meantime is

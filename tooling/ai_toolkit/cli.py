@@ -621,6 +621,21 @@ def adopt_client(target: Path, client: str) -> bool:
     return True
 
 
+def require_writable_records(target: Path) -> None:
+    """Refuse up front when toolkit.toml or toolkit.lock.json cannot be rewritten.
+
+    Every command that installs files and then records them checks this first,
+    so a symlink, a directory, or any other non-regular entry at either path
+    stops the command before a managed file is touched, never after.
+    """
+    for name in (config.TOML_NAME, config.LOCK_NAME):
+        path = target / name
+        if path.is_symlink():
+            raise ToolkitError(f"refusing to write through a symlink: {path}")
+        if path.exists() and not path.is_file():
+            raise ToolkitError(f"{path} exists but is not a regular file; move it aside first")
+
+
 def adopt_component(target: Path, component: str) -> bool:
     """Add a component to toolkit.toml so update keeps managing what was just installed.
 
@@ -670,6 +685,8 @@ def cmd_skills(args: argparse.Namespace) -> int:
         if client not in config.CLIENTS:
             raise ToolkitError(f"unknown agent client: {client}")
     existing = "replace" if args.action == "refresh" else args.existing
+    if not args.user and not args.dry_run:
+        require_writable_records(target)
     results = []
     for client in clients:
         destination = skills.client_user_dir(client) if args.user else skills.client_project_dir(client, target)
@@ -703,10 +720,13 @@ def cmd_qa(args: argparse.Namespace) -> int:
         _emit(payload, args.json, "\n".join(lines))
         return 0
     clients = [item.strip() for item in args.client.split(",") if item.strip()]
-    results = []
     for client in clients:
         if client not in config.CLIENTS:
             raise ToolkitError(f"unknown agent client: {client}")
+    if not args.dry_run:
+        require_writable_records(target)
+    results = []
+    for client in clients:
         destination = skills.client_project_dir(client, target)
         rows = skills.install_skills(["qa-bootstrap"], destination, existing="merge", dry_run=args.dry_run, boundary=target)
         if not args.dry_run:
@@ -806,9 +826,7 @@ def cmd_update(args: argparse.Namespace) -> int:
     # Both records are rewritten at the end; refuse before touching any managed file if either
     # destination cannot be written, so a refresh never outruns the lock that describes it.
     records = {name: target / name for name in (config.TOML_NAME, config.LOCK_NAME)}
-    for path in records.values():
-        if path.is_symlink():
-            raise ToolkitError(f"refusing to write through a symlink: {path}")
+    require_writable_records(target)
     originals = {name: path.read_bytes() if path.is_file() else None for name, path in records.items()}
     backup_root = _backup(target, managed)
     conflicts_root = target / ".artifacts" / "ai-toolkit" / "conflicts"

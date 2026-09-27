@@ -741,6 +741,46 @@ class ReviewRegressionTests(CliFixture):
         self.assertEqual(toml_path.read_bytes(), toml_before)
         self.assertEqual([path.name for path in self.target.iterdir() if path.name.startswith(".toolkit.toml.restore")], [])
 
+    def test_update_refuses_before_mutating_when_a_record_is_not_a_regular_file(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        lock_path = self.target / config.LOCK_NAME
+        lock_path.unlink()
+        lock_path.mkdir()
+        missing = self.target / ".proof" / "scan.py"
+        missing.unlink()
+        code, _, err = run_cli("update", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("not a regular file", err)
+        self.assertFalse(missing.exists())
+        self.assertTrue(lock_path.is_dir())
+        self.assertFalse((self.target / ".artifacts" / "ai-toolkit" / "backup").exists())
+
+    def test_skills_install_and_qa_bootstrap_refuse_before_installing_when_records_are_unwritable(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        toml_path = self.target / config.TOML_NAME
+        toml_before = toml_path.read_bytes()
+        lock_before = (self.target / config.LOCK_NAME).read_bytes()
+        outside = self.root / "outside.toml"
+        outside.write_bytes(toml_before)
+        toml_path.unlink()
+        toml_path.symlink_to(outside)
+        code, _, err = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("symlink", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        code, _, err = run_cli("qa", "bootstrap", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("symlink", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "qa-bootstrap").exists())
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        self.assertEqual(outside.read_bytes(), toml_before)
+        # Dry runs and user-level installs never touch the records, so they are not gated.
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--dry-run", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--user", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+
     def test_update_never_adopts_skipped_skills_into_the_lock(self):
         self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
         mine = self.target / ".agents" / "skills" / "security-audit-lite"
