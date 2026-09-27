@@ -174,14 +174,25 @@ rewrites the lock. Only skills the previous lock recorded are refreshed
 (their canonical files are rewritten; files you added inside the directory
 are kept) or restored when the directory was deleted; a directory you created
 under a canonical skill name is left alone and listed until you adopt it with
-`ai-toolkit skills install`, which records project installs in the lock.
+`ai-toolkit skills install`, which records project installs in the lock and
+adds the `skills` component (and `qa bootstrap` the `qa` component) to
+`toolkit.toml`, so a later `update` keeps managing them instead of treating
+them as removed.
 Re-running `init` on an installed repository keeps the lock's baseline for
 files it did not rewrite, so your local edits still surface as conflicts
 later, and keeps every component and client already installed; removing one
-is a separate, explicit step. A backup of every managed file
+is a separate, explicit step. Only the components named in that run install
+anything new: re-running `init --components proof` on a repository with a
+narrowly selected skill set leaves the selection alone, while asking for
+`skills` or `qa` again installs the default set for any client that lacks it.
+A backup of every managed file
 is kept under `.artifacts/ai-toolkit/backup/<timestamp>/`; `--rollback`
-restores it and the previous lock. Running `update` at the same revision with
-nothing changed is a no-op.
+restores it and the previous lock. `update` refuses before touching any file
+when `toolkit.toml` or `toolkit.lock.json` cannot be written (for example,
+either is a symlink), and if writing them fails after the refresh, the managed
+files, configuration, and lock are all restored together so the tree never
+disagrees with the lock that describes it. Running `update` at the same
+revision with nothing changed is a no-op.
 
 ## Trust boundaries
 

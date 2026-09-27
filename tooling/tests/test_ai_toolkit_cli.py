@@ -602,6 +602,95 @@ class ReviewRegressionTests(CliFixture):
         self.assertEqual(configuration["toolkit"]["components"], ["proof", "skills"])
         self.assertFalse((self.target / ".github" / "workflows").exists())
 
+    def test_reinit_for_another_component_keeps_the_selected_skill_set(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        skills_dir = self.target / ".agents" / "skills"
+        selected = sorted(path.name for path in skills_dir.iterdir() if path.is_dir())
+        self.assertIn("code-review", selected)
+        self.assertNotIn("security-audit-lite", selected)
+        code, out, _ = self.init("--components", "proof")
+        self.assertEqual(code, 0, out)
+        # The Proof installer ships prepare-safe-change with the runtime; nothing from the
+        # starter set beyond that may appear, and the earlier selection stays intact.
+        after = sorted(path.name for path in skills_dir.iterdir() if path.is_dir())
+        self.assertEqual(sorted(set(after) - {"prepare-safe-change"}), selected)
+        self.assertNotIn("security-audit-lite", after)
+        self.assertNotIn("security-audit-lite", out)
+        configuration = config.read_configuration(self.target)
+        self.assertEqual(configuration["toolkit"]["components"], ["proof", "skills"])
+        lock = config.read_lock(self.target)
+        self.assertIn(".agents/skills/code-review/SKILL.md", lock["managed"])
+        self.assertIn(".proof/policy.yaml", lock["managed"])
+        # An explicit skills request still installs the default set for a new client.
+        self.assertEqual(self.init("--components", "skills", "--clients", "claude-code")[0], 0)
+        self.assertTrue((self.target / ".claude" / "skills" / "security-audit-lite" / "SKILL.md").is_file())
+
+    def test_skills_install_adopts_the_skills_component(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        self.assertEqual(config.read_configuration(self.target)["toolkit"]["components"], ["proof"])
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(config.read_configuration(self.target)["toolkit"]["components"], ["proof", "skills"])
+        self.assertEqual(config.read_lock(self.target)["components"], ["proof", "skills"])
+        skill = self.target / ".agents" / "skills" / "code-review" / "SKILL.md"
+        self.assertTrue(skill.is_file())
+        code, out, _ = run_cli("update", "--target", str(self.target), "--dry-run", "--json")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(json.loads(out)["classification"]["removed"], [])
+        code, out, _ = run_cli("update", "--target", str(self.target), "--force")
+        self.assertEqual(code, 0, out)
+        self.assertTrue(skill.is_file())
+        self.assertIn(".agents/skills/code-review/SKILL.md", config.read_lock(self.target)["managed"])
+        self.assertFalse(cli.adopt_component(self.target, "skills"))
+        self.assertFalse(cli.adopt_component(self.root, "skills"))
+
+    def test_qa_bootstrap_adopts_the_qa_component(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        code, out, _ = run_cli("qa", "bootstrap", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(config.read_configuration(self.target)["toolkit"]["components"], ["proof", "qa"])
+        self.assertIn("qa", config.read_lock(self.target)["components"])
+        code, out, _ = run_cli("update", "--target", str(self.target), "--force")
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.target / ".agents" / "skills" / "qa-bootstrap" / "SKILL.md").is_file())
+
+    def test_update_refuses_before_mutating_when_the_lock_is_a_symlink(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        lock_path = self.target / config.LOCK_NAME
+        real_lock = self.root / "elsewhere.lock.json"
+        real_lock.write_bytes(lock_path.read_bytes())
+        lock_path.unlink()
+        lock_path.symlink_to(real_lock)
+        self.assertIsNotNone(config.read_lock(self.target))
+        missing = self.target / ".proof" / "scan.py"
+        missing.unlink()
+        before = (self.target / config.TOML_NAME).read_bytes()
+        code, _, err = run_cli("update", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("symlink", err)
+        self.assertFalse(missing.exists())
+        self.assertEqual((self.target / config.TOML_NAME).read_bytes(), before)
+        self.assertEqual(lock_path.read_bytes(), real_lock.read_bytes())
+        self.assertFalse((self.target / ".artifacts" / "ai-toolkit" / "backup").exists())
+
+    def test_update_restores_files_when_the_records_cannot_be_written(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        toml_before = (self.target / config.TOML_NAME).read_bytes()
+        lock_before = (self.target / config.LOCK_NAME).read_bytes()
+        missing = self.target / ".proof" / "scan.py"
+        missing.unlink()
+        with patch.object(config, "write_lock", side_effect=ToolkitError("disk full")):
+            code, _, err = run_cli("update", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("disk full", err)
+        self.assertIn("previous files were restored", err)
+        self.assertFalse(missing.exists())
+        self.assertEqual((self.target / config.TOML_NAME).read_bytes(), toml_before)
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        code, out, _ = run_cli("update", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue(missing.is_file())
+
     def test_update_never_adopts_skipped_skills_into_the_lock(self):
         self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
         mine = self.target / ".agents" / "skills" / "security-audit-lite"

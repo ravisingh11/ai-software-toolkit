@@ -21,6 +21,14 @@ or evidence contracts require a major release and migration guidance.
   names are unchanged. The next release must be a major version. See
   [migrating from Guardrails](docs/proof/migrating-from-guardrails.md).
 
+- Fix three `ai-toolkit` review follow-ups: re-running `init` for another
+  component no longer installs the default skill set over a narrower
+  selection; a project `skills install` (or `qa bootstrap`) adds its component
+  to `toolkit.toml` and the lock so the next `update` keeps the files; and
+  `update` validates both record destinations before mutating managed files
+  and restores files, configuration, and lock together when a record write
+  fails.
+
 - Harden action-skill verification: reject stale or duplicate client ledger
   claims, package review contracts, and keep seeded scans self-contained.
   QA publishes sanitized non-passing reasons while remaining unsuccessful,
