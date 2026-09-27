@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -295,11 +296,25 @@ def cmd_init(args: argparse.Namespace) -> int:
         if client not in config.CLIENTS:
             raise ToolkitError(f"unknown agent client: {client}")
     existing_configuration = config.read_configuration(target)
+    # What this run asked for, as opposed to what stays managed from an earlier run: only an
+    # explicit request installs a skill set, so re-running init for another component never
+    # widens a narrowly selected installation to the starter set.
+    requested = list(components)
     if existing_configuration:
         # Components and clients already installed stay managed; removing one is a separate,
         # explicit step rather than a side effect of a narrower re-run.
         components = sorted(set(existing_configuration["toolkit"]["components"]) | set(components), key=config.COMPONENTS.index)
-        clients = list(dict.fromkeys([*existing_configuration["agents"]["clients"], *clients]))
+        existing_clients = list(existing_configuration["agents"]["clients"])
+        if "skills" in requested or "qa" in requested or not existing_clients:
+            clients = list(dict.fromkeys([*existing_clients, *clients]))
+        else:
+            # Adopting a client means installing skills for it. Without a skills or qa request
+            # this run installs nothing, so a detected client is left alone and a named one is
+            # refused rather than recorded as managed with no skills behind it.
+            new_clients = [client for client in clients if client not in existing_clients]
+            if args.clients and new_clients:
+                raise ToolkitError(f"adding agent client {', '.join(new_clients)} installs skills for it; include skills or qa in --components")
+            clients = existing_clients
     # Any existing .proof/ directory, complete or not, is merged into rather than refused,
     # so init can fill the gap doctor reported.
     already_installed = (target / ".proof").is_dir()
@@ -325,10 +340,10 @@ def cmd_init(args: argparse.Namespace) -> int:
             raise ToolkitError("installer preview failed: " + (completed.stderr or completed.stdout).strip())
         preview["proof"] = [line[len("- install: "):] for line in completed.stdout.splitlines() if line.startswith("- install: ")]
         preview["reporting"] = next((line for line in completed.stdout.splitlines() if line.startswith("Reporting (")), None)
-    selected_skills = skills.resolve_skills(args.skills.split(",") if args.skills else ["starter"]) if ("skills" in components or "qa" in components) else []
-    if "qa" in components and "qa-bootstrap" not in selected_skills and "qa-bootstrap" in skills.canonical_skills():
+    selected_skills = skills.resolve_skills(args.skills.split(",") if args.skills else ["starter"]) if ("skills" in requested or "qa" in requested) else []
+    if "qa" in requested and "qa-bootstrap" not in selected_skills and "qa-bootstrap" in skills.canonical_skills():
         selected_skills.append("qa-bootstrap")
-    if "skills" not in components:
+    if "skills" not in requested:
         selected_skills = [name for name in selected_skills if name == "qa-bootstrap"]
     for client in clients:
         destination = skills.client_project_dir(client, target)
@@ -402,9 +417,11 @@ def cmd_init(args: argparse.Namespace) -> int:
     hashes = config.hash_managed(target, managed)
     if previous_lock:
         # Files already under management that init did not rewrite keep their recorded
-        # baseline, so a later update still sees local edits as conflicts.
+        # baseline, so a later update still sees local edits as conflicts and can restore
+        # a managed file that is missing right now instead of forgetting it.
+        retained = set(managed)
         for path, digest in previous_lock.get("managed", {}).items():
-            if path in hashes and path not in written:
+            if path in retained and path not in written:
                 hashes[path] = digest
     config.write_lock(target, config.build_lock(revision(), components=components, managed=hashes))
     applied["files"] = [config.TOML_NAME, config.LOCK_NAME]
@@ -605,23 +622,144 @@ def adopt_client(target: Path, client: str) -> bool:
     return True
 
 
-def record_skills_in_lock(target: Path, destination: Path, rows: list[dict[str, Any]]) -> bool:
+def require_writable_records(target: Path) -> None:
+    """Refuse up front when toolkit.toml or toolkit.lock.json cannot be rewritten.
+
+    Every command that installs files and then records them checks this first,
+    so a symlink, a directory, or any other non-regular entry at either path
+    stops the command before a managed file is touched, never after.
+    """
+    for name in (config.TOML_NAME, config.LOCK_NAME):
+        path = target / name
+        if path.is_symlink():
+            raise ToolkitError(f"refusing to write through a symlink: {path}")
+        if path.exists() and not path.is_file():
+            raise ToolkitError(f"{path} exists but is not a regular file; move it aside first")
+        # Rewriting truncates the file in place and restoring replaces the directory entry,
+        # so both the file (when present) and its directory must be writable.
+        if path.exists() and not os.access(path, os.W_OK):
+            raise ToolkitError(f"{path} is not writable; fix its permissions first")
+        if not os.access(target, os.W_OK):
+            raise ToolkitError(f"{target} is not writable, so {name} cannot be rewritten")
+
+
+def _skill_paths(target: Path, destination: Path, names: list[str]) -> list[str]:
+    """Repository-relative paths an install may write or delete under ``destination``."""
+    paths: set[str] = set()
+    for name in skills.selected_with_bundle(names):
+        root = destination / name
+        for source in skills.skill_files(name):
+            paths.add(relative(root / source.relative_to(skills.source_dir() / name), target))
+        if root.is_dir():
+            # Inventory without resolving: a symlink is never backed up as its referent.
+            paths.update(path.relative_to(target).as_posix() for path in root.rglob("*") if path.is_file() and not path.is_symlink())
+    return sorted(paths)
+
+
+def install_and_record(target: Path, names: list[str], destinations: dict[str, Path], *, existing: str, component: str) -> list[dict[str, Any]]:
+    """Install for every destination, then record and adopt; undo all of it on any failure.
+
+    Every destination and both records are validated first. Files the install may
+    touch are backed up, and if an install or a record write fails afterwards the
+    installed files, the configuration, and the lock are restored together, so the
+    tree never carries files the records do not describe.
+    """
+    require_writable_records(target)
+    # Reading both records up front also validates them, so a malformed lock fails here
+    # rather than after files have been written. A repository that was never initialized
+    # gets an unrecorded install as before; a configuration without its lock is refused,
+    # because adopting a component there would leave nothing for update to manage.
+    if config.read_configuration(target) is not None and config.read_lock(target) is None:
+        raise ToolkitError(f"{config.LOCK_NAME} is missing while {config.TOML_NAME} exists; run `ai-toolkit update` to rebuild it before installing project skills")
+    for destination in destinations.values():
+        skills.require_installable(names, destination, target, existing=existing)
+    records = {name: target / name for name in (config.TOML_NAME, config.LOCK_NAME)}
+    originals = {name: path.read_bytes() if path.is_file() else None for name, path in records.items()}
+    tracked = sorted({path for destination in destinations.values() for path in _skill_paths(target, destination, names)})
+    # Directories the install may create; on rollback the ones that are still empty go too.
+    candidate_dirs = sorted({str(parent) for path in tracked for parent in (target / path).parents if parent != target and target in parent.parents}, key=len, reverse=True)
+    preexisting_dirs = {path for path in candidate_dirs if Path(path).is_dir()}
+    # A private, uniquely named backup: it is removed afterwards and must never collide
+    # with an update backup that the lock still references for --rollback.
+    backups = target / ".artifacts" / "ai-toolkit" / "backup"
+    backups.mkdir(parents=True, exist_ok=True)
+    backup_root = Path(tempfile.mkdtemp(prefix="install-", dir=backups))
+    _backup(target, tracked, backup_root)
+    results = []
+    try:
+        for client, destination in destinations.items():
+            rows = skills.install_skills(names, destination, existing=existing, boundary=target)
+            results.append({"client": client, "destination": str(destination), "skills": rows})
+        for row in results:
+            record_skills_in_lock(target, Path(row["destination"]), row["skills"], component=component)
+            adopt_client(target, row["client"])
+        adopt_component(target, component)
+    except Exception as error:  # noqa: BLE001 - every failure undoes the whole install
+        _restore(target, backup_root, tracked)
+        for relative_path in tracked:
+            created = target / relative_path
+            if not (backup_root / relative_path).is_file() and created.is_file():
+                created.unlink()
+        for path in candidate_dirs:
+            directory = Path(path)
+            if path not in preexisting_dirs and directory.is_dir() and not any(directory.iterdir()):
+                directory.rmdir()
+        for name, path in records.items():
+            _restore_record(path, originals[name])
+        shutil.rmtree(backup_root, ignore_errors=True)
+        if isinstance(error, (ToolkitError, OSError)):
+            raise ToolkitError(f"{error}; previous files were restored") from error
+        raise
+    shutil.rmtree(backup_root, ignore_errors=True)
+    return results
+
+
+def clients_for_adoption(target: Path, clients: list[str], component: str) -> list[str]:
+    """Every configured client takes part in the install that first activates a component.
+
+    Otherwise the component would be recorded as managed for clients that received no
+    files or lock entries, and doctor would report them missing with nothing for update
+    to restore.
+    """
+    configuration = config.read_configuration(target)
+    if configuration is None or component in configuration["toolkit"]["components"]:
+        return clients
+    return list(dict.fromkeys([*clients, *configuration["agents"]["clients"]]))
+
+
+def adopt_component(target: Path, component: str) -> bool:
+    """Add a component to toolkit.toml so update keeps managing what was just installed.
+
+    Without this, a project skill install into a proof-only configuration is
+    recorded in the lock but classified as removed on the next update.
+    """
+    configuration = config.read_configuration(target)
+    if configuration is None or component in configuration["toolkit"]["components"]:
+        return False
+    configuration["toolkit"]["components"] = sorted({*configuration["toolkit"]["components"], component}, key=config.COMPONENTS.index)
+    config.write_configuration(target, configuration)
+    return True
+
+
+def record_skills_in_lock(target: Path, destination: Path, rows: list[dict[str, Any]], *, component: str = "skills") -> bool:
     """Adopt the requested project skills in toolkit.lock.json so update manages them.
 
     The recorded baseline is the canonical content, so a directory that already
     differed from it shows up as modified (and is preserved as a conflict) on the
-    next update instead of being silently rewritten.
+    next update instead of being silently rewritten. The lock's component list
+    gains ``component`` so it agrees with toolkit.toml.
     """
     lock = config.read_lock(target)
     if lock is None or not rows:
         return False
+    components = sorted({*lock.get("components", []), component}, key=config.COMPONENTS.index)
     managed = dict(lock.get("managed", {}))
     for row in rows:
         name = row["skill"]
         for source in skills.skill_files(name):
             relative_path = (destination / name / source.relative_to(skills.source_dir() / name)).relative_to(target).as_posix()
             managed[relative_path] = sha256_file(source)
-    config.write_lock(target, config.build_lock(lock["toolkit"].get("revision") or revision(), components=lock.get("components", []),
+    config.write_lock(target, config.build_lock(lock["toolkit"].get("revision") or revision(), components=components,
                                                 managed=managed, previous=lock.get("previous")))
     return True
 
@@ -638,14 +776,15 @@ def cmd_skills(args: argparse.Namespace) -> int:
         if client not in config.CLIENTS:
             raise ToolkitError(f"unknown agent client: {client}")
     existing = "replace" if args.action == "refresh" else args.existing
-    results = []
-    for client in clients:
-        destination = skills.client_user_dir(client) if args.user else skills.client_project_dir(client, target)
-        rows = skills.install_skills(requested, destination, existing=existing, dry_run=args.dry_run, boundary=None if args.user else target)
-        results.append({"client": client, "destination": str(destination), "skills": rows})
-        if not args.user and not args.dry_run:
-            record_skills_in_lock(target, destination, rows)
-            adopt_client(target, client)
+    if not args.user:
+        clients = clients_for_adoption(target, clients, "skills")
+    destinations = {client: (skills.client_user_dir(client) if args.user else skills.client_project_dir(client, target)) for client in clients}
+    if args.user or args.dry_run:
+        results = [{"client": client, "destination": str(destination),
+                    "skills": skills.install_skills(requested, destination, existing=existing, dry_run=args.dry_run, boundary=None if args.user else target)}
+                   for client, destination in destinations.items()]
+    else:
+        results = install_and_record(target, requested, destinations, existing=existing, component="skills")
     lines = []
     for row in results:
         lines.append(f"{row['client']} -> {row['destination']}" + (" (dry run)" if args.dry_run else ""))
@@ -670,16 +809,17 @@ def cmd_qa(args: argparse.Namespace) -> int:
         _emit(payload, args.json, "\n".join(lines))
         return 0
     clients = [item.strip() for item in args.client.split(",") if item.strip()]
-    results = []
     for client in clients:
         if client not in config.CLIENTS:
             raise ToolkitError(f"unknown agent client: {client}")
-        destination = skills.client_project_dir(client, target)
-        rows = skills.install_skills(["qa-bootstrap"], destination, existing="merge", dry_run=args.dry_run, boundary=target)
-        if not args.dry_run:
-            record_skills_in_lock(target, destination, rows)
-            adopt_client(target, client)
-        results.append({"client": client, "skills": rows})
+    clients = clients_for_adoption(target, clients, "qa")
+    destinations = {client: skills.client_project_dir(client, target) for client in clients}
+    if args.dry_run:
+        results = [{"client": client, "destination": str(destination),
+                    "skills": skills.install_skills(["qa-bootstrap"], destination, existing="merge", dry_run=True, boundary=target)}
+                   for client, destination in destinations.items()]
+    else:
+        results = install_and_record(target, ["qa-bootstrap"], destinations, existing="merge", component="qa")
     lines = ["Installed the qa-bootstrap skill for: " + ", ".join(clients) + (" (dry run)" if args.dry_run else ""),
              "Next: in your agent, run the qa-bootstrap skill. It analyzes the repository, asks only what it cannot detect, and generates the qa orchestrator; the generated qa skill runs QA."]
     _emit({"results": results}, args.json, "\n".join(lines))
@@ -690,8 +830,8 @@ def _timestamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%SZ")
 
 
-def _backup(target: Path, paths: list[str]) -> Path:
-    backup_root = target / ".artifacts" / "ai-toolkit" / "backup" / _timestamp()
+def _backup(target: Path, paths: list[str], backup_root: Path | None = None) -> Path:
+    backup_root = backup_root or target / ".artifacts" / "ai-toolkit" / "backup" / _timestamp()
     for relative_path in paths:
         source = target / relative_path
         if source.is_file():
@@ -712,6 +852,25 @@ def _restore(target: Path, backup_root: Path, paths: list[str]) -> list[str]:
             shutil.copy2(source, destination)
             restored.append(relative_path)
     return restored
+
+
+def _restore_record(path: Path, data: bytes | None) -> None:
+    """Put a record back without following a symlink that appeared in the meantime.
+
+    The refresh runs subprocesses between the preflight check and the guarded
+    writes, so the path is replaced as a directory entry rather than opened.
+    """
+    if data is None:
+        path.unlink(missing_ok=True)
+        return
+    temporary = path.with_name(f".{path.name}.restore-{os.getpid()}")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o644)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(data)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def cmd_update(args: argparse.Namespace) -> int:
@@ -750,6 +909,11 @@ def cmd_update(args: argparse.Namespace) -> int:
         _emit(payload, args.json, "\n".join(lines))
         return 0
 
+    # Both records are rewritten at the end; refuse before touching any managed file if either
+    # destination cannot be written, so a refresh never outruns the lock that describes it.
+    records = {name: target / name for name in (config.TOML_NAME, config.LOCK_NAME)}
+    require_writable_records(target)
+    originals = {name: path.read_bytes() if path.is_file() else None for name, path in records.items()}
     backup_root = _backup(target, managed)
     conflicts_root = target / ".artifacts" / "ai-toolkit" / "conflicts"
     conflicts: list[dict[str, str]] = []
@@ -784,20 +948,23 @@ def cmd_update(args: argparse.Namespace) -> int:
             shutil.copy2(sources[relative_path], conflict_copy)
             conflicts.append({"path": relative_path, "canonical": relative(conflict_copy, target)})
         _restore(target, backup_root, [row["path"] for row in conflicts])
+        previous = {"revision": lock["toolkit"].get("revision") if lock else None, "backup": relative(backup_root, target),
+                    "managed": lock.get("managed", {}) if lock else {}}
+        configuration["toolkit"]["revision"] = current
+        config.write_configuration(target, configuration)
+        managed = managed_files(target, configuration, lock)
+        config.write_lock(target, config.build_lock(current, components=components, managed=config.hash_managed(target, managed), previous=previous))
     except (ToolkitError, OSError) as error:
-        # Every mutation after the backup is undone together; the lock is left untouched.
+        # Every mutation after the backup is undone together, including the configuration
+        # and lock, so the files on disk never disagree with the lock that describes them.
         _restore(target, backup_root, managed)
         for relative_path in managed:
             created = target / relative_path
             if not (backup_root / relative_path).is_file() and created.is_file():
                 created.unlink()
+        for name, path in records.items():
+            _restore_record(path, originals[name])
         raise ToolkitError(f"{error}; previous files were restored") from error
-    previous = {"revision": lock["toolkit"].get("revision") if lock else None, "backup": relative(backup_root, target),
-                "managed": lock.get("managed", {}) if lock else {}}
-    configuration["toolkit"]["revision"] = current
-    config.write_configuration(target, configuration)
-    managed = managed_files(target, configuration, lock)
-    config.write_lock(target, config.build_lock(current, components=components, managed=config.hash_managed(target, managed), previous=previous))
     payload.update({"applied": True, "conflicts": conflicts, "backup": relative(backup_root, target)})
     lines.append(f"Applied. Backup: {relative(backup_root, target)} (use `ai-toolkit update --rollback` to restore).")
     if conflicts:

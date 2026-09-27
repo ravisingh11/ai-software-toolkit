@@ -35,6 +35,14 @@ or evidence contracts require a major release and migration guidance.
   names are unchanged. The next release must be a major version. See
   [migrating from Guardrails](docs/proof/migrating-from-guardrails.md).
 
+- Fix three `ai-toolkit` review follow-ups: re-running `init` for another
+  component no longer installs the default skill set over a narrower
+  selection; a project `skills install` (or `qa bootstrap`) adds its component
+  to `toolkit.toml` and the lock so the next `update` keeps the files; and
+  `update` validates both record destinations before mutating managed files
+  and restores files, configuration, and lock together when a record write
+  fails.
+
 - Expand the public scorecard with a compact table linking to check-specific
   assessment details, validated optional check execution timings, and explicit
   measurement gaps. Every check shows its canonical catalog ID next to its

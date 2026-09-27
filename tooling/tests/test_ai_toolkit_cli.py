@@ -602,6 +602,377 @@ class ReviewRegressionTests(CliFixture):
         self.assertEqual(configuration["toolkit"]["components"], ["proof", "skills"])
         self.assertFalse((self.target / ".github" / "workflows").exists())
 
+    def test_reinit_for_another_component_keeps_the_selected_skill_set(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        skills_dir = self.target / ".agents" / "skills"
+        selected = sorted(path.name for path in skills_dir.iterdir() if path.is_dir())
+        self.assertIn("code-review", selected)
+        self.assertNotIn("security-audit-lite", selected)
+        code, out, _ = self.init("--components", "proof")
+        self.assertEqual(code, 0, out)
+        # The Proof installer ships prepare-safe-change with the runtime; nothing from the
+        # starter set beyond that may appear, and the earlier selection stays intact.
+        after = sorted(path.name for path in skills_dir.iterdir() if path.is_dir())
+        self.assertEqual(sorted(set(after) - {"prepare-safe-change"}), selected)
+        self.assertNotIn("security-audit-lite", after)
+        self.assertNotIn("security-audit-lite", out)
+        configuration = config.read_configuration(self.target)
+        self.assertEqual(configuration["toolkit"]["components"], ["proof", "skills"])
+        lock = config.read_lock(self.target)
+        self.assertIn(".agents/skills/code-review/SKILL.md", lock["managed"])
+        self.assertIn(".proof/policy.yaml", lock["managed"])
+        # An explicit skills request still installs the default set for a new client.
+        self.assertEqual(self.init("--components", "skills", "--clients", "claude-code")[0], 0)
+        self.assertTrue((self.target / ".claude" / "skills" / "security-audit-lite" / "SKILL.md").is_file())
+
+    def test_skills_install_adopts_the_skills_component(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        self.assertEqual(config.read_configuration(self.target)["toolkit"]["components"], ["proof"])
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(config.read_configuration(self.target)["toolkit"]["components"], ["proof", "skills"])
+        self.assertEqual(config.read_lock(self.target)["components"], ["proof", "skills"])
+        skill = self.target / ".agents" / "skills" / "code-review" / "SKILL.md"
+        self.assertTrue(skill.is_file())
+        code, out, _ = run_cli("update", "--target", str(self.target), "--dry-run", "--json")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(json.loads(out)["classification"]["removed"], [])
+        code, out, _ = run_cli("update", "--target", str(self.target), "--force")
+        self.assertEqual(code, 0, out)
+        self.assertTrue(skill.is_file())
+        self.assertIn(".agents/skills/code-review/SKILL.md", config.read_lock(self.target)["managed"])
+        self.assertFalse(cli.adopt_component(self.target, "skills"))
+        self.assertFalse(cli.adopt_component(self.root, "skills"))
+
+    def test_qa_bootstrap_adopts_the_qa_component(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        code, out, _ = run_cli("qa", "bootstrap", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(config.read_configuration(self.target)["toolkit"]["components"], ["proof", "qa"])
+        self.assertIn("qa", config.read_lock(self.target)["components"])
+        code, out, _ = run_cli("update", "--target", str(self.target), "--force")
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.target / ".agents" / "skills" / "qa-bootstrap" / "SKILL.md").is_file())
+
+    def test_update_refuses_before_mutating_when_the_lock_is_a_symlink(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        lock_path = self.target / config.LOCK_NAME
+        real_lock = self.root / "elsewhere.lock.json"
+        real_lock.write_bytes(lock_path.read_bytes())
+        lock_path.unlink()
+        lock_path.symlink_to(real_lock)
+        self.assertIsNotNone(config.read_lock(self.target))
+        missing = self.target / ".proof" / "scan.py"
+        missing.unlink()
+        before = (self.target / config.TOML_NAME).read_bytes()
+        code, _, err = run_cli("update", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("symlink", err)
+        self.assertFalse(missing.exists())
+        self.assertEqual((self.target / config.TOML_NAME).read_bytes(), before)
+        self.assertEqual(lock_path.read_bytes(), real_lock.read_bytes())
+        self.assertFalse((self.target / ".artifacts" / "ai-toolkit" / "backup").exists())
+
+    def test_update_restores_files_when_the_records_cannot_be_written(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        toml_before = (self.target / config.TOML_NAME).read_bytes()
+        lock_before = (self.target / config.LOCK_NAME).read_bytes()
+        missing = self.target / ".proof" / "scan.py"
+        missing.unlink()
+        with patch.object(config, "write_lock", side_effect=ToolkitError("disk full")):
+            code, _, err = run_cli("update", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("disk full", err)
+        self.assertIn("previous files were restored", err)
+        self.assertFalse(missing.exists())
+        self.assertEqual((self.target / config.TOML_NAME).read_bytes(), toml_before)
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        code, out, _ = run_cli("update", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue(missing.is_file())
+
+    def test_reinit_for_another_component_keeps_deleted_skills_in_the_lock(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        skill = self.target / ".agents" / "skills" / "code-review"
+        subprocess.run(["rm", "-rf", str(skill)], check=True)
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        self.assertIn(".agents/skills/code-review/SKILL.md", config.read_lock(self.target)["managed"])
+        code, out, _ = run_cli("update", "--target", str(self.target), "--dry-run", "--json")
+        self.assertEqual(code, 0, out)
+        self.assertIn(".agents/skills/code-review/SKILL.md", json.loads(out)["classification"]["missing"])
+        code, out, _ = run_cli("update", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue((skill / "SKILL.md").is_file())
+
+    def test_reinit_without_skills_does_not_adopt_new_clients(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        (self.home / ".claude").mkdir()
+        code, out, _ = run_cli("init", "--target", str(self.target), "--yes", "--components", "proof")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(config.read_configuration(self.target)["agents"]["clients"], ["codex"])
+        self.assertFalse((self.target / ".claude" / "skills").exists())
+        code, _, err = run_cli("init", "--target", str(self.target), "--yes", "--components", "proof", "--clients", "claude-code")
+        self.assertEqual(code, 2)
+        self.assertIn("include skills or qa", err)
+        self.assertEqual(config.read_configuration(self.target)["agents"]["clients"], ["codex"])
+        code, out, _ = run_cli("init", "--target", str(self.target), "--yes", "--components", "skills", "--clients", "claude-code")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(config.read_configuration(self.target)["agents"]["clients"], ["codex", "claude-code"])
+        self.assertTrue((self.target / ".claude" / "skills" / "code-review" / "SKILL.md").is_file())
+
+    def test_update_restore_never_follows_a_record_symlink(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        toml_path = self.target / config.TOML_NAME
+        toml_before = toml_path.read_bytes()
+        outside = self.root / "outside.txt"
+        outside.write_text("untouched\n", encoding="utf-8")
+
+        def swap_then_fail(*_args, **_kwargs):
+            toml_path.unlink()
+            toml_path.symlink_to(outside)
+            raise ToolkitError("disk full")
+
+        with patch.object(config, "write_lock", side_effect=swap_then_fail):
+            code, _, err = run_cli("update", "--target", str(self.target), "--force")
+        self.assertEqual(code, 2)
+        self.assertIn("previous files were restored", err)
+        self.assertEqual(outside.read_text(encoding="utf-8"), "untouched\n")
+        self.assertFalse(toml_path.is_symlink())
+        self.assertEqual(toml_path.read_bytes(), toml_before)
+        self.assertEqual([path.name for path in self.target.iterdir() if path.name.startswith(".toolkit.toml.restore")], [])
+
+    def test_update_refuses_before_mutating_when_a_record_is_not_a_regular_file(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        lock_path = self.target / config.LOCK_NAME
+        lock_path.unlink()
+        lock_path.mkdir()
+        missing = self.target / ".proof" / "scan.py"
+        missing.unlink()
+        code, _, err = run_cli("update", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("not a regular file", err)
+        self.assertFalse(missing.exists())
+        self.assertTrue(lock_path.is_dir())
+        self.assertFalse((self.target / ".artifacts" / "ai-toolkit" / "backup").exists())
+
+    def test_skills_install_and_qa_bootstrap_refuse_before_installing_when_records_are_unwritable(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        toml_path = self.target / config.TOML_NAME
+        toml_before = toml_path.read_bytes()
+        lock_before = (self.target / config.LOCK_NAME).read_bytes()
+        outside = self.root / "outside.toml"
+        outside.write_bytes(toml_before)
+        toml_path.unlink()
+        toml_path.symlink_to(outside)
+        code, _, err = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("symlink", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        code, _, err = run_cli("qa", "bootstrap", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("symlink", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "qa-bootstrap").exists())
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        self.assertEqual(outside.read_bytes(), toml_before)
+        # Dry runs and user-level installs never touch the records, so they are not gated.
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--dry-run", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--user", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+
+    @unittest.skipIf(os.geteuid() == 0, "root bypasses file permissions")
+    def test_read_only_records_are_refused_before_anything_is_installed(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        toml_path = self.target / config.TOML_NAME
+        lock_before = (self.target / config.LOCK_NAME).read_bytes()
+        toml_path.chmod(0o444)
+        self.addCleanup(toml_path.chmod, 0o644)
+        for arguments in (("skills", "install", "--skill", "code-review"), ("qa", "bootstrap"), ("update", "--force")):
+            code, _, err = run_cli(*arguments, "--target", str(self.target))
+            self.assertEqual(code, 2, arguments)
+            self.assertIn("not writable", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        self.assertFalse((self.target / ".agents" / "skills" / "qa-bootstrap").exists())
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        self.assertFalse((self.target / ".artifacts" / "ai-toolkit" / "backup").exists())
+        toml_path.chmod(0o644)
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+
+    def test_adopting_a_component_installs_for_every_configured_client(self):
+        self.assertEqual(self.init("--components", "proof", "--clients", "claude-code")[0], 0)
+        self.assertEqual(config.read_configuration(self.target)["agents"]["clients"], ["claude-code"])
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.target / ".agents" / "skills" / "code-review" / "SKILL.md").is_file())
+        self.assertTrue((self.target / ".claude" / "skills" / "code-review" / "SKILL.md").is_file())
+        lock = config.read_lock(self.target)["managed"]
+        self.assertIn(".agents/skills/code-review/SKILL.md", lock)
+        self.assertIn(".claude/skills/code-review/SKILL.md", lock)
+        self.assertEqual(config.read_configuration(self.target)["agents"]["clients"], ["claude-code", "codex"])
+        states = cli.component_states(self.target, config.read_configuration(self.target), config.read_lock(self.target))
+        self.assertEqual(states["skills"]["state"], "installed", states["skills"])
+        # Once the component is managed, a later install targets only the named client.
+        code, out, _ = run_cli("skills", "install", "--skill", "security-audit-lite", "--client", "codex", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertFalse((self.target / ".claude" / "skills" / "security-audit-lite").exists())
+
+    def test_qa_bootstrap_adoption_covers_every_configured_client(self):
+        self.assertEqual(self.init("--components", "proof", "--clients", "claude-code")[0], 0)
+        code, out, _ = run_cli("qa", "bootstrap", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.target / ".agents" / "skills" / "qa-bootstrap" / "SKILL.md").is_file())
+        self.assertTrue((self.target / ".claude" / "skills" / "qa-bootstrap" / "SKILL.md").is_file())
+        states = cli.component_states(self.target, config.read_configuration(self.target), config.read_lock(self.target))
+        self.assertEqual(states["skills"]["state"], "installed", states["skills"])
+
+    def test_adoption_validates_every_client_destination_before_writing(self):
+        self.assertEqual(self.init("--components", "proof", "--clients", "claude-code")[0], 0)
+        blocked = self.target / ".claude" / "skills"
+        blocked.parent.mkdir()
+        blocked.write_text("not a directory\n", encoding="utf-8")
+        lock_before = (self.target / config.LOCK_NAME).read_bytes()
+        toml_before = (self.target / config.TOML_NAME).read_bytes()
+        for arguments in (("skills", "install", "--skill", "code-review"), ("qa", "bootstrap")):
+            code, _, err = run_cli(*arguments, "--target", str(self.target))
+            self.assertEqual(code, 2, arguments)
+            self.assertIn("not a directory", err)
+        # The Codex destination was valid, yet nothing was installed or recorded anywhere.
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        self.assertFalse((self.target / ".agents" / "skills" / "qa-bootstrap").exists())
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        self.assertEqual((self.target / config.TOML_NAME).read_bytes(), toml_before)
+        blocked.unlink()
+        # A valid root with an invalid skill path is refused just as early.
+        blocked.mkdir()
+        (blocked / "code-review").write_text("not a directory\n", encoding="utf-8")
+        code, _, err = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("not a directory", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        (blocked / "code-review").unlink()
+        # A file where an intermediate skill directory belongs is caught the same way.
+        (blocked / "code-review").mkdir()
+        (blocked / "code-review" / "agents").write_text("not a directory\n", encoding="utf-8")
+        code, _, err = run_cli("skills", "refresh", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("not a directory", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        self.assertFalse((blocked / "code-review" / "SKILL.md").exists())
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        (blocked / "code-review" / "agents").unlink()
+        (blocked / "code-review").rmdir()
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.target / ".claude" / "skills" / "code-review" / "SKILL.md").is_file())
+
+    @unittest.skipIf(os.geteuid() == 0, "root bypasses file permissions")
+    def test_refresh_refuses_a_read_only_file_it_would_overwrite_before_writing(self):
+        self.assertEqual(self.init("--components", "proof", "--clients", "claude-code")[0], 0)
+        stale = self.target / ".claude" / "skills" / "code-review" / "SKILL.md"
+        stale.parent.mkdir(parents=True)
+        stale.write_text("stale\n", encoding="utf-8")
+        stale.chmod(0o444)
+        self.addCleanup(stale.chmod, 0o644)
+        lock_before = (self.target / config.LOCK_NAME).read_bytes()
+        code, _, err = run_cli("skills", "refresh", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("not writable", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        self.assertEqual(stale.read_text(encoding="utf-8"), "stale\n")
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        # A merge leaves that file alone, so it is not gated on it.
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--existing", "merge", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(stale.read_text(encoding="utf-8"), "stale\n")
+        self.assertTrue((self.target / ".agents" / "skills" / "code-review" / "SKILL.md").is_file())
+
+    def test_failed_record_write_rolls_back_a_multi_client_install(self):
+        self.assertEqual(self.init("--components", "proof", "--clients", "claude-code")[0], 0)
+        toml_before = (self.target / config.TOML_NAME).read_bytes()
+        lock_before = (self.target / config.LOCK_NAME).read_bytes()
+        with patch.object(config, "write_lock", side_effect=ToolkitError("disk full")):
+            code, _, err = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("disk full", err)
+        self.assertIn("previous files were restored", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        self.assertFalse((self.target / ".claude" / "skills" / "code-review").exists())
+        self.assertEqual((self.target / config.TOML_NAME).read_bytes(), toml_before)
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        with patch.object(config, "write_configuration", side_effect=ToolkitError("disk full")):
+            code, _, err = run_cli("qa", "bootstrap", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertFalse((self.target / ".agents" / "skills" / "qa-bootstrap").exists())
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.target / ".claude" / "skills" / "code-review" / "SKILL.md").is_file())
+        # Install backups are transient: none survive, whether the install failed or succeeded.
+        backups = self.target / ".artifacts" / "ai-toolkit" / "backup"
+        self.assertEqual(sorted(backups.iterdir()) if backups.is_dir() else [], [])
+
+    def test_install_backups_never_disturb_an_update_backup(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        code, out, _ = run_cli("update", "--target", str(self.target), "--force", "--json")
+        self.assertEqual(code, 0, out)
+        update_backup = self.target / json.loads(out)["backup"]
+        self.assertTrue(update_backup.is_dir())
+        # Even in the same second as the update, the install's backup is its own directory.
+        with patch.object(cli, "_timestamp", return_value=update_backup.name):
+            code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue(update_backup.is_dir())
+        self.assertEqual([path.name for path in update_backup.parent.iterdir()], [update_backup.name])
+        code, out, _ = run_cli("update", "--target", str(self.target), "--rollback", "--dry-run")
+        self.assertEqual(code, 0, out)
+
+    def test_replace_refuses_a_skill_directory_containing_a_symlink(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        skill = self.target / ".agents" / "skills" / "code-review"
+        (self.target / "notes.md").write_text("mine\n", encoding="utf-8")
+        link = skill / "notes-link.md"
+        link.symlink_to(self.target / "notes.md")
+        code, _, err = run_cli("skills", "refresh", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("symlink", err)
+        self.assertTrue(link.is_symlink())
+        self.assertEqual((self.target / "notes.md").read_text(encoding="utf-8"), "mine\n")
+        # Merge and refresh-in-place modes leave extras alone, so they are not gated on it.
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--existing", "merge", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue(link.is_symlink())
+
+    def test_project_install_requires_both_records_and_a_valid_lock(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        lock_path = self.target / config.LOCK_NAME
+        toml_before = (self.target / config.TOML_NAME).read_bytes()
+        lock_bytes = lock_path.read_bytes()
+        lock_path.unlink()
+        for arguments in (("skills", "install", "--skill", "code-review"), ("qa", "bootstrap")):
+            code, _, err = run_cli(*arguments, "--target", str(self.target))
+            self.assertEqual(code, 2, arguments)
+            self.assertIn("toolkit.lock.json is missing", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        self.assertFalse((self.target / ".agents" / "skills" / "qa-bootstrap").exists())
+        self.assertEqual((self.target / config.TOML_NAME).read_bytes(), toml_before)
+        self.assertFalse(lock_path.exists())
+        lock = json.loads(lock_bytes)
+        lock["components"] = ["proof", "bogus"]
+        lock_path.write_text(json.dumps(lock), encoding="utf-8")
+        code, _, err = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn("components must be a list", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        code, _, err = run_cli("update", "--target", str(self.target), "--dry-run")
+        self.assertEqual(code, 2)
+        self.assertIn("components must be a list", err)
+        lock_path.write_bytes(lock_bytes)
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+
     def test_update_never_adopts_skipped_skills_into_the_lock(self):
         self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
         mine = self.target / ".agents" / "skills" / "security-audit-lite"
