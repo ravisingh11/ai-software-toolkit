@@ -1,11 +1,11 @@
 # AI Software Toolkit
 
-**Move fast. Prove it works.** Shared skills, QA workflows, and guardrails for
+**Move fast. Prove it works.** Shared skills, QA workflows, and Proof checks for
 planning, building, testing, securing, and releasing software with AI.
 
 AI Software Toolkit supports development, QA, security, and release teams.
 Skills guide repeatable work, functional QA exercises application behavior,
-and Guardrails connects verification results to policy through revision-bound
+and Proof connects verification results to policy through revision-bound
 checks and readable scorecards. Your repository owns its architecture,
 acceptance criteria, and commands.
 
@@ -17,7 +17,7 @@ first acceptance criterion through release and feedback.
 The repository is **`ravisingh11/ai-software-toolkit`**, formerly
 `ravisingh11/engineering-standards`. Existing forks remain connected. See the
 [rename migration guide](docs/repository-rename.md) for remote, workflow, and
-Pages updates; the `.guardrails/` runtime contract is unchanged.
+Pages updates; the repository rename did not change the runtime contract.
 
 ## What the toolkit brings together
 
@@ -26,7 +26,7 @@ Pages updates; the `.guardrails/` runtime contract is unchanged.
 | Standards | Define expectations for quality, security, and accountable AI use | [AI development policy](policies/ai-development.md) |
 | Skills | Guide agents through repeatable development, QA, security, and release work | [Install shared skills](skills/README.md#install-locally) |
 | Verification | Produce evidence from tests, functional QA, and scanners | [Set up functional QA](skills/qa-bootstrap/SKILL.md) |
-| Guardrails | Evaluate evidence against policy and expose missing results | [Install and configure Guardrails](docs/quickstart.md) |
+| Proof | Evaluate evidence against policy and expose missing results | [Install and configure Proof](docs/quickstart.md) |
 | Providers | Use SonarQube scanner and quality-gate actions; use adapter-owned commands and reason codes for Snyk and FOSSA | [Providers](docs/providers/README.md) |
 | Reference app | Exercise installation and runtime behavior; inspect separate deployment evidence | [Reference app](docs/reference-app.md) |
 | Measurement — aspiration | Learn whether delivery is improving across the lifecycle | [Vision and maturity](docs/vision.md) |
@@ -41,19 +41,23 @@ optional integrations, and future work.
 
 [![Version](https://img.shields.io/github/v/release/ravisingh11/ai-software-toolkit?label=version)](https://github.com/ravisingh11/ai-software-toolkit/releases/latest)
 [![License](https://img.shields.io/github/license/ravisingh11/ai-software-toolkit?label=license)](LICENSE)
-[![Scorecard Workflow](https://github.com/ravisingh11/ai-software-toolkit/actions/workflows/guardrails-scorecard.yml/badge.svg?event=pull_request_target)](https://github.com/ravisingh11/ai-software-toolkit/actions/workflows/guardrails-scorecard.yml)
-[![Latest PR Scorecard](https://ravisingh11.github.io/ai-software-toolkit/guardrails-badge.svg)](https://ravisingh11.github.io/ai-software-toolkit/)
+[![Scorecard Workflow](https://github.com/ravisingh11/ai-software-toolkit/actions/workflows/proof-scorecard.yml/badge.svg?event=pull_request_target)](https://github.com/ravisingh11/ai-software-toolkit/actions/workflows/proof-scorecard.yml)
+[![Latest PR Scorecard](https://ravisingh11.github.io/ai-software-toolkit/proof-badge.svg)](https://ravisingh11.github.io/ai-software-toolkit/)
 
 ## Start here
 
-Choose the entry point above for skills or QA. The demo below introduces the
-Guardrails component from **v1.0.0**; it does not include the newer QA bootstrap
-and functional-QA integration listed under [Unreleased](CHANGELOG.md#unreleased).
+Choose the entry point above for skills or QA. The demo below introduces
+Proof (named Guardrails in v1.0.0); it does not include the newer QA bootstrap and functional-QA
+integration listed under [Unreleased](CHANGELOG.md#unreleased).
 
 Try the embedded Python demo in an isolated directory with Git, Python 3.11+
-and a POSIX shell. This pins **v1.0.0**; “Guardrails v2” names the runtime
-and evidence contract, not the repository release version. No account, token, Docker,
-or paid service is required to get a scorecard.
+and a POSIX shell. No account, token, Docker, or paid service is required to
+get a scorecard.
+
+> [!NOTE]
+> The demo pins **v1.0.0**, released before Guardrails was renamed Proof, so
+> its commands use that release's `.guardrails/` and `GUARDRAILS_*` names. The
+> next release switches them to `.proof/` and `PROOF_*`.
 
 ```sh
 demo_workspace="$(mktemp -d)"
@@ -93,10 +97,10 @@ A small **illustrative** scorecard (not a live scan or badge):
 | ⚪ GRAY | Artifact provenance in a PR | Not activated |
 
 See the [full illustrative report](docs/examples/sample-scorecard.md),
-[status meanings](docs/guardrails/control-status.md), and
+[status meanings](docs/proof/control-status.md), and
 [onboarding guide](docs/quickstart.md) for real-repository setup and troubleshooting.
 
-## Guardrails model
+## Proof model
 
 ```text
 profile -> capability -> authoritative provider -> exact-subject evidence
@@ -110,7 +114,7 @@ not a pass.
 
 ## Install
 
-The shared [`ai-toolkit` CLI](docs/install.md) is the front door for Guardrails,
+The shared [`ai-toolkit` CLI](docs/install.md) is the front door for Proof,
 skills, and QA bootstrap: `discover` and `init --preview` are read-only,
 `init --yes` installs the selected components and records `toolkit.toml` and
 `toolkit.lock.json`, `doctor` reports installed / configured / verified state
@@ -156,19 +160,19 @@ are review aids; staying below them does not establish correctness.
 These defaults warn only. The report states whether the consuming repository
 uses advisory or enforced mode; a within-limit row is not proof that the PR's
 other checks passed. Thresholds and excluded paths are defined in the
-consumer's `.guardrails/change-scope.yaml`.
+consumer's `.proof/change-scope.yaml`.
 
 The [live scorecard dashboard](https://ravisingh11.github.io/ai-software-toolkit/#size-title)
 shows the same measurements for its latest accepted PR snapshot. Its repository
 label identifies whose changes are being measured; this toolkit dashboard does
 not aggregate the reference app's PRs. Older evidence without structured
-measurements shows unavailable. See [report details](docs/guardrails/control-setup.md#reading-the-pr-size-report).
+measurements shows unavailable. See [report details](docs/proof/control-setup.md#reading-the-pr-size-report).
 
-For the other controls, the [evidence results guide](docs/guardrails/control-setup.md#reading-scorecard-evidence)
+For the other controls, the [evidence results guide](docs/proof/control-setup.md#reading-scorecard-evidence)
 explains **passed**, **failed**, **blocked**, and **unverified**. An unverified
 result means usable evidence is missing, not that the check failed. The dashboard
 is a published PR snapshot; its timestamp does not prove it matches the current
-PR head or main. **ALLOW** means enforced guardrails were satisfied for that
+PR head or main. **ALLOW** means enforced controls were satisfied for that
 snapshot, not that the change is ready to merge or release.
 
 ## Profiles
@@ -188,7 +192,7 @@ exact-subject evidence, and remediation owner are verified.
 policy mode and GitHub rulesets are separate settings. AI review remains
 advisory-only. Agent-driven functional QA is an opt-in capability whose
 workflow the [`qa-bootstrap` skill](skills/qa-bootstrap/SKILL.md) generates. See
-[provider and control setup](docs/guardrails/control-setup.md).
+[provider and control setup](docs/proof/control-setup.md).
 
 ## Status vocabulary
 
@@ -197,7 +201,7 @@ workflow the [`qa-bootstrap` skill](skills/qa-bootstrap/SKILL.md) generates. See
 ⚪ **GRAY**: inactive for this operation/subject.
 Raw `not_run` or absent evidence is displayed as `no_result`, never a pass.
 The default report omits inactive catalog rows; use `--all-catalog-controls`
-to include them. See the [status guide](docs/guardrails/control-status.md).
+to include them. See the [status guide](docs/proof/control-status.md).
 
 ## What runs on GitHub
 
@@ -228,10 +232,10 @@ before requiring checks.
 ## Ground truth and future capabilities
 
 Repositories own their architecture, testing, security, deployment, and
-contribution docs; map existing paths in `.guardrails/ground-truth-ai.yaml`.
+contribution docs; map existing paths in `.proof/ground-truth-ai.yaml`.
 Artifact, deployment, and runtime capabilities without implemented producers
 remain evidence contracts, not runnable assurances. See the
-[architecture](docs/guardrails/architecture.md) and [producer contract](docs/guardrails/producer-contract.md).
+[architecture](docs/proof/architecture.md) and [producer contract](docs/proof/producer-contract.md).
 
 ## Repository map
 
@@ -242,15 +246,15 @@ use the [self-check guide](docs/self-check.md).
 | Path | Purpose |
 | --- | --- |
 | `policies/` | Capabilities, profiles, providers, and engineering policy |
-| `guardrails/`, `tooling/` | Evaluator, installer, producers, and validators |
+| `proof/`, `tooling/` | Evaluator, installer, producers, and validators |
 | `workflows/`, `rulesets/` | GitHub workflow and enforcement templates |
 | `skills/` | Reusable agent instructions |
 | `pr-review/`, `prompts/`, `templates/` | Review contracts and reusable guidance |
 | `security/` | Tested scanner rules and fixtures |
 | `examples/` | Runnable consumers |
-| `docs/guardrails/`, `docs/standards/` | Runtime guides and software delivery standards |
+| `docs/proof/`, `docs/standards/` | Runtime guides and software delivery standards |
 | `docs/archive/` | Historical designs and plans; current behavior is documented elsewhere |
-| `.guardrails/`, `.github/workflows/`, `.agents/` | This repository's installed toolkit and CI |
+| `.proof/`, `.github/workflows/`, `.agents/` | This repository's installed toolkit and CI |
 
 The source and installed directories are intentional: the toolkit is also its
 own consumer. See [source ownership and installed copies](docs/README.md#source-ownership-and-installed-copies)

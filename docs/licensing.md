@@ -10,9 +10,9 @@ and does not grant trademark or endorsement rights.
 
 ## Core scanner boundary
 
-Guardrails invokes third-party scanner containers; it does not relicense them.
+Proof invokes third-party scanner containers; it does not relicense them.
 
-| Component used by Core | Upstream license boundary | Guardrails usage |
+| Component used by Core | Upstream license boundary | Proof usage |
 | --- | --- | --- |
 | [Semgrep Community Edition](https://github.com/semgrep/semgrep/blob/develop/LICENSE) | LGPL-2.1 | Pinned CLI container, local `semgrep scan`, repository-owned tested rules, no platform token |
 | [Gitleaks CLI](https://github.com/gitleaks/gitleaks/blob/master/LICENSE) | MIT | Pinned CLI container, local Git-history scan |
@@ -39,7 +39,7 @@ the component's license.
 ## Contributions and generated copies
 
 Contributors must have the right to license submitted material and must retain
-third-party notices. Installed Guardrails files remain under their applicable
+third-party notices. Installed Proof files remain under their applicable
 source licenses. Generated evidence and scorecards may contain provider output;
 review that provider's terms before redistributing reports.
 

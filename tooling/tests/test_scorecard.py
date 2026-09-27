@@ -6,9 +6,9 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-SCRIPT = Path(__file__).resolve().parents[1] / "guardrail_scorecard.py"
+SCRIPT = Path(__file__).resolve().parents[1] / "proof_scorecard.py"
 ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location("guardrail_scorecard", SCRIPT)
+SPEC = importlib.util.spec_from_file_location("proof_scorecard", SCRIPT)
 if SPEC is None or SPEC.loader is None:
     raise AssertionError(f"cannot load module spec: {SCRIPT}")
 MODULE = importlib.util.module_from_spec(SPEC)

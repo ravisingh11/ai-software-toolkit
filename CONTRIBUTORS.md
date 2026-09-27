@@ -1,6 +1,6 @@
 # Contributors
 
-Thanks to everyone who improves the guardrails, documentation, workflows, and
+Thanks to everyone who improves the Proof checks, documentation, workflows, and
 examples.
 
 ## Current contributors

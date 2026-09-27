@@ -44,7 +44,7 @@ class ConsumerLifecycleTests(unittest.TestCase):
             (binaries / name).symlink_to(executable)
         self.environment = {
             key: value for key, value in os.environ.items()
-            if not key.startswith(("GUARDRAILS_", "GIT_"))
+            if not key.startswith(("PROOF_", "GIT_"))
             and key not in {"BASH_ENV", "ENV"}
         }
         self.environment.update({
@@ -56,8 +56,8 @@ class ConsumerLifecycleTests(unittest.TestCase):
         })
         python = shlex.quote(sys.executable)
         self.environment.update({
-            "GUARDRAILS_BUILD_COMMAND": f"{python} -m py_compile app.py",
-            "GUARDRAILS_UNIT_TEST_COMMAND": f"{python} -m unittest -v test_app",
+            "PROOF_BUILD_COMMAND": f"{python} -m py_compile app.py",
+            "PROOF_UNIT_TEST_COMMAND": f"{python} -m unittest -v test_app",
         })
         self.run_command("git", "init", "-q")
         self.run_command("git", "config", "user.name", "Consumer Lifecycle Test")
@@ -70,7 +70,7 @@ class ConsumerLifecycleTests(unittest.TestCase):
         self.write("docs/behavior.md", "# Behavior\n\nAn empty basket totals zero cents.\n")
         self.commit("test: create consumer application")
         self.install()
-        self.write(".guardrails/ground-truth-ai.yaml", json.dumps({
+        self.write(".proof/ground-truth-ai.yaml", json.dumps({
             "version": 1,
             "documents": [{"path": "README.md"}, {"path": "docs/behavior.md"}],
         }, indent=2) + "\n")
@@ -112,7 +112,7 @@ class ConsumerLifecycleTests(unittest.TestCase):
                          "--target", str(self.repo), "--profile", "core", *arguments)
 
     def configure(self, *arguments: str) -> None:
-        self.run_command(sys.executable, ".guardrails/configure.py", *arguments)
+        self.run_command(sys.executable, ".proof/configure.py", *arguments)
 
     def commit(self, message: str) -> None:
         # Commits are confined to the disposable consumer, never this worktree.
@@ -128,7 +128,7 @@ class ConsumerLifecycleTests(unittest.TestCase):
     def scan(self, status: str, decision: str, *,
              environment: dict[str, str] | None = None) -> tuple[dict, dict]:
         completed = self.run_command(
-            sys.executable, ".guardrails/scan.py", "--json",
+            sys.executable, ".proof/scan.py", "--json",
             expected=0 if decision == "allow" else 1, environment=environment,
         )
         card = json.loads(completed.stdout)
@@ -138,7 +138,7 @@ class ConsumerLifecycleTests(unittest.TestCase):
         self.assertEqual(card["subject"], subject)
         evidence_path = Path(card["artifacts"]["evidence"])
         report_path = Path(card["artifacts"]["report"])
-        artifact_directory = self.repo / ".artifacts/guardrails"
+        artifact_directory = self.repo / ".artifacts/proof"
         self.assertEqual(evidence_path.parent, artifact_directory)
         self.assertEqual(report_path.parent, artifact_directory)
         evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
@@ -163,7 +163,7 @@ class ConsumerLifecycleTests(unittest.TestCase):
         self.assertEqual(row["effective_mode"], mode)
         self.assertEqual(row["readiness"], readiness)
         if status != "not_run":
-            variable = "GUARDRAILS_BUILD_COMMAND" if control == "build" else "GUARDRAILS_UNIT_TEST_COMMAND"
+            variable = "PROOF_BUILD_COMMAND" if control == "build" else "PROOF_UNIT_TEST_COMMAND"
             digest = hashlib.sha256(self.environment[variable].encode()).hexdigest()
             self.assertIn(f"{control} command digest: sha256:{digest}", record["evidence"])
         return record
@@ -204,10 +204,10 @@ class ConsumerLifecycleTests(unittest.TestCase):
 
     def test_absent_command_is_not_run_not_a_pass(self) -> None:
         environment = dict(self.environment)
-        del environment["GUARDRAILS_UNIT_TEST_COMMAND"]
+        del environment["PROOF_UNIT_TEST_COMMAND"]
         card, evidence = self.scan("ORANGE", "allow", environment=environment)
         missing = self.assert_command_result(card, evidence, "unit-tests", "not_run", "advisory", "ORANGE")
-        self.assertIn("GUARDRAILS_UNIT_TEST_COMMAND is not configured", missing["reason"])
+        self.assertIn("PROOF_UNIT_TEST_COMMAND is not configured", missing["reason"])
         self.assertNotIn("evidence", missing)
         self.assert_command_result(card, evidence, "build", "passed", "advisory", "GREEN")
         self.configure("--set", "unit-tests=enforced")
@@ -222,11 +222,11 @@ class ConsumerLifecycleTests(unittest.TestCase):
         preserved = {
             relative: (self.repo / relative).read_bytes()
             for relative in (
-                ".guardrails/policy.yaml", ".guardrails/providers.yaml",
-                ".guardrails/ground-truth-ai.yaml", "docs/behavior.md", "README.md",
+                ".proof/policy.yaml", ".proof/providers.yaml",
+                ".proof/ground-truth-ai.yaml", "docs/behavior.md", "README.md",
             )
         }
-        providers = json.loads(preserved[".guardrails/providers.yaml"])
+        providers = json.loads(preserved[".proof/providers.yaml"])
         self.assertEqual(providers["selections"]["deep-sast"]["authoritative"], "snyk-code")
         for option in ("--merge-existing", "--merge-existing",
                        "--refresh-existing", "--refresh-existing"):

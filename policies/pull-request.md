@@ -8,7 +8,7 @@ Default advisory target:
 300–500 meaningful changed lines per PR
 ```
 
-Repositories configure their thresholds in `.guardrails/change-scope.yaml`.
+Repositories configure their thresholds in `.proof/change-scope.yaml`.
 PR size is not a blocking rule initially. Generated, vendor, dependency-lock,
 and documentation paths may be excluded from meaningful thresholds, but their
 volume should remain visible in total change metrics. AI should flag an

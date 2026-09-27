@@ -8,6 +8,19 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- **Breaking:** rename the Guardrails component to Proof as a hard cutover.
+  The installed runtime moves from `.guardrails/` to `.proof/`, repository
+  variables from `GUARDRAILS_*` to `PROOF_*`, the `Guardrail Scorecard` check
+  and workflows to `Proof Scorecard` / `proof-scorecard*.yml`, the Pages badge
+  to `proof-badge.svg`, artifact and external-ID prefixes to `proof-` /
+  `proof:`, and the `toolkit.toml` component and table to `proof`. Nothing
+  reads the old names. The installer refuses a Guardrails layout before
+  writing and prints the exact `git mv`/`git rm`/refresh commands for that
+  installation; the CLI rejects a Guardrails `toolkit.toml`. Evaluation
+  semantics, control IDs, evidence schemas, policy modes, and other check
+  names are unchanged. The next release must be a major version. See
+  [migrating from Guardrails](docs/proof/migrating-from-guardrails.md).
+
 - Harden action-skill verification: reject stale or duplicate client ledger
   claims, package review contracts, and keep seeded scans self-contained.
   QA publishes sanitized non-passing reasons while remaining unsuccessful,

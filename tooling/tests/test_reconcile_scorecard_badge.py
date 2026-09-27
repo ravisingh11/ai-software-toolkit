@@ -36,8 +36,8 @@ def run(run_id: int = 123, attempt: int = 2, **overrides: Any) -> dict[str, Any]
     value = {
         "id": run_id,
         "run_attempt": attempt,
-        "name": "Guardrail Scorecard",
-        "path": ".github/workflows/guardrails-scorecard.yml@refs/heads/main",
+        "name": "Proof Scorecard",
+        "path": ".github/workflows/proof-scorecard.yml@refs/heads/main",
         "event": "pull_request_target",
         "conclusion": "success",
         "created_at": "2026-09-08T12:00:00Z",
@@ -119,16 +119,16 @@ def valid_archive(
 class ReconcilerTests(unittest.TestCase):
     def test_workflow_path_allowlist_is_exact(self) -> None:
         accepted = (
-            ".github/workflows/guardrails-scorecard.yml",
-            ".github/workflows/guardrails-scorecard.yml@main",
-            ".github/workflows/guardrails-scorecard.yml@refs/heads/main",
+            ".github/workflows/proof-scorecard.yml",
+            ".github/workflows/proof-scorecard.yml@main",
+            ".github/workflows/proof-scorecard.yml@refs/heads/main",
         )
         for value in accepted:
             self.assertTrue(MODULE.workflow_path_allowed(value, DEFAULT_BRANCH))
         for value in (
-            ".github/workflows/guardrails-scorecard.yml@feature",
-            ".github/workflows/guardrails-scorecard.yml@refs/pull/7/merge",
-            ".github/workflows/guardrails-scorecard.yml@refs/heads/main/evil",
+            ".github/workflows/proof-scorecard.yml@feature",
+            ".github/workflows/proof-scorecard.yml@refs/pull/7/merge",
+            ".github/workflows/proof-scorecard.yml@refs/heads/main/evil",
             ".github/workflows/other.yml",
             None,
         ):
@@ -147,7 +147,7 @@ class ReconcilerTests(unittest.TestCase):
         )
         invalid_runs = (
             run(name="Other"),
-            run(path=".github/workflows/guardrails-scorecard.yml@feature"),
+            run(path=".github/workflows/proof-scorecard.yml@feature"),
             run(event="push"),
             run(conclusion="cancelled"),
             run(repository={"full_name": "other/repo"}),
@@ -433,7 +433,7 @@ class ReconcilerTests(unittest.TestCase):
                             "artifacts": [
                                 {
                                     "id": 20,
-                                    "name": "guardrail-scorecard-200-1",
+                                    "name": "proof-scorecard-200-1",
                                     "expired": False,
                                 }
                             ],
@@ -444,7 +444,7 @@ class ReconcilerTests(unittest.TestCase):
                             "artifacts": [
                                 {
                                     "id": 19,
-                                    "name": "guardrail-scorecard-199-1",
+                                    "name": "proof-scorecard-199-1",
                                     "expired": False,
                                 }
                             ],
@@ -545,7 +545,7 @@ class ReconcilerTests(unittest.TestCase):
                         "artifacts": [
                             {
                                 "id": 9,
-                                "name": "guardrail-scorecard-123-2",
+                                "name": "proof-scorecard-123-2",
                                 "expired": False,
                             }
                         ],
@@ -835,9 +835,9 @@ class ReconcilerTests(unittest.TestCase):
         listing = {
             "total_count": 3,
             "artifacts": [
-                {"id": 1, "name": "guardrail-scorecard-123-1", "expired": False},
-                {"id": 2, "name": "guardrail-scorecard-123-2", "expired": False},
-                {"id": 3, "name": "guardrail-scorecard-123-2-extra", "expired": False},
+                {"id": 1, "name": "proof-scorecard-123-1", "expired": False},
+                {"id": 2, "name": "proof-scorecard-123-2", "expired": False},
+                {"id": 3, "name": "proof-scorecard-123-2-extra", "expired": False},
             ],
         }
         self.assertEqual(MODULE.exact_artifact(listing, run())["id"], 2)
@@ -845,7 +845,7 @@ class ReconcilerTests(unittest.TestCase):
             **listing,
             "artifacts": [
                 *listing["artifacts"],
-                {"id": 4, "name": "guardrail-scorecard-123-2", "expired": False},
+                {"id": 4, "name": "proof-scorecard-123-2", "expired": False},
             ],
         }
         with self.assertRaises(ValueError):

@@ -1,4 +1,4 @@
 interface:
   display_name: "Prepare Safe Change"
   short_description: "Attest a change without expanding authority"
-  default_prompt: "Use $prepare-safe-change to gather truthful evidence for the exact revision and evaluate it against the repository guardrail policy."
+  default_prompt: "Use $prepare-safe-change to gather truthful evidence for the exact revision and evaluate it against the repository Proof policy."

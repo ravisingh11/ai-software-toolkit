@@ -3,7 +3,7 @@
 ## Scope And Ownership
 
 AI Software Toolkit publishes shared engineering policy, agent skills,
-QA and CI workflows, and the Guardrails runtime. Its security boundary is
+QA and CI workflows, and the Proof runtime. Its security boundary is
 the integrity of those materials and the decisions made from their evidence.
 It is not an application service and has no application database or migration
 framework. Consuming repositories own their application threat models,
@@ -45,7 +45,7 @@ the affected revision in reports even when support status is unclear.
 ## Threat Model And Trust Boundaries
 
 Protect source and release integrity, provider credentials, developer and CI
-environments, private context, and the accuracy of Guardrails decisions.
+environments, private context, and the accuracy of Proof decisions.
 Assume an attacker can submit a pull request or supply content that an agent
 reads. Relevant boundaries include:
 
@@ -55,7 +55,7 @@ reads. Relevant boundaries include:
 | `AGENTS.md`, skills, prompts, plugins, and MCP servers | Changes can alter agent behavior or available capabilities and require review before trusted use. |
 | Agent shell, filesystem, browser, and connectors | Tool execution must stay within the authorized task, data access, and environment. |
 | Dependencies, install hooks, and build/test scripts | Running repository code can execute attacker-controlled instructions even when the task is described as review or validation. |
-| Workflows, rulesets, `.guardrails/`, and provider evidence | Untrusted changes must not redefine trusted checks, forge results, or authorize their own promotion. |
+| Workflows, rulesets, `.proof/`, and provider evidence | Untrusted changes must not redefine trusted checks, forge results, or authorize their own promotion. |
 
 Prompt injection includes content that impersonates a maintainer, claims an
 urgent exception, requests secret disclosure, or tells an agent to weaken
@@ -76,7 +76,7 @@ whether it can cross a real permission or data boundary.
   package names, URLs, patches, and suggested fixes must be checked before use.
 - Changes to policies, workflows, agent instructions, or evidence producers
   must not approve themselves or bypass the normal PR and validation process.
-- Guardrails evidence must come from the configured authoritative producer
+- Proof evidence must come from the configured authoritative producer
   and identify the exact subject being evaluated. Missing, skipped, stale,
   blocked, or unconfigured evidence must never be represented as passed.
 - Security controls must not be disabled or findings suppressed merely to
@@ -120,7 +120,7 @@ production actions to prove impact.
 Documented requirements are not proof of enforcement. Core and optional GitHub
 profile capabilities start advisory; all AI review controls are advisory-only.
 Actual enforcement depends on repository configuration, authoritative producer
-evidence, and rulesets. See [control status](docs/guardrails/control-status.md) for the
+evidence, and rulesets. See [control status](docs/proof/control-status.md) for the
 meaning of advisory, enforced, not activated, and missing-result states.
 
 This policy does not activate an automated prompt-injection defense, sandbox,

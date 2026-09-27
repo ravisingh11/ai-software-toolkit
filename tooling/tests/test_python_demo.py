@@ -20,9 +20,9 @@ ROOT = Path(__file__).resolve().parents[2]
 DEMO = ROOT / "examples/python-demo"
 
 DEMO_OWNED_CONFIG = {
-    Path(".guardrails/documentation.yaml"),
-    Path(".guardrails/ground-truth-ai.yaml"),
-    Path(".guardrails/policy.yaml"),
+    Path(".proof/documentation.yaml"),
+    Path(".proof/ground-truth-ai.yaml"),
+    Path(".proof/policy.yaml"),
 }
 
 
@@ -133,13 +133,13 @@ class PythonDemoTests(unittest.TestCase):
             environment = os.environ.copy()
             environment.update(
                 {
-                    "GUARDRAILS_BUILD_COMMAND": "python3 -m compileall -q app.py test_app.py tools .guardrails",
-                    "GUARDRAILS_UNIT_TEST_COMMAND": "python3 -m unittest discover -s . -p 'test_*.py'",
-                    "GUARDRAILS_WORKING_DIRECTORY": ".",
+                    "PROOF_BUILD_COMMAND": "python3 -m compileall -q app.py test_app.py tools .proof",
+                    "PROOF_UNIT_TEST_COMMAND": "python3 -m unittest discover -s . -p 'test_*.py'",
+                    "PROOF_WORKING_DIRECTORY": ".",
                 }
             )
             full_catalog = run(
-                ["python3", ".guardrails/scan.py", "--all-catalog-controls"],
+                ["python3", ".proof/scan.py", "--all-catalog-controls"],
                 demo,
                 environment=environment,
             )
@@ -172,7 +172,7 @@ class PythonDemoTests(unittest.TestCase):
 
         assert_equal_trees(
             self,
-            DEMO / ".guardrails/semgrep-tests/fixtures",
+            DEMO / ".proof/semgrep-tests/fixtures",
             ROOT / "security/semgrep/tests/fixtures",
         )
         assert_equal_trees(
@@ -188,10 +188,10 @@ class PythonDemoTests(unittest.TestCase):
             self.assertEqual(run(["git", "add", "."], demo).returncode, 0)
 
             ground_truth = json.loads(
-                (demo / ".guardrails/ground-truth-ai.yaml").read_text(encoding="utf-8")
+                (demo / ".proof/ground-truth-ai.yaml").read_text(encoding="utf-8")
             )
             ground_truth["documents"].append({"path": "POLICY.txt"})
-            (demo / ".guardrails/ground-truth-ai.yaml").write_text(
+            (demo / ".proof/ground-truth-ai.yaml").write_text(
                 json.dumps(ground_truth, indent=2) + "\n",
                 encoding="utf-8",
             )
@@ -200,7 +200,7 @@ class PythonDemoTests(unittest.TestCase):
             )
             self.assertEqual(
                 run(
-                    ["git", "add", ".guardrails/ground-truth-ai.yaml", "POLICY.txt"],
+                    ["git", "add", ".proof/ground-truth-ai.yaml", "POLICY.txt"],
                     demo,
                 ).returncode,
                 0,
@@ -230,12 +230,28 @@ class PythonDemoTests(unittest.TestCase):
                 with self.subTest(relative=relative):
                     self.assertIn(relative, completed.stdout)
 
+    def test_demo_validator_rejects_retired_guardrails_layout_and_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            demo = self.archived_demo(directory)
+            self.assertEqual(run(["git", "init", "-q"], demo).returncode, 0)
+            (demo / ".guardrails").mkdir()
+            (demo / ".guardrails/policy.yaml").write_text("{}\n", encoding="utf-8")
+            readme = demo / "README.md"
+            readme.write_text(readme.read_text(encoding="utf-8") + "\nRun `.guardrails/scan.py`.\n", encoding="utf-8")
+            self.assertEqual(run(["git", "add", "."], demo).returncode, 0)
+
+            completed = run(["python3", "tools/validate_demo.py", "--documentation"], demo)
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("retired Guardrails runtime directory exists: .guardrails", completed.stdout)
+            self.assertIn("retired Guardrails guidance found in README.md: .guardrails/", completed.stdout)
+
     def test_demo_validator_rejects_retired_guidance_in_tracked_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             demo = self.archived_demo(directory)
             self.assertEqual(run(["git", "init", "-q"], demo).returncode, 0)
             self.assertEqual(run(["git", "add", "."], demo).returncode, 0)
-            relative = ".guardrails/evidence.schema.json"
+            relative = ".proof/evidence.schema.json"
             path = demo / relative
             document = json.loads(path.read_text(encoding="utf-8"))
             document["description"] = "Retired path: .agentic-guardrails/evidence.json"
@@ -252,19 +268,19 @@ class PythonDemoTests(unittest.TestCase):
     def test_demo_validator_reports_malformed_nested_configs_without_traceback(self) -> None:
         cases: tuple[tuple[str, str, Any, str], ...] = (
             (
-                ".guardrails/profiles.yaml",
+                ".proof/profiles.yaml",
                 "profiles",
                 [],
                 "runtime profiles must contain a profiles object",
             ),
             (
-                ".guardrails/control-catalog.yaml",
+                ".proof/control-catalog.yaml",
                 "controls",
                 None,
                 "control catalog controls must be a list",
             ),
             (
-                ".guardrails/providers.yaml",
+                ".proof/providers.yaml",
                 "selections",
                 None,
                 "provider selections must be an object",
@@ -315,7 +331,7 @@ class PythonDemoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             demo = self.archived_demo(directory)
             self.assertEqual(run(["git", "init", "-q"], demo).returncode, 0)
-            policy_path = demo / ".guardrails/documentation.yaml"
+            policy_path = demo / ".proof/documentation.yaml"
             policy = json.loads(policy_path.read_text(encoding="utf-8"))
             policy["mappings"] = [{"name": "invalid"}]
             policy_path.write_text(
@@ -352,7 +368,7 @@ class PythonDemoTests(unittest.TestCase):
                     (demo / "ESCAPE.md").symlink_to(outside)
                     document_path = "ESCAPE.md"
 
-                policy_path = demo / ".guardrails/ground-truth-ai.yaml"
+                policy_path = demo / ".proof/ground-truth-ai.yaml"
                 policy = json.loads(policy_path.read_text(encoding="utf-8"))
                 policy["documents"].append({"path": document_path})
                 policy_path.write_text(
@@ -388,12 +404,12 @@ class PythonDemoTests(unittest.TestCase):
 
     def test_demo_scorecard_color_semantics_match_evaluator(self) -> None:
         scorecard = load_module(
-            DEMO / ".guardrails/scorecard.py",
+            DEMO / ".proof/scorecard.py",
             "python_demo_scorecard",
         )
-        profiles = json.loads((DEMO / ".guardrails/profiles.yaml").read_text())
-        catalog = json.loads((DEMO / ".guardrails/control-catalog.yaml").read_text())
-        providers = json.loads((DEMO / ".guardrails/providers.yaml").read_text())
+        profiles = json.loads((DEMO / ".proof/profiles.yaml").read_text())
+        catalog = json.loads((DEMO / ".proof/control-catalog.yaml").read_text())
+        providers = json.loads((DEMO / ".proof/providers.yaml").read_text())
         policy = {
             "version": 2,
             "name": "demo-color-contract",

@@ -19,7 +19,7 @@ QA, release, and repository administration work.
 See [the delivery lifecycle and maturity map](../docs/vision.md). Choose a
 source revision or release containing the desired skill; newer QA additions
 are documented under [Unreleased](../CHANGELOG.md#unreleased), not in the
-v1.0.0 Guardrails demo. Installing a skill does not prove it has run.
+v1.0.0 Proof demo. Installing a skill does not prove it has run.
 
 ## Policy
 
@@ -112,7 +112,7 @@ install only the skills they actually need.
 
 ### Repository Operations
 
-- `change-guardrail-control`
+- `change-proof-control`
 - `commit-message-enforcer`
 - `dependency-remediation`
 - `github-actions-hardening`
@@ -128,9 +128,9 @@ install only the skills they actually need.
 
 ## Which Skill To Use
 
-- Use `prepare-safe-change` before editing a consumer repository: the Guardrails installer places it under `.agents/skills/` so agents read the repository's ground truth and validation contract first.
+- Use `prepare-safe-change` before editing a consumer repository: the Proof installer places it under `.agents/skills/` so agents read the repository's ground truth and validation contract first.
 - Use `repo-bootstrap` for a new or newly adopted repo.
-- Use `change-guardrail-control` whenever a capability, provider, producer,
+- Use `change-proof-control` whenever a capability, provider, producer,
   evidence contract, activation setting, or enforcement mode changes.
 - Use `repo-admin-hygiene` for descriptions, homepages, topics, labels, default branches, Wikis, Projects, and GitHub metadata.
 - Use `license-compliance` for root `LICENSE` files and first-party package metadata.

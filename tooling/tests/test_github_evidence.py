@@ -14,7 +14,7 @@ from unittest.mock import patch
 SCRIPT = Path(__file__).resolve().parents[1] / "github_evidence.py"
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-SPEC = importlib.util.spec_from_file_location("guardrails_v2_github_evidence", SCRIPT)
+SPEC = importlib.util.spec_from_file_location("proof_v2_github_evidence", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
 SPEC.loader.exec_module(MODULE)
@@ -77,7 +77,7 @@ def check_run(
     return check
 
 
-def artifact_archive(document: dict, member: str = "guardrails-evidence.json") -> bytes:
+def artifact_archive(document: dict, member: str = "proof-evidence.json") -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.writestr(member, json.dumps(document))
@@ -90,7 +90,7 @@ def artifact_contract(
     workflow: str = "Probe",
     workflow_path: str = ".github/workflows/probe.yml",
     external_id_prefix: str = "custom:",
-    artifact_name_prefix: str = "guardrails-probe-",
+    artifact_name_prefix: str = "proof-probe-",
     provider_id: str = "custom-probe",
 ) -> dict:
     return {
@@ -99,7 +99,7 @@ def artifact_contract(
         "workflow_path": workflow_path,
         "external_id_prefix": external_id_prefix,
         "artifact_name_prefix": artifact_name_prefix,
-        "artifact_member": "guardrails-evidence.json",
+        "artifact_member": "proof-evidence.json",
         "provider_id": provider_id,
     }
 
@@ -127,7 +127,7 @@ def run_artifact(
 ) -> dict:
     return {
         "id": artifact_id,
-        "name": name or f"guardrails-probe-{run_id}",
+        "name": name or f"proof-probe-{run_id}",
         "expired": expired,
         "archive_download_url": f"https://api.github.com/repos/owner/repo/actions/artifacts/{artifact_id}/zip",
         "workflow_run": {
@@ -636,8 +636,8 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
         policy, profiles, catalog, providers = contracts()
         check = providers["providers"]["github-build"]["checks"]["build"]
         check["external_id_prefix"] = "custom-probe:"
-        check["artifact_name_prefix"] = "guardrails-build-"
-        check["artifact_member"] = "guardrails-evidence.json"
+        check["artifact_name_prefix"] = "proof-build-"
+        check["artifact_member"] = "proof-evidence.json"
 
         expected = MODULE.expected_checks(
             policy, profiles, catalog, providers, "change"
@@ -659,7 +659,7 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
         policy, profiles, catalog, providers = contracts()
         providers["providers"]["github-build"]["checks"]["build"]["trusted_paths"] = [
             ".github/workflows/build.yml",
-            ".guardrails/validators/validate_repository.py",
+            ".proof/validators/validate_repository.py",
         ]
 
         expected = MODULE.expected_checks(
@@ -670,7 +670,7 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
             expected["Build"]["trusted_paths"],
             [
                 ".github/workflows/build.yml",
-                ".guardrails/validators/validate_repository.py",
+                ".proof/validators/validate_repository.py",
             ],
         )
 
@@ -687,15 +687,15 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
         policy, profiles, catalog, providers = contracts()
         check = providers["providers"]["github-build"]["checks"]["build"]
         check["external_id_prefix"] = "custom-probe:"
-        check["artifact_name_prefix"] = "guardrails-build-"
-        check["artifact_member"] = "guardrails-evidence.json"
+        check["artifact_name_prefix"] = "proof-build-"
+        check["artifact_member"] = "proof-evidence.json"
 
         expected = MODULE.expected_checks(
             policy, profiles, catalog, providers, "change"
         )
 
-        self.assertEqual(expected["Build"]["artifact_name_prefix"], "guardrails-build-")
-        self.assertEqual(expected["Build"]["artifact_member"], "guardrails-evidence.json")
+        self.assertEqual(expected["Build"]["artifact_name_prefix"], "proof-build-")
+        self.assertEqual(expected["Build"]["artifact_member"], "proof-evidence.json")
 
     def test_collector_rejects_non_git_commit_subjects(self) -> None:
         policy, profiles, catalog, providers = contracts()
@@ -748,8 +748,8 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
             (
                 "GitHub Secret Scan",
                 "Secret Scan",
-                "guardrails:secret-protection:",
-                "guardrails-secret-protection-",
+                "proof:secret-protection:",
+                "proof-secret-protection-",
                 "github-secret-protection",
                 ".github/workflows/github-secret-protection.yml",
                 901,
@@ -766,8 +766,8 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
             (
                 "Dependabot Verification",
                 "Dependabot Verification",
-                "guardrails:dependabot:",
-                "guardrails-dependabot-",
+                "proof:dependabot:",
+                "proof-dependabot-",
                 "github-dependabot",
                 ".github/workflows/dependabot-verification.yml",
                 902,
@@ -803,7 +803,7 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
                         "workflow_path": workflow_path,
                         "external_id_prefix": prefix,
                         "artifact_name_prefix": artifact_prefix,
-                        "artifact_member": "guardrails-evidence.json",
+                        "artifact_member": "proof-evidence.json",
                         "provider_id": provider_id,
                     },
                     {
@@ -869,7 +869,7 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
         self.assertIn("artifact contract", result["reason"].lower())
 
     def test_custom_check_does_not_require_impossible_cross_event_suite_binding(self) -> None:
-        artifact = run_artifact(905, name="guardrails-probe-905")
+        artifact = run_artifact(905, name="proof-probe-905")
         with patch.object(
             MODULE,
             "_request",
@@ -899,8 +899,8 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
                     "workflow": "Probe",
                     "workflow_path": ".github/workflows/probe.yml",
                     "external_id_prefix": "custom:",
-                    "artifact_name_prefix": "guardrails-probe-",
-                    "artifact_member": "guardrails-evidence.json",
+                    "artifact_name_prefix": "proof-probe-",
+                    "artifact_member": "proof-evidence.json",
                     "provider_id": "custom-probe",
                 },
                 {**check_run("Probe", 905), "external_id": "custom:905:abc123"},
@@ -1125,7 +1125,7 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
                     "workflow_path": ".github/workflows/probe.yml",
                     "trusted_paths": [
                         ".github/workflows/probe.yml",
-                        ".guardrails/validators/validate_repository.py",
+                        ".proof/validators/validate_repository.py",
                     ],
                 },
                 check_run("Probe", 908),
@@ -1166,7 +1166,7 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
                     "workflow_path": ".github/workflows/probe.yml",
                     "trusted_paths": [
                         ".github/workflows/probe.yml",
-                        ".guardrails/validators/validate_repository.py",
+                        ".proof/validators/validate_repository.py",
                     ],
                 },
                 check_run("Probe", 908),
@@ -1208,7 +1208,7 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
                     "workflow": "Probe",
                     "workflow_path": ".github/workflows/probe.yml",
                     "trusted_paths": [
-                        ".guardrails/validators/validate_repository.py",
+                        ".proof/validators/validate_repository.py",
                     ],
                 },
                 check_run("Probe", 908),
@@ -1351,7 +1351,7 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
         details_url: str | None = None,
         artifacts: list[dict] | None = None,
         document: dict | None = None,
-        member: str = "guardrails-evidence.json",
+        member: str = "proof-evidence.json",
         contract: dict | None = None,
     ) -> dict:
         selected_contract = contract or artifact_contract()
@@ -1452,7 +1452,7 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
         run_id = 910
         forged_check = {
             **check_run("GitHub Secret Scan", run_id),
-            "external_id": f"guardrails:secret-protection:{run_id}:abc123",
+            "external_id": f"proof:secret-protection:{run_id}:abc123",
         }
         def request(url: str, token: str) -> dict:
             if "check-runs" in url:
@@ -1465,7 +1465,7 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
                     workflow="Secret Scan",
                     path=".github/workflows/github-secret-protection.yml@refs/heads/main",
                 )
-            if url.endswith(f"/actions/runs/{run_id}/artifacts?name=guardrails-secret-protection-{run_id}&per_page=100"):
+            if url.endswith(f"/actions/runs/{run_id}/artifacts?name=proof-secret-protection-{run_id}&per_page=100"):
                 return {"total_count": 0, "artifacts": []}
             raise AssertionError(f"unexpected request: {url}")
 
@@ -1611,9 +1611,9 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
     def test_wrong_member_revision_provider_or_status_is_not_trusted(self) -> None:
         cases = (
             ("member", artifact_document(909), "forged.json"),
-            ("head", artifact_document(909, revision="other"), "guardrails-evidence.json"),
-            ("provider", artifact_document(909, provider_id="forged"), "guardrails-evidence.json"),
-            ("status", artifact_document(909, status="blocked"), "guardrails-evidence.json"),
+            ("head", artifact_document(909, revision="other"), "proof-evidence.json"),
+            ("provider", artifact_document(909, provider_id="forged"), "proof-evidence.json"),
+            ("status", artifact_document(909, status="blocked"), "proof-evidence.json"),
         )
         for label, document, member in cases:
             with self.subTest(label=label):

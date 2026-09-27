@@ -52,5 +52,5 @@ jobs:
           bash -euo pipefail -c "${SOAK_COMMAND}"
 
 # The command must report duration, workload, resource observations, thresholds,
-# and the exact revision in the evidence consumed by the guardrail evaluator.
+# and the exact revision in the evidence consumed by the Proof evaluator.
 # This template does not invent a universal soak-test implementation.

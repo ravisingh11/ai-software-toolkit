@@ -1,8 +1,8 @@
 """``toolkit.toml`` and ``toolkit.lock.json``.
 
 ``toolkit.toml`` holds only what nothing else owns: installed components, agent
-client preferences, and the paths of the authoritative Guardrails files. Policy
-and provider selection stay in ``.guardrails/`` and are mutated only through
+client preferences, and the paths of the authoritative Proof files. Policy
+and provider selection stay in ``.proof/`` and are mutated only through
 ``configure.py``. Repository commands are never stored here.
 
 ``toolkit.lock.json`` records the toolkit revision, installed components, and a
@@ -19,14 +19,14 @@ from typing import Any
 
 from .runtime import ToolkitError, load_json, sha256_file
 
-COMPONENTS = ("guardrails", "skills", "qa")
+COMPONENTS = ("proof", "skills", "qa")
 CLIENTS = ("codex", "claude-code")
 TOML_NAME = "toolkit.toml"
 LOCK_NAME = "toolkit.lock.json"
 LOCK_VERSION = 1
 
 TOML_TEMPLATE = """# AI Software Toolkit configuration. Policy and provider selection live in
-# .guardrails/ and are changed with .guardrails/configure.py; repository
+# .proof/ and are changed with .proof/configure.py; repository
 # commands live in GitHub repository variables, never in this file.
 
 [toolkit]
@@ -37,7 +37,7 @@ components = [{components}]
 clients = [{clients}]
 skills_dir = {skills_dir}
 
-[guardrails]
+[proof]
 policy = {policy}
 providers = {providers}
 profiles = {profiles}
@@ -59,10 +59,10 @@ def default_configuration(revision: str, *, components: list[str], clients: list
     return {
         "toolkit": {"revision": revision, "components": list(components)},
         "agents": {"clients": list(clients), "skills_dir": skills_dir},
-        "guardrails": {
-            "policy": ".guardrails/policy.yaml",
-            "providers": ".guardrails/providers.yaml",
-            "profiles": ".guardrails/profiles.yaml",
+        "proof": {
+            "policy": ".proof/policy.yaml",
+            "providers": ".proof/providers.yaml",
+            "profiles": ".proof/profiles.yaml",
             "actions": actions,
             "github_profile": github_profile,
         },
@@ -72,9 +72,20 @@ def default_configuration(revision: str, *, components: list[str], clients: list
 def validate_configuration(configuration: dict[str, Any]) -> dict[str, Any]:
     toolkit = configuration.get("toolkit")
     agents = configuration.get("agents", {})
-    guardrails = configuration.get("guardrails", {})
-    if not isinstance(toolkit, dict) or not isinstance(agents, dict) or not isinstance(guardrails, dict):
-        raise ToolkitError(f"{TOML_NAME} must contain [toolkit], [agents], and [guardrails] tables")
+    proof = configuration.get("proof", {})
+    legacy_components = toolkit.get("components") if isinstance(toolkit, dict) else None
+    legacy_paths = isinstance(proof, dict) and any(
+        isinstance(proof.get(key), str) and Path(proof[key]).parts[:1] == (".guardrails",)
+        for key in ("policy", "providers", "profiles")
+    )
+    if "guardrails" in configuration or legacy_paths or (isinstance(legacy_components, list) and "guardrails" in legacy_components):
+        raise ToolkitError(
+            f"{TOML_NAME} uses the retired Guardrails names: rename the [guardrails] table to [proof], "
+            'the "guardrails" component to "proof", and .guardrails/ paths to .proof/ '
+            "(see docs/proof/migrating-from-guardrails.md)"
+        )
+    if not isinstance(toolkit, dict) or not isinstance(agents, dict) or not isinstance(proof, dict):
+        raise ToolkitError(f"{TOML_NAME} must contain [toolkit], [agents], and [proof] tables")
     components = toolkit.get("components")
     if not isinstance(components, list) or not components or any(item not in COMPONENTS for item in components):
         raise ToolkitError(f"{TOML_NAME} components must be a nonempty list drawn from {', '.join(COMPONENTS)}")
@@ -85,21 +96,21 @@ def validate_configuration(configuration: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(skills_dir, str) or not skills_dir.strip() or Path(skills_dir).is_absolute() or ".." in Path(skills_dir).parts:
         raise ToolkitError(f"{TOML_NAME} agents.skills_dir must be a repository-relative directory")
     for key in ("policy", "providers", "profiles"):
-        value = guardrails.get(key, f".guardrails/{key}.yaml")
+        value = proof.get(key, f".proof/{key}.yaml")
         if not isinstance(value, str) or Path(value).is_absolute() or ".." in Path(value).parts:
-            raise ToolkitError(f"{TOML_NAME} guardrails.{key} must be a repository-relative path")
-        guardrails[key] = value
+            raise ToolkitError(f"{TOML_NAME} proof.{key} must be a repository-relative path")
+        proof[key] = value
     for key, default in (("actions", True), ("github_profile", False)):
-        value = guardrails.get(key, default)
+        value = proof.get(key, default)
         if not isinstance(value, bool):
-            raise ToolkitError(f"{TOML_NAME} guardrails.{key} must be true or false")
-        guardrails[key] = value
+            raise ToolkitError(f"{TOML_NAME} proof.{key} must be true or false")
+        proof[key] = value
     revision = toolkit.get("revision", "")
     if not isinstance(revision, str):
         raise ToolkitError(f"{TOML_NAME} toolkit.revision must be a string")
     return {"toolkit": {"revision": revision, "components": list(components)},
             "agents": {"clients": list(clients), "skills_dir": skills_dir},
-            "guardrails": {key: guardrails[key] for key in ("policy", "providers", "profiles", "actions", "github_profile")}}
+            "proof": {key: proof[key] for key in ("policy", "providers", "profiles", "actions", "github_profile")}}
 
 
 def render_configuration(configuration: dict[str, Any]) -> str:
@@ -109,11 +120,11 @@ def render_configuration(configuration: dict[str, Any]) -> str:
         components=_toml_list(configuration["toolkit"]["components"]),
         clients=_toml_list(configuration["agents"]["clients"]),
         skills_dir=_toml_string(configuration["agents"]["skills_dir"]),
-        policy=_toml_string(configuration["guardrails"]["policy"]),
-        providers=_toml_string(configuration["guardrails"]["providers"]),
-        profiles=_toml_string(configuration["guardrails"]["profiles"]),
-        actions="true" if configuration["guardrails"]["actions"] else "false",
-        github_profile="true" if configuration["guardrails"]["github_profile"] else "false",
+        policy=_toml_string(configuration["proof"]["policy"]),
+        providers=_toml_string(configuration["proof"]["providers"]),
+        profiles=_toml_string(configuration["proof"]["profiles"]),
+        actions="true" if configuration["proof"]["actions"] else "false",
+        github_profile="true" if configuration["proof"]["github_profile"] else "false",
     )
 
 

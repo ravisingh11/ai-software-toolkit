@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / ".artifacts" / "guardrails" / "evidence" / "ai-engineering-review.json"
+OUTPUT = ROOT / ".artifacts" / "proof" / "evidence" / "ai-engineering-review.json"
 
 
 def main() -> int:

@@ -23,7 +23,7 @@ cannot be set in the UI are documented in the
 
 ```sh
 cp <toolkit>/workflows/sonar.yml .github/workflows/sonar.yml
-python3 .guardrails/configure.py --select-provider changed-code-coverage=sonarqube --set changed-code-coverage=advisory
+python3 .proof/configure.py --select-provider changed-code-coverage=sonarqube --set changed-code-coverage=advisory
 ```
 
 Selecting SonarQube for `changed-code-coverage` replaces the repository

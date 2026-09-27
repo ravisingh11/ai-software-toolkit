@@ -10,7 +10,7 @@ See [the vision and maturity map](docs/vision.md).
 - `policies/` defines organization requirements and the control catalog.
 - `pr-review/` defines what AI reviews.
 - `workflows/` defines how checks execute.
-- `guardrails/` defines evidence schemas and deterministic evaluation.
+- `proof/` defines evidence schemas and deterministic evaluation.
 - `rulesets/` defines GitHub enforcement templates.
 - `skills/`, `prompts/`, and `templates/` provide reusable agent capabilities.
 - `tooling/` contains deterministic installers and validators.
@@ -20,7 +20,7 @@ Keep application-specific architecture, commands, customer data, credentials,
 private repository inventories, and product-specific rules in the application
 repository that owns them.
 
-## Guardrail inclusion test
+## Proof inclusion test
 
 An enforced control needs all of the following:
 
@@ -60,14 +60,14 @@ The [documentation index](docs/README.md) maps the source directories and
 installed copies. Keep transient agent reports in ignored local directories;
 retain only useful design decisions in the [archive](docs/archive/README.md).
 
-Use [the repository self-check](docs/self-check.md) to produce a local Guardrails
+Use [the repository self-check](docs/self-check.md) to produce a local Proof
 scorecard from a clean commit. The complete validation commands below also work
 while editing; their output alone is not revision-bound scan evidence.
 
 ```sh
 python3 -m pip install --disable-pip-version-check -r tooling/requirements-ci.txt
 tooling/build.sh
-GUARDRAILS_COVERAGE_BASE_REF=origin/main tooling/changed_code_coverage.sh
+PROOF_COVERAGE_BASE_REF=origin/main tooling/changed_code_coverage.sh
 python3 tooling/validators/validate_repository.py
 python3 tooling/validators/validate_documentation.py
 python3 tooling/validate-skills.py

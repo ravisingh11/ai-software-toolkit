@@ -1,11 +1,11 @@
 ---
 name: prepare-safe-change
-description: "Prepare an evidence-backed software change without expanding authority. Use when an agent needs to identify applicable checks, capture truthful producer evidence for an exact revision, evaluate repository guardrails, or report whether a change is ready for a separately authorized commit, merge, or release."
+description: "Prepare an evidence-backed software change without expanding authority. Use when an agent needs to identify applicable checks, capture truthful producer evidence for an exact revision, evaluate repository Proof policy, or report whether a change is ready for a separately authorized commit, merge, or release."
 ---
 
 # Prepare Safe Change
 
-Use the repository's `.guardrails/policy.yaml` policy. The policy declares evidence
+Use the repository's `.proof/policy.yaml` policy. The policy declares evidence
 requirements; it does not authorize an operation or tell you which tools to run.
 
 ## Workflow
@@ -17,8 +17,8 @@ requirements; it does not authorize an operation or tell you which tools to run.
    review, or other evidence producers.
 5. Record every relevant result using `references/evidence-example.yaml`.
    Preserve `failed`, `blocked`, and `not_run` outcomes exactly.
-6. Resolve the evaluator from `.guardrails/evaluate.py` in an installed
-   repository or `guardrails/evaluate.py` in this standards repository, then run:
+6. Resolve the evaluator from `.proof/evaluate.py` in an installed
+   repository or `proof/evaluate.py` in this standards repository, then run:
 
    ~~~sh
    requested_revision="${EXACT_REVISION:?set EXACT_REVISION to the immutable subject revision}"
@@ -26,24 +26,24 @@ requirements; it does not authorize an operation or tell you which tools to run.
      echo "EXACT_REVISION must resolve to a Git commit" >&2
      exit 2
    }
-   if [ -f .guardrails/evaluate.py ]; then
-     evaluator=.guardrails/evaluate.py
-   elif [ -f guardrails/evaluate.py ]; then
-     evaluator=guardrails/evaluate.py
+   if [ -f .proof/evaluate.py ]; then
+     evaluator=.proof/evaluate.py
+   elif [ -f proof/evaluate.py ]; then
+     evaluator=proof/evaluate.py
    else
-     echo "Guardrails v2 evaluator not found" >&2
+     echo "Proof evaluator not found" >&2
      exit 2
    fi
-   evidence="${GUARDRAILS_EVIDENCE:?set GUARDRAILS_EVIDENCE to populated revision-bound evidence}"
+   evidence="${PROOF_EVIDENCE:?set PROOF_EVIDENCE to populated revision-bound evidence}"
    if [ ! -f "$evidence" ]; then
-     echo "Guardrails evidence not found: $evidence" >&2
+     echo "Proof evidence not found: $evidence" >&2
      exit 2
    fi
    python3 "$evaluator" \
-     --policy .guardrails/policy.yaml \
-     --profiles .guardrails/profiles.yaml \
-     --catalog .guardrails/control-catalog.yaml \
-     --providers .guardrails/providers.yaml \
+     --policy .proof/policy.yaml \
+     --profiles .proof/profiles.yaml \
+     --catalog .proof/control-catalog.yaml \
+     --providers .proof/providers.yaml \
      --evidence "$evidence" \
      --operation change \
      --revision "$exact_revision" \

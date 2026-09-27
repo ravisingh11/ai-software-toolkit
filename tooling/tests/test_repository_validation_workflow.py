@@ -39,7 +39,7 @@ class RepositoryValidationWorkflowTests(unittest.TestCase):
             "  docs:\n", 1
         )[0]
 
-        self.assertIn("python3 .guardrails/validators/validate_repository.py", repository_job)
+        self.assertIn("python3 .proof/validators/validate_repository.py", repository_job)
         self.assertNotIn("tooling/validators/validate_repository.py", repository_job)
         self.assertIn("name: Validate / standards source", standards_job)
         self.assertIn("hashFiles('tooling/validators/validate_repository.py')", standards_job)
@@ -87,7 +87,7 @@ class RepositoryValidationWorkflowTests(unittest.TestCase):
         self.assertIn("--markdown-output", scope)
         self.assertIn("--repository-root candidate", scope)
         self.assertIn("--effective-mode change-scope", scope)
-        self.assertIn("guardrails:change-scope:", scope)
+        self.assertIn("proof:change-scope:", scope)
         self.assertNotIn("python3 candidate/", scope)
 
 

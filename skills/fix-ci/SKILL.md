@@ -15,7 +15,7 @@ restating it.
 
 - The failing check: its name, the workflow or command, and the log or the
   `ai-toolkit check` row (status `failed`, reason, evidence link).
-- The repository's validation commands (`GUARDRAILS_*_COMMAND` values,
+- The repository's validation commands (`PROOF_*_COMMAND` values,
   `AGENTS.md`, or `ai-toolkit discover` output).
 - The base revision the check last passed on, when known.
 
@@ -30,7 +30,7 @@ restating it.
 Not permitted without an explicit instruction from the user: skipping or
 deleting tests, marking checks `continue-on-error`, loosening lint or coverage
 thresholds, pinning to a broken dependency version to silence a failure, or
-changing `.guardrails/` policy modes.
+changing `.proof/` policy modes.
 
 ## Method
 

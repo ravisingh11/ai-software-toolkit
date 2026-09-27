@@ -89,7 +89,7 @@ class DiscoveryTests(unittest.TestCase):
 
     def test_workflows_provider_configuration_and_integrations(self):
         self.write(".github/workflows/sonar.yml", "name: 'SonarQube'\njobs:\n  a:\n    steps:\n      - uses: SonarSource/sonarqube-scan-action@sha\n")
-        self.write(".github/workflows/build.yml", "# Guardrails v2 installer-owned workflow.\nname: Build\n")
+        self.write(".github/workflows/build.yml", "# Proof installer-owned workflow.\nname: Build\n")
         self.write(".github/workflows/notes.txt", "ignored")
         self.write("sonar-project.properties", "sonar.projectKey=x\n")
         self.write(".snyk", "")
@@ -119,12 +119,12 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(clients["codex"]["user_skills_dir"], str(home / ".codex" / "skills"))
         custom = discovery.detect_agent_clients(self.target, {"HOME": str(home), "CODEX_HOME": str(self.target / "cx"), "CLAUDE_CONFIG_DIR": str(self.target / "cl")})
         self.assertFalse(custom["codex"]["detected"])
-        self.write(".guardrails/policy.yaml", json.dumps({"version": 2}))
+        self.write(".proof/policy.yaml", json.dumps({"version": 2}))
         self.write("toolkit.toml", "")
         self.write("docs/ai/skills/qa/config.yaml", "apps: []\n")
         state = discovery.detect_toolkit_state(self.target)
-        self.assertTrue(state["guardrails_installed"])
-        self.assertEqual(state["guardrails_version"], 2)
+        self.assertTrue(state["proof_installed"])
+        self.assertEqual(state["proof_version"], 2)
         self.assertTrue(state["toolkit_toml"])
         self.assertFalse(state["toolkit_lock"])
         self.assertEqual(state["qa_configurations"], ["docs/ai/skills/qa/config.yaml"])
@@ -137,9 +137,9 @@ class DiscoveryTests(unittest.TestCase):
         self.write("pyproject.toml", "[project]\nname = 'x'\n")
         self.write("package.json", json.dumps({"scripts": {"test": "vitest"}}))
         found = discovery.discover(self.target, environment={"HOME": str(self.target)})
-        self.assertEqual(found["variables"]["GUARDRAILS_CODEQL_LANGUAGES"], "python,javascript")
-        self.assertEqual(found["variables"]["GUARDRAILS_UNIT_TEST_COMMAND"], "npm run test")
-        self.assertIn("GUARDRAILS_UNIT_TEST_COMMAND='npm run test'", discovery.render(found))
+        self.assertEqual(found["variables"]["PROOF_CODEQL_LANGUAGES"], "python,javascript")
+        self.assertEqual(found["variables"]["PROOF_UNIT_TEST_COMMAND"], "npm run test")
+        self.assertIn("PROOF_UNIT_TEST_COMMAND='npm run test'", discovery.render(found))
 
 
 if __name__ == "__main__":
@@ -149,6 +149,6 @@ if __name__ == "__main__":
         self.write("pyproject.toml", "[project]\nname = 'x'\n[tool.pytest.ini_options]\ntestpaths = ['tests']\n")
         self.write("package.json", json.dumps({"scripts": {"test": "vitest", "build": "vite build"}}))
         found = discovery.discover(self.target, environment={"HOME": str(self.target)})
-        self.assertEqual(found["variables"]["GUARDRAILS_UNIT_TEST_COMMAND"], "python3 -m pytest && npm run test")
-        self.assertEqual(found["variables"]["GUARDRAILS_BUILD_COMMAND"], "python3 -m compileall -q . && npm run build")
+        self.assertEqual(found["variables"]["PROOF_UNIT_TEST_COMMAND"], "python3 -m pytest && npm run test")
+        self.assertEqual(found["variables"]["PROOF_BUILD_COMMAND"], "python3 -m compileall -q . && npm run build")
         self.assertIn("pytest configuration or dependency; package.json scripts.test", found["commands"]["unit-tests"]["source"])

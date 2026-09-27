@@ -1,4 +1,4 @@
-"""Small application module used by the guardrail adoption example."""
+"""Small application module used by the Proof adoption example."""
 
 import re
 

@@ -1,7 +1,7 @@
 version: 2
 updates:
   # The demo intentionally has no Python dependency manifest. Track the
-  # GitHub Actions used by the guardrail workflows instead.
+  # GitHub Actions used by the Proof workflows instead.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

@@ -280,7 +280,7 @@ class FragmentAndCliTests(AdapterFixture):
         self.assertNotIn("[", module.summary_line("snyk-code", module.Outcome("passed", "ok")))
 
     def test_cli_writes_fragment_and_exit_codes(self):
-        evidence_dir = self.target / ".artifacts" / "guardrails" / "evidence"
+        evidence_dir = self.target / ".artifacts" / "proof" / "evidence"
         with patch.dict(os.environ, self.environment(FAKE_SNYK_MODE="clean", SNYK_CODE_ARGS="--severity-threshold=high")):
             with contextlib.redirect_stdout(io.StringIO()) as stdout:
                 code = self.module.main(["snyk-code", "--target", str(self.target)])

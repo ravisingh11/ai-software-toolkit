@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the canonical guardrails repository."""
+"""Validate the canonical AI Software Toolkit repository."""
 
 from __future__ import annotations
 
@@ -451,7 +451,7 @@ def validate_control_catalog() -> int:
     return len(controls)
 
 
-def validate_guardrail_contract() -> None:
+def validate_proof_contract() -> None:
     catalog = validate_control_catalog_document(
         load_json_object(ROOT / "policies" / "control-catalog.yaml")
     )
@@ -461,12 +461,12 @@ def validate_guardrail_contract() -> None:
     validate_provider_document(provider_config, catalog)
     validate_provider_template_names(provider_config)
     validate_policy_document(
-        load_json_object(ROOT / "guardrails" / "baseline.yaml"),
+        load_json_object(ROOT / "proof" / "baseline.yaml"),
         set(profiles["profiles"]),
         catalog,
     )
     validate_evidence_document(
-        load_json_object(ROOT / "guardrails" / "evidence-example.yaml"),
+        load_json_object(ROOT / "proof" / "evidence-example.yaml"),
         catalog,
         provider_config["providers"],
     )
@@ -474,7 +474,7 @@ def validate_guardrail_contract() -> None:
         "control-catalog.schema.json", "profiles.schema.json", "providers.schema.json",
         "policy.schema.json", "evidence.schema.json",
     ):
-        schema = load_json_object(ROOT / "guardrails" / name)
+        schema = load_json_object(ROOT / "proof" / name)
         if schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
             fail(f"{name} must use JSON Schema 2020-12")
         if schema.get("properties", {}).get("version", {}).get("const") != 2:
@@ -546,7 +546,7 @@ def documentation_gaps(root: Path = ROOT) -> list[str]:
             gaps.append(f"skills/README.md does not mention the {name} skill")
     provider_docs = "".join(
         (root / relative).read_text(encoding="utf-8")
-        for relative in ("docs/providers/README.md", "docs/guardrails/control-setup.md", "workflows/README.md")
+        for relative in ("docs/providers/README.md", "docs/proof/control-setup.md", "workflows/README.md")
         if (root / relative).is_file()
     )
     providers_path = root / "policies" / "provider-config.yaml"
@@ -586,11 +586,11 @@ def validate_documentation_coverage() -> None:
 def main() -> int:
     skills = validate_skills()
     controls = validate_control_catalog()
-    validate_guardrail_contract()
+    validate_proof_contract()
     validate_links_and_docs()
     validate_no_machine_paths()
     validate_documentation_coverage()
-    print(f"Validated {skills} skills, {controls} controls, guardrail schemas, and documentation")
+    print(f"Validated {skills} skills, {controls} controls, Proof schemas, and documentation")
     return 0
 
 

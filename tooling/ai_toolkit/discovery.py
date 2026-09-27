@@ -16,12 +16,12 @@ from typing import Any
 
 # Capability -> GitHub repository variable the installed workflows read.
 COMMAND_VARIABLES = {
-    "setup": "GUARDRAILS_SETUP_COMMAND",
-    "build": "GUARDRAILS_BUILD_COMMAND",
-    "unit-tests": "GUARDRAILS_UNIT_TEST_COMMAND",
-    "format-and-lint": "GUARDRAILS_FORMAT_LINT_COMMAND",
-    "changed-code-coverage": "GUARDRAILS_CHANGED_COVERAGE_COMMAND",
-    "codeql-languages": "GUARDRAILS_CODEQL_LANGUAGES",
+    "setup": "PROOF_SETUP_COMMAND",
+    "build": "PROOF_BUILD_COMMAND",
+    "unit-tests": "PROOF_UNIT_TEST_COMMAND",
+    "format-and-lint": "PROOF_FORMAT_LINT_COMMAND",
+    "changed-code-coverage": "PROOF_CHANGED_COVERAGE_COMMAND",
+    "codeql-languages": "PROOF_CODEQL_LANGUAGES",
 }
 
 # Existing workflow content that identifies an integration already present.
@@ -172,7 +172,7 @@ def detect_workflows(target: Path) -> list[dict[str, Any]]:
         rows.append({
             "path": f".github/workflows/{path.name}",
             "name": name_match.group(1).strip().strip("'\"") if name_match else path.stem,
-            "installer_owned": text.startswith("# Guardrails v2 installer-owned"),
+            "installer_owned": text.startswith("# Proof installer-owned"),
             "integrations": integrations,
         })
     return rows
@@ -208,12 +208,12 @@ def detect_agent_clients(target: Path, environment: dict[str, str] | None = None
 
 
 def detect_toolkit_state(target: Path) -> dict[str, Any]:
-    guardrails = target / ".guardrails"
+    proof_dir = target / ".proof"
     qa_config = [str(path.relative_to(target).as_posix()) for path in target.glob("**/qa/config.yaml")
                  if ".git" not in path.parts and "node_modules" not in path.parts]
     return {
-        "guardrails_installed": (guardrails / "policy.yaml").is_file(),
-        "guardrails_version": _read_json(guardrails / "policy.yaml").get("version") if (guardrails / "policy.yaml").is_file() else None,
+        "proof_installed": (proof_dir / "policy.yaml").is_file(),
+        "proof_version": _read_json(proof_dir / "policy.yaml").get("version") if (proof_dir / "policy.yaml").is_file() else None,
         "toolkit_toml": (target / "toolkit.toml").is_file(),
         "toolkit_lock": (target / "toolkit.lock.json").is_file(),
         "qa_configurations": qa_config,
@@ -282,7 +282,7 @@ def render(discovery: dict[str, Any]) -> str:
     clients = [name for name, row in discovery["agent_clients"].items() if row["detected"]]
     lines.append("Agent clients detected: " + (", ".join(clients) if clients else "none"))
     state = discovery["toolkit"]
-    lines.append("Guardrails installed: " + ("yes" if state["guardrails_installed"] else "no")
+    lines.append("Proof installed: " + ("yes" if state["proof_installed"] else "no")
                  + "; toolkit.toml: " + ("present" if state["toolkit_toml"] else "absent")
                  + "; lock: " + ("present" if state["toolkit_lock"] else "absent"))
     if state["qa_configurations"]:

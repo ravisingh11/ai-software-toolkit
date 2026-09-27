@@ -2,16 +2,16 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-coverage_file="${repo_root}/.artifacts/guardrails/coverage.xml"
-coverage_target="${GUARDRAILS_COVERAGE_TARGET:-90}"
+coverage_file="${repo_root}/.artifacts/proof/coverage.xml"
+coverage_target="${PROOF_COVERAGE_TARGET:-90}"
 coverage_data_root="$(mktemp -d "${TMPDIR:-/tmp}/engineering-standards-coverage.XXXXXX")"
 export COVERAGE_FILE="${coverage_data_root}/coverage.data"
 export COVERAGE_RCFILE="${repo_root}/tooling/coverage.ini"
 export PYTHONPATH="${repo_root}/tooling/coverage-support${PYTHONPATH:+:${PYTHONPATH}}"
 trap 'rm -rf "${coverage_data_root}"' EXIT
 
-if [[ -z "${GUARDRAILS_COVERAGE_BASE_REF:-}" ]]; then
-  echo "GUARDRAILS_COVERAGE_BASE_REF must identify the exact comparison commit." >&2
+if [[ -z "${PROOF_COVERAGE_BASE_REF:-}" ]]; then
+  echo "PROOF_COVERAGE_BASE_REF must identify the exact comparison commit." >&2
   exit 2
 fi
 command -v coverage >/dev/null 2>&1 || {
@@ -28,7 +28,7 @@ mkdir -p "$(dirname "${coverage_file}")"
 coverage erase
 
 coverage run \
-  -m unittest discover -s guardrails/tests -p 'test_*.py'
+  -m unittest discover -s proof/tests -p 'test_*.py'
 coverage run \
   -m unittest discover -s tooling/tests -p 'test_*.py'
 coverage run \
@@ -59,7 +59,7 @@ done
 coverage_report="${coverage_data_root}/changed-code-coverage.md"
 coverage_status=0
 diff-cover "${coverage_file}" \
-  --compare-branch="${GUARDRAILS_COVERAGE_BASE_REF}" \
+  --compare-branch="${PROOF_COVERAGE_BASE_REF}" \
   --fail-under="${coverage_target}" \
   --format "markdown:${coverage_report}" || coverage_status=$?
 

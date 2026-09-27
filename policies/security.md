@@ -5,7 +5,7 @@
 This is an initial, evolving standard. The shared baseline reports these
 controls as advisory so teams can adopt them without stopping delivery. Move a
 control to enforced only after it meets the promotion rule in
-[the guardrails standard](../docs/guardrails/README.md#promotion-rule).
+[the Proof standard](../docs/proof/README.md#promotion-rule).
 
 ## Security expectations
 
@@ -35,7 +35,7 @@ control to enforced only after it meets the promotion rule in
   pass.
 - High-risk code may require human, domain-owner, or security approval.
 
-## Organization-specific guardrails
+## Organization-specific controls
 
 For coding agents, model context, prompt injection, tool permissions, and
 generated dependencies, apply the [AI development policy](ai-development.md)

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Change Guardrail Control"
-  short_description: "Change guardrails without lifecycle drift"
-  default_prompt: "Use $change-guardrail-control to add or modify a guardrail and verify it end to end."

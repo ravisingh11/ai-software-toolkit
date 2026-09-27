@@ -27,8 +27,8 @@ def git(root: Path, *arguments: str) -> str:
 
 def diverged_commits(root: Path) -> tuple[str, str]:
     git(root, "init", "-q", "-b", "main")
-    git(root, "config", "user.name", "Guardrails Test")
-    git(root, "config", "user.email", "guardrails@example.invalid")
+    git(root, "config", "user.name", "Proof Test")
+    git(root, "config", "user.email", "proof@example.invalid")
     (root / "README.md").write_text("initial\n", encoding="utf-8")
     git(root, "add", "README.md")
     git(root, "commit", "-q", "-m", "initial")
@@ -49,24 +49,24 @@ def diverged_commits(root: Path) -> tuple[str, str]:
 class DocumentationValidatorTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.policy = MODULE.load_policy(ROOT / ".guardrails" / "documentation.yaml")
+        cls.policy = MODULE.load_policy(ROOT / ".proof" / "documentation.yaml")
 
-    def test_default_policy_uses_guardrails_configuration(self) -> None:
+    def test_default_policy_uses_proof_configuration(self) -> None:
         self.assertEqual(
             MODULE.DEFAULT_POLICY,
-            MODULE.ROOT / ".guardrails" / "documentation.yaml",
+            MODULE.ROOT / ".proof" / "documentation.yaml",
         )
 
     def test_current_documentation_links_and_targets_are_valid(self) -> None:
         self.assertEqual(
-            MODULE.validate(ROOT, ROOT / ".guardrails" / "documentation.yaml"),
+            MODULE.validate(ROOT, ROOT / ".proof" / "documentation.yaml"),
             [],
         )
 
     def test_contract_change_requires_mapped_documentation(self) -> None:
         failures = MODULE.validate_changed_files(
             self.policy,
-            ["guardrails/evaluate.py"],
+            ["proof/evaluate.py"],
         )
         self.assertEqual(len(failures), 1)
         self.assertIn("control-contract", failures[0])
@@ -74,7 +74,7 @@ class DocumentationValidatorTests(unittest.TestCase):
     def test_contract_change_passes_with_mapped_documentation(self) -> None:
         failures = MODULE.validate_changed_files(
             self.policy,
-            ["guardrails/evaluate.py", "docs/guardrails/README.md"],
+            ["proof/evaluate.py", "docs/proof/README.md"],
         )
         self.assertEqual(failures, [])
 

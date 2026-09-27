@@ -5,7 +5,7 @@ from app import add, is_even, slugify
 
 class AppTests(unittest.TestCase):
     def test_slugify_normalizes_words_and_punctuation(self) -> None:
-        self.assertEqual(slugify(" Guardrails, made useful! "), "guardrails-made-useful")
+        self.assertEqual(slugify(" Proof, made useful! "), "proof-made-useful")
 
     def test_slugify_handles_empty_input(self) -> None:
         self.assertEqual(slugify("---"), "")

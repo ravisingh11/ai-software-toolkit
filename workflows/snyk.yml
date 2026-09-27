@@ -1,6 +1,6 @@
 name: Snyk
 
-# Adapter-owned Snyk workflow. The installed .guardrails/adapter.py decides the
+# Adapter-owned Snyk workflow. The installed .proof/adapter.py decides the
 # command shape (`snyk code test` and `snyk test`) and maps exit codes to
 # evidence: 0 passed, 1 failed (findings), 2 blocked (error or authentication),
 # 3 not_run (no supported projects). Consumers supply arguments through the
@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 30
     env:
       SNYK_CODE_ARGS: ${{ vars.SNYK_CODE_ARGS }}
-      GUARDRAILS_WORKING_DIRECTORY: ${{ vars.GUARDRAILS_WORKING_DIRECTORY || '.' }}
+      PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY || '.' }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -42,8 +42,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! -f .guardrails/adapter.py ]]; then
-            echo "::error::.guardrails/adapter.py is missing; refresh the Guardrails installation (tooling/install.py --refresh-existing)." >&2
+          if [[ ! -f .proof/adapter.py ]]; then
+            echo "::error::.proof/adapter.py is missing; refresh the Proof installation (tooling/install.py --refresh-existing)." >&2
             exit 1
           fi
       - name: Install Snyk CLI
@@ -54,8 +54,8 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           set -uo pipefail
-          python3 .guardrails/adapter.py snyk-code \
-            --target "${GUARDRAILS_WORKING_DIRECTORY}" \
+          python3 .proof/adapter.py snyk-code \
+            --target "${PROOF_WORKING_DIRECTORY}" \
             --revision "${HEAD_SHA}" \
             --timeout 1200 \
             --evidence-dir "${RUNNER_TEMP}/evidence" | tee "${RUNNER_TEMP}/snyk-code.txt"
@@ -66,7 +66,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: guardrails-snyk-code-evidence-${{ github.run_id }}
+          name: proof-snyk-code-evidence-${{ github.run_id }}
           path: ${{ runner.temp }}/evidence/snyk-code.json
           if-no-files-found: ignore
           retention-days: 7
@@ -78,8 +78,8 @@ jobs:
     timeout-minutes: 30
     env:
       SNYK_OPEN_SOURCE_ARGS: ${{ vars.SNYK_OPEN_SOURCE_ARGS }}
-      GUARDRAILS_SETUP_COMMAND: ${{ vars.GUARDRAILS_SETUP_COMMAND }}
-      GUARDRAILS_WORKING_DIRECTORY: ${{ vars.GUARDRAILS_WORKING_DIRECTORY || '.' }}
+      PROOF_SETUP_COMMAND: ${{ vars.PROOF_SETUP_COMMAND }}
+      PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY || '.' }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -90,15 +90,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! -f .guardrails/adapter.py ]]; then
-            echo "::error::.guardrails/adapter.py is missing; refresh the Guardrails installation (tooling/install.py --refresh-existing)." >&2
+          if [[ ! -f .proof/adapter.py ]]; then
+            echo "::error::.proof/adapter.py is missing; refresh the Proof installation (tooling/install.py --refresh-existing)." >&2
             exit 1
           fi
       - name: Install dependencies with the repository setup command
-        if: ${{ vars.GUARDRAILS_SETUP_COMMAND != '' }}
-        working-directory: ${{ vars.GUARDRAILS_WORKING_DIRECTORY || '.' }}
+        if: ${{ vars.PROOF_SETUP_COMMAND != '' }}
+        working-directory: ${{ vars.PROOF_WORKING_DIRECTORY || '.' }}
         shell: bash
-        run: bash -euo pipefail -c "${GUARDRAILS_SETUP_COMMAND}"
+        run: bash -euo pipefail -c "${PROOF_SETUP_COMMAND}"
       - name: Install Snyk CLI
         uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04
       - name: Run Snyk Open Source through the adapter
@@ -107,8 +107,8 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           set -uo pipefail
-          python3 .guardrails/adapter.py snyk-open-source \
-            --target "${GUARDRAILS_WORKING_DIRECTORY}" \
+          python3 .proof/adapter.py snyk-open-source \
+            --target "${PROOF_WORKING_DIRECTORY}" \
             --revision "${HEAD_SHA}" \
             --timeout 1200 \
             --evidence-dir "${RUNNER_TEMP}/evidence" | tee "${RUNNER_TEMP}/snyk-open-source.txt"
@@ -119,7 +119,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: guardrails-snyk-open-source-evidence-${{ github.run_id }}
+          name: proof-snyk-open-source-evidence-${{ github.run_id }}
           path: ${{ runner.temp }}/evidence/snyk-open-source.json
           if-no-files-found: ignore
           retention-days: 7

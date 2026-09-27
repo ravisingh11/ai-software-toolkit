@@ -1,6 +1,6 @@
 ---
 name: "toolkit-setup"
-description: "Set up or refresh AI Software Toolkit in a repository through the ai-toolkit CLI: discover the project, preview the installation, apply Guardrails, skills, and QA bootstrap, then verify with doctor and check. Use when asked to install, set up, onboard, upgrade, or diagnose the toolkit or Guardrails."
+description: "Set up or refresh AI Software Toolkit in a repository through the ai-toolkit CLI: discover the project, preview the installation, apply Proof, skills, and QA bootstrap, then verify with doctor and check. Use when asked to install, set up, onboard, upgrade, or diagnose the toolkit or Proof."
 ---
 
 # Toolkit Setup
@@ -49,8 +49,8 @@ unpinned URL; verify `ai-toolkit.pyz.sha256` against the release asset first.
 ## Decision rules
 
 - Existing workflows and provider integrations are reported, not duplicated.
-- `.guardrails/policy.yaml` and `providers.yaml` stay authoritative; change
-  them with `.guardrails/configure.py` or `ai-toolkit providers select`.
-- Commit `toolkit.toml`, `toolkit.lock.json`, `.guardrails/`, installed
+- `.proof/policy.yaml` and `providers.yaml` stay authoritative; change
+  them with `.proof/configure.py` or `ai-toolkit providers select`.
+- Commit `toolkit.toml`, `toolkit.lock.json`, `.proof/`, installed
   skills, and workflows together. Do not commit `.artifacts/`.
 - An installation is not a pass. Say which capabilities remain unverified.

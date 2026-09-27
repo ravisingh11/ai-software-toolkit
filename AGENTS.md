@@ -1,6 +1,6 @@
 # Repository instructions
 
-This repository defines shared engineering policy and the Guardrails runtime.
+This repository defines shared engineering policy and the Proof runtime.
 Keep changes small, evidence-backed, and reusable across application
 repositories.
 
@@ -9,7 +9,7 @@ repositories.
 - `policies/` defines engineering requirements and the control catalog.
 - `pr-review/` defines AI review behavior.
 - `workflows/` and `.github/workflows/` define reusable and repository CI.
-- `guardrails/` and `tooling/` implement deterministic evaluation and setup.
+- `proof/` and `tooling/` implement deterministic evaluation and setup.
 - `rulesets/` defines GitHub enforcement templates.
 - `skills/` contains reusable agent instructions.
 - `examples/` demonstrates consumption without becoming organization policy.
@@ -33,7 +33,7 @@ the chosen framework's real migration validation command in the same change.
 - Never report a missing, skipped, stale, or unconfigured producer as passed.
 - Keep provider credentials in GitHub secrets or the provider platform; never
   commit them.
-- Preserve the `.guardrails/` public runtime contract and document migrations.
+- Preserve the `.proof/` public runtime contract and document migrations.
 
 ## Verification
 
@@ -43,7 +43,7 @@ pull request, run the complete repository validation:
 ```sh
 tooling/build.sh
 tooling/test.sh
-GUARDRAILS_COVERAGE_BASE_REF=origin/main tooling/changed_code_coverage.sh
+PROOF_COVERAGE_BASE_REF=origin/main tooling/changed_code_coverage.sh
 python3 examples/python-demo/tools/validate_demo.py --documentation
 python3 tooling/validate-skills.py
 python3 tooling/validators/validate_repository.py

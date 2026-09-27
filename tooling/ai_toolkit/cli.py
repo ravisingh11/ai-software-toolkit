@@ -16,7 +16,7 @@ from typing import Any
 from . import VERSION, config, discovery, report, skills
 from .runtime import ROOT, ToolkitError, installed_runtime, relative, resolve_target, revision, run_python, script_path, sha256_file
 
-INSTALLER_MARKER = "# Guardrails v2 installer-owned workflow."
+INSTALLER_MARKER = "# Proof installer-owned workflow."
 ADAPTER_PROVIDERS = {
     "snyk-code": "snyk code test; SNYK_CODE_ARGS",
     "snyk-open-source": "snyk test; SNYK_OPEN_SOURCE_ARGS",
@@ -47,8 +47,8 @@ def _emit(payload: dict[str, Any], as_json: bool, text: str) -> None:
 
 def installed_profiles(target: Path, configuration: dict[str, Any] | None = None) -> list[str]:
     """Runnable profiles from the installed policy, else from toolkit.toml, else Core."""
-    fallback = ["core", "github"] if configuration and configuration["guardrails"]["github_profile"] else ["core"]
-    policy = target / ".guardrails" / "policy.yaml"
+    fallback = ["core", "github"] if configuration and configuration["proof"]["github_profile"] else ["core"]
+    policy = target / ".proof" / "policy.yaml"
     if not policy.is_file():
         return fallback
     try:
@@ -59,20 +59,20 @@ def installed_profiles(target: Path, configuration: dict[str, Any] | None = None
 
 
 def actions_installed(target: Path, configuration: dict[str, Any] | None) -> bool:
-    """Whether Guardrails workflows are part of this installation.
+    """Whether Proof workflows are part of this installation.
 
     toolkit.toml records the choice made at init. Without it, only an
     installer-owned core workflow counts; a consumer-owned file that happens to
     share a name never turns Actions management on.
     """
     if configuration is not None:
-        return bool(configuration["guardrails"]["actions"])
+        return bool(configuration["proof"]["actions"])
     installer = _installer()
     workflows = target / ".github" / "workflows"
     return any((workflows / name).is_file() and installer.installer_owned_workflow(workflows / name) for name in installer.CORE_WORKFLOWS)
 
 
-def guardrails_managed(target: Path, configuration: dict[str, Any] | None = None, *, profiles: list[str] | None = None, no_actions: bool | None = None) -> list[str]:
+def proof_managed(target: Path, configuration: dict[str, Any] | None = None, *, profiles: list[str] | None = None, no_actions: bool | None = None) -> list[str]:
     installer = _installer()
     profiles = profiles if profiles is not None else installed_profiles(target, configuration)
     if no_actions is None:
@@ -92,6 +92,37 @@ def skill_roots(target: Path, configuration: dict[str, Any] | None) -> list[Path
         for client in configuration["agents"]["clients"]:
             roots.add(skills.client_project_dir(client, target))
     return sorted(roots)
+
+
+RETIRED_SKILLS = {"change-guardrail-control": "change-proof-control"}
+
+
+def reject_retired_skills(target: Path, configuration: dict[str, Any] | None, lock: dict[str, Any] | None) -> None:
+    """Refuse to update over a retired skill name and print its exact replacement."""
+    clients = {skills.client_project_dir(client, target): client for client in config.CLIENTS}
+    managed = (lock or {}).get("managed", {})
+    steps: list[str] = []
+    for root in skill_roots(target, configuration):
+        prefix = relative(root, target) + "/"
+        for old, new in RETIRED_SKILLS.items():
+            recorded = any(path.startswith(f"{prefix}{old}/") for path in managed)
+            # A recorded retired skill is resolved once its replacement is installed; update
+            # then drops the retired lock entries because they are no longer canonical.
+            if not ((root / old).exists() or (recorded and not (root / new).is_dir())):
+                continue
+            steps.append(f"git rm -r -q --ignore-unmatch {prefix}{old}")
+            steps.append(f"rm -rf {prefix}{old}")
+            client = clients.get(root)
+            steps.append(
+                f"ai-toolkit skills install --skill {new} --client {client}" if client
+                else f"ai-toolkit skills install --skill {new}  # then copy it into {prefix}"
+            )
+    if steps:
+        raise ToolkitError(
+            "retired Guardrails skills are installed; Proof renamed them. Replace them with:\n"
+            + "\n".join(f"  {step}" for step in steps)
+            + "\nSee docs/proof/migrating-from-guardrails.md."
+        )
 
 
 def recorded_skills(target: Path, lock: dict[str, Any] | None, root: Path) -> list[str]:
@@ -130,19 +161,19 @@ def skills_managed(target: Path, configuration: dict[str, Any] | None, lock: dic
     return sorted(set(managed))
 
 
-def guardrails_component(target: Path, configuration: dict[str, Any] | None) -> bool:
-    """The Guardrails inventory applies when configured, or when any runtime is present, even incomplete."""
+def proof_component(target: Path, configuration: dict[str, Any] | None) -> bool:
+    """The Proof inventory applies when configured, or when any runtime is present, even incomplete."""
     if configuration is not None:
-        return "guardrails" in configuration["toolkit"]["components"]
-    return (target / ".guardrails").is_dir()
+        return "proof" in configuration["toolkit"]["components"]
+    return (target / ".proof").is_dir()
 
 
 def managed_files(target: Path, configuration: dict[str, Any] | None, lock: dict[str, Any] | None = None,
                   extra_skills: dict[Path, set[str]] | None = None) -> list[str]:
     components = configuration["toolkit"]["components"] if configuration else list(config.COMPONENTS)
     managed: list[str] = []
-    if guardrails_component(target, configuration):
-        managed.extend(guardrails_managed(target, configuration))
+    if proof_component(target, configuration):
+        managed.extend(proof_managed(target, configuration))
     if "skills" in components or "qa" in components:
         managed.extend(skills_managed(target, configuration, lock, extra_skills))
     return sorted(set(managed))
@@ -152,7 +183,7 @@ def canonical_sources(target: Path, configuration: dict[str, Any] | None) -> dic
     """Managed repository-relative path -> canonical source file in this distribution."""
     installer = _installer()
     sources: dict[str, Path] = {}
-    if guardrails_component(target, configuration):
+    if proof_component(target, configuration):
         for item in installer.build_plan(target, profiles=installed_profiles(target, configuration), no_actions=False, scorecard_badge=True):
             sources[relative(item.destination, target)] = item.source
     for relative_path in skills_managed(target, configuration, config.read_lock(target)):
@@ -183,7 +214,7 @@ def bootstrap_classification(target: Path, managed: list[str], configuration: di
             result["unmodified"].append(relative_path)
         elif relative_path.startswith(".github/workflows/"):
             (result["unmodified"] if installer.installer_owned_workflow(path) else result["modified"]).append(relative_path)
-        elif relative_path.startswith(".guardrails/") and source is not None:
+        elif relative_path.startswith(".proof/") and source is not None:
             (result["unmodified"] if installer.installer_owned_runtime(path, source) else result["modified"]).append(relative_path)
         else:
             same = source is not None and source.read_bytes() == path.read_bytes()
@@ -269,19 +300,19 @@ def cmd_init(args: argparse.Namespace) -> int:
         # explicit step rather than a side effect of a narrower re-run.
         components = sorted(set(existing_configuration["toolkit"]["components"]) | set(components), key=config.COMPONENTS.index)
         clients = list(dict.fromkeys([*existing_configuration["agents"]["clients"], *clients]))
-    # Any existing .guardrails/ directory, complete or not, is merged into rather than refused,
+    # Any existing .proof/ directory, complete or not, is merged into rather than refused,
     # so init can fill the gap doctor reported.
-    already_installed = (target / ".guardrails").is_dir()
+    already_installed = (target / ".proof").is_dir()
     profiles = ["github"] if args.profile == "github" else []
-    # A re-run inherits the no-actions choice only if Guardrails was already configured;
+    # A re-run inherits the no-actions choice only if Proof was already configured;
     # a skills-only configuration carries no such choice.
-    guardrails_was_configured = bool(existing_configuration and "guardrails" in existing_configuration["toolkit"]["components"])
-    no_actions = args.no_actions or (guardrails_was_configured and not existing_configuration["guardrails"]["actions"])
+    proof_was_configured = bool(existing_configuration and "proof" in existing_configuration["toolkit"]["components"])
+    no_actions = args.no_actions or (proof_was_configured and not existing_configuration["proof"]["actions"])
     github_profile = "github" in profiles or "github" in installed_profiles(target, existing_configuration)
     preview: dict[str, Any] = {"target": str(target), "components": components, "clients": clients, "discovery": found,
-                               "guardrails": [], "skills": [], "variables": [], "adopt_existing": already_installed, "reporting": None}
+                               "proof": [], "skills": [], "variables": [], "adopt_existing": already_installed, "reporting": None}
 
-    if "guardrails" in components:
+    if "proof" in components:
         arguments = ["--target", str(target), "--dry-run"]
         for profile in profiles:
             arguments.extend(["--profile", profile])
@@ -292,7 +323,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         completed = run_python(script_path("install", target, prefer_installed=False), arguments, cwd=target, capture=True)
         if completed.returncode != 0:
             raise ToolkitError("installer preview failed: " + (completed.stderr or completed.stdout).strip())
-        preview["guardrails"] = [line[len("- install: "):] for line in completed.stdout.splitlines() if line.startswith("- install: ")]
+        preview["proof"] = [line[len("- install: "):] for line in completed.stdout.splitlines() if line.startswith("- install: ")]
         preview["reporting"] = next((line for line in completed.stdout.splitlines() if line.startswith("Reporting (")), None)
     selected_skills = skills.resolve_skills(args.skills.split(",") if args.skills else ["starter"]) if ("skills" in components or "qa" in components) else []
     if "qa" in components and "qa-bootstrap" not in selected_skills and "qa-bootstrap" in skills.canonical_skills():
@@ -306,11 +337,11 @@ def cmd_init(args: argparse.Namespace) -> int:
     preview["variables"] = apply_variables(target, found["variables"], dry_run=True) if found["variables"] else []
 
     lines = [discovery.render(found), "Planned changes:"]
-    if preview["guardrails"]:
-        lines.append(f"  Guardrails runtime and workflows ({len(preview['guardrails'])} files){' — filling gaps in the existing installation' if already_installed else ''}:")
-        lines.extend(f"    {relative(Path(path), target)}" for path in preview["guardrails"])
-    elif "guardrails" in components:
-        lines.append("  Guardrails: already installed; nothing to add (use `ai-toolkit update` to refresh).")
+    if preview["proof"]:
+        lines.append(f"  Proof runtime and workflows ({len(preview['proof'])} files){' — filling gaps in the existing installation' if already_installed else ''}:")
+        lines.extend(f"    {relative(Path(path), target)}" for path in preview["proof"])
+    elif "proof" in components:
+        lines.append("  Proof: already installed; nothing to add (use `ai-toolkit update` to refresh).")
     for row in preview["skills"]:
         names = [item["skill"] for item in row["skills"] if item["action"] != "skip"]
         skipped = [item["skill"] for item in row["skills"] if item["action"] == "skip"]
@@ -334,8 +365,8 @@ def cmd_init(args: argparse.Namespace) -> int:
         _emit(preview, args.json, "\n".join(lines))
         return 0
 
-    applied: dict[str, Any] = {"guardrails": [], "skills": [], "variables": [], "files": []}
-    if "guardrails" in components and preview["guardrails"]:
+    applied: dict[str, Any] = {"proof": [], "skills": [], "variables": [], "files": []}
+    if "proof" in components and preview["proof"]:
         arguments = ["--target", str(target)]
         for profile in profiles:
             arguments.extend(["--profile", profile])
@@ -346,7 +377,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         completed = run_python(script_path("install", target, prefer_installed=False), arguments, cwd=target, capture=True)
         if completed.returncode != 0:
             raise ToolkitError("installer failed: " + (completed.stderr or completed.stdout).strip())
-        applied["guardrails"] = preview["guardrails"]
+        applied["proof"] = preview["proof"]
     for client in clients:
         destination = skills.client_project_dir(client, target)
         rows = skills.install_skills(selected_skills, destination, existing="merge", boundary=target) if selected_skills else []
@@ -355,7 +386,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         applied["variables"] = apply_variables(target, found["variables"], dry_run=False)
     configuration = config.default_configuration(
         revision(), components=components, clients=clients, skills_dir=skills.CLIENT_PROJECT_DIRS[clients[0]],
-        actions=not no_actions and "guardrails" in components,
+        actions=not no_actions and "proof" in components,
         github_profile=github_profile,
     )
     config.write_configuration(target, configuration)
@@ -364,7 +395,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     # a consumer-owned directory under a canonical name is never adopted implicitly.
     installed_now = {Path(row["destination"]): {item["skill"] for item in row["skills"] if item["action"] != "skip"} for row in applied["skills"]}
     managed = managed_files(target, configuration, previous_lock, extra_skills=installed_now)
-    written = {relative(Path(path), target) for path in applied["guardrails"]}
+    written = {relative(Path(path), target) for path in applied["proof"]}
     for row in applied["skills"]:
         root = Path(row["destination"])
         written.update((root / item).as_posix() for entry in row["skills"] for item in entry["files"])
@@ -379,7 +410,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     applied["files"] = [config.TOML_NAME, config.LOCK_NAME]
     if ensure_gitignore(target, found):
         applied["files"].append(".gitignore")
-    lines = ["Applied.", f"  Guardrails files: {len(applied['guardrails'])}"]
+    lines = ["Applied.", f"  Proof files: {len(applied['proof'])}"]
     for row in applied["skills"]:
         lines.append(f"  Skills for {row['client']}: " + ", ".join(f"{item['skill']} ({item['action']})" for item in row["skills"]))
     for row in applied["variables"]:
@@ -417,11 +448,11 @@ def component_states(target: Path, configuration: dict[str, Any] | None, lock: d
     states: dict[str, dict[str, Any]] = {}
     runtime = installed_runtime(target)
     components = configuration["toolkit"]["components"] if configuration else list(config.COMPONENTS)
-    if "guardrails" in components:
+    if "proof" in components:
         if runtime:
-            states["guardrails"] = {"state": "installed", "message": f".guardrails/ runtime present (profiles: {', '.join(installed_profiles(target, configuration))})."}
+            states["proof"] = {"state": "installed", "message": f".proof/ runtime present (profiles: {', '.join(installed_profiles(target, configuration))})."}
         else:
-            states["guardrails"] = {"state": "missing", "message": ".guardrails/ runtime is not installed.", "next_step": "Run `ai-toolkit init`."}
+            states["proof"] = {"state": "missing", "message": ".proof/ runtime is not installed.", "next_step": "Run `ai-toolkit init`."}
     if "skills" in components or "qa" in components:
         found, missing_clients = [], []
         for client in (configuration["agents"]["clients"] if configuration else config.CLIENTS):
@@ -469,11 +500,11 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         doctor_report = json.loads(completed.stdout)
         rows = report.verified_rows(target, doctor_report)
         exit_code = 1 if doctor_report.get("summary", {}).get("action_needed") else 0
-    elif guardrails_component(target, configuration):
+    elif proof_component(target, configuration):
         exit_code = 1
     if any(row["state"] == "missing" for row in components.values()):
         exit_code = 1
-    payload = {"version": 1, "kind": "toolkit-doctor", "components": components, "capabilities": rows, "guardrails": doctor_report}
+    payload = {"version": 1, "kind": "toolkit-doctor", "components": components, "capabilities": rows, "proof": doctor_report}
     _emit(payload, args.json, report.render_doctor(target, doctor_report, rows, components))
     return exit_code
 
@@ -481,7 +512,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 def cmd_check(args: argparse.Namespace) -> int:
     target = resolve_target(args.target)
     if not installed_runtime(target):
-        raise ToolkitError("the Guardrails runtime is not installed; run `ai-toolkit init` first")
+        raise ToolkitError("the Proof runtime is not installed; run `ai-toolkit init` first")
     arguments = ["--target", str(target), "--operation", args.operation, "--base-ref", args.base_ref, "--json"]
     if args.revision:
         arguments.extend(["--revision", args.revision])
@@ -559,7 +590,7 @@ def cmd_providers(args: argparse.Namespace) -> int:
         if row["id"] in ADAPTER_PROVIDERS:
             lines.append(f"  commands: adapter-owned ({ADAPTER_PROVIDERS[row['id']]}); consumers supply arguments only")
     lines.append("")
-    lines.append("Select a provider: ai-toolkit providers select CAPABILITY=PROVIDER (runs .guardrails/configure.py).")
+    lines.append("Select a provider: ai-toolkit providers select CAPABILITY=PROVIDER (runs .proof/configure.py).")
     _print("\n".join(lines))
     return 0
 
@@ -691,6 +722,7 @@ def cmd_update(args: argparse.Namespace) -> int:
         return _rollback(target, configuration, lock, args)
     if configuration is None:
         raise ToolkitError(f"{config.TOML_NAME} is missing; run `ai-toolkit init` first")
+    reject_retired_skills(target, configuration, lock)
     current = revision()
     managed = managed_files(target, configuration, lock)
     classification = config.classify(target, lock, managed) if lock else bootstrap_classification(target, managed, configuration)
@@ -724,11 +756,11 @@ def cmd_update(args: argparse.Namespace) -> int:
     skipped_skills: list[str] = []
     components = configuration["toolkit"]["components"]
     try:
-        if "guardrails" in components:
+        if "proof" in components:
             arguments = ["--target", str(target), "--refresh-existing"]
-            if not configuration["guardrails"]["actions"]:
+            if not configuration["proof"]["actions"]:
                 arguments.append("--no-actions")
-            if configuration["guardrails"]["github_profile"] and not (target / ".guardrails" / "policy.yaml").is_file():
+            if configuration["proof"]["github_profile"] and not (target / ".proof" / "policy.yaml").is_file():
                 arguments.extend(["--profile", "github"])
             completed = run_python(script_path("install", target, prefer_installed=False), arguments, cwd=target, capture=True)
             if completed.returncode != 0:
@@ -811,7 +843,7 @@ def _rollback(target: Path, configuration: dict[str, Any] | None, lock: dict[str
 # --------------------------------------------------------------------------- parser
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="ai-toolkit", description="AI Software Toolkit: install, diagnose, check, and update Guardrails, skills, and QA.")
+    parser = argparse.ArgumentParser(prog="ai-toolkit", description="AI Software Toolkit: install, diagnose, check, and update Proof, skills, and QA.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION} ({revision()})")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -825,7 +857,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub = subparsers.add_parser("init", help="discover, preview, and install selected components")
     common(sub)
-    sub.add_argument("--components", default=",".join(config.COMPONENTS), help="comma-separated: guardrails,skills,qa")
+    sub.add_argument("--components", default=",".join(config.COMPONENTS), help="comma-separated: proof,skills,qa")
     sub.add_argument("--clients", default="", help="comma-separated agent clients: codex,claude-code (default: detected)")
     sub.add_argument("--skills", default="", help="comma-separated skills, 'starter' (default), or 'all'")
     sub.add_argument("--profile", choices=("core", "github"), default="core")

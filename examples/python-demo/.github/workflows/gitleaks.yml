@@ -1,4 +1,4 @@
-# Guardrails v2 installer-owned workflow.
+# Proof installer-owned workflow.
 name: Gitleaks
 
 on:

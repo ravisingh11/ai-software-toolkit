@@ -10,13 +10,13 @@ from pathlib import Path
 from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / "install.py"
-SPEC = importlib.util.spec_from_file_location("guardrails_v2_install", SCRIPT)
+SPEC = importlib.util.spec_from_file_location("proof_v2_install", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
 SPEC.loader.exec_module(MODULE)
 
 CORE_WORKFLOWS = {
-    "guardrails-scorecard.yml",
+    "proof-scorecard.yml",
     "change-scope.yml",
     "repository-validation.yml",
     "build.yml",
@@ -36,37 +36,37 @@ GITHUB_WORKFLOWS = {
     "artifact-provenance.yml",
 }
 BADGE_FILES = {
-    ".guardrails/render_scorecard_badge.py": "tooling/render_scorecard_badge.py",
-    ".guardrails/reconcile_scorecard_badge.py": "tooling/reconcile_scorecard_badge.py",
-    ".github/workflows/guardrails-scorecard-badge.yml": "workflows/guardrails-scorecard-badge.yml",
+    ".proof/render_scorecard_badge.py": "tooling/render_scorecard_badge.py",
+    ".proof/reconcile_scorecard_badge.py": "tooling/reconcile_scorecard_badge.py",
+    ".github/workflows/proof-scorecard-badge.yml": "workflows/proof-scorecard-badge.yml",
 }
 CANONICAL_DISTRIBUTION = {
-    ".guardrails/policy.yaml": "guardrails/baseline.yaml",
-    ".guardrails/profiles.yaml": "policies/profiles.yaml",
-    ".guardrails/control-catalog.yaml": "policies/control-catalog.yaml",
-    ".guardrails/providers.yaml": "policies/provider-config.yaml",
-    ".guardrails/policy.schema.json": "guardrails/policy.schema.json",
-    ".guardrails/evidence.schema.json": "guardrails/evidence.schema.json",
-    ".guardrails/profiles.schema.json": "guardrails/profiles.schema.json",
-    ".guardrails/providers.schema.json": "guardrails/providers.schema.json",
-    ".guardrails/control-catalog.schema.json": "guardrails/control-catalog.schema.json",
-    ".guardrails/documentation.yaml": "guardrails/defaults/documentation.yaml",
-    ".guardrails/change-scope.yaml": "guardrails/defaults/change-scope.yaml",
-    ".guardrails/pr-metadata.yaml": "guardrails/defaults/pr-metadata.yaml",
-    ".guardrails/ground-truth-ai.yaml": "guardrails/defaults/ground-truth-ai.yaml",
-    ".guardrails/evaluate.py": "guardrails/evaluate.py",
-    ".guardrails/scorecard.py": "tooling/guardrail_scorecard.py",
-    ".guardrails/configure.py": "tooling/configure_guardrails.py",
-    ".guardrails/scan.py": "tooling/scan_repository.py",
-    ".guardrails/doctor.py": "tooling/doctor.py",
-    ".guardrails/github_evidence.py": "tooling/github_evidence.py",
-    ".guardrails/produce.py": "tooling/produce_guardrail_evidence.py",
-    ".guardrails/validate_ground_truth.py": "tooling/validators/validate_ground_truth.py",
-    ".guardrails/semgrep-rules.yml": "security/semgrep/guardrails.yml",
-    ".guardrails/validators/validate_repository.py": "guardrails/validate_repository.py",
-    ".guardrails/validators/validate_documentation.py": "tooling/validators/validate_documentation.py",
-    ".guardrails/validators/inspect_change_scope.py": "tooling/validators/inspect_change_scope.py",
-    ".guardrails/validators/validate_pr_metadata.py": "tooling/validators/validate_pr_metadata.py",
+    ".proof/policy.yaml": "proof/baseline.yaml",
+    ".proof/profiles.yaml": "policies/profiles.yaml",
+    ".proof/control-catalog.yaml": "policies/control-catalog.yaml",
+    ".proof/providers.yaml": "policies/provider-config.yaml",
+    ".proof/policy.schema.json": "proof/policy.schema.json",
+    ".proof/evidence.schema.json": "proof/evidence.schema.json",
+    ".proof/profiles.schema.json": "proof/profiles.schema.json",
+    ".proof/providers.schema.json": "proof/providers.schema.json",
+    ".proof/control-catalog.schema.json": "proof/control-catalog.schema.json",
+    ".proof/documentation.yaml": "proof/defaults/documentation.yaml",
+    ".proof/change-scope.yaml": "proof/defaults/change-scope.yaml",
+    ".proof/pr-metadata.yaml": "proof/defaults/pr-metadata.yaml",
+    ".proof/ground-truth-ai.yaml": "proof/defaults/ground-truth-ai.yaml",
+    ".proof/evaluate.py": "proof/evaluate.py",
+    ".proof/scorecard.py": "tooling/proof_scorecard.py",
+    ".proof/configure.py": "tooling/configure_proof.py",
+    ".proof/scan.py": "tooling/scan_repository.py",
+    ".proof/doctor.py": "tooling/doctor.py",
+    ".proof/github_evidence.py": "tooling/github_evidence.py",
+    ".proof/produce.py": "tooling/produce_proof_evidence.py",
+    ".proof/validate_ground_truth.py": "tooling/validators/validate_ground_truth.py",
+    ".proof/semgrep-rules.yml": "security/semgrep/proof.yml",
+    ".proof/validators/validate_repository.py": "proof/validate_repository.py",
+    ".proof/validators/validate_documentation.py": "tooling/validators/validate_documentation.py",
+    ".proof/validators/inspect_change_scope.py": "tooling/validators/inspect_change_scope.py",
+    ".proof/validators/validate_pr_metadata.py": "tooling/validators/validate_pr_metadata.py",
 }
 
 
@@ -127,7 +127,7 @@ class InstallerTests(unittest.TestCase):
                 if visibility == "public":
                     self.assertIn("Optional Pages dashboard", text)
                 else:
-                    self.assertIn("GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS=private", text)
+                    self.assertIn("PROOF_SCORECARD_BADGE_PAGES_ACCESS=private", text)
                     self.assertIn("unknown visibility blocks publication", text)
                 self.assertFalse((target / ".github").exists())
 
@@ -141,13 +141,13 @@ class InstallerTests(unittest.TestCase):
 
             MODULE.install(target, dry_run=False)
 
-            policy = json.loads((target / ".guardrails/policy.yaml").read_text())
+            policy = json.loads((target / ".proof/policy.yaml").read_text())
             self.assertEqual(policy["version"], 2)
             self.assertEqual(policy["profiles"], ["core"])
             self.assertEqual(self.workflows(target), CORE_WORKFLOWS)
             for installed in BADGE_FILES:
                 self.assertFalse((target / installed).exists())
-            self.assertFalse((target / ".guardrails/producer-manifest.json").exists())
+            self.assertFalse((target / ".proof/producer-manifest.json").exists())
             for installed, source in CANONICAL_DISTRIBUTION.items():
                 with self.subTest(installed=installed):
                     self.assertEqual(
@@ -163,7 +163,7 @@ class InstallerTests(unittest.TestCase):
 
             self.assertEqual(
                 self.workflows(target),
-                CORE_WORKFLOWS | {"guardrails-scorecard-badge.yml"},
+                CORE_WORKFLOWS | {"proof-scorecard-badge.yml"},
             )
             for installed, source in BADGE_FILES.items():
                 with self.subTest(installed=installed):
@@ -211,7 +211,7 @@ class InstallerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
             MODULE.install(target, dry_run=False)
-            workflow = target / ".github/workflows/guardrails-scorecard-badge.yml"
+            workflow = target / ".github/workflows/proof-scorecard-badge.yml"
             workflow.write_text("name: Consumer workflow\n", encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "not installer-owned"):
@@ -265,7 +265,7 @@ class InstallerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
             MODULE.install(target, dry_run=False, scorecard_badge=True)
-            runtime = target / ".guardrails/render_scorecard_badge.py"
+            runtime = target / ".proof/render_scorecard_badge.py"
             runtime.write_text("consumer owned\n", encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "not installer-owned"):
@@ -278,14 +278,14 @@ class InstallerTests(unittest.TestCase):
 
             self.assertEqual(runtime.read_text(), "consumer owned\n")
             self.assertTrue(
-                (target / ".github/workflows/guardrails-scorecard-badge.yml").exists()
+                (target / ".github/workflows/proof-scorecard-badge.yml").exists()
             )
 
     def test_scorecard_badge_removal_refuses_dangling_symlink(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
             MODULE.install(target, dry_run=False, scorecard_badge=True)
-            runtime = target / ".guardrails/render_scorecard_badge.py"
+            runtime = target / ".proof/render_scorecard_badge.py"
             runtime.unlink()
             runtime.symlink_to(target / "missing-renderer.py")
 
@@ -350,12 +350,12 @@ class InstallerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
             MODULE.install(target, dry_run=False)
-            policy = json.loads((target / ".guardrails/policy.yaml").read_text())
-            profiles = json.loads((target / ".guardrails/profiles.yaml").read_text())
-            catalog = json.loads((target / ".guardrails/control-catalog.yaml").read_text())
-            providers = json.loads((target / ".guardrails/providers.yaml").read_text())
-            collector = load_module(target / ".guardrails/github_evidence.py", "fresh_guardrails_collector")
-            scorecard = load_module(target / ".guardrails/scorecard.py", "fresh_guardrails_scorecard")
+            policy = json.loads((target / ".proof/policy.yaml").read_text())
+            profiles = json.loads((target / ".proof/profiles.yaml").read_text())
+            catalog = json.loads((target / ".proof/control-catalog.yaml").read_text())
+            providers = json.loads((target / ".proof/providers.yaml").read_text())
+            collector = load_module(target / ".proof/github_evidence.py", "fresh_proof_collector")
+            scorecard = load_module(target / ".proof/scorecard.py", "fresh_proof_scorecard")
 
             expected = collector.expected_checks(policy, profiles, catalog, providers, "change")
             self.assertEqual(
@@ -405,7 +405,7 @@ class InstallerTests(unittest.TestCase):
             target = Path(directory)
             MODULE.install(target, dry_run=False, no_actions=True)
 
-            fixtures = target / ".guardrails/semgrep-tests/fixtures"
+            fixtures = target / ".proof/semgrep-tests/fixtures"
             self.assertTrue(fixtures.is_dir())
             self.assertEqual(
                 {path.relative_to(fixtures) for path in fixtures.rglob("*") if path.is_file()},
@@ -416,7 +416,7 @@ class InstallerTests(unittest.TestCase):
                 },
             )
             completed = subprocess.run(
-                ["python3", ".guardrails/validators/validate_repository.py"],
+                ["python3", ".proof/validators/validate_repository.py"],
                 cwd=target,
                 text=True,
                 capture_output=True,
@@ -427,10 +427,10 @@ class InstallerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
             MODULE.install(target, dry_run=False, no_actions=True)
-            (target / ".guardrails/validators/validate_pr_metadata.py").unlink()
+            (target / ".proof/validators/validate_pr_metadata.py").unlink()
 
             completed = subprocess.run(
-                ["python3", ".guardrails/validators/validate_repository.py"],
+                ["python3", ".proof/validators/validate_repository.py"],
                 cwd=target,
                 text=True,
                 capture_output=True,
@@ -476,7 +476,7 @@ class InstallerTests(unittest.TestCase):
                 env={
                     "PATH": "/usr/bin:/bin",
                     "EXACT_REVISION": revision,
-                    "GUARDRAILS_EVIDENCE": str(populated_evidence),
+                    "PROOF_EVIDENCE": str(populated_evidence),
                 },
                 text=True,
                 capture_output=True,
@@ -493,7 +493,7 @@ class InstallerTests(unittest.TestCase):
                 capture_output=True,
             )
             self.assertNotEqual(missing.returncode, 0)
-            self.assertIn("GUARDRAILS_EVIDENCE", missing.stderr)
+            self.assertIn("PROOF_EVIDENCE", missing.stderr)
 
     def test_github_profile_is_additive_and_installs_only_the_overlay(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -501,7 +501,7 @@ class InstallerTests(unittest.TestCase):
 
             MODULE.install(target, dry_run=False, profiles=["github"])
 
-            policy = json.loads((target / ".guardrails/policy.yaml").read_text())
+            policy = json.loads((target / ".proof/policy.yaml").read_text())
             self.assertEqual(policy["profiles"], ["core", "github"])
             self.assertEqual(self.workflows(target), CORE_WORKFLOWS | GITHUB_WORKFLOWS)
             for filename in CORE_WORKFLOWS | GITHUB_WORKFLOWS:
@@ -517,8 +517,8 @@ class InstallerTests(unittest.TestCase):
 
             MODULE.install(target, dry_run=False, no_actions=True)
 
-            self.assertTrue((target / ".guardrails/produce.py").is_file())
-            self.assertTrue((target / ".guardrails/semgrep-rules.yml").is_file())
+            self.assertTrue((target / ".proof/produce.py").is_file())
+            self.assertTrue((target / ".proof/semgrep-rules.yml").is_file())
             self.assertEqual(self.workflows(target), set())
 
     def test_dry_run_writes_nothing(self) -> None:
@@ -527,13 +527,13 @@ class InstallerTests(unittest.TestCase):
 
             plan = MODULE.install(target, dry_run=True)
 
-            self.assertTrue(any(item.destination.name == "guardrails-scorecard.yml" for item in plan))
-            self.assertFalse((target / ".guardrails").exists())
+            self.assertTrue(any(item.destination.name == "proof-scorecard.yml" for item in plan))
+            self.assertFalse((target / ".proof").exists())
             self.assertFalse((target / ".github").exists())
 
     def test_rejects_v1_policy_manifest_and_runtime_without_modifying_them(self) -> None:
         fixtures = {
-            ".guardrails/policy.yaml": '{"version": 1}\n',
+            ".proof/policy.yaml": '{"version": 1}\n',
             ".guardrails/producer-manifest.json": '{"version": 1}\n',
             ".agentic-guardrails/evaluate.py": "# v1 runtime\n",
         }
@@ -548,13 +548,85 @@ class InstallerTests(unittest.TestCase):
                     MODULE.install(target, dry_run=False)
 
                 self.assertEqual(legacy.read_text(), content)
-                self.assertFalse((target / ".guardrails/profiles.yaml").exists())
+                self.assertFalse((target / ".proof/profiles.yaml").exists())
+
+    def write_retired_layout(self, target: Path) -> None:
+        legacy = target / ".guardrails"
+        legacy.mkdir()
+        (legacy / "policy.yaml").write_text('{"version": 2, "profiles": ["core"]}\n')
+        (legacy / "documentation.yaml").write_text('{"version": 1, "mappings": [".guardrails/**"]}\n')
+        (legacy / "evaluate.py").write_text("# Guardrails v2 installer-owned runtime.\n")
+        workflows = target / ".github/workflows"
+        workflows.mkdir(parents=True)
+        for name in ("guardrails-scorecard.yml", "guardrails-scorecard-badge.yml", "build.yml"):
+            (workflows / name).write_text(MODULE.LEGACY_WORKFLOW_MARKER + "\nname: Legacy\n")
+        (workflows / "consumer.yml").write_text("name: Consumer guardrails\n")
+        (target / ".pre-commit-config.yaml").write_text(
+            "      - id: guardrails-semgrep-ce\n        entry: semgrep --config .guardrails/semgrep-rules.yml\n"
+        )
+
+    def test_rejects_retired_guardrails_layout_with_exact_migration_in_every_mode(self) -> None:
+        modes = (
+            {"dry_run": True},
+            {"dry_run": False},
+            {"dry_run": False, "merge_existing": True},
+            {"dry_run": False, "refresh_existing": True},
+        )
+        for mode in modes:
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                target = Path(directory)
+                self.write_retired_layout(target)
+
+                with self.assertRaises(ValueError) as raised:
+                    MODULE.install(target, **mode)
+
+                message = str(raised.exception)
+                for expected in (
+                    "retired Guardrails layout",
+                    "mkdir -p .proof",
+                    "git mv .guardrails/policy.yaml .proof/policy.yaml",
+                    "git mv .guardrails/documentation.yaml .proof/documentation.yaml",
+                    "git rm -r -q .guardrails\n  rm -rf .guardrails\n",
+                    "git rm .github/workflows/build.yml",
+                    "git rm .github/workflows/guardrails-scorecard.yml",
+                    "--refresh-existing --scorecard-badge",
+                    "s/Guardrails /Proof /g' .pre-commit-config.yaml .proof/documentation.yaml\n",
+                    "PROOF_*",
+                    "'Proof Scorecard'",
+                ):
+                    self.assertIn(expected, message)
+                self.assertNotIn("consumer.yml", message)
+                self.assertNotIn("git mv .guardrails/evaluate.py", message)
+                self.assertFalse((target / ".proof").exists())
+                self.assertTrue((target / ".guardrails/evaluate.py").is_file())
+
+    def test_rejects_stale_guardrails_references_in_migrated_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+            MODULE.install(target, dry_run=False)
+            providers = target / ".proof/providers.yaml"
+            providers.write_text(providers.read_text().replace(".proof/validators/", ".guardrails/validators/", 1))
+
+            with self.assertRaisesRegex(ValueError, r"(?s)retired Guardrails.*perl -pi -e .* \.proof/providers\.yaml\n.*--refresh-existing"):
+                MODULE.install(target, dry_run=True, refresh_existing=True)
+
+    def test_unrelated_guardrails_text_does_not_block_installation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+            (target / "README.md").write_text("Our guardrails and GUARDRAILS notes.\n")
+            workflows = target / ".github/workflows"
+            workflows.mkdir(parents=True)
+            (workflows / "consumer.yml").write_text("name: guardrails-consumer\n")
+
+            plan = MODULE.install(target, dry_run=True)
+
+            self.assertTrue(plan)
 
     def test_merge_existing_preserves_consumer_files_and_installs_missing_product_files(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
             readme = target / "README.md"
-            policy = target / ".guardrails/policy.yaml"
+            policy = target / ".proof/policy.yaml"
             policy.parent.mkdir(parents=True)
             readme.write_text("consumer\n")
             policy.write_text(json.dumps({"version": 2, "profiles": ["core"], "overrides": {"change": {}, "release": {}}}) + "\n")
@@ -563,12 +635,12 @@ class InstallerTests(unittest.TestCase):
 
             self.assertEqual(readme.read_text(), "consumer\n")
             self.assertEqual(json.loads(policy.read_text())["profiles"], ["core"])
-            self.assertTrue((target / ".guardrails/produce.py").is_file())
+            self.assertTrue((target / ".proof/produce.py").is_file())
 
     def test_merge_existing_github_profile_updates_policy_and_installs_overlay(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
-            policy = target / ".guardrails/policy.yaml"
+            policy = target / ".proof/policy.yaml"
             policy.parent.mkdir(parents=True)
             original = {
                 "$schema": "./policy.schema.json",
@@ -595,7 +667,7 @@ class InstallerTests(unittest.TestCase):
             target = Path(directory)
             external = Path(external_directory) / "produce.py"
             external.write_text("external\n")
-            destination = target / ".guardrails/produce.py"
+            destination = target / ".proof/produce.py"
             destination.parent.mkdir(parents=True)
             destination.symlink_to(external)
 
@@ -603,7 +675,7 @@ class InstallerTests(unittest.TestCase):
                 MODULE.install(target, dry_run=False, refresh_existing=True)
 
             self.assertEqual(external.read_text(), "external\n")
-            self.assertFalse((target / ".guardrails/profiles.yaml").exists())
+            self.assertFalse((target / ".proof/profiles.yaml").exists())
 
     def test_rejects_symlink_parent_before_merge_without_touching_external_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as external_directory:
@@ -611,7 +683,7 @@ class InstallerTests(unittest.TestCase):
             external_root = Path(external_directory)
             external = external_root / "policy.yaml"
             external.write_text('{"version": 2, "sentinel": "external"}\n')
-            (target / ".guardrails").symlink_to(external_root, target_is_directory=True)
+            (target / ".proof").symlink_to(external_root, target_is_directory=True)
 
             with self.assertRaisesRegex(ValueError, "symlink"):
                 MODULE.install(
@@ -628,9 +700,9 @@ class InstallerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
             MODULE.install(target, dry_run=False)
-            policy = target / ".guardrails/policy.yaml"
+            policy = target / ".proof/policy.yaml"
             policy.write_text(json.dumps({"version": 2, "profiles": ["core"], "overrides": {"change": {"build": "enforced"}, "release": {}}}) + "\n")
-            runtime = target / ".guardrails/produce.py"
+            runtime = target / ".proof/produce.py"
             runtime.write_text("stale\n")
             workflow = target / ".github/workflows/build.yml"
             workflow.write_text("name: Consumer Build\n")
@@ -645,7 +717,7 @@ class InstallerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
             MODULE.install(target, dry_run=False)
-            providers_path = target / ".guardrails/providers.yaml"
+            providers_path = target / ".proof/providers.yaml"
             providers = json.loads(providers_path.read_text())
             custom = dict(providers["providers"]["repository-build"])
             custom["display_name"] = "Consumer Build Adapter"
@@ -690,7 +762,7 @@ class InstallerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
             MODULE.install(target, dry_run=False)
-            providers_path = target / ".guardrails/providers.yaml"
+            providers_path = target / ".proof/providers.yaml"
             providers = json.loads(providers_path.read_text())
             providers["providers"]["consumer-build"] = {
                 "display_name": "Invalid Consumer Build"
@@ -707,9 +779,9 @@ class InstallerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
             MODULE.install(target, dry_run=False, profiles=["github"])
-            policy = target / ".guardrails/policy.yaml"
+            policy = target / ".proof/policy.yaml"
             workflow = target / ".github/workflows/github-secret-protection.yml"
-            workflow.write_text("# Guardrails v2 installer-owned workflow.\nname: Mutated\n")
+            workflow.write_text("# Proof installer-owned workflow.\nname: Mutated\n")
 
             MODULE.install(
                 target,
@@ -728,9 +800,9 @@ class InstallerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
             MODULE.install(target, dry_run=False, no_actions=True)
-            mutated_fixture = target / ".guardrails/semgrep-tests/fixtures/safe/requests.py"
-            removed_fixture = target / ".guardrails/semgrep-tests/fixtures/unsafe/tls.js"
-            consumer_fixture = target / ".guardrails/semgrep-tests/fixtures/consumer-case.txt"
+            mutated_fixture = target / ".proof/semgrep-tests/fixtures/safe/requests.py"
+            removed_fixture = target / ".proof/semgrep-tests/fixtures/unsafe/tls.js"
+            consumer_fixture = target / ".proof/semgrep-tests/fixtures/consumer-case.txt"
             mutated_skill = target / ".agents/skills/prepare-safe-change/SKILL.md"
             removed_skill = target / ".agents/skills/prepare-safe-change/agents/openai.yaml"
             consumer_skill = target / ".agents/skills/prepare-safe-change/consumer-notes.md"
@@ -772,7 +844,7 @@ class InstallerTests(unittest.TestCase):
                 MODULE.install(target, dry_run=False, local_hooks=True)
 
             self.assertEqual(config.read_text(), "consumer hooks\n")
-            self.assertFalse((target / ".guardrails").exists())
+            self.assertFalse((target / ".proof").exists())
 
     def test_local_hooks_validate_then_install_without_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -793,7 +865,7 @@ class InstallerTests(unittest.TestCase):
             config = (target / ".pre-commit-config.yaml").read_text()
             self.assertIn(MODULE.SEMGREP_IMAGE, config)
             self.assertIn("semgrep scan --error", config)
-            self.assertIn("--exclude .guardrails/semgrep-tests/fixtures", config)
+            self.assertIn("--exclude .proof/semgrep-tests/fixtures", config)
             self.assertIn("--exclude security/semgrep/tests/fixtures", config)
             self.assertIn(MODULE.GITLEAKS_IMAGE, config)
             self.assertIn(f"entry: {MODULE.GITLEAKS_IMAGE} git --redact --no-banner .", config)
@@ -809,7 +881,7 @@ class InstallerTests(unittest.TestCase):
             with mock.patch.object(MODULE.shutil, "which", return_value=None):
                 with self.assertRaisesRegex(ValueError, "pre-commit executable"):
                     MODULE.install(target, dry_run=False, local_hooks=True)
-            self.assertFalse((target / ".guardrails").exists())
+            self.assertFalse((target / ".proof").exists())
 
     def test_local_hooks_reject_nested_target_without_touching_parent_hooks(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -833,7 +905,7 @@ class InstallerTests(unittest.TestCase):
                     MODULE.install(nested, dry_run=False, no_actions=True, local_hooks=True)
 
             self.assertEqual(parent_hook.read_text(), "parent hook\n")
-            self.assertFalse((nested / ".guardrails").exists())
+            self.assertFalse((nested / ".proof").exists())
             self.assertFalse((nested / ".pre-commit-config.yaml").exists())
 
 

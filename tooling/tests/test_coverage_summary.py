@@ -45,8 +45,8 @@ class CoverageSummaryTests(unittest.TestCase):
             environment = {
                 **os.environ,
                 "PATH": f"{binaries}:/usr/bin:/bin",
-                "GUARDRAILS_COVERAGE_BASE_REF": "base-sha",
-                "GUARDRAILS_COVERAGE_TARGET": "90",
+                "PROOF_COVERAGE_BASE_REF": "base-sha",
+                "PROOF_COVERAGE_TARGET": "90",
                 "TEST_REPORT": report,
                 "TEST_STATUS": str(status),
             }

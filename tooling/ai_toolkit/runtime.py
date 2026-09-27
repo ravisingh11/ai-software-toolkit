@@ -17,13 +17,13 @@ ROOT = Path(__file__).resolve().parents[2]
 BUILD_METADATA = Path(__file__).resolve().parent / "BUILD.json"
 
 # Existing scripts the CLI dispatches to. Source paths are relative to ROOT;
-# installed paths are relative to <target>/.guardrails and are preferred for
+# installed paths are relative to <target>/.proof and are preferred for
 # evaluation so an installed repository never runs code from the archive.
 SCRIPTS = {
     "install": ("tooling/install.py", None),
     "doctor": ("tooling/doctor.py", "doctor.py"),
     "scan": ("tooling/scan_repository.py", "scan.py"),
-    "configure": ("tooling/configure_guardrails.py", "configure.py"),
+    "configure": ("tooling/configure_proof.py", "configure.py"),
     "skills": ("tooling/install-skills.sh", None),
 }
 
@@ -65,7 +65,7 @@ def resolve_target(value: Path | str | None) -> Path:
 
 
 def installed_runtime(target: Path) -> Path | None:
-    runtime = target / ".guardrails"
+    runtime = target / ".proof"
     return runtime if (runtime / "policy.yaml").is_file() and (runtime / "scan.py").is_file() else None
 
 
