@@ -88,6 +88,23 @@ class ProofContractValidationTests(unittest.TestCase):
                 text = (ROOT / template).read_text(encoding="utf-8")
                 self.assertIn(".proof/adapter.py", text)
                 self.assertIn(f"adapter.py {provider_id}", text)
+                # The adapter that receives the credential comes from the base revision,
+                # never from the pull request head, and runs against the head checkout.
+                self.assertIn("ref: ${{ github.event.pull_request.base.sha || github.sha }}", text)
+                self.assertIn("path: trusted", text)
+                self.assertIn("path: candidate", text)
+                self.assertIn(f"python3 trusted/.proof/adapter.py {provider_id}", text)
+                self.assertIn('--target "candidate/${PROOF_WORKING_DIRECTORY}"', text)
+                self.assertNotIn(f"python3 .proof/adapter.py {provider_id}", text)
+                self.assertIn("-L trusted/.proof/adapter.py", text)
+
+    def test_adapter_backed_checks_declare_the_adapter_as_a_trusted_path(self) -> None:
+        providers = self.providers()
+
+        for provider_id in ("snyk-code", "snyk-open-source", "fossa"):
+            for capability, check in providers[provider_id]["checks"].items():
+                with self.subTest(provider_id=provider_id, capability=capability):
+                    self.assertIn(".proof/adapter.py", check.get("trusted_paths", []))
 
     def test_actions_backed_checks_declare_exact_installed_workflow_paths(self) -> None:
         providers = self.providers()

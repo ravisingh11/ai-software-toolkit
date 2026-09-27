@@ -56,7 +56,10 @@ shows the status and reason code. `SNYK_TOKEN` is injected only into the
 adapter step, never into the repository setup command. Set the
 `SNYK_CODE_ENABLED` or `SNYK_OPEN_SOURCE_ENABLED` repository variable to
 `false` to skip a job whose provider you have not selected. The template runs
-only on `pull_request` so its check names match the provider contract.
+only on `pull_request` so its check names match the provider contract. The
+adapter is checked out from the base revision (`trusted/`) and scans the head
+checkout (`candidate/`); a pull request that changes `.proof/adapter.py` or
+the workflow file yields `not_run` evidence until it is merged.
 
 ## Verify
 

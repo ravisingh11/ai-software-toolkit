@@ -46,11 +46,21 @@ as `--file=/elsewhere/package.json`, `--policy-path=../shared`, or a committed
 symlink that leaves the tree, because the provider would then examine or
 filter something other than the revision.
 
-On a same-repository pull request the adapter script itself comes from the PR
-head, so a collaborator with push access could alter it; this is the same
-trust level GitHub gives every `pull_request` workflow that uses a secret, and
-fork pull requests receive no secret at all. Running the adapter from the
-trusted base revision is tracked as follow-up work.
+The workflow templates check out `.proof/adapter.py` from the pull request's
+base revision into `trusted/` and run it against the head revision in
+`candidate/`, so a pull request cannot change the code that receives the
+credential. The base revision must already contain the adapter; the first
+pull request that installs it fails the job with that message until the
+installation is merged. The provider contracts also list the adapter as a
+trusted path, so the scorecard refuses `Snyk Code`, `Snyk Open Source`, and
+`FOSSA` evidence (`not_run`) from any pull request whose adapter or workflow
+file differs from the base, including one that refreshes the runtime through
+`ai-toolkit update`. What remains is the trust GitHub gives every
+`pull_request` workflow that uses a secret: on a same-repository pull request
+the workflow file itself comes from the head, so protect `.github/workflows/`
+with review requirements; fork pull requests receive no secret at all. The
+provider CLI runs against candidate code and may execute the repository's own
+build tooling, which is inherent to those scanners.
 
 ## Reason codes
 

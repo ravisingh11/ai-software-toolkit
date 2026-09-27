@@ -8,6 +8,16 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Run the Snyk and FOSSA adapter from the trusted base revision. The
+  `workflows/snyk.yml` and `workflows/fossa.yml` templates check out
+  `.proof/adapter.py` from the pull request's base SHA into `trusted/`
+  (sparse, non-symlink) and run it against the head checkout in `candidate/`,
+  so a pull request cannot change the code that receives `SNYK_TOKEN` or
+  `FOSSA_API_KEY`. The `snyk-code`, `snyk-open-source`, and `fossa` contracts
+  list the adapter as a trusted path, so the scorecard records `not_run` for a
+  pull request whose adapter differs from the base. Check names, evidence
+  fragments, and reason codes are unchanged.
+
 - **Breaking:** rename the Guardrails component to Proof as a hard cutover.
   The installed runtime moves from `.guardrails/` to `.proof/`, repository
   variables from `GUARDRAILS_*` to `PROOF_*`, the `Guardrail Scorecard` check
