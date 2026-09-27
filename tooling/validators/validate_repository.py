@@ -572,7 +572,7 @@ def documentation_gaps(root: Path = ROOT) -> list[str]:
     for relative in tooling_paths:
         exact_path = re.search(r"(?<![\w./\\-])" + re.escape(relative.as_posix()) + r"(?![\w./\\-])", published) is not None
         unique_name = (names.count(relative.name) == 1
-                       and re.search(r"(?<![\w./-])" + re.escape(relative.name) + r"(?![\w./-])", published) is not None)
+                       and re.search(r"(?<![\w./\\-])" + re.escape(relative.name) + r"(?![\w./\\-])", published) is not None)
         if not exact_path and not unique_name:
             gaps.append(f"{relative.as_posix()} is not mentioned in any published documentation")
     return gaps

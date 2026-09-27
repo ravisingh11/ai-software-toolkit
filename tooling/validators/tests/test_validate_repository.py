@@ -159,6 +159,11 @@ class DocumentationCoverageTests(unittest.TestCase):
             self.assertEqual(MODULE.documentation_gaps(root), [
                 "tooling/a/check.py is not mentioned in any published documentation",
             ])
+            for unrelated in (r"vendor\check.py", r"check.py\vendor"):
+                readme.write_text(f"`{unrelated}`")
+                self.assertEqual(MODULE.documentation_gaps(root), [
+                    "tooling/a/check.py is not mentioned in any published documentation",
+                ])
             readme.write_text("`check.py`")
             self.assertEqual(MODULE.documentation_gaps(root), [])
 
