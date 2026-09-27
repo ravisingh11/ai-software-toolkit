@@ -96,6 +96,22 @@ def reject_symlinked_root(destination_root: Path, boundary: Path | None) -> None
             raise ToolkitError(f"refusing to install skills through a symlink: {path}")
 
 
+def require_installable_root(destination_root: Path, boundary: Path | None) -> None:
+    """Refuse a skills root that cannot receive files, before anything is written.
+
+    The root need not exist yet; its nearest existing ancestor must be a writable
+    directory, and nothing on the way may be a symlink inside the repository.
+    """
+    reject_symlinked_root(destination_root, boundary)
+    existing = destination_root
+    while not existing.exists() and existing != existing.parent:
+        existing = existing.parent
+    if not existing.is_dir():
+        raise ToolkitError(f"skill destination is not a directory: {existing}")
+    if not os.access(existing, os.W_OK):
+        raise ToolkitError(f"skill destination is not writable: {existing}")
+
+
 def install_skills(names: list[str], destination_root: Path, *, existing: str = "skip", dry_run: bool = False,
                    boundary: Path | None = None) -> list[dict[str, Any]]:
     """Copy skills; returns one row per skill with the action taken and the files written.

@@ -827,6 +827,27 @@ class ReviewRegressionTests(CliFixture):
         states = cli.component_states(self.target, config.read_configuration(self.target), config.read_lock(self.target))
         self.assertEqual(states["skills"]["state"], "installed", states["skills"])
 
+    def test_adoption_validates_every_client_destination_before_writing(self):
+        self.assertEqual(self.init("--components", "proof", "--clients", "claude-code")[0], 0)
+        blocked = self.target / ".claude" / "skills"
+        blocked.parent.mkdir()
+        blocked.write_text("not a directory\n", encoding="utf-8")
+        lock_before = (self.target / config.LOCK_NAME).read_bytes()
+        toml_before = (self.target / config.TOML_NAME).read_bytes()
+        for arguments in (("skills", "install", "--skill", "code-review"), ("qa", "bootstrap")):
+            code, _, err = run_cli(*arguments, "--target", str(self.target))
+            self.assertEqual(code, 2, arguments)
+            self.assertIn("not a directory", err)
+        # The Codex destination was valid, yet nothing was installed or recorded anywhere.
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        self.assertFalse((self.target / ".agents" / "skills" / "qa-bootstrap").exists())
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        self.assertEqual((self.target / config.TOML_NAME).read_bytes(), toml_before)
+        blocked.unlink()
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.target / ".claude" / "skills" / "code-review" / "SKILL.md").is_file())
+
     def test_update_never_adopts_skipped_skills_into_the_lock(self):
         self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
         mine = self.target / ".agents" / "skills" / "security-audit-lite"

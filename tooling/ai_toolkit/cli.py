@@ -704,19 +704,26 @@ def cmd_skills(args: argparse.Namespace) -> int:
         if client not in config.CLIENTS:
             raise ToolkitError(f"unknown agent client: {client}")
     existing = "replace" if args.action == "refresh" else args.existing
+    recording = not args.user and not args.dry_run
     if not args.user:
         clients = clients_for_adoption(target, clients, "skills")
-        if not args.dry_run:
-            require_writable_records(target)
+    destinations = {client: (skills.client_user_dir(client) if args.user else skills.client_project_dir(client, target)) for client in clients}
+    if recording:
+        # Every destination and both records are validated before any client receives a
+        # file, so a multi-client adoption never activates the component for some clients
+        # and then fails on another.
+        require_writable_records(target)
+        for destination in destinations.values():
+            skills.require_installable_root(destination, target)
     results = []
-    for client in clients:
-        destination = skills.client_user_dir(client) if args.user else skills.client_project_dir(client, target)
+    for client, destination in destinations.items():
         rows = skills.install_skills(requested, destination, existing=existing, dry_run=args.dry_run, boundary=None if args.user else target)
         results.append({"client": client, "destination": str(destination), "skills": rows})
-        if not args.user and not args.dry_run:
-            record_skills_in_lock(target, destination, rows)
-            adopt_client(target, client)
-            adopt_component(target, "skills")
+    if recording:
+        for row in results:
+            record_skills_in_lock(target, Path(row["destination"]), row["skills"])
+            adopt_client(target, row["client"])
+        adopt_component(target, "skills")
     lines = []
     for row in results:
         lines.append(f"{row['client']} -> {row['destination']}" + (" (dry run)" if args.dry_run else ""))
@@ -745,17 +752,20 @@ def cmd_qa(args: argparse.Namespace) -> int:
         if client not in config.CLIENTS:
             raise ToolkitError(f"unknown agent client: {client}")
     clients = clients_for_adoption(target, clients, "qa")
+    destinations = {client: skills.client_project_dir(client, target) for client in clients}
     if not args.dry_run:
         require_writable_records(target)
+        for destination in destinations.values():
+            skills.require_installable_root(destination, target)
     results = []
-    for client in clients:
-        destination = skills.client_project_dir(client, target)
+    for client, destination in destinations.items():
         rows = skills.install_skills(["qa-bootstrap"], destination, existing="merge", dry_run=args.dry_run, boundary=target)
-        if not args.dry_run:
-            record_skills_in_lock(target, destination, rows, component="qa")
-            adopt_client(target, client)
-            adopt_component(target, "qa")
-        results.append({"client": client, "skills": rows})
+        results.append({"client": client, "destination": str(destination), "skills": rows})
+    if not args.dry_run:
+        for row in results:
+            record_skills_in_lock(target, Path(row["destination"]), row["skills"], component="qa")
+            adopt_client(target, row["client"])
+        adopt_component(target, "qa")
     lines = ["Installed the qa-bootstrap skill for: " + ", ".join(clients) + (" (dry run)" if args.dry_run else ""),
              "Next: in your agent, run the qa-bootstrap skill. It analyzes the repository, asks only what it cannot detect, and generates the qa orchestrator; the generated qa skill runs QA."]
     _emit({"results": results}, args.json, "\n".join(lines))

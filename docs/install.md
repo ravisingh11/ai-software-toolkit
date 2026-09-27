@@ -180,7 +180,9 @@ adds the `skills` component (and `qa bootstrap` the `qa` component) to
 them as removed. The install that first activates a component installs and
 records the selected skills for every client the configuration already lists,
 not only the client named on the command line, so `doctor` never reports a
-managed client with nothing behind it.
+managed client with nothing behind it. Every destination and both records are
+checked before the first file is written, and the component is adopted only
+after every client has its files and lock entries.
 Re-running `init` on an installed repository keeps the lock's baseline for
 files it did not rewrite, so your local edits still surface as conflicts
 later, and keeps every component and client already installed; removing one
