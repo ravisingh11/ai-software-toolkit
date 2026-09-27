@@ -206,7 +206,9 @@ The five action skills ship seeded tasks and per-client `VERIFICATION.md`
 ledgers. Installation is not evidence that an agent completed a task.
 `tooling/validate-skills.py` rejects duplicate client rows and requires each
 verified row's Git revision to match the current skill bundle and fixture.
-Both client rows remain unverified until representative runs are recorded.
+Verified rows also require a real date, agent version, outcome, and an evidence
+link or explicit withholding reason. Both client rows remain unverified until
+representative runs are recorded.
 
 QA bootstrap copies plan and finding rules into the generated QA skill.
 Agent-authored rows may claim only agent provenance. Sanitized non-passing

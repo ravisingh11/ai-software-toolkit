@@ -36,3 +36,7 @@ revision; `tooling/validate-skills.py` requires both rows to exist.
 The synthetic fixture has no coverage producer or target. Record coverage as
 unavailable (not passed); judge this seeded run by meaningful behavior tests
 and mutation checks, with that coverage limitation explicit in the ledger.
+
+A verified row must include an actual ISO date, agent version, concrete outcome,
+and an HTTPS evidence link or `withheld: <reason>` explaining why retained
+evidence cannot be shared. Placeholder metadata cannot support a yes claim.

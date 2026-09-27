@@ -33,3 +33,7 @@ environment details); link them from the row when they are shareable.
 
 A row is stale once `SKILL.md` or the fixture changes after the recorded
 revision; `tooling/validate-skills.py` requires both rows to exist.
+
+A verified row must include an actual ISO date, agent version, concrete outcome,
+and an HTTPS evidence link or `withheld: <reason>` explaining why retained
+evidence cannot be shared. Placeholder metadata cannot support a yes claim.
