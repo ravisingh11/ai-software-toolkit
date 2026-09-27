@@ -195,7 +195,8 @@ is kept under `.artifacts/ai-toolkit/backup/<timestamp>/`; `--rollback`
 restores it and the previous lock. `update`, a project `skills install`, and
 `qa bootstrap` refuse before touching any file when `toolkit.toml` or
 `toolkit.lock.json` cannot be rewritten (either is a symlink, a directory, or
-another non-regular entry), and if writing them fails after the refresh, the managed
+another non-regular entry, or the file or its directory is not writable), and
+if writing them fails after the refresh, the managed
 files, configuration, and lock are all restored together so the tree never
 disagrees with the lock that describes it; the records are put back by
 replacing the directory entry, so a symlink that appeared in the meantime is

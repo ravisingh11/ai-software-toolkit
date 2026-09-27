@@ -634,6 +634,12 @@ def require_writable_records(target: Path) -> None:
             raise ToolkitError(f"refusing to write through a symlink: {path}")
         if path.exists() and not path.is_file():
             raise ToolkitError(f"{path} exists but is not a regular file; move it aside first")
+        # Rewriting truncates the file in place and restoring replaces the directory entry,
+        # so both the file (when present) and its directory must be writable.
+        if path.exists() and not os.access(path, os.W_OK):
+            raise ToolkitError(f"{path} is not writable; fix its permissions first")
+        if not os.access(target, os.W_OK):
+            raise ToolkitError(f"{target} is not writable, so {name} cannot be rewritten")
 
 
 def adopt_component(target: Path, component: str) -> bool:

@@ -781,6 +781,25 @@ class ReviewRegressionTests(CliFixture):
         code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--user", "--target", str(self.target))
         self.assertEqual(code, 0, out)
 
+    @unittest.skipIf(os.geteuid() == 0, "root bypasses file permissions")
+    def test_read_only_records_are_refused_before_anything_is_installed(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        toml_path = self.target / config.TOML_NAME
+        lock_before = (self.target / config.LOCK_NAME).read_bytes()
+        toml_path.chmod(0o444)
+        self.addCleanup(toml_path.chmod, 0o644)
+        for arguments in (("skills", "install", "--skill", "code-review"), ("qa", "bootstrap"), ("update", "--force")):
+            code, _, err = run_cli(*arguments, "--target", str(self.target))
+            self.assertEqual(code, 2, arguments)
+            self.assertIn("not writable", err)
+        self.assertFalse((self.target / ".agents" / "skills" / "code-review").exists())
+        self.assertFalse((self.target / ".agents" / "skills" / "qa-bootstrap").exists())
+        self.assertEqual((self.target / config.LOCK_NAME).read_bytes(), lock_before)
+        self.assertFalse((self.target / ".artifacts" / "ai-toolkit" / "backup").exists())
+        toml_path.chmod(0o644)
+        code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+
     def test_update_never_adopts_skipped_skills_into_the_lock(self):
         self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
         mine = self.target / ".agents" / "skills" / "security-audit-lite"
