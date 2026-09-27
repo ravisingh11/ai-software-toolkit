@@ -27,7 +27,7 @@ CONFIG_PATHS = {
 RETIRED_CONFIG_PATHS = tuple(
     ".ai" + suffix
     for suffix in (
-        "/proof.yaml",
+        "/guardrails.yaml",
         "/control-catalog.yaml",
         "/ground-truth.yaml",
         "/documentation.yaml",
@@ -72,7 +72,8 @@ WORKFLOW_CONTRACTS = (
 )
 FORBIDDEN_ACTIVE_GUIDANCE = (
     ".agentic-guardrails/",
-    ".proof/producer-manifest.json",
+    ".guardrails/",
+    ".guardrails/producer-manifest.json",
     "--github-actions",
     "--no-cleanup",
     "semgrep ci",
@@ -235,6 +236,7 @@ def main() -> int:
         fail_if(not (ROOT / relative).is_file(), f"missing required file: {relative}", failures)
 
     fail_if((ROOT / ".ai").exists(), "retired configuration directory exists: .ai", failures)
+    fail_if((ROOT / ".guardrails").exists(), "retired Guardrails runtime directory exists: .guardrails", failures)
     configs = load_configs(failures)
     policy = configs.get("policy", {})
     profiles = configs.get("profiles", {})
@@ -380,7 +382,7 @@ def main() -> int:
         for retired in FORBIDDEN_ACTIVE_GUIDANCE:
             fail_if(
                 retired in content.lower(),
-                f"retired Proof guidance found in {relative}: {retired}",
+                f"retired Guardrails guidance found in {relative}: {retired}",
                 failures,
             )
 

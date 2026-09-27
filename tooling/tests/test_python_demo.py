@@ -230,6 +230,22 @@ class PythonDemoTests(unittest.TestCase):
                 with self.subTest(relative=relative):
                     self.assertIn(relative, completed.stdout)
 
+    def test_demo_validator_rejects_retired_guardrails_layout_and_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            demo = self.archived_demo(directory)
+            self.assertEqual(run(["git", "init", "-q"], demo).returncode, 0)
+            (demo / ".guardrails").mkdir()
+            (demo / ".guardrails/policy.yaml").write_text("{}\n", encoding="utf-8")
+            readme = demo / "README.md"
+            readme.write_text(readme.read_text(encoding="utf-8") + "\nRun `.guardrails/scan.py`.\n", encoding="utf-8")
+            self.assertEqual(run(["git", "add", "."], demo).returncode, 0)
+
+            completed = run(["python3", "tools/validate_demo.py", "--documentation"], demo)
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("retired Guardrails runtime directory exists: .guardrails", completed.stdout)
+            self.assertIn("retired Guardrails guidance found in README.md: .guardrails/", completed.stdout)
+
     def test_demo_validator_rejects_retired_guidance_in_tracked_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             demo = self.archived_demo(directory)
