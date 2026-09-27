@@ -461,6 +461,8 @@ def select_candidate(
     runs: Iterable[dict[str, Any]],
     current: tuple[str, int, int] | None,
     validate: Callable[[dict[str, Any]], dict[str, Any]],
+    *,
+    allow_fallback: bool = True,
 ) -> tuple[dict[str, Any], list[str]]:
     rejected: list[str] = []
     reached_older = False
@@ -476,6 +478,8 @@ def select_candidate(
         try:
             return validate(candidate), rejected
         except CandidateRejected as error:
+            if not allow_fallback:
+                raise ValueError(f"private Pages cannot fall back to older evidence; newest candidate rejected: {error}") from error
             rejected.append(
                 f"run {candidate.get('id')} attempt {candidate.get('run_attempt')}: {error}"
             )
@@ -579,6 +583,36 @@ def _write_output(path: Path, values: dict[str, str]) -> None:
             stream.write(f"{key}={value}\n")
 
 
+def publication_destination(
+    repository: str, record: dict[str, Any], access: str, client: GitHubClient
+) -> tuple[str, bool]:
+    """Fail closed before reading evidence or rendering a nonpublic repository."""
+    visibility = record.get("visibility")
+    if not isinstance(visibility, str) or visibility not in {"public", "private", "internal"}:
+        raise ValueError("repository visibility is unknown; keep reports in Actions")
+    if access not in {"", "public", "private"}:
+        raise ValueError("Pages access must be public or private")
+    if visibility != "public" and access != "private":
+        raise ValueError(
+            "nonpublic repositories require PAGES_ACCESS=private and a private Pages site; "
+            "keep reports in Actions until configured"
+        )
+    if access != "private":
+        return pages_base_url(repository), False
+    pages = client.json(f"https://api.github.com/repos/{repository}/pages")
+    if not isinstance(pages, dict) or pages.get("public") is not False:
+        raise ValueError("Pages is not verified private; refusing publication")
+    url = pages.get("html_url")
+    parsed = urlparse(url) if isinstance(url, str) else None
+    if (
+        parsed is None or parsed.scheme != "https" or not parsed.hostname
+        or parsed.username or parsed.password or parsed.query or parsed.fragment
+        or any(character.isspace() for character in url)
+    ):
+        raise ValueError("private Pages URL is invalid")
+    return url.rstrip("/") + "/", True
+
+
 def reconcile(
     repository: str,
     token: str,
@@ -586,6 +620,7 @@ def reconcile(
     renderer: Path,
     output_dir: Path,
     *,
+    pages_access: str = "",
     client: GitHubClient | None = None,
     published_loader: Callable[[str], dict[str, Any] | None] = read_published_scorecard,
 ) -> tuple[dict[str, Any] | None, list[str], bool]:
@@ -597,8 +632,10 @@ def reconcile(
     ):
         raise ValueError("repository API response does not identify a default branch")
     default_branch = repo_record["default_branch"]
-    base_url = pages_base_url(repository)
-    published = validate_published_scorecard(
+    base_url, private_pages = publication_destination(repository, repo_record, pages_access, client)
+    # Private Pages requires interactive authentication. Never send the API token
+    # to a Pages host or probe the public github.io fallback for private reports.
+    published = None if private_pages else validate_published_scorecard(
         published_loader(f"{base_url}scorecard.json"), repository
     )
     current = published_tuple(published)
@@ -758,7 +795,7 @@ def reconcile(
             }
 
     try:
-        selected, rejected = select_candidate(runs, current, validate)
+        selected, rejected = select_candidate(runs, current, validate, allow_fallback=not private_pages)
     except StalePublication as error:
         return None, [str(error)], False
     candidate_tuple = run_tuple(selected["run"])
@@ -772,6 +809,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--token", default=os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     )
+    parser.add_argument("--pages-access", default=os.environ.get("GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS", ""))
     parser.add_argument("--repository-root", type=Path, default=Path("."))
     parser.add_argument(
         "--renderer", type=Path, default=Path(".guardrails/render_scorecard_badge.py")
@@ -793,6 +831,7 @@ def main() -> int:
             args.repository_root.resolve(),
             args.renderer.resolve(),
             args.output_dir.resolve(),
+            pages_access=args.pages_access,
         )
         values = {"publish": "true" if publish else "false"}
         lines = ["## Latest PR scorecard reconciliation", ""]
