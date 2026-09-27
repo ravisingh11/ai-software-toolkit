@@ -555,13 +555,20 @@ def documentation_gaps(root: Path = ROOT) -> list[str]:
             if display_name not in provider_docs and f"`{provider_id}`" not in provider_docs:
                 gaps.append(f"provider {provider_id} ({display_name}) is not documented in docs/providers, control setup, or the workflows README")
     published = documentation_text(root)
+    tooling_paths = []
     for path in sorted((root / "tooling").rglob("*")):
         relative = path.relative_to(root)
         if (not path.is_file() or path.suffix not in {".py", ".sh"}
                 or any(part in {"tests", "fixtures", "__pycache__"} for part in relative.parts)
                 or path.name == "__init__.py"):
             continue
-        if not mentions_filename(published, path.name):
+        tooling_paths.append(relative)
+    names = [path.name for path in tooling_paths]
+    for relative in tooling_paths:
+        exact_path = mentions_filename(published, relative.as_posix())
+        unique_name = (names.count(relative.name) == 1
+                       and re.search(r"(?<![\w./-])" + re.escape(relative.name) + r"(?![\w./-])", published) is not None)
+        if not exact_path and not unique_name:
             gaps.append(f"{relative.as_posix()} is not mentioned in any published documentation")
     return gaps
 

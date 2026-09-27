@@ -113,4 +113,6 @@ Python processes. Under `tooling/validators/`, `inspect_change_scope.py` classif
 changed paths for validation and `validate_ground_truth.py` validates the
 consumer's ground-truth document mapping. Tests and fixtures are excluded from
 shipped-script documentation coverage; historical `docs/archive/` mentions do
-not satisfy current documentation coverage.
+not satisfy current documentation coverage. Duplicate script basenames require
+repository-relative paths in current documentation. `tooling/doctor.py` inspects
+consumer configuration and installed runtime readiness.

@@ -112,5 +112,27 @@ class DocumentationCoverageTests(unittest.TestCase):
             self.assertEqual(MODULE.documentation_gaps(root), [])
 
 
+    def test_duplicate_script_names_require_their_relative_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for folder in ("a", "b"):
+                (root / "tooling" / folder).mkdir(parents=True)
+                (root / "tooling" / folder / "check.py").write_text("")
+            readme = root / "README.md"
+            readme.write_text("`tooling/a/check.py` and `check.py`")
+            self.assertEqual(MODULE.documentation_gaps(root), [
+                "tooling/b/check.py is not mentioned in any published documentation",
+            ])
+            readme.write_text("`tooling/a/check.py` and `tooling/b/check.py`")
+            self.assertEqual(MODULE.documentation_gaps(root), [])
+            (root / "tooling/b/check.py").unlink()
+            readme.write_text("`unrelated/check.py`")
+            self.assertEqual(MODULE.documentation_gaps(root), [
+                "tooling/a/check.py is not mentioned in any published documentation",
+            ])
+            readme.write_text("`check.py`")
+            self.assertEqual(MODULE.documentation_gaps(root), [])
+
+
 if __name__ == "__main__":
     unittest.main()
