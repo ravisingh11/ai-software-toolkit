@@ -1,4 +1,13 @@
-# Reference app
+# Reference applications
+
+The separate [Fieldnotes reference application](https://github.com/ravisingh11/ai-software-toolkit-reference-app)
+is the Node/TypeScript consumer, with its own deployment and verification history.
+Its [application](https://ai-software-toolkit-reference-app.navivision-account.workers.dev/)
+and [scorecard](https://ravisingh11.github.io/ai-software-toolkit-reference-app/)
+are published separately. Consult that repository for current deployment and CI
+evidence; the local Python fixture below does not verify the deployed app.
+
+## In-repository Python fixture
 
 `examples/python-demo/` is the toolkit's executable consumer: a standard-library
 Python application with the Guardrails runtime installed under its own
@@ -19,7 +28,7 @@ QA, and action skills require their own verification evidence.
 | Provider adapters | `.guardrails/adapter.py` is installed; the Snyk and FOSSA templates are not copied into the demo because it has no vendor accounts | Adapter shipped; live runs unverified (see the [ledger](providers/verification.md)) |
 | Functional QA | Not generated for the demo | Planned |
 | Repair via an action skill | Not demonstrated | Planned (needs a recorded run per client, see each skill's `VERIFICATION.md`) |
-| Node reference app | None | Planned |
+| Node reference app | Separate Fieldnotes repository linked above | Independently maintained; not verified by this fixture |
 
 ## Why `toolkit.toml` and the lock are not committed yet
 
