@@ -105,7 +105,8 @@ def github_setup(target: Path, repository: str, selected: dict, providers: dict,
 
     variables = collection("/actions/variables", "variables")
     secrets = collection("/actions/secrets", "secrets")
-    selected_providers = {entry["authoritative"] for entry in selected.values()}
+    selected_providers = {provider_id for entry in selected.values()
+                          for provider_id in [entry["authoritative"], *entry.get("supplemental", [])]}
     needed_variables = {command[0]: None for control, command in producer.COMMAND_PRODUCERS.items()
                         if control in selected and command[1] == selected[control]["authoritative"]}
     if "github-codeql" in selected_providers:
@@ -141,6 +142,54 @@ def github_setup(target: Path, repository: str, selected: dict, providers: dict,
             "Inspect repository Settings > Code security; the Secret Scan workflow must verify settings and alerts with SECURITY_SETTINGS_TOKEN.")
     add("github.producer-evidence", "unverified", "Only setup metadata was queried; no check runs, findings, or secret values were collected.",
         "Open a representative PR and inspect its Guardrail Scorecard; metadata alone cannot satisfy a control.")
+    return rows
+
+
+ADAPTER_BACKED_PROVIDERS = ("snyk-code", "snyk-open-source", "fossa")
+
+
+def adapter_setup(target: Path, selected: dict, providers: dict, environment: dict) -> list[dict]:
+    """Diagnose adapter-backed external providers without running them."""
+    rows: list[dict] = []
+    # Authoritative and supplemental selections both need their workflow and credential.
+    external_providers = {
+        provider_id
+        for selection in selected.values()
+        for provider_id in [selection["authoritative"], *selection.get("supplemental", [])]
+        if providers.get(provider_id, {}).get("activation") == "external"
+    }
+    if not external_providers:
+        return rows
+    try:
+        adapter = trusted_module("tooling/provider_adapter.py", "adapter.py")
+        contracts = adapter.PROVIDERS
+    except ValueError:
+        contracts = None
+    for provider_id in sorted(external_providers):
+        provider = providers[provider_id]
+        # Names of declared GitHub secrets; values are never read or printed.
+        credential_names = [name for key, value in provider.items() if key == "secrets" and isinstance(value, list) for name in value if isinstance(name, str)]
+        if provider_id in ADAPTER_BACKED_PROVIDERS and (contracts is None or provider_id not in contracts):
+            rows.append({"id": f"provider.{provider_id}.adapter", "status": "action_needed",
+                         "message": "The installed runtime has no adapter contract for this provider; adapter-owned commands cannot run.",
+                         "next_step": "Run tooling/install.py --target <repo> --refresh-existing from a trusted release."})
+        elif contracts is not None and provider_id in contracts:
+            contract = contracts[provider_id]
+            available = bool(shutil.which(contract["binary"]))
+            rows.append({"id": f"provider.{provider_id}.adapter", "status": "configured",
+                         "message": f"Adapter owns the {contract['binary']} command shape; the CLI is {'on PATH' if available else 'not on PATH'} locally and was not executed.",
+                         "next_step": f"Run .guardrails/adapter.py {provider_id} locally or the {provider['display_name']} workflow on a PR to produce evidence."})
+        for name in credential_names:
+            present = bool(environment.get(name, "").strip())
+            rows.append({"id": f"local.credential.{name}", "status": "unverified",
+                         "message": f"{name} is {'set' if present else 'unset'} locally; its validity was not checked." ,
+                         "next_step": f"Store {name} as a GitHub secret for CI; export it locally only to run the adapter yourself."})
+        template = provider.get("template")
+        path = next((check.get("workflow_path") for check in provider.get("checks", {}).values() if isinstance(check, dict) and check.get("workflow_path")), None)
+        if template and path and not (target / path).is_file():
+            rows.append({"id": f"provider.{provider_id}.template", "status": "unverified",
+                         "message": f"Template {template} is available but {path} is not installed in this repository.",
+                         "next_step": f"Copy {template} to {path}, add the {', '.join(credential_names) or 'required'} secret, and verify a representative PR."})
     return rows
 
 
@@ -259,6 +308,8 @@ def diagnose(target: Path, *, operation: str = "change", environment: dict | Non
             add(f"workflow.{control_id}", "configured" if present else "unverified",
                 "Workflow file present; GitHub execution is not verified." if present else "Workflow file absent; local-only installations may intentionally omit Actions.",
                 "For PR automation, install/configure the selected provider workflow and verify a representative PR.")
+
+    checks.extend(adapter_setup(target, selected, providers, environment))
 
     if github and selected:
         checks.extend(github_setup(target, github, selected, providers, producer))
