@@ -12,7 +12,7 @@ and the diagnostics that tell you where setup stands.
 | Snyk Code | `deep-sast` | `SNYK_TOKEN` | `workflows/snyk.yml` | Adapter: `snyk code test` | [snyk.md](snyk.md) |
 | Snyk Open Source | `dependency-vulnerability` | `SNYK_TOKEN` | `workflows/snyk.yml` | Adapter: `snyk test` | [snyk.md](snyk.md) |
 | FOSSA | `dependency-vulnerability`, `license-compliance` | `FOSSA_API_KEY` | `workflows/fossa.yml` | Adapter: `fossa analyze` then `fossa test` | [fossa.md](fossa.md) |
-| Semgrep AppSec Platform | `custom-static-analysis`, `deep-sast` | `SEMGREP_APP_TOKEN` | none | Organization integration; evidence is the `Semgrep` app check | [control setup](../guardrails/control-setup.md#optional-vendor-providers) |
+| Semgrep AppSec Platform (`semgrep-app`) | `custom-static-analysis`, `deep-sast` | `SEMGREP_APP_TOKEN` | none | Organization integration; evidence is the `Semgrep` app check | [control setup](../guardrails/control-setup.md#optional-vendor-providers) |
 
 Every provider is opt-in: selecting it as authoritative for a capability with
 `.guardrails/configure.py --select-provider CAPABILITY=PROVIDER` (or
