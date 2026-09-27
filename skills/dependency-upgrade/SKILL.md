@@ -33,8 +33,10 @@ removing the lockfile, or disabling audit checks.
 
 1. Read the release notes between the current and target versions; list
    breaking changes that touch this repository's usage.
-2. Upgrade with the package manager's own command so the lockfile is
-   regenerated consistently; do not hand-edit the lockfile.
+2. Upgrade with the package manager's own command so any existing lockfile is
+   regenerated consistently; do not hand-edit a lockfile. For a manifest-only
+   repository, update its exact pin and verify installation with the existing
+   manager; record lockfile verification as not applicable.
 3. Build and run the full test suite; fix compile or test failures caused by
    documented breaking changes only.
 4. Rerun the dependency scanner that raised the alert (Snyk, Dependabot,
@@ -52,8 +54,9 @@ advisory is only fixed in a version outside the allowed range.
 
 ## Verification
 
-- Lockfile updated by the package manager; `git diff` shows only the intended
-  packages plus their transitive resolutions.
+- Existing lockfile updated by the package manager; manifest-only repositories
+  explicitly record no lockfile and verify the requested pin. `git diff` shows
+  only the intended packages plus their transitive resolutions.
 - Build and tests pass; the originating scanner no longer reports the
   advisory for the new revision.
 

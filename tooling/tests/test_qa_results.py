@@ -46,10 +46,10 @@ class QAResultsTests(unittest.TestCase):
 
     def test_origin_scenario_and_finding_are_rendered_and_validated(self):
         data = self.payload()
-        data["rows"][0].update({"origin": "human", "scenario": "checkout.negative-1", "finding": "qa-0007"})
+        data["rows"][0].update({"origin": "agent", "scenario": "checkout.negative-1", "finding": "qa-0007"})
         report = RENDER(data)
-        self.assertIn("| 1 | Login | web | member | human | checkout.negative-1 qa-0007 | :white_check_mark: PASS |", report)
-        for key, value in (("origin", "robot"), ("scenario", "Bad Scenario!"), ("finding", "")):
+        self.assertIn("| 1 | Login | web | member | agent | checkout.negative-1 qa-0007 | :white_check_mark: PASS |", report)
+        for key, value in (("origin", "robot"), ("origin", "human"), ("origin", "deterministic"), ("scenario", "Bad Scenario!"), ("finding", "")):
             changed = copy.deepcopy(self.payload())
             changed["rows"][0][key] = value
             with self.subTest(key=key), self.assertRaisesRegex(ValueError, "invalid"):

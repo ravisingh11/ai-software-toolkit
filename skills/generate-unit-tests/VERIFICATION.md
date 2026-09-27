@@ -32,3 +32,7 @@ environment details); link them from the row when they are shareable.
 
 A row is stale once `SKILL.md` or the fixture changes after the recorded
 revision; `tooling/validate-skills.py` requires both rows to exist.
+
+The synthetic fixture has no coverage producer or target. Record coverage as
+unavailable (not passed); judge this seeded run by meaningful behavior tests
+and mutation checks, with that coverage limitation explicit in the ledger.

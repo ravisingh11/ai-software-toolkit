@@ -8,7 +8,7 @@ import re
 import sys
 
 STATUSES = ("pass", "fail", "blocked", "flaky", "inconclusive")
-ORIGINS = ("deterministic", "agent", "human")
+ORIGINS = ("agent",)  # Stronger origins require an independently authenticated producer.
 IDENTIFIER = r"[a-z0-9][a-z0-9.-]{0,63}"
 FAILURE_REPORT = "## QA Report\n\n**Result: FAILED / INCOMPLETE.** No validated passing result is available.\n"
 # Overall precedence. FLAKY blocks: a pass on retry is not proof, so it can never
@@ -120,5 +120,8 @@ def validate_results(root):
 if __name__ == "__main__":
     try:
         validate_results(sys.argv[1] if len(sys.argv) > 1 else "qa-results")
+    except NotPassing as error:
+        print(f"QA results not passing: {error.overall}", file=sys.stderr)
+        sys.exit(2)  # Structurally validated, sanitized non-passing report.
     except (OSError, ValueError) as error:
         sys.exit(f"QA results invalid or incomplete: {error}")

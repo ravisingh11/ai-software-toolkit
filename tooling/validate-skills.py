@@ -82,6 +82,8 @@ def validate_action_skill(name: str) -> None:
     for line in ledger.read_text(encoding="utf-8").splitlines():
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
         if len(cells) >= 4 and cells[0] in SUPPORTED_CLIENTS:
+            if cells[0] in rows:
+                fail(f"skills/{name}/VERIFICATION.md has duplicate client {cells[0]}")
             rows[cells[0]] = cells
     for client in SUPPORTED_CLIENTS:
         if client not in rows:
@@ -91,6 +93,32 @@ def validate_action_skill(name: str) -> None:
             fail(f"skills/{name}/VERIFICATION.md {client} row must say yes or no, not {verified!r}")
         if verified == "yes" and revision in {"", "—", "-"}:
             fail(f"skills/{name}/VERIFICATION.md {client} row is verified without a toolkit revision")
+        if verified == "yes":
+            resolved = subprocess.run(
+                ["git", "rev-parse", "--verify", "--end-of-options", revision + "^{commit}"],
+                cwd=ROOT, capture_output=True, text=True,
+            )
+            if resolved.returncode:
+                fail(f"skills/{name}/VERIFICATION.md {client} has an invalid toolkit revision")
+            commit = resolved.stdout.strip()
+            for directory in (skill_dir, fixture):
+                relative = directory.relative_to(ROOT).as_posix()
+                recorded = subprocess.run(
+                    ["git", "ls-tree", "-r", "--name-only", commit, "--", relative],
+                    cwd=ROOT, capture_output=True, text=True, check=True,
+                ).stdout.splitlines()
+                recorded = {path for path in recorded if not path.endswith("/VERIFICATION.md")}
+                current = {path.relative_to(ROOT).as_posix() for path in directory.rglob("*")
+                           if path.is_file() and path.name != "VERIFICATION.md"
+                           and "__pycache__" not in path.parts and path.suffix != ".pyc"}
+                if current != recorded:
+                    fail(f"skills/{name}/VERIFICATION.md {client} verification is stale")
+                for relative_path in current:
+                    old = subprocess.run(["git", "show", commit + ":" + relative_path],
+                                         cwd=ROOT, capture_output=True, check=True).stdout
+                    if old != (ROOT / relative_path).read_bytes():
+                        fail(f"skills/{name}/VERIFICATION.md {client} verification is stale")
+
 
 
 def validate_no_absolute_paths() -> None:

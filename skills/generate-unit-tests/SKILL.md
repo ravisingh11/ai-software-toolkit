@@ -50,8 +50,9 @@ requires infrastructure the repository does not provide.
 
 - New tests pass; the existing suite passes.
 - Each new test's name states the behavior it protects.
-- When run, the changed-code coverage command meets the repository target,
-  and any remaining uncovered lines are listed with a reason.
+- If the repository supplies a changed-code coverage producer and target,
+  run it and meet that target; otherwise report coverage as unavailable,
+  never as passed. When measured, list remaining uncovered lines with a reason.
 
 ## Outcome report
 
