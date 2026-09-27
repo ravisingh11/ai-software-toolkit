@@ -105,6 +105,8 @@ def validate_action_skill(name: str) -> None:
             placeholders = {"", "—", "-", "n/a", "none", "unknown"}
             if len(row) != 7 or any(row[index].lower() in placeholders for index in (2, 4, 5, 6)):
                 fail(f"skills/{name}/VERIFICATION.md {client} verification metadata is incomplete")
+            if row[5].lower() != "passed":
+                fail(f"skills/{name}/VERIFICATION.md {client} verified outcome must be passed")
             try:
                 recorded_date = date.fromisoformat(row[2])
                 if recorded_date.isoformat() != row[2] or recorded_date > date.today():
