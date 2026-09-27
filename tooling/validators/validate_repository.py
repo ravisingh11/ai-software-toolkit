@@ -541,7 +541,7 @@ def documentation_gaps(root: Path = ROOT) -> list[str]:
     skills_readme = (root / "skills" / "README.md").read_text(encoding="utf-8") if (root / "skills" / "README.md").is_file() else ""
     for skill in sorted((root / "skills").glob("*/SKILL.md")):
         name = skill.parent.name
-        if f"`{name}`" not in skills_readme and f"{name}/SKILL.md" not in skills_readme:
+        if f"`{name}`" not in skills_readme and not mentions_filename(skills_readme, f"{name}/SKILL.md"):
             gaps.append(f"skills/README.md does not mention the {name} skill")
     provider_docs = "".join(
         (root / relative).read_text(encoding="utf-8")
@@ -552,7 +552,7 @@ def documentation_gaps(root: Path = ROOT) -> list[str]:
     if providers_path.is_file():
         for provider_id, provider in load_json_object(providers_path).get("providers", {}).items():
             display_name = provider.get("display_name", provider_id)
-            if display_name not in provider_docs and f"`{provider_id}`" not in provider_docs:
+            if not mentions_filename(provider_docs, display_name) and f"`{provider_id}`" not in provider_docs:
                 gaps.append(f"provider {provider_id} ({display_name}) is not documented in docs/providers, control setup, or the workflows README")
     published = documentation_text(root)
     tooling_paths = []

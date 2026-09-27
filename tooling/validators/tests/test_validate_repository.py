@@ -112,6 +112,20 @@ class DocumentationCoverageTests(unittest.TestCase):
             self.assertEqual(MODULE.documentation_gaps(root), [])
 
 
+    def test_provider_display_names_require_boundaries(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "policies").mkdir()
+            (root / "docs/providers").mkdir(parents=True)
+            (root / "policies/provider-config.yaml").write_text('{"providers":{"oss":{"display_name":"OSS"}}}')
+            guide = root / "docs/providers/README.md"
+            for text in ("FOSSA", "OSS-extra", "extra-OSS"):
+                guide.write_text(text)
+                self.assertTrue(MODULE.documentation_gaps(root))
+            for text in ("OSS is documented", "`oss`", "(OSS)"):
+                guide.write_text(text)
+                self.assertEqual(MODULE.documentation_gaps(root), [])
+
     def test_duplicate_script_names_require_their_relative_paths(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
