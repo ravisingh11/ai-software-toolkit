@@ -383,10 +383,41 @@ class RendererTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.render(source, root / "published")
 
+    def test_execution_details_are_bounded_and_status_consistent(self) -> None:
+        execution = {"version": 1, "started_at": "2026-09-27T01:00:00Z",
+                     "completed_at": "2026-09-27T01:00:12Z", "duration_seconds": 12,
+                     "conclusion": "success"}
+        row = {"evidence_status": "passed", "authoritative_result": {"status": "passed", "check_execution": execution}}
+        details = MODULE._execution_details(row)
+        self.assertEqual(details["duration_seconds"], 12)
+        self.assertEqual(details["availability"], "available")
+        for mutation in ({"version": True}, {"duration_seconds": True}, {"duration_seconds": 11},
+                         {"duration_seconds": -1}, {"conclusion": "failure"}, {"conclusion": []},
+                         {"completed_at": "2026-09-27T01:00:12.123456789Z"}, {"completed_at": "invalid"}, {"started_at": "2026-09-27T02:00:00Z"},
+                         {"started_at": "2026-09-27T01:00:00+00:99"}, {"started_at": None},
+                         {"unexpected": "PRIVATE"}):
+            with self.subTest(mutation=mutation):
+                changed = {**row, "authoritative_result": {"status": "passed", "check_execution": {**execution, **mutation}}}
+                self.assertEqual(MODULE._execution_details(changed), {"availability": "unavailable"})
+        contradictory = {**row, "authoritative_result": {"status": "failed", "check_execution": execution}}
+        self.assertEqual(MODULE._execution_details(contradictory), {"availability": "unavailable"})
+        card = scorecard(enforced=(1, 1), advisory=(0, 0))
+        card["controls"] = [{**row, "id": "build", "effective_mode": "enforced"}]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.render(self.write_source(root, card), root / "output")
+            page = (root / "output/index.html").read_text()
+            self.assertIn("12 seconds", page)
+            self.assertIn("2026-09-27T01:00:12Z", page)
+            self.assertNotIn("Passing evidence reported for this snapshot", page)
+            self.assertIn("Tests passed; failed; skipped; total", page)
+            self.assertIn("Measurements not collected", page)
+
     def test_public_catalog_matches_canonical_controls(self) -> None:
         catalog = json.loads((ROOT / "policies/control-catalog.yaml").read_text())["controls"]
         expected = [(row["id"], "PR Size" if row["id"] == "change-scope" else row["name"], row["purpose"]) for row in catalog]
         self.assertEqual([row[:3] for row in MODULE.PUBLIC_CONTROLS], expected)
+        self.assertEqual(set(MODULE._CHECK_ASSESSMENTS), {row["id"] for row in catalog})
         self.assertEqual(SCRIPT.read_bytes(), (ROOT / ".proof/render_scorecard_badge.py").read_bytes())
 
     def test_individual_checks_preserve_results_without_private_fields(self) -> None:

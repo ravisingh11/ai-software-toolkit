@@ -78,3 +78,21 @@ evidence, reasons, check URLs, raw revisions, and source Markdown remain
 excluded from Pages and available in the source Actions artifact under normal
 repository access. See
 [quick start](../quickstart.md#publish-the-optional-scorecard-badge).
+
+### Optional check execution facts
+
+GitHub check evidence can include `check_execution` version 1: `started_at`,
+`completed_at`, `duration_seconds`, and an allowlisted `conclusion`. The collector
+adds these facts only for valid completed timestamp pairs. It adds no API calls
+or free-form log content. The evaluator verifies the conclusion against evidence
+status and verifies that duration equals the elapsed whole seconds. Missing
+metadata preserves legacy behavior; invalid supplied metadata is rejected.
+The public renderer independently validates these facts before displaying them.
+They describe check execution, not test totals, scan coverage, or finding counts.
+
+This is an additive evidence-v2 field. Old artifacts remain supported. Upgrade
+collector, evaluator, and schema together with the installer refresh workflow;
+older strict evaluators reject results containing the new optional field.
+Per-control assessment descriptions come from a trusted built-in allowlist,
+not provider-supplied prose. Providers that do not emit execution facts continue
+to show unavailable timing.

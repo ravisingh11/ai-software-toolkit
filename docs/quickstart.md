@@ -436,3 +436,9 @@ security finding counts. This is the latest published PR evaluation, not an
 assessment of the current default branch.
 
 Continue with [control setup](proof/control-setup.md) and [rulesets](../rulesets/README.md).
+
+Per-check details also show trusted assessment criteria and validated optional
+execution timestamps, duration, and conclusion. These facts do not imply test
+counts or security finding totals. Missing measurements are explicitly named;
+no numerical result is inferred from a passing check. See the
+[execution evidence contract](proof/implementation.md#optional-check-execution-facts) for upgrade compatibility.

@@ -394,7 +394,10 @@ contains no per-file paths or raw scope findings.
 
 Check names and Details links jump to the corresponding detail section below
 the table. Each section links back to the checks. PR Size jumps directly to its
-files/LOC measurements. On narrow screens, the table scrolls horizontally so
+files/LOC measurements. Other sections describe their specific assessment, inputs,
+and expected result. Validated execution timestamps, duration, and producer conclusion
+are shown when supplied; unavailable facts are not inferred from a passing status.
+Measurement gaps name the missing fields, such as test totals or coverage percentage. On narrow screens, the table scrolls horizontally so
 check names, results, and modes remain on one line.
 
 

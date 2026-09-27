@@ -141,3 +141,9 @@ tests before documentation may describe execution.
 
 See [architecture](architecture.md), [implementation](implementation.md),
 and [producer contract](producer-contract.md).
+
+Per-check details also show trusted assessment criteria and validated optional
+execution timestamps, duration, and conclusion. These facts do not imply test
+counts or security finding totals. Missing measurements are explicitly named;
+no numerical result is inferred from a passing check. See the
+[execution evidence contract](implementation.md#optional-check-execution-facts) for upgrade compatibility.

@@ -103,6 +103,24 @@ def check_run_evidence(control_id: str, provider_name: str, check: dict[str, Any
         result["reason"] = f"GitHub check concluded {conclusion}; the provider did not return a passing result."
         if check.get("name"):
             result["evidence"] = [f"{check['name']}: {conclusion}; {url}"]
+    if check.get("status") == "completed" and conclusion in CONCLUSIONS:
+        evaluator = evaluator_module()
+        try:
+            started = evaluator.check_timestamp(check.get("started_at"))
+            completed = evaluator.check_timestamp(check.get("completed_at"))
+            execution = {
+                "version": 1,
+                "started_at": check["started_at"],
+                "completed_at": check["completed_at"],
+                "duration_seconds": int((completed - started).total_seconds()),
+                "conclusion": conclusion,
+            }
+            evaluator.validate_check_execution(execution, status)
+        except (ValueError, TypeError, OverflowError):
+            # Optional display metadata never changes the check's evidence status.
+            pass
+        else:
+            result["check_execution"] = execution
     return bounded_result(result)
 
 

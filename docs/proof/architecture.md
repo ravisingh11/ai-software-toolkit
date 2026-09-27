@@ -197,3 +197,9 @@ runnable.
 
 See [Proof standard](README.md), [producer contract](producer-contract.md),
 and [control status](control-status.md).
+
+Per-check details also show trusted assessment criteria and validated optional
+execution timestamps, duration, and conclusion. These facts do not imply test
+counts or security finding totals. Missing measurements are explicitly named;
+no numerical result is inferred from a passing check. See the
+[execution evidence contract](implementation.md#optional-check-execution-facts) for upgrade compatibility.
