@@ -39,9 +39,11 @@ removing the lockfile, or disabling audit checks.
    manager; record lockfile verification as not applicable.
 3. Build and run the full test suite; fix compile or test failures caused by
    documented breaking changes only.
-4. Rerun the dependency scanner that raised the alert (Snyk, Dependabot,
-   `pip-audit`, `npm audit`, or `ai-toolkit check`) and confirm the advisory
-   is resolved.
+4. For a security-driven upgrade, rerun the dependency scanner that raised
+   the alert (Snyk, Dependabot, `pip-audit`, `npm audit`, or `ai-toolkit check`)
+   and confirm the advisory is resolved. For a feature or deprecation upgrade,
+   verify the requested behavior and run the repository's normal dependency
+   audit when available; an unavailable audit is not a passing scan.
 5. Write a rollback note: the previous version, the exact revert command, and
    any data or config that the new version migrates.
 
@@ -57,8 +59,10 @@ advisory is only fixed in a version outside the allowed range.
 - Existing lockfile updated by the package manager; manifest-only repositories
   explicitly record no lockfile and verify the requested pin. `git diff` shows
   only the intended packages plus their transitive resolutions.
-- Build and tests pass; the originating scanner no longer reports the
-  advisory for the new revision.
+- Build and tests pass. For a security-driven upgrade, the originating scanner
+  no longer reports the advisory for the new revision. For other upgrades,
+  the requested feature or deprecation outcome is demonstrated; report audit
+  results separately, including unavailable evidence.
 
 ## Outcome report
 

@@ -38,7 +38,7 @@ suppressing a true positive.
    rather than a code change.
 2. Choose the remediation that removes the vulnerability class (parameterized
    query, allow-list, safe API) over one that patches the instance.
-3. Write a regression test using an inert canary and mocked dangerous sink,
+3. For a behavioral code defect, write a regression test using an inert canary and mocked dangerous sink,
    or an isolated disposable sandbox with no credentials, external network, or
    access to developer files. Never execute an exploit against a live vulnerable
    environment. Confirm the safe red test fails before the fix and passes after.
@@ -56,7 +56,18 @@ scanner cannot be rerun and the fix cannot be proven.
 
 ## Verification
 
-- Regression test fails on the old code and passes on the new code.
+- Behavioral code defects: an inert regression fails on the old code and passes
+  on the new code.
+- False positives: record reachability/threat-model analysis, the user's approval
+  of any narrowly scoped suppression, and a rerun of the originating scanner
+  against the exact changed revision. A suppression alone is not proof; retain
+  the analysis and confirm it cannot hide a reachable instance. No artificial
+  red/green code test is required when behavior did not change.
+- Exposed credentials: verify removal without revealing the value and record a
+  clean originating secret-scan result for its relevant scope (including history
+  when supported). Removal or suppression does not revoke an exposed credential:
+  keep remediation incomplete until its owner confirms revocation/rotation and
+  any required history cleanup. Do not manufacture a test containing the secret.
 - The originating scanner or check reports the finding resolved for the new
   revision (`ai-toolkit check` row `passed`, or the finding absent).
 - Existing tests still pass.
@@ -67,7 +78,8 @@ scanner cannot be rerun and the fix cannot be proven.
 Finding: <tool / rule / location / severity>
 Confirmed: <yes, with reachable input | false positive, with reason>
 Remediation: <what changed and why it removes the class>
-Regression test: <path and what it proves>
+Verification path: <behavioral regression | false-positive analysis | credential remediation>
+Regression test: <path and what it proves | not applicable, with reason>
 Residual risk: <what remains, credentials to rotate, follow-ups>
 Verified: <commands run and results>
 ```
