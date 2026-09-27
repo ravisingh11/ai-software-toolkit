@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -464,6 +465,47 @@ def install(
     return plan
 
 
+def repository_visibility(target: Path) -> str:
+    """Read the target repository visibility; unavailable evidence stays unknown."""
+    environment = os.environ.copy()
+    environment.pop("GH_REPO", None)
+    try:
+        result = subprocess.run(
+            ["gh", "repo", "view", "--json", "visibility"],
+            cwd=target.resolve(),
+            env=environment,
+            text=True,
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+        if result.returncode != 0:
+            return "unknown"
+        payload = json.loads(result.stdout)
+        visibility = payload.get("visibility") if isinstance(payload, dict) else None
+        if isinstance(visibility, str) and visibility.lower() in {"public", "private", "internal"}:
+            return visibility.lower()
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        pass
+    return "unknown"
+
+
+def reporting_guidance(target: Path) -> str:
+    visibility = repository_visibility(target)
+    default = (
+        f"Reporting (repository visibility: {visibility}): Actions summaries and artifacts "
+        "are the default; installing files does not enable publication."
+    )
+    if visibility == "public":
+        return default + " Optional Pages dashboard: install with --scorecard-badge and configure Pages."
+    return default + (
+        " Keep reports inside Actions. For a dashboard, configure a private Pages destination "
+        "and set GUARDRAILS_SCORECARD_BADGE_PAGES_ACCESS=private before enabling the publisher. "
+        "The publisher verifies repository visibility and Pages access before publishing; "
+        "unknown visibility blocks publication. See docs/quickstart.md."
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
@@ -493,6 +535,8 @@ def main() -> int:
         for item in plan:
             action = "remove" if item.kind == "remove" else "install"
             print(f"- {action}: {item.destination}")
+        if not args.no_actions and not args.remove_scorecard_badge:
+            print(reporting_guidance(args.target))
         return 0
     except (OSError, ValueError) as error:
         print(f"ERROR {error}", file=sys.stderr)
