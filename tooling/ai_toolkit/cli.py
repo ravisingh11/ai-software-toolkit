@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -671,7 +672,12 @@ def install_and_record(target: Path, names: list[str], destinations: dict[str, P
     # Directories the install may create; on rollback the ones that are still empty go too.
     candidate_dirs = sorted({str(parent) for path in tracked for parent in (target / path).parents if parent != target and target in parent.parents}, key=len, reverse=True)
     preexisting_dirs = {path for path in candidate_dirs if Path(path).is_dir()}
-    backup_root = _backup(target, tracked)
+    # A private, uniquely named backup: it is removed afterwards and must never collide
+    # with an update backup that the lock still references for --rollback.
+    backups = target / ".artifacts" / "ai-toolkit" / "backup"
+    backups.mkdir(parents=True, exist_ok=True)
+    backup_root = Path(tempfile.mkdtemp(prefix="install-", dir=backups))
+    _backup(target, tracked, backup_root)
     results = []
     try:
         for client, destination in destinations.items():
@@ -815,8 +821,8 @@ def _timestamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%SZ")
 
 
-def _backup(target: Path, paths: list[str]) -> Path:
-    backup_root = target / ".artifacts" / "ai-toolkit" / "backup" / _timestamp()
+def _backup(target: Path, paths: list[str], backup_root: Path | None = None) -> Path:
+    backup_root = backup_root or target / ".artifacts" / "ai-toolkit" / "backup" / _timestamp()
     for relative_path in paths:
         source = target / relative_path
         if source.is_file():

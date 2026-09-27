@@ -914,6 +914,21 @@ class ReviewRegressionTests(CliFixture):
         backups = self.target / ".artifacts" / "ai-toolkit" / "backup"
         self.assertEqual(sorted(backups.iterdir()) if backups.is_dir() else [], [])
 
+    def test_install_backups_never_disturb_an_update_backup(self):
+        self.assertEqual(self.init("--components", "proof")[0], 0)
+        code, out, _ = run_cli("update", "--target", str(self.target), "--force", "--json")
+        self.assertEqual(code, 0, out)
+        update_backup = self.target / json.loads(out)["backup"]
+        self.assertTrue(update_backup.is_dir())
+        # Even in the same second as the update, the install's backup is its own directory.
+        with patch.object(cli, "_timestamp", return_value=update_backup.name):
+            code, out, _ = run_cli("skills", "install", "--skill", "code-review", "--target", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertTrue(update_backup.is_dir())
+        self.assertEqual([path.name for path in update_backup.parent.iterdir()], [update_backup.name])
+        code, out, _ = run_cli("update", "--target", str(self.target), "--rollback", "--dry-run")
+        self.assertEqual(code, 0, out)
+
     def test_update_never_adopts_skipped_skills_into_the_lock(self):
         self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
         mine = self.target / ".agents" / "skills" / "security-audit-lite"
