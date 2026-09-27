@@ -86,7 +86,7 @@ class ActionSkillValidationTests(unittest.TestCase):
         revision = git("rev-parse", "HEAD")
         ledger = self.skills / "fix-ci" / "VERIFICATION.md"
         original_ledger = ledger.read_text()
-        good = f"| codex | yes | 2026-01-01 | {revision} | client 1.0 | Fixed with passing checks | https://example.test/evidence |"
+        good = f"| codex | yes | 2026-01-01 | {revision} | client 1.0 | passed | https://example.test/evidence |"
         original_row = "| codex | no | — | — | — | — | — |"
         ledger.write_text(original_ledger.replace(original_row, good))
         self.module.validate_action_skill("fix-ci")
@@ -98,6 +98,10 @@ class ActionSkillValidationTests(unittest.TestCase):
         for bad_date in ("2026-02-30", "2099-01-01", "20260101"):
             ledger.write_text(original_ledger.replace(original_row, good.replace("2026-01-01", bad_date)))
             self.assert_fails("date is invalid")
+        for outcome in ("Failed checks", "blocked", "inconclusive", "not passed", "passed with failures"):
+            with self.subTest(outcome=outcome):
+                ledger.write_text(original_ledger.replace(original_row, good.replace("| passed |", f"| {outcome} |")))
+                self.assert_fails("verified outcome must be passed")
         ledger.write_text(original_ledger.replace(original_row, good.replace("https://example.test/evidence", "not shared")))
         self.assert_fails("needs evidence")
         ledger.write_text(original_ledger.replace(original_row, good.replace("https://example.test/evidence", "withheld: private environment transcript retained by maintainer")))

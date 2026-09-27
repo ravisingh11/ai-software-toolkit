@@ -226,3 +226,6 @@ workflow a tamper-resistant security gate.
 A standalone `address-pr-findings` install bundles review contracts but does
 not install sibling action skills. A routed finding blocks with the missing
 skill named until its required sibling is installed; triage is still available.
+
+Affirmative skill verification rows require Outcome `passed`; a failed, blocked,
+or inconclusive run must remain unverified even when its evidence is recorded.

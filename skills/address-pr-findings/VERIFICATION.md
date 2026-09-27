@@ -25,6 +25,9 @@ environment details); link them from the row when they are shareable.
 
 ## Ledger
 
+For a `yes` row, set Outcome to `passed` only after every required check passes.
+Keep failed, blocked, or inconclusive runs marked `no`.
+
 | Client | Verified | Date | Toolkit revision | Agent version | Outcome | Evidence link |
 | --- | --- | --- | --- | --- | --- | --- |
 | codex | no | — | — | — | — | — |
