@@ -133,8 +133,18 @@ def require_installable(names: list[str], destination_root: Path, boundary: Path
         if not os.access(destination, os.W_OK):
             raise ToolkitError(f"skill destination is not writable: {destination}")
         for source in skill_files(name):
-            file_destination = destination / source.relative_to(source_dir() / name)
-            if file_destination.is_symlink() or any(parent.is_symlink() for parent in file_destination.parents if parent != destination and destination in parent.parents):
+            relative_path = source.relative_to(source_dir() / name)
+            # Every intermediate directory the copy would create or enter must already be a
+            # real directory or absent; a file or symlink in the way fails the whole install.
+            current = destination
+            for part in relative_path.parts[:-1]:
+                current = current / part
+                if current.is_symlink():
+                    raise ToolkitError(f"refusing to install skills through a symlink: {current}")
+                if current.exists() and not current.is_dir():
+                    raise ToolkitError(f"skill path exists but is not a directory: {current}")
+            file_destination = destination / relative_path
+            if file_destination.is_symlink():
                 raise ToolkitError(f"refusing to install skills through a symlink: {file_destination}")
             if file_destination.exists() and not file_destination.is_file():
                 raise ToolkitError(f"skill file destination is not a regular file: {file_destination}")
