@@ -125,6 +125,8 @@ class DocumentationCoverageTests(unittest.TestCase):
             ])
             readme.write_text("`tooling/a/check.py` and `tooling/b/check.py`")
             self.assertEqual(MODULE.documentation_gaps(root), [])
+            readme.write_text("`tooling/a/check.py` `vendor/tooling/b/check.py`")
+            self.assertTrue(any("tooling/b/check.py" in gap for gap in MODULE.documentation_gaps(root)))
             (root / "tooling/b/check.py").unlink()
             readme.write_text("`unrelated/check.py`")
             self.assertEqual(MODULE.documentation_gaps(root), [
