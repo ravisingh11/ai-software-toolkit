@@ -16,11 +16,11 @@ prerequisites. Docker and GitHub credentials are optional; missing providers
 produce no result, not a pass.
 
 > [!NOTE]
-> v1.0.0 predates the rename of Guardrails to Proof and uses `.guardrails/`
-> and `GUARDRAILS_*`. Until the next release, use the
-> [v1.0.0 quick start](https://github.com/ravisingh11/ai-software-toolkit/blob/v1.0.0/docs/quickstart.md)
-> with a v1.0.0 checkout, or run this guide from a `main` checkout. To move an
-> existing installation, see
+> This guide uses the Proof names, which no release contains yet, so step 1
+> clones `main`. v1.0.0 predates the rename and uses `.guardrails/` and
+> `GUARDRAILS_*`; to install it, follow the
+> [v1.0.0 quick start](https://github.com/ravisingh11/ai-software-toolkit/blob/v1.0.0/docs/quickstart.md).
+> To move an existing installation, see
 > [migrating from Guardrails](proof/migrating-from-guardrails.md).
 
 The numbered steps below adapt that flow to **your own repository**. Use its
@@ -28,10 +28,10 @@ real commands and ground-truth documents, not the demo's paths.
 
 ## 1. Preview and install Core
 
-Clone the released source, then run the installer from that checkout:
+Clone the source, then run the installer from that checkout:
 
 ```sh
-git clone --branch v1.0.0 https://github.com/ravisingh11/ai-software-toolkit.git
+git clone https://github.com/ravisingh11/ai-software-toolkit.git
 cd ai-software-toolkit
 python3 tooling/install.py --target /path/to/repo --dry-run
 python3 tooling/install.py --target /path/to/repo
@@ -351,7 +351,7 @@ private Pages eligibility, keep the Actions reports as the supported default.
 
 ## Publish the optional scorecard badge
 
-The v1.0.0 installer supports the optional publisher. Run the installation
+The installer supports the optional publisher. Run the installation
 commands below from the released standards checkout, not the consumer.
 
 GitHub's native **Scorecard Workflow** badge reports whether the workflow ran

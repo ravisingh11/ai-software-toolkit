@@ -17,7 +17,7 @@ first acceptance criterion through release and feedback.
 The repository is **`ravisingh11/ai-software-toolkit`**, formerly
 `ravisingh11/engineering-standards`. Existing forks remain connected. See the
 [rename migration guide](docs/repository-rename.md) for remote, workflow, and
-Pages updates; the `.proof/` runtime contract is unchanged.
+Pages updates; the repository rename did not change the runtime contract.
 
 ## What the toolkit brings together
 
@@ -46,8 +46,8 @@ optional integrations, and future work.
 
 ## Start here
 
-Choose the entry point above for skills or QA. The demo below introduces the
-Proof component; it does not include the newer QA bootstrap and functional-QA
+Choose the entry point above for skills or QA. The demo below introduces
+Proof (named Guardrails in v1.0.0); it does not include the newer QA bootstrap and functional-QA
 integration listed under [Unreleased](CHANGELOG.md#unreleased).
 
 Try the embedded Python demo in an isolated directory with Git, Python 3.11+
@@ -55,11 +55,9 @@ and a POSIX shell. No account, token, Docker, or paid service is required to
 get a scorecard.
 
 > [!NOTE]
-> The demo pins **v1.0.0**, released before Guardrails was renamed Proof. That
-> release uses `.guardrails/` and `GUARDRAILS_*` in place of `.proof/` and
-> `PROOF_*`; follow the
-> [v1.0.0 README](https://github.com/ravisingh11/ai-software-toolkit/tree/v1.0.0#start-here)
-> for commands that match it until the next release.
+> The demo pins **v1.0.0**, released before Guardrails was renamed Proof, so
+> its commands use that release's `.guardrails/` and `GUARDRAILS_*` names. The
+> next release switches them to `.proof/` and `PROOF_*`.
 
 ```sh
 demo_workspace="$(mktemp -d)"
@@ -71,20 +69,20 @@ cd "$demo_workspace/python-demo"
 # The embedded demo already has an installation; refresh its shipped runtime.
 python3 "$standards_root/tooling/install.py" --target . --refresh-existing --dry-run
 python3 "$standards_root/tooling/install.py" --target . --refresh-existing
-python3 .proof/configure.py --set unit-tests=advisory
-export PROOF_BUILD_COMMAND='python3 -m compileall -q app.py test_app.py tools .proof'
-export PROOF_UNIT_TEST_COMMAND="python3 -m unittest discover -s . -p 'test_*.py'"
-export PROOF_WORKING_DIRECTORY='.'
+python3 .guardrails/configure.py --set unit-tests=advisory
+export GUARDRAILS_BUILD_COMMAND='python3 -m compileall -q app.py test_app.py tools .guardrails'
+export GUARDRAILS_UNIT_TEST_COMMAND="python3 -m unittest discover -s . -p 'test_*.py'"
+export GUARDRAILS_WORKING_DIRECTORY='.'
 
 # Local evidence requires a committed, clean HEAD. Identity is demo-only.
 git init -q
 git add .
-git -c user.name='Proof Demo' -c user.email='demo@example.invalid' commit -qm 'chore: initialize Proof demo'
-python3 .proof/scan.py
+git -c user.name='Guardrails Demo' -c user.email='demo@example.invalid' commit -qm 'chore: initialize Guardrails demo'
+python3 .guardrails/scan.py
 ```
 
 The scanner executes the configured demo commands and writes JSON evidence and
-a timestamped Markdown report under `.artifacts/proof/`. It does not push
+a timestamped Markdown report under `.artifacts/guardrails/`. It does not push
 anything. Build and unit tests can pass locally; unconfigured commands,
 unavailable scanner tools, and GitHub-only checks do **not** become passes.
 Expect advisory gaps, not an all-green promise.
