@@ -112,6 +112,19 @@ class DocumentationCoverageTests(unittest.TestCase):
             self.assertEqual(MODULE.documentation_gaps(root), [])
 
 
+    def test_extensionless_commands_require_documentation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "tooling").mkdir()
+            (root / "tooling/release").write_text("#!/bin/sh\necho release\n")
+            executable = root / "tooling/utility"
+            executable.write_bytes(b"executable fixture")
+            executable.chmod(0o755)
+            (root / "tooling/data.txt").write_text("data")
+            self.assertEqual(len(MODULE.documentation_gaps(root)), 2)
+            (root / "README.md").write_text("`tooling/release` and `tooling/utility`")
+            self.assertEqual(MODULE.documentation_gaps(root), [])
+
     def test_provider_display_names_require_boundaries(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

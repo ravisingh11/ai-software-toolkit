@@ -558,9 +558,13 @@ def documentation_gaps(root: Path = ROOT) -> list[str]:
     tooling_paths = []
     for path in sorted((root / "tooling").rglob("*")):
         relative = path.relative_to(root)
-        if (not path.is_file() or path.suffix not in {".py", ".sh"}
+        if (not path.is_file()
                 or any(part in {"tests", "fixtures", "__pycache__"} for part in relative.parts)
                 or path.name == "__init__.py"):
+            continue
+        with path.open("rb") as source:
+            has_shebang = source.read(2) == b"#!"
+        if path.suffix not in {".py", ".sh"} and not (path.stat().st_mode & 0o111) and not has_shebang:
             continue
         tooling_paths.append(relative)
     names = [path.name for path in tooling_paths]
