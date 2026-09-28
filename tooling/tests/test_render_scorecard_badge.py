@@ -407,11 +407,49 @@ class RendererTests(unittest.TestCase):
             root = Path(directory)
             self.render(self.write_source(root, card), root / "output")
             page = (root / "output/index.html").read_text()
-            self.assertIn("12 seconds", page)
+            self.assertIn("12s (12 seconds)", page)
+            self.assertIn("Ran for <strong>12s</strong>", page)
             self.assertIn("2026-09-27T01:00:12Z", page)
             self.assertNotIn("Passing evidence reported for this snapshot", page)
             self.assertIn("Tests passed; failed; skipped; total", page)
             self.assertIn("Measurements not collected", page)
+
+    def test_durations_are_human_readable(self) -> None:
+        for seconds, expected in ((0, "0s"), (59, "59s"), (60, "1m 0s"), (743, "12m 23s"), (3723, "1h 2m 3s")):
+            self.assertEqual(MODULE._duration(seconds), expected)
+
+    def test_decision_meaning_reflects_enforcement(self) -> None:
+        cases = (
+            (scorecard(), "ALLOW means the enforced controls are satisfied", False),
+            (scorecard(status="ORANGE", enforced=(0, 0), advisory=(3, 4)), "not gated by any control", True),
+            (scorecard(status="RED", decision="block", enforced=(9, 10)), "BLOCK means at least one enforced control", False),
+        )
+        for card, expected, ungated in cases:
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.render(self.write_source(root, card), root / "output")
+                page = (root / "output/index.html").read_text()
+                markdown = (root / "output/scorecard.md").read_text()
+                self.assertIn(expected, page)
+                self.assertIn(expected, markdown)
+                self.assertEqual("Advisory only" in page, ungated)
+                if card["decision"] == "block":
+                    self.assertNotIn("ALLOW means", page)
+
+    def test_attention_counts_unnamed_custom_controls(self) -> None:
+        card = self.breakdown_card()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.render(self.write_source(root, card), root / "output")
+            page = (root / "output/index.html").read_text()
+            self.assertIn("3 custom controls without a passing result", page)
+            self.assertNotIn("private-", page)
+        card = scorecard()
+        card["controls"] = [{"id": "build", "effective_mode": "enforced", "evidence_status": "passed"}]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.render(self.write_source(root, card), root / "output")
+            self.assertNotIn('id="attention-title"', (root / "output/index.html").read_text())
 
     def test_public_catalog_matches_canonical_controls(self) -> None:
         catalog = json.loads((ROOT / "policies/control-catalog.yaml").read_text())["controls"]
@@ -450,7 +488,18 @@ class RendererTests(unittest.TestCase):
                 target = "size-title" if control_id == "change-scope" else f"check-{control_id}"
                 self.assertIn(f'href="#{target}"', page)
                 self.assertEqual(page.count(f'id="{target}"'), 1)
-            self.assertIn('<th scope="col">Check</th><th scope="col">Result</th><th scope="col">Mode</th>', page)
+            self.assertIn('<th scope="col">Check</th><th scope="col">Result</th><th scope="col" class="mode-cell">Mode</th>', page)
+            self.assertNotIn("Details ↓", page)
+            # Checks needing attention lead the page, most severe first, before the totals.
+            attention = page[page.index('id="attention-title"'):page.index('<div class="metrics">')]
+            self.assertLess(attention.index('href="#size-title"'), attention.index('href="#check-deep-sast"'))
+            self.assertLess(attention.index('href="#check-deep-sast"'), attention.index('href="#check-functional-qa"'))
+            self.assertNotIn('href="#check-build"', attention)
+            # Detail cards: attention first, then passes; inactive checks are grouped last.
+            self.assertLess(page.index('id="check-deep-sast"'), page.index('id="check-build"'))
+            self.assertLess(page.index('id="check-build"'), page.index('id="inactive-title"'))
+            self.assertLess(page.index('id="inactive-title"'), page.index('id="check-runtime-soak"'))
+            self.assertIn("Not activated or not reported <span>(", page)
             # Each check shows its canonical catalog ID, in the table row and in its detail heading.
             self.assertIn('<a href="#check-build">Build</a> <code class="check-id">build</code>', page)
             self.assertIn('<h3>Build <code class="check-id">build</code></h3>', page)
