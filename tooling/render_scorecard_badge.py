@@ -244,7 +244,7 @@ _CHECK_ASSESSMENTS = {'repository-validation': ('Installed Proof contracts',
  'migration-validation': ('Migration safety',
                           'Repository-specific migration checks, or declared absence of migrations',
                           'Repository migration validator succeeds',
-                          'Migrations checked; unsafe changes'),
+                          'Migrations checked; failed'),
  'build': ('Build and packaging',
            'Repository-configured build command',
            'Build command completes successfully',
@@ -391,7 +391,8 @@ _MEASURED_FIELDS = {"unit-tests": ("tests", ("total", "passed", "failed", "skipp
                     "changed-code-coverage": ("coverage", ("measured_lines", "covered_lines", "threshold_percent")),
                     "repository-validation": ("contracts", ("total", "passed", "failed", "not_run")),
                     "documentation-validation": ("documentation", ("markdown_files", "links_checked", "broken_links", "mapping_failures")),
-                    "repository-ground-truth": ("documents", ("declared", "found", "missing"))}
+                    "repository-ground-truth": ("documents", ("declared", "found", "missing")),
+                    "migration-validation": ("migrations", ("checked", "failed"))}
 
 
 def _measurements_consistent(kind: str, numbers: dict[str, int], status: str) -> bool:
@@ -411,6 +412,8 @@ def _measurements_consistent(kind: str, numbers: dict[str, int], status: str) ->
     if kind == "documentation":
         return (numbers["broken_links"] <= numbers["links_checked"]
                 and passed == (numbers["broken_links"] + numbers["mapping_failures"] == 0))
+    if kind == "migrations":
+        return numbers["failed"] <= numbers["checked"] and not (passed and numbers["failed"])
     return numbers["declared"] == numbers["found"] + numbers["missing"] and passed == (numbers["missing"] == 0)
 
 
@@ -456,6 +459,11 @@ def _measurement_summary(measurements: dict[str, Any]) -> str | None:
         counts = measurements["documents"]
         return (f'{counts["found"]:,} of {counts["declared"]:,} declared documents found · '
                 f'{counts["missing"]:,} missing')
+    if "migrations" in measurements:
+        counts = measurements["migrations"]
+        if not counts["checked"]:
+            return "No migrations found to check"
+        return f'{counts["checked"]:,} migrations checked · {counts["failed"]:,} failed'
     coverage = measurements["coverage"]
     measured, covered = coverage["measured_lines"], coverage["covered_lines"]
     if not measured:
@@ -550,8 +558,15 @@ def _attention_html(controls: list[dict[str, Any]], breakdown: dict[str, Any]) -
     return '<section class="attention" aria-labelledby="attention-title"><h2 id="attention-title">Needs attention</h2><ul>' + ''.join(items) + '</ul></section>'
 
 
-def _counts_gap(metrics: str) -> str:
+# Repository-owned commands whose only portable signal is their exit status.
+_EXIT_STATUS_ONLY = {"build", "format-and-lint"}
+
+
+def _counts_gap(metrics: str, control_id: str = "") -> str:
     """Explain, in a sentence, which counts this check type could report but did not."""
+    if control_id in _EXIT_STATUS_ONLY:
+        return ("Only the command's exit status is reported. This repository supplies the command, so counts such as "
+                f"{metrics[:1].lower() + metrics[1:].replace('; ', ', ')} depend on its tools; open the source report for their output.")
     fields = ", ".join(part.strip() for part in metrics.split(";"))
     return f"Only the overall result was reported. This report does not include {fields[:1].lower() + fields[1:]}."
 
@@ -650,7 +665,7 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
                 run_facts += f'<p class="check-measure"><strong>{html.escape(measured)}</strong><span>{_SELF_REPORTED_NOTE}</span></p>'
                 criteria.append(("Self-reported measurements", measured))
             elif row["id"] != "change-scope":
-                criteria.append(("Counts not reported", _counts_gap(metrics)))
+                criteria.append(("Counts not reported", _counts_gap(metrics, row["id"])))
             criteria_rows = ''.join(f'<tr><th scope="row">{html.escape(key)}</th><td>{html.escape(value)}</td></tr>' for key, value in criteria)
             measurements = '<details class="criteria"><summary>Assessment criteria</summary><table class="assessment-table"><caption>Assessment criteria and available detail</caption><tbody>' + criteria_rows + '</tbody></table></details>'
             if row["id"] == "change-scope":

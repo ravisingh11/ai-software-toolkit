@@ -406,6 +406,7 @@ MEASURED_CONTROLS = {
     "repository-validation": "contracts",
     "documentation-validation": "documentation",
     "repository-ground-truth": "documents",
+    "migration-validation": "migrations",
 }
 MEASUREMENT_FIELDS = {
     "tests": {"total", "passed", "failed", "skipped"},
@@ -413,6 +414,7 @@ MEASUREMENT_FIELDS = {
     "contracts": {"total", "passed", "failed", "not_run"},
     "documentation": {"markdown_files", "links_checked", "broken_links", "mapping_failures"},
     "documents": {"declared", "found", "missing"},
+    "migrations": {"checked", "failed"},
 }
 
 
@@ -446,6 +448,11 @@ def _measurement_problem(kind: str, numbers: dict[str, int], status: str) -> str
             return "document measurements are inconsistent"
         if (status == "passed") != (numbers["missing"] == 0):
             return "document measurements contradict the status"
+    elif kind == "migrations":
+        if numbers["failed"] > numbers["checked"]:
+            return "migration measurements are inconsistent"
+        if status == "passed" and numbers["failed"]:
+            return "migration measurements contradict a passed status"
     return None
 
 

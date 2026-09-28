@@ -469,7 +469,10 @@ appear on the dashboard as **self-reported** measurements. The Validate
 workflow's validators write their counts (contract groups passed, failed, and
 not run; Markdown files, local links checked, broken links, and mapping
 failures; ground-truth documents declared, found, and missing) without
-configuration. The Unit Tests and Changed Code Coverage
+configuration. A migration validation command can write migrations checked
+and failed to the same file. Build and Format and Lint show only their
+command's exit status, because the repository owns those commands and their
+output formats. The Unit Tests and Changed Code Coverage
 workflows set `PROOF_MEASUREMENTS_FILE`; a configured command that writes it
 (for example with `.proof/measurements.py unittest`, `junit`, or
 `diff-cover`) gets its numbers packaged into a run-bound artifact. Because
