@@ -206,7 +206,7 @@ class RendererTests(unittest.TestCase):
                 metadata = self.render(self.write_source(root, self.scope_card(exceeded=exceeded)), output)
                 self.assertEqual(metadata["change_scope"]["availability"], "available")
                 page = (output / "index.html").read_text()
-                for phrase in ("PR Size · Files &amp; LOC", "Advisory", "does not block", "Counted files", "Excluded", "Added + deleted lines"):
+                for phrase in ("Files &amp; lines of code", "Advisory", "does not block", "Counted files", "Excluded", "Added + deleted lines"):
                     self.assertIn(phrase, page)
                 self.assertIn("Above limit" if exceeded else "Within limit", page)
                 for path in output.iterdir():
@@ -228,7 +228,9 @@ class RendererTests(unittest.TestCase):
             card["controls"][-1]["effective_mode"] = "enforced"
             output = root / "published"
             self.render(self.write_source(root, card), output)
-            self.assertIn("Enforced · exceeding a limit blocks", (output / "index.html").read_text())
+            page = (output / "index.html").read_text()
+            self.assertIn("Exceeding a limit blocks the policy decision.", page)
+            self.assertNotIn("warns only", page)
 
     def test_untrusted_or_missing_producer_does_not_publish_metrics(self) -> None:
         for field, value in (("authoritative_provider", {"id": "other"}), ("evidence_status", "no_result"), ("effective_mode", "not_activated")):
@@ -513,6 +515,11 @@ class RendererTests(unittest.TestCase):
             self.assertIn("Not activated checks are excluded from the active-control totals.", page)
             self.assertIn("whether they count toward the totals is unknown", page)
             self.assertNotIn("excluded from the totals above", page)
+            # PR Size measurements are a subsection of its card, not a nested titled panel.
+            scope_card = page[page.index('id="check-change-scope"'):page.index('id="check-deep-sast"')]
+            self.assertIn('<h4 id="size-title"', scope_card)
+            self.assertNotIn("<h2", scope_card)
+            self.assertEqual(scope_card.count("Advisory"), 1)
             # Each check shows its canonical catalog ID, in the table row and in its detail heading.
             self.assertIn('<a href="#check-build">Build</a> <code class="check-id">build</code>', page)
             self.assertIn('<h3>Build <code class="check-id">build</code></h3>', page)

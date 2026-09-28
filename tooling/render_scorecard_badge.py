@@ -648,12 +648,14 @@ def _scope_markdown(scope: dict[str, Any]) -> str:
 
 
 def _scope_html(scope: dict[str, Any]) -> str:
-    heading = '<section class="scope-panel" aria-labelledby="size-title"><p class="eyebrow">Change scope</p><h2 id="size-title">PR Size · Files &amp; LOC</h2>' + f'<p>{_SIZE_GUIDANCE}</p>'
+    # Rendered inside the PR Size check card, so it is a subsection: no repeated
+    # title, and the card's mode label already states advisory versus enforced.
+    heading = '<section class="scope-block" aria-labelledby="size-title"><h4 id="size-title" tabindex="-1">Files &amp; lines of code</h4>' + f'<p>{_SIZE_GUIDANCE}</p>'
     if scope["availability"] != "available":
         return heading + '<p><strong>Measurements unavailable</strong></p><p>This source does not contain validated PR size measurements. No size verdict is available; missing measurements are not a pass.</p></section>'
     metrics, limits = scope["metrics"], scope["thresholds"]
     advisory = scope["mode"] == "advisory"
-    meaning = "Advisory · warns only; does not block the policy decision." if advisory else "Enforced · exceeding a limit blocks the policy decision."
+    meaning = "Exceeding a limit warns only; it does not block the policy decision." if advisory else "Exceeding a limit blocks the policy decision."
     rows = []
     for key, limit, label in _SCOPE_ROWS:
         exceeded = metrics[key] > limits[limit]
@@ -900,6 +902,10 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .size-result{display:inline-block;white-space:nowrap;padding:3px 9px;border-radius:5px;background:var(--wash);color:var(--tone);font-weight:650}
 .scope-totals{display:grid;grid-template-columns:1fr 1fr;gap:20px}.scope-totals strong{color:var(--ink)}
 .size-footnote{margin-bottom:0}
+.scope-block{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.scope-block h4{margin:0;font-size:14px;line-height:1.4;color:var(--ink)}
+.check-detail .scope-block p{margin:6px 0 0}.check-detail .scope-block .scope-mode{color:var(--ink);font-weight:600}
+.check-detail .scope-block .size-footnote{margin-top:12px}
 .checks{margin-top:36px}.checks h2{font-size:28px;margin:0}.checks-intro{color:var(--muted);max-width:850px;font-size:14px}
 .checks-table-wrap{overflow-x:auto}.checks-table-wrap:focus-visible{outline:3px solid #227b92;outline-offset:3px}
 .attention{margin:0 0 22px;padding:20px 24px;background:var(--paper);border:1px solid var(--line);border-radius:12px}
@@ -915,7 +921,7 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .check-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;font-weight:400;color:var(--muted);margin-left:6px}
 .checks-table .size-result{font-size:11px;padding:2px 7px}.checks-table tbody tr:not(.check-category):hover{background:#f5f9f9}
 .assessment-table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px}.assessment-table caption{text-align:left;color:var(--muted);font-size:12px;padding-bottom:8px}.assessment-table th,.assessment-table td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:10px 8px}.assessment-table th{width:180px;font-weight:600}.assessment-table td{overflow-wrap:anywhere}
-.check-detail,#checks-title,#size-title{scroll-margin-top:24px}.check-detail:focus,#checks-title:focus{outline:2px solid var(--accent);outline-offset:4px}
+.check-detail,#checks-title,#size-title{scroll-margin-top:24px}#size-title:focus{outline:2px solid var(--accent);outline-offset:4px}.check-detail:focus,#checks-title:focus{outline:2px solid var(--accent);outline-offset:4px}
 .check-detail{margin-top:16px;padding:22px;border:1px solid var(--line);border-top:3px solid var(--tone);border-radius:10px;background:var(--paper);display:flex;flex-direction:column}
 .check-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.check-top h3{font-size:16px;line-height:1.4;margin:0}.check-top .size-result{font-size:11px}
 .check-detail p{font-size:13px;color:var(--muted);margin:12px 0 0}.check-detail .check-mode{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.6px;color:var(--ink)}
