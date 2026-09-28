@@ -725,6 +725,53 @@ class MeasurementsEvidenceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     MODULE.validate_measurements(control_id, measurements, status)
 
+    CONTRACTS = {"version": 1, "source": "pull-request-workflow",
+                 "contracts": {"total": 4, "passed": 4, "failed": 0, "not_run": 0}}
+    DOCUMENTATION = {"version": 1, "source": "pull-request-workflow",
+                     "documentation": {"markdown_files": 30, "links_checked": 120, "broken_links": 0,
+                                       "mapping_failures": 0}}
+    DOCUMENTS = {"version": 1, "source": "pull-request-workflow",
+                 "documents": {"declared": 6, "found": 6, "missing": 0}}
+
+    def test_accepts_consistent_validator_measurements(self) -> None:
+        def changed(base: dict, kind: str, **values: object) -> dict:
+            value = copy.deepcopy(base)
+            value[kind].update(values)
+            return value
+        for control_id, measurements, status in (
+            ("repository-validation", self.CONTRACTS, "passed"),
+            ("repository-validation", changed(self.CONTRACTS, "contracts", passed=1, failed=1, not_run=2), "failed"),
+            ("documentation-validation", self.DOCUMENTATION, "passed"),
+            ("documentation-validation", changed(self.DOCUMENTATION, "documentation", mapping_failures=1), "failed"),
+            ("repository-ground-truth", self.DOCUMENTS, "passed"),
+            ("repository-ground-truth", changed(self.DOCUMENTS, "documents", found=5, missing=1), "failed"),
+        ):
+            with self.subTest(control_id=control_id, status=status):
+                self.validate(control_id, "repository-validator", measurements, status)
+
+    def test_rejects_contradictory_validator_measurements(self) -> None:
+        def changed(base: dict, kind: str, **values: object) -> dict:
+            value = copy.deepcopy(base)
+            value[kind].update(values)
+            return value
+        for control_id, measurements, status in (
+            ("repository-validation", changed(self.CONTRACTS, "contracts", total=5), "passed"),
+            ("repository-validation", changed(self.CONTRACTS, "contracts", total=0, passed=0), "passed"),
+            ("repository-validation", changed(self.CONTRACTS, "contracts", passed=3, not_run=1), "passed"),
+            ("repository-validation", self.CONTRACTS, "failed"),
+            ("repository-validation", changed(self.CONTRACTS, "contracts", passed=3, not_run=1), "failed"),
+            ("documentation-validation", changed(self.DOCUMENTATION, "documentation", broken_links=121), "failed"),
+            ("documentation-validation", changed(self.DOCUMENTATION, "documentation", broken_links=1), "passed"),
+            ("documentation-validation", self.DOCUMENTATION, "failed"),
+            ("repository-ground-truth", changed(self.DOCUMENTS, "documents", found=5), "passed"),
+            ("repository-ground-truth", changed(self.DOCUMENTS, "documents", found=5, missing=1), "passed"),
+            ("repository-ground-truth", self.DOCUMENTS, "failed"),
+            ("repository-ground-truth", self.CONTRACTS, "passed"),
+        ):
+            with self.subTest(control_id=control_id, measurements=measurements, status=status):
+                with self.assertRaises(ValueError):
+                    MODULE.validate_measurements(control_id, measurements, status)
+
     def test_measurements_are_rejected_on_unmeasured_controls(self) -> None:
         with self.assertRaisesRegex(ValueError, "measurements"):
             self.validate("build", "repository-build", self.TESTS)

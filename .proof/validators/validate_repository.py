@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -57,14 +58,19 @@ def evaluator_module() -> Any:
     return module
 
 
-def validate() -> None:
+def check_runtime_files() -> None:
     missing = [name for name in REQUIRED_FILES if not (PROOF / name).is_file()]
     if missing:
         raise ValueError(f"installed Proof runtime is incomplete: {', '.join(missing)}")
+
+
+def check_semgrep_fixtures() -> None:
     fixtures = PROOF / "semgrep-tests" / "fixtures"
     if not fixtures.is_dir() or not any(path.is_file() for path in fixtures.rglob("*")):
         raise ValueError("installed Semgrep rule self-test fixtures are missing")
 
+
+def check_schemas() -> None:
     for name in (
         "policy.schema.json",
         "evidence.schema.json",
@@ -75,6 +81,8 @@ def validate() -> None:
     ):
         load(PROOF / name)
 
+
+def check_configuration() -> None:
     evaluator = evaluator_module()
     catalog = load(PROOF / "control-catalog.yaml")
     controls = evaluator.catalog_map(catalog)
@@ -86,13 +94,46 @@ def validate() -> None:
     evaluator.validate_policy(policy, set(profile_definitions), controls)
 
 
-def main() -> int:
+# Ordered contract groups. Each depends on the ones before it, so the first
+# failure stops the run and the remaining groups are reported as not run.
+CONTRACTS = (check_runtime_files, check_semgrep_fixtures, check_schemas, check_configuration)
+
+
+def validate(counts: dict[str, int] | None = None) -> None:
+    passed = 0
     try:
-        validate()
+        for contract in CONTRACTS:
+            contract()
+            passed += 1
+    finally:
+        if counts is not None:
+            failed = int(passed < len(CONTRACTS))
+            counts.update(total=len(CONTRACTS), passed=passed, failed=failed,
+                          not_run=len(CONTRACTS) - passed - failed)
+
+
+def record_measurements(counts: dict[str, int]) -> None:
+    """Write optional display counts for the scorecard; never affects the result."""
+    target = os.environ.get("PROOF_MEASUREMENTS_FILE")
+    if not target or set(counts) != {"total", "passed", "failed", "not_run"}:
+        return
+    document = {"version": 1, "source": "pull-request-workflow", "contracts": counts}
+    try:
+        Path(target).write_text(json.dumps(document, sort_keys=True) + "\n", encoding="utf-8")
+    except OSError as error:
+        print(f"WARNING: repository measurements were not recorded: {error}", file=sys.stderr)
+
+
+def main() -> int:
+    counts: dict[str, int] = {}
+    try:
+        validate(counts)
     except (OSError, ValueError, json.JSONDecodeError) as error:
+        record_measurements(counts)
         print(f"ERROR {error}", file=sys.stderr)
         return 1
-    print("Proof installed repository contracts validated")
+    record_measurements(counts)
+    print(f"Proof installed repository contracts validated ({counts['passed']} contract groups)")
     return 0
 
 

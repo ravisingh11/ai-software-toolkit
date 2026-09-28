@@ -217,18 +217,18 @@ _CONTROL_MODES = {"enforced": "Enforced", "advisory": "Advisory",
 
 
 # Check-specific assessment criteria; these describe the contract, not claimed measurements.
-_CHECK_ASSESSMENTS = {'repository-validation': ('Repository contracts',
-                           'Schemas, control catalog, provider configuration, and skill registry',
-                           'All repository validation rules succeed',
-                           'Rules checked; validation errors'),
+_CHECK_ASSESSMENTS = {'repository-validation': ('Installed Proof contracts',
+                           'Installed runtime files, Semgrep self-test fixtures, schemas, and the control catalog, profiles, providers, and policy',
+                           'Every contract group validates; the first failure stops the run',
+                           'Contract groups passed; failed; not run'),
  'documentation-validation': ('Documentation integrity',
-                              'Document structure, links, declared targets, and documentation coverage',
-                              'Repository documentation validator succeeds',
-                              'Documents checked; broken links; missing references'),
+                              'Local Markdown links, declared documentation targets, and required documentation updates for changed files',
+                              'No broken local links and every documentation mapping is satisfied',
+                              'Markdown files; local links checked; broken links; mapping failures'),
  'repository-ground-truth': ('Declared engineering ground truth',
-                             'Repository-owned architecture, testing, security, and contribution contracts',
-                             'Declared ground-truth targets satisfy repository validation',
-                             'Targets checked; missing or invalid declarations'),
+                             'Documents declared in .proof/ground-truth-ai.yaml, such as agent instructions and architecture, testing, security, and contribution guides',
+                             'Every declared document exists in the repository; document contents are not assessed',
+                             'Documents declared; found; missing'),
  'change-scope': ('Change size',
                   'Counted files, added lines, changed lines, and maximum additions per file',
                   'Each measurement is within its configured limit',
@@ -388,7 +388,30 @@ def _execution_details(row: dict[str, Any]) -> dict[str, Any]:
 
 
 _MEASURED_FIELDS = {"unit-tests": ("tests", ("total", "passed", "failed", "skipped")),
-                    "changed-code-coverage": ("coverage", ("measured_lines", "covered_lines", "threshold_percent"))}
+                    "changed-code-coverage": ("coverage", ("measured_lines", "covered_lines", "threshold_percent")),
+                    "repository-validation": ("contracts", ("total", "passed", "failed", "not_run")),
+                    "documentation-validation": ("documentation", ("markdown_files", "links_checked", "broken_links", "mapping_failures")),
+                    "repository-ground-truth": ("documents", ("declared", "found", "missing"))}
+
+
+def _measurements_consistent(kind: str, numbers: dict[str, int], status: str) -> bool:
+    """Mirror the evaluator's arithmetic and status rules for each measurement kind."""
+    passed = status == "passed"
+    if kind == "tests":
+        return (numbers["total"] > 0 and numbers["total"] == numbers["passed"] + numbers["failed"] + numbers["skipped"]
+                and not (passed and numbers["failed"]))
+    if kind == "coverage":
+        below = numbers["covered_lines"] * 100 < numbers["threshold_percent"] * numbers["measured_lines"]
+        return (numbers["covered_lines"] <= numbers["measured_lines"] and numbers["threshold_percent"] <= 100
+                and not (passed and below))
+    if kind == "contracts":
+        clean = numbers["failed"] == 0 and numbers["not_run"] == 0
+        return (numbers["total"] > 0 and numbers["total"] == numbers["passed"] + numbers["failed"] + numbers["not_run"]
+                and passed == clean and (passed or numbers["failed"] > 0))
+    if kind == "documentation":
+        return (numbers["broken_links"] <= numbers["links_checked"]
+                and passed == (numbers["broken_links"] + numbers["mapping_failures"] == 0))
+    return numbers["declared"] == numbers["found"] + numbers["missing"] and passed == (numbers["missing"] == 0)
 
 
 def _measurements(control_id: str, row: dict[str, Any]) -> dict[str, Any]:
@@ -405,14 +428,8 @@ def _measurements(control_id: str, row: dict[str, Any]) -> dict[str, Any]:
     if (set(value) != {"version", "source", kind} or type(value.get("version")) is not int or value["version"] != 1
             or value.get("source") != "pull-request-workflow" or result.get("status") != status
             or not isinstance(numbers, dict) or set(numbers) != set(fields)
-            or any(type(numbers[key]) is not int or not 0 <= numbers[key] <= 2**53 - 1 for key in fields)):
-        return unavailable
-    if kind == "tests":
-        if (numbers["total"] == 0 or numbers["total"] != numbers["passed"] + numbers["failed"] + numbers["skipped"]
-                or (status == "passed" and numbers["failed"])):
-            return unavailable
-    elif (numbers["covered_lines"] > numbers["measured_lines"] or numbers["threshold_percent"] > 100
-          or (status == "passed" and numbers["covered_lines"] * 100 < numbers["threshold_percent"] * numbers["measured_lines"])):
+            or any(type(numbers[key]) is not int or not 0 <= numbers[key] <= 2**53 - 1 for key in fields)
+            or not _measurements_consistent(kind, numbers, status)):
         return unavailable
     return {"availability": "available", "source": "pull-request-workflow", kind: {key: numbers[key] for key in fields}}
 
@@ -427,6 +444,18 @@ def _measurement_summary(measurements: dict[str, Any]) -> str | None:
         tests = measurements["tests"]
         return (f'{tests["passed"]:,} passed · {tests["failed"]:,} failed · {tests["skipped"]:,} skipped '
                 f'({tests["total"]:,} tests)')
+    if "contracts" in measurements:
+        counts = measurements["contracts"]
+        return (f'{counts["passed"]:,} passed · {counts["failed"]:,} failed · {counts["not_run"]:,} not run '
+                f'({counts["total"]:,} contract groups)')
+    if "documentation" in measurements:
+        counts = measurements["documentation"]
+        return (f'{counts["markdown_files"]:,} Markdown files · {counts["links_checked"]:,} local links checked · '
+                f'{counts["broken_links"]:,} broken · {counts["mapping_failures"]:,} documentation mapping failures')
+    if "documents" in measurements:
+        counts = measurements["documents"]
+        return (f'{counts["found"]:,} of {counts["declared"]:,} declared documents found · '
+                f'{counts["missing"]:,} missing')
     coverage = measurements["coverage"]
     measured, covered = coverage["measured_lines"], coverage["covered_lines"]
     if not measured:
@@ -926,7 +955,7 @@ _BLOCK_MEANING = "BLOCK means at least one enforced control did not pass for thi
 
 def _collection_note(controls: list[dict[str, Any]]) -> str:
     if any(row["measurements"]["availability"] == "available" for row in controls):
-        return ("Test totals and coverage, where shown, are self-reported by the pull request's own workflow run "
+        return ("Test totals, coverage, and validator counts, where shown, are self-reported by the pull request's own workflow run "
                 "and are not independently verified. Security finding counts are not collected in this summary.")
     return "Test totals, security finding counts, and coverage percentages are not collected in this summary."
 

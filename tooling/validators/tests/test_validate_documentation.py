@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
+import json
+import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / "validate_documentation.py"
 SPEC = importlib.util.spec_from_file_location("documentation_validator", SCRIPT)
@@ -105,6 +111,52 @@ class DocumentationValidatorTests(unittest.TestCase):
             failures = MODULE.validate_markdown_links(root)
             self.assertEqual(len(failures), 1)
             self.assertIn("missing link target", failures[0])
+
+    def test_counts_report_files_links_and_failures(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "docs").mkdir()
+            (root / "docs" / "guide.md").write_text("# Guide\n", encoding="utf-8")
+            (root / "README.md").write_text(
+                "[guide](docs/guide.md) [gone](docs/gone.md) [web](https://example.com) [top](#top)\n",
+                encoding="utf-8",
+            )
+            policy = root / "documentation.yaml"
+            policy.write_text(
+                '{"version": 1, "mappings": [{"name": "app", "triggers": ["src/**"], "documents": ["docs/*.md"]}]}',
+                encoding="utf-8",
+            )
+            counts: dict[str, int] = {}
+
+            failures = MODULE.validate(root, policy, ["src/app.py"], counts)
+
+            self.assertEqual(len(failures), 2)
+            self.assertEqual(
+                counts,
+                {"markdown_files": 2, "links_checked": 2, "broken_links": 1, "mapping_failures": 1},
+            )
+
+    def test_main_records_counts_only_when_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "measurements.json"
+            argv = ["validate_documentation.py", "--changed-file", "README.md"]
+            with mock.patch.object(sys, "argv", argv), \
+                    mock.patch.dict(os.environ, {"PROOF_MEASUREMENTS_FILE": str(output)}), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(MODULE.main(), 0)
+            document = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(document["source"], "pull-request-workflow")
+            self.assertEqual(set(document["documentation"]),
+                             {"markdown_files", "links_checked", "broken_links", "mapping_failures"})
+            self.assertEqual(document["documentation"]["broken_links"], 0)
+            unwritable = str(Path(directory) / "missing" / "measurements.json")
+            stderr = io.StringIO()
+            with mock.patch.dict(os.environ, {"PROOF_MEASUREMENTS_FILE": unwritable}), \
+                    contextlib.redirect_stderr(stderr):
+                MODULE.record_measurements({"markdown_files": 1})
+            self.assertIn("were not recorded", stderr.getvalue())
+            with mock.patch.dict(os.environ, {}, clear=True):
+                MODULE.record_measurements({"markdown_files": 1})
 
     def test_changed_files_exclude_base_only_changes_after_divergence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

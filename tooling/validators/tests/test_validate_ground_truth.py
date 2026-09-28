@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -11,14 +12,58 @@ SCRIPT = Path(__file__).resolve().parents[1] / "validate_ground_truth.py"
 
 
 class GroundTruthValidatorTests(unittest.TestCase):
-    def run_validator(self, root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+    def run_validator(
+        self, root: Path, *arguments: str, measurements: Path | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        env = {key: value for key, value in os.environ.items() if key != "PROOF_MEASUREMENTS_FILE"}
+        if measurements is not None:
+            env["PROOF_MEASUREMENTS_FILE"] = str(measurements)
         return subprocess.run(
             [sys.executable, str(SCRIPT), *arguments],
             cwd=root,
+            env=env,
             text=True,
             capture_output=True,
             check=False,
         )
+
+    def test_measurements_count_declared_found_and_missing_documents(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "AGENTS.md").write_text("# Instructions\n", encoding="utf-8")
+            policy = self.write_policy(root, [{"path": "AGENTS.md"}, {"path": "docs/missing.md"}])
+            output = root / "measurements.json"
+
+            result = self.run_validator(root, "--policy", str(policy), measurements=output)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(
+                json.loads(output.read_text(encoding="utf-8")),
+                {"version": 1, "source": "pull-request-workflow",
+                 "documents": {"declared": 2, "found": 1, "missing": 1}},
+            )
+
+    def test_unwritable_measurements_warn_without_changing_the_result(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "AGENTS.md").write_text("# Instructions\n", encoding="utf-8")
+            policy = self.write_policy(root, [{"path": "AGENTS.md"}])
+
+            result = self.run_validator(root, "--policy", str(policy), measurements=root / "missing" / "m.json")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("measurements were not recorded", result.stdout)
+
+    def test_invalid_policy_records_no_measurements(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            policy = self.write_policy(root, [{"path": "/etc/passwd"}])
+            output = root / "measurements.json"
+
+            result = self.run_validator(root, "--policy", str(policy), measurements=output)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertFalse(output.exists())
 
     def write_policy(self, root: Path, documents: list[object]) -> Path:
         policy = root / "policy.yaml"

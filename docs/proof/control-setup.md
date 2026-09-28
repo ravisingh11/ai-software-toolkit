@@ -464,8 +464,12 @@ checks ran. The dashboard does not assert that the snapshot is the current PR
 head. The public revision digest identifies the snapshot without exposing a raw
 commit SHA; open the source run to inspect its PR and commit.
 
-Test totals and changed-line coverage can appear on the dashboard as
-**self-reported** measurements. The Unit Tests and Changed Code Coverage
+Test totals, changed-line coverage, and repository validator counts can
+appear on the dashboard as **self-reported** measurements. The Validate
+workflow's validators write their counts (contract groups passed, failed, and
+not run; Markdown files, local links checked, broken links, and mapping
+failures; ground-truth documents declared, found, and missing) without
+configuration. The Unit Tests and Changed Code Coverage
 workflows set `PROOF_MEASUREMENTS_FILE`; a configured command that writes it
 (for example with `.proof/measurements.py unittest`, `junit`, or
 `diff-cover`) gets its numbers packaged into a run-bound artifact. Because

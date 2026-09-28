@@ -236,7 +236,10 @@ def validate_provider_document(config: dict, catalog: dict[str, dict]) -> None:
             if measurement_fields.intersection(check):
                 if (
                     not measurement_fields.issubset(check)
-                    or capability not in {"unit-tests", "changed-code-coverage"}
+                    or capability not in {
+                        "unit-tests", "changed-code-coverage", "repository-validation",
+                        "documentation-validation", "repository-ground-truth",
+                    }
                     or "workflow_path" not in check
                     or "external_id_prefix" in check
                     or any(
