@@ -33,9 +33,38 @@ jobs:
         env:
           PROOF_SETUP_COMMAND: ${{ vars.PROOF_SETUP_COMMAND }}
       - name: Run tests and check changed-code coverage
+        id: coverage
         working-directory: ${{ vars.PROOF_WORKING_DIRECTORY || '.' }}
         run: bash -euo pipefail -c "${PROOF_CHANGED_COVERAGE_COMMAND}"
         env:
           PROOF_CHANGED_COVERAGE_COMMAND: ${{ vars.PROOF_CHANGED_COVERAGE_COMMAND }}
           PROOF_COVERAGE_BASE_REF: ${{ github.event.pull_request.base.sha || 'HEAD~1' }}
           PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY }}
+          PROOF_MEASUREMENTS_FILE: ${{ runner.temp }}/proof-measurements-input.json
+      # Optional, self-reported display metrics: never changes this check's result.
+      - name: Package self-reported measurements
+        id: measurements
+        if: ${{ always() && (steps.coverage.outcome == 'success' || steps.coverage.outcome == 'failure') }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OUTCOME: ${{ steps.coverage.outcome }}
+        run: |
+          input="${RUNNER_TEMP}/proof-measurements-input.json"
+          if [[ ! -f "${input}" ]]; then
+            echo "No measurements file was written; the scorecard will show measurements as not collected."
+            exit 0
+          fi
+          if python3 .proof/measurements.py package --control changed-code-coverage --input "${input}" \
+              --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::Measurements were not packaged; the check result is unaffected."
+          fi
+      - name: Upload self-reported measurements
+        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: proof-measurements-${{ github.run_id }}
+          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          if-no-files-found: error
+          retention-days: 7

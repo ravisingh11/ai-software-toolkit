@@ -61,7 +61,14 @@ coverage_status=0
 diff-cover "${coverage_file}" \
   --compare-branch="${PROOF_COVERAGE_BASE_REF}" \
   --fail-under="${coverage_target}" \
-  --format "markdown:${coverage_report}" || coverage_status=$?
+  --format "markdown:${coverage_report},json:${coverage_data_root}/changed-code-coverage.json" || coverage_status=$?
+
+if [[ -n "${PROOF_MEASUREMENTS_FILE:-}" && -f "${coverage_data_root}/changed-code-coverage.json" ]]; then
+  python3 "${repo_root}/tooling/proof_measurements.py" diff-cover \
+    "${coverage_data_root}/changed-code-coverage.json" \
+    --threshold "${coverage_target}" --output "${PROOF_MEASUREMENTS_FILE}" \
+    || echo "Coverage measurements were not recorded; the coverage result is unaffected." >&2
+fi
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   {

@@ -165,6 +165,7 @@ def validate_provider_document(config: dict, catalog: dict[str, dict]) -> None:
                 or set(check) - {
                     "check_name", "workflow", "workflow_path", "app_slug", "external_id_prefix",
                     "artifact_name_prefix", "artifact_member", "trusted_paths",
+                    "measurements_artifact_prefix", "measurements_member",
                 }
             ):
                 raise ValueError(f"provider {provider_id} {capability} check is invalid")
@@ -231,6 +232,20 @@ def validate_provider_document(config: dict, catalog: dict[str, dict]) -> None:
                 raise ValueError(f"provider {provider_id} {capability} artifact contract requires external_id_prefix")
             if "external_id_prefix" in check and "workflow_path" not in check:
                 raise ValueError(f"provider {provider_id} {capability} artifact contract requires workflow_path")
+            measurement_fields = {"measurements_artifact_prefix", "measurements_member"}
+            if measurement_fields.intersection(check):
+                if (
+                    not measurement_fields.issubset(check)
+                    or capability not in {"unit-tests", "changed-code-coverage"}
+                    or "workflow_path" not in check
+                    or "external_id_prefix" in check
+                    or any(
+                        not isinstance(check[field], str)
+                        or re.fullmatch(r"[A-Za-z0-9._-]{1,100}", check[field]) is None
+                        for field in measurement_fields
+                    )
+                ):
+                    raise ValueError(f"provider {provider_id} {capability} measurements contract is invalid")
         reviews = provider.get("reviews", {})
         if not isinstance(reviews, dict) or any(
             capability not in capabilities for capability in reviews

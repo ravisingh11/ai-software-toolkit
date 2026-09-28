@@ -47,13 +47,17 @@
         "app_slug": {"type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$"},
         "external_id_prefix": {"type": "string", "minLength": 1, "maxLength": 150, "pattern": "\\S"},
         "artifact_name_prefix": {"type": "string", "minLength": 1, "maxLength": 150, "pattern": "\\S"},
-        "artifact_member": {"type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[A-Za-z0-9._-]+$"}
+        "artifact_member": {"type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[A-Za-z0-9._-]+$"},
+        "measurements_artifact_prefix": {"type": "string", "minLength": 1, "maxLength": 150, "pattern": "^[A-Za-z0-9._-]+$"},
+        "measurements_member": {"type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[A-Za-z0-9._-]+$"}
       },
       "dependentRequired": {
         "trusted_paths": ["workflow_path"],
         "external_id_prefix": ["artifact_name_prefix", "artifact_member"],
         "artifact_name_prefix": ["external_id_prefix", "artifact_member"],
-        "artifact_member": ["external_id_prefix", "artifact_name_prefix"]
+        "artifact_member": ["external_id_prefix", "artifact_name_prefix"],
+        "measurements_artifact_prefix": ["measurements_member", "workflow_path"],
+        "measurements_member": ["measurements_artifact_prefix"]
       }
     },
     "review": {

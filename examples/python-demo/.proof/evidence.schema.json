@@ -55,7 +55,8 @@
         },
         "reason": {"type": "string", "minLength": 1, "maxLength": 1000, "pattern": "\\S"},
         "change_scope": {"$ref": "#/$defs/changeScope"},
-        "check_execution": {"$ref": "#/$defs/checkExecution"}
+        "check_execution": {"$ref": "#/$defs/checkExecution"},
+        "measurements": {"$ref": "#/$defs/measurements"}
       },
       "allOf": [
         {
@@ -86,6 +87,14 @@
           "then": {"required": ["reason"]}
         },
         {
+          "if": {"required": ["measurements"]},
+          "then": {
+            "properties": {
+              "status": {"enum": ["passed", "failed"]}
+            }
+          }
+        },
+        {
           "if": {"required": ["change_scope"]},
           "then": {
             "properties": {
@@ -96,6 +105,38 @@
       ]
     },
     "plainResult": {"allOf": [{"$ref": "#/$defs/result"}, {"not": {"required": ["change_scope"]}}]},
+    "measurements": {
+      "description": "Optional self-reported display metrics from the pull request's own workflow run; they never change a result status. Evaluator also restricts tests to unit-tests and coverage to changed-code-coverage and checks arithmetic and status consistency.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "source"],
+      "properties": {
+        "version": {"type": "integer", "const": 1},
+        "source": {"const": "pull-request-workflow"},
+        "tests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["total", "passed", "failed", "skipped"],
+          "properties": {
+            "total": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+            "passed": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "failed": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "skipped": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+          }
+        },
+        "coverage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["measured_lines", "covered_lines", "threshold_percent"],
+          "properties": {
+            "measured_lines": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "covered_lines": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "threshold_percent": {"type": "integer", "minimum": 0, "maximum": 100}
+          }
+        }
+      },
+      "oneOf": [{"required": ["tests"]}, {"required": ["coverage"]}]
+    },
     "checkExecution": {
       "description": "Optional completed-check facts. Evaluator also verifies timestamp validity, ordering, and duration arithmetic.",
       "type": "object",

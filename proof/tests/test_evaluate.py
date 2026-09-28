@@ -601,6 +601,80 @@ class ChangeScopeEvidenceTests(unittest.TestCase):
         MODULE.validate_change_scope(metadata, "passed")
 
 
+class MeasurementsEvidenceTests(unittest.TestCase):
+    TESTS = {"version": 1, "source": "pull-request-workflow",
+             "tests": {"total": 12, "passed": 10, "failed": 0, "skipped": 2}}
+    COVERAGE = {"version": 1, "source": "pull-request-workflow",
+                "coverage": {"measured_lines": 200, "covered_lines": 182, "threshold_percent": 90}}
+
+    def validate(self, control_id: str, provider_id: str, measurements: dict, status: str = "passed") -> None:
+        _, _, catalog, providers = contracts()
+        document = {"version": 2, "subject": {"type": "git-commit", "revision": "abc123"},
+                    "results": {control_id: {provider_id: {
+                        "producer": "GitHub Check", "status": status, "evidence": ["check: success; url"],
+                        "measurements": measurements}}}}
+        MODULE.validate_evidence(document, MODULE.catalog_map(catalog), providers["providers"])
+
+    def test_accepts_consistent_tests_and_coverage(self) -> None:
+        self.validate("unit-tests", "repository-unit-tests", self.TESTS)
+        self.validate("changed-code-coverage", "repository-changed-code-coverage", self.COVERAGE)
+        empty = copy.deepcopy(self.COVERAGE)
+        empty["coverage"].update(measured_lines=0, covered_lines=0)
+        self.validate("changed-code-coverage", "repository-changed-code-coverage", empty)
+        failing = copy.deepcopy(self.TESTS)
+        failing["tests"].update(passed=9, failed=1)
+        self.validate("unit-tests", "repository-unit-tests", failing, status="failed")
+
+    def test_rejects_invalid_or_contradictory_measurements(self) -> None:
+        def changed(base: dict, kind: str, **values: object) -> dict:
+            value = copy.deepcopy(base)
+            value[kind].update(values)
+            return value
+        cases = [
+            ("unit-tests", {**self.TESTS, "source": "trusted"}, "passed"),
+            ("unit-tests", {**self.TESTS, "version": 2}, "passed"),
+            ("unit-tests", {**self.TESTS, "extra": 1}, "passed"),
+            ("unit-tests", changed(self.TESTS, "tests", total=13), "passed"),
+            ("unit-tests", changed(self.TESTS, "tests", total=0, passed=0, skipped=0), "passed"),
+            ("unit-tests", changed(self.TESTS, "tests", passed=9, failed=1), "passed"),
+            ("unit-tests", changed(self.TESTS, "tests", passed=True), "passed"),
+            ("unit-tests", self.TESTS, "not_run"),
+            ("unit-tests", self.COVERAGE, "passed"),
+            ("changed-code-coverage", changed(self.COVERAGE, "coverage", covered_lines=201), "passed"),
+            ("changed-code-coverage", changed(self.COVERAGE, "coverage", threshold_percent=101), "passed"),
+            ("changed-code-coverage", changed(self.COVERAGE, "coverage", covered_lines=179), "passed"),
+            ("build", self.TESTS, "passed"),
+        ]
+        for control_id, measurements, status in cases:
+            with self.subTest(control_id=control_id, measurements=measurements, status=status):
+                with self.assertRaises(ValueError):
+                    MODULE.validate_measurements(control_id, measurements, status)
+
+    def test_measurements_are_rejected_on_unmeasured_controls(self) -> None:
+        with self.assertRaisesRegex(ValueError, "measurements"):
+            self.validate("build", "repository-build", self.TESTS)
+
+    def test_provider_measurements_contract_is_restricted(self) -> None:
+        _, _, catalog, providers = contracts()
+        controls = MODULE.catalog_map(catalog)
+        MODULE.validate_provider_config(providers, controls)
+        for provider_id, capability, change in (
+            ("repository-unit-tests", "unit-tests", {"measurements_member": None}),
+            ("repository-unit-tests", "unit-tests", {"measurements_artifact_prefix": "bad prefix"}),
+            ("repository-build", "build", {"measurements_artifact_prefix": "m-", "measurements_member": "m.json"}),
+        ):
+            with self.subTest(provider_id=provider_id, change=change):
+                config = copy.deepcopy(providers)
+                check = config["providers"][provider_id]["checks"][capability]
+                for key, value in change.items():
+                    if value is None:
+                        check.pop(key)
+                    else:
+                        check[key] = value
+                with self.assertRaisesRegex(ValueError, "measurements"):
+                    MODULE.validate_provider_config(config, controls)
+
+
 class CheckExecutionContractTests(unittest.TestCase):
     def metadata(self) -> dict:
         return {"version": 1, "started_at": "2026-09-26T12:00:00Z",

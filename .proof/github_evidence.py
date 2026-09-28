@@ -190,6 +190,9 @@ def expected_checks(
                     contract["artifact_name_prefix"] = check["artifact_name_prefix"]
                 if "artifact_member" in check:
                     contract["artifact_member"] = check["artifact_member"]
+                for field in ("measurements_artifact_prefix", "measurements_member"):
+                    if field in check:
+                        contract[field] = check[field]
                 existing = expected.get(check_name)
                 if existing is not None and (
                     existing["provider_id"] != provider_id
@@ -200,6 +203,8 @@ def expected_checks(
                     or existing.get("app_slug") != check.get("app_slug")
                     or existing.get("artifact_name_prefix") != check.get("artifact_name_prefix")
                     or existing.get("artifact_member") != check.get("artifact_member")
+                    or existing.get("measurements_artifact_prefix") != check.get("measurements_artifact_prefix")
+                    or existing.get("measurements_member") != check.get("measurements_member")
                 ):
                     raise ValueError(
                         f"ambiguous check name {check_name!r} is reused by different workflow/provider contracts"
@@ -521,6 +526,72 @@ def run_artifact_evidence(
     })
 
 
+def self_reported_measurements(
+    repo: str,
+    revision: str,
+    token: str,
+    run_id: int,
+    contract: dict[str, Any],
+    control_id: str,
+    status: str,
+) -> dict[str, Any] | None:
+    """Return validated display-only measurements from the check's own run, or None.
+
+    The artifact is produced by the pull request's workflow, so its numbers are
+    self-reported. They never change the check's status; any mismatch or
+    malformed value simply leaves the measurements unavailable.
+    """
+    prefix = contract.get("measurements_artifact_prefix")
+    member = contract.get("measurements_member")
+    if not isinstance(prefix, str) or not isinstance(member, str) or status not in {"passed", "failed"}:
+        return None
+    expected_name = f"{prefix}{run_id}"
+    try:
+        listing = _request(
+            f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts"
+            f"?name={quote(expected_name, safe='')}&per_page=100",
+            token,
+        )
+        artifacts = [
+            artifact for artifact in listing.get("artifacts", [])
+            if isinstance(artifact, dict) and artifact.get("name") == expected_name
+        ]
+        if listing.get("total_count") != 1 or len(artifacts) != 1:
+            return None
+        artifact = artifacts[0]
+        artifact_id = artifact.get("id")
+        workflow_run = artifact.get("workflow_run")
+        if (
+            artifact.get("expired") is not False
+            or not isinstance(workflow_run, dict)
+            or workflow_run.get("id") != run_id
+            or not isinstance(artifact_id, int)
+            or isinstance(artifact_id, bool)
+        ):
+            return None
+        document = artifact_document(
+            _request_bytes(f"https://api.github.com/repos/{repo}/actions/artifacts/{artifact_id}/zip", token),
+            member,
+        )
+    except (HTTPError, URLError, OSError, ValueError, AttributeError, TypeError):
+        return None
+    if (
+        set(document) != {"version", "run_id", "repository", "head_sha", "control", "measurements"}
+        or document["version"] != 1
+        or document["run_id"] != run_id
+        or document["repository"] != repo
+        or document["head_sha"] != revision
+        or document["control"] != control_id
+    ):
+        return None
+    measurements = document["measurements"]
+    try:
+        evaluator_module().validate_measurements(control_id, measurements, status)
+    except (ValueError, TypeError, KeyError):
+        return None
+    return measurements
+
+
 def proven_check_evidence(
     repo: str,
     revision: str,
@@ -651,7 +722,15 @@ def proven_check_evidence(
             repo, revision, token, run_id, contract, check, provider_name,
             trusted_base_revision, trusted_workflow_ref,
         )
-    return check_run_evidence(check_name, provider_name, check)
+    result = check_run_evidence(check_name, provider_name, check)
+    control_ids = contract.get("control_ids") or []
+    if len(control_ids) == 1:
+        measurements = self_reported_measurements(
+            repo, revision, token, run_id, contract, control_ids[0], result["status"],
+        )
+        if measurements is not None:
+            result["measurements"] = measurements
+    return result
 
 
 def collect_checks(
