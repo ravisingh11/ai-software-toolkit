@@ -411,9 +411,70 @@ def _controls_markdown(controls: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _duration(seconds: int) -> str:
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours:,}h {minutes}m {secs}s"
+    return f"{minutes}m {secs}s" if minutes else f"{secs}s"
+
+
+def _utc_label(timestamp: str) -> str:
+    parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone(timezone.utc)
+    return parsed.strftime("%d %b %Y · %H:%M:%S UTC")
+
+
+_ATTENTION_STATUSES = ("failed", "blocked", "no_result")
+_INACTIVE_STATUSES = ("not_activated", "not_reported")
+
+
+def _check_target(control_id: str) -> str:
+    return "size-title" if control_id == "change-scope" else f"check-{control_id}"
+
+
+def _attention_html(controls: list[dict[str, Any]], breakdown: dict[str, Any]) -> str:
+    """List active checks without a passing result, most severe first."""
+    flagged = sorted((row for row in controls if row["status"] in _ATTENTION_STATUSES),
+                     key=lambda row: _ATTENTION_STATUSES.index(row["status"]))
+    unnamed = 0
+    if breakdown["availability"] == "available":
+        overall = breakdown["overall"]
+        unnamed = max(0, overall["failed"] + overall["blocked"] + overall["unverified"] - len(flagged))
+    if not flagged and not unnamed:
+        return ""
+    items = []
+    for row in flagged:
+        label, tone = _CONTROL_RESULTS[row["status"]]
+        name = html.escape(row["name"])
+        items.append(f'<li><span class="size-result {tone}">{label}</span> <a href="#{_check_target(row["id"])}">{name}</a> <span class="attention-mode">{_CONTROL_MODES[row["mode"]]}</span></li>')
+    if unnamed:
+        plural = "s" if unnamed != 1 else ""
+        items.append(f'<li class="attention-private">{unnamed} custom control{plural} without a passing result. Custom control names are not published.</li>')
+    return '<section class="attention" aria-labelledby="attention-title"><h2 id="attention-title">Needs attention</h2><ul>' + ''.join(items) + '</ul></section>'
+
+
+def _counts_gap(metrics: str) -> str:
+    """Explain, in a sentence, which counts this check type could report but did not."""
+    fields = ", ".join(part.strip() for part in metrics.split(";"))
+    return f"Only the overall result was reported. This report does not include {fields[:1].lower() + fields[1:]}."
+
+
+def _inactive_intro(inactive: list[tuple[str, str]]) -> str:
+    # Not activated is a known exclusion; not reported means the row is missing, so
+    # its relationship to the aggregate totals is unknown and must not be asserted.
+    statuses = {status for status, _ in inactive}
+    parts = []
+    if "not_activated" in statuses:
+        parts.append("Not activated checks are excluded from the active-control totals.")
+    if "not_reported" in statuses:
+        parts.append("Not reported checks have no validated row in this snapshot; whether they count toward the totals is unknown.")
+    return " ".join(parts)
+
+
 def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str, Any]) -> str:
     groups = []
-    details = []
+    active_details = []
+    inactive_details = []
     for group in ("Build & quality", "Security & dependencies", "AI & QA", "Release & runtime"):
         rows = []
         for row in controls:
@@ -427,31 +488,45 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
                     "passed": "",
                     "failed": "The producer reported a failure.",
                     "blocked": "The producer reported a blocker."}[row["status"]]
-            evidence = '' if row["status"] == "not_reported" else f'<a href="{html.escape(run_url, quote=True)}" aria-label="Source report for {safe["name"]}">Source report ↗</a>'
-            target = "size-title" if row["id"] == "change-scope" else f"check-{safe['id']}"
-            mode = "—" if row["mode"] == "not_reported" else _CONTROL_MODES[row["mode"]]
-            rows.append(f'<tr><th scope="row"><a href="#{target}">{safe["name"]}</a> <code class="check-id">{safe["id"]}</code></th><td><span class="size-result {tone}">{label}</span></td><td>{mode}</td><td><a href="#{target}" aria-label="View details for {safe["name"]}">Details ↓</a></td></tr>')
+            evidence = '' if row["status"] in _INACTIVE_STATUSES else f'<a href="{html.escape(run_url, quote=True)}" aria-label="Source report for {safe["name"]}">Source report ↗</a>'
+            target = _check_target(row["id"])
+            # A dash means no active mode: unknown (not reported) or excluded (not activated).
+            mode = "—" if row["mode"] in _INACTIVE_STATUSES else _CONTROL_MODES[row["mode"]]
+            rows.append(f'<tr><th scope="row"><a href="#{target}">{safe["name"]}</a> <code class="check-id">{safe["id"]}</code></th><td><span class="size-result {tone}">{label}</span></td><td class="mode-cell">{mode}</td></tr>')
             assessment, inputs, condition, metrics = _CHECK_ASSESSMENTS[row["id"]]
             criteria = [("Assessment", assessment), ("Evaluates", inputs), ("Expected result", condition)]
             execution = row["execution"]
+            run_facts = ''
             if execution["availability"] == "available":
+                duration = _duration(execution["duration_seconds"])
+                completed = _utc_label(execution["completed_at"])
+                run_facts = f'<p class="check-run">Ran for <strong>{duration}</strong> · completed <time datetime="{execution["completed_at"]}">{completed}</time></p>'
                 criteria.extend([("Started (UTC)", execution["started_at"]),
                                  ("Completed (UTC)", execution["completed_at"]),
-                                 ("Execution time", f'{execution["duration_seconds"]:,} seconds'),
+                                 ("Execution time", f'{duration} ({execution["duration_seconds"]:,} seconds)'),
                                  ("Producer conclusion", execution["conclusion"].replace("_", " "))])
             else:
                 criteria.append(("Execution time", "Not supplied by this source report"))
             if row["id"] != "change-scope":
-                criteria.append(("Measurements not collected", metrics))
+                criteria.append(("Counts not reported", _counts_gap(metrics)))
             criteria_rows = ''.join(f'<tr><th scope="row">{html.escape(key)}</th><td>{html.escape(value)}</td></tr>' for key, value in criteria)
-            measurements = '<table class="assessment-table"><caption>Assessment criteria and available detail</caption><tbody>' + criteria_rows + '</tbody></table>'
+            measurements = '<details class="criteria"><summary>Assessment criteria</summary><table class="assessment-table"><caption>Assessment criteria and available detail</caption><tbody>' + criteria_rows + '</tbody></table></details>'
             if row["id"] == "change-scope":
                 measurements += _scope_html(scope)
             note_html = f'<p class="check-note">{note}</p>' if note else ''
-            details.append(f'<article class="check-detail {tone}" id="check-{safe["id"]}" tabindex="-1"><div class="check-top"><h3>{safe["name"]} <code class="check-id">{safe["id"]}</code></h3><span class="size-result">{label}</span></div><p>{safe["purpose"]}</p><p class="check-mode">{_CONTROL_MODES[row["mode"]]}</p>{note_html}{measurements}<div class="check-links">{evidence}<a href="#checks-title">Back to checks ↑</a></div></article>')
-        groups.append(f'<tbody><tr class="check-category"><th colspan="4" scope="rowgroup">{html.escape(group)}</th></tr>{"".join(rows)}</tbody>')
-    overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title" tabindex="-1">Individual checks</h2><p class="checks-intro">All built-in catalog checks. Select a check to see its purpose and evidence below. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the mode is unknown. Custom controls may contribute to totals without publishing their private names.</p><div class="size-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results and policy modes for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col">Mode</th><th scope="col">Details</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
-    return overview + '<section class="checks" aria-labelledby="check-details-title"><h2 id="check-details-title">Check details</h2><p class="checks-intro">Source report links open the evaluation run containing the detailed evidence.</p>' + ''.join(details) + '</section>'
+            mode_html = '' if row["mode"] in _INACTIVE_STATUSES else f'<p class="check-mode">{_CONTROL_MODES[row["mode"]]}</p>'
+            card = f'<article class="check-detail {tone}" id="check-{safe["id"]}" tabindex="-1"><div class="check-top"><h3>{safe["name"]} <code class="check-id">{safe["id"]}</code></h3><span class="size-result">{label}</span></div><p>{safe["purpose"]}</p>{mode_html}{note_html}{run_facts}{measurements}<div class="check-links">{evidence}<a href="#checks-title">Back to checks ↑</a></div></article>'
+            (inactive_details if row["status"] in _INACTIVE_STATUSES else active_details).append((row["status"], card))
+        groups.append(f'<tbody><tr class="check-category"><th colspan="3" scope="rowgroup">{html.escape(group)}</th></tr>{"".join(rows)}</tbody>')
+    overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title" tabindex="-1">Individual checks</h2><p class="checks-intro">All built-in catalog checks. Select a check to see its purpose and evidence below. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the check has no active mode in this snapshot. Custom controls may contribute to totals without publishing their private names.</p><div class="checks-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results and policy modes for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col" class="mode-cell">Mode</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
+    # Stable sort: checks needing attention first, then passes, each in catalog order.
+    order = (*_ATTENTION_STATUSES, "passed")
+    active = ''.join(card for _, card in sorted(active_details, key=lambda item: order.index(item[0])))
+    inactive = ''.join(card for _, card in inactive_details)
+    details = '<section class="checks" aria-labelledby="check-details-title"><h2 id="check-details-title">Check details</h2><p class="checks-intro">Checks needing attention come first. Source report links open the evaluation run containing the detailed evidence.</p>' + active
+    if inactive:
+        details += f'<h3 class="inactive-title" id="inactive-title">Not activated or not reported <span>({len(inactive_details)})</span></h3><p class="checks-intro">{_inactive_intro(inactive_details)}</p><div class="inactive-grid">{inactive}</div>'
+    return overview + details + '</section>'
 
 
 
@@ -573,12 +648,14 @@ def _scope_markdown(scope: dict[str, Any]) -> str:
 
 
 def _scope_html(scope: dict[str, Any]) -> str:
-    heading = '<section class="scope-panel" aria-labelledby="size-title"><p class="eyebrow">Change scope</p><h2 id="size-title">PR Size · Files &amp; LOC</h2>' + f'<p>{_SIZE_GUIDANCE}</p>'
+    # Rendered inside the PR Size check card, so it is a subsection: no repeated
+    # title, and the card's mode label already states advisory versus enforced.
+    heading = '<section class="scope-block" aria-labelledby="size-title"><h4 id="size-title" tabindex="-1">Files &amp; lines of code</h4>' + f'<p>{_SIZE_GUIDANCE}</p>'
     if scope["availability"] != "available":
         return heading + '<p><strong>Measurements unavailable</strong></p><p>This source does not contain validated PR size measurements. No size verdict is available; missing measurements are not a pass.</p></section>'
     metrics, limits = scope["metrics"], scope["thresholds"]
     advisory = scope["mode"] == "advisory"
-    meaning = "Advisory · warns only; does not block the policy decision." if advisory else "Enforced · exceeding a limit blocks the policy decision."
+    meaning = "Exceeding a limit warns only; it does not block the policy decision." if advisory else "Exceeding a limit blocks the policy decision."
     rows = []
     for key, limit, label in _SCOPE_ROWS:
         exceeded = metrics[key] > limits[limit]
@@ -727,6 +804,18 @@ def _svg(metadata: dict[str, Any]) -> str:
 """
 
 
+_ALLOW_MEANING = "ALLOW means the enforced controls are satisfied for this snapshot. It does not establish mergeability or release readiness."
+_UNGATED_MEANING = ("No enforced controls are configured, so the policy decision is not gated by any control "
+                    "and every result is advisory. It does not establish mergeability or release readiness.")
+_BLOCK_MEANING = "BLOCK means at least one enforced control did not pass for this snapshot."
+
+
+def _decision_meaning(metadata: dict[str, Any]) -> str:
+    if metadata["decision"] == "block":
+        return _BLOCK_MEANING
+    return _UNGATED_MEANING if metadata["enforced"]["total"] == 0 else _ALLOW_MEANING
+
+
 def _markdown(metadata: dict[str, Any]) -> str:
     return f"""# Latest PR Scorecard
 
@@ -749,7 +838,7 @@ def _markdown(metadata: dict[str, Any]) -> str:
 
 Failed means a reported failure. Blocked means the producer reported a blocker. Unverified means no usable result was available.
 
-ALLOW means the enforced controls are satisfied for this snapshot; it does not establish mergeability or release readiness.
+{_decision_meaning(metadata)}
 This is a published PR snapshot. The source timestamp does not prove it matches the current PR head or current main.
 Test totals, security finding counts, and coverage percentages are not collected in this summary.
 {_scope_markdown(metadata["change_scope"])}
@@ -813,7 +902,17 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .size-result{display:inline-block;white-space:nowrap;padding:3px 9px;border-radius:5px;background:var(--wash);color:var(--tone);font-weight:650}
 .scope-totals{display:grid;grid-template-columns:1fr 1fr;gap:20px}.scope-totals strong{color:var(--ink)}
 .size-footnote{margin-bottom:0}
+.scope-block{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.scope-block h4{margin:0;font-size:14px;line-height:1.4;color:var(--ink)}
+.check-detail .scope-block p{margin:6px 0 0}.check-detail .scope-block .scope-mode{color:var(--ink);font-weight:600}
+.check-detail .scope-block .size-footnote{margin-top:12px}
 .checks{margin-top:36px}.checks h2{font-size:28px;margin:0}.checks-intro{color:var(--muted);max-width:850px;font-size:14px}
+.checks-table-wrap{overflow-x:auto}.checks-table-wrap:focus-visible{outline:3px solid #227b92;outline-offset:3px}
+.attention{margin:0 0 22px;padding:20px 24px;background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.attention h2{margin:0 0 10px;font-size:15px}.attention ul{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:14px}
+.attention .size-result{font-size:11px;padding:2px 7px;min-width:78px;text-align:center}.attention-mode{color:var(--muted);font-size:12px}
+.attention-private{color:var(--muted);font-size:13px}
+.decision .decision-note{color:var(--muted);font-size:11px;font-weight:600;margin-top:2px}
 .checks-table{width:100%;border-collapse:collapse;background:var(--paper);font-size:13px}
 .checks-table caption{text-align:left;color:var(--muted);font-size:12px;padding:0 0 10px}
 .checks-table th,.checks-table td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -822,11 +921,15 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .check-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;font-weight:400;color:var(--muted);margin-left:6px}
 .checks-table .size-result{font-size:11px;padding:2px 7px}.checks-table tbody tr:not(.check-category):hover{background:#f5f9f9}
 .assessment-table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px}.assessment-table caption{text-align:left;color:var(--muted);font-size:12px;padding-bottom:8px}.assessment-table th,.assessment-table td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:10px 8px}.assessment-table th{width:180px;font-weight:600}.assessment-table td{overflow-wrap:anywhere}
-.check-detail,#checks-title,#size-title{scroll-margin-top:24px}.check-detail:focus,#checks-title:focus{outline:2px solid var(--accent);outline-offset:4px}
+.check-detail,#checks-title,#size-title{scroll-margin-top:24px}#size-title:focus{outline:2px solid var(--accent);outline-offset:4px}.check-detail:focus,#checks-title:focus{outline:2px solid var(--accent);outline-offset:4px}
 .check-detail{margin-top:16px;padding:22px;border:1px solid var(--line);border-top:3px solid var(--tone);border-radius:10px;background:var(--paper);display:flex;flex-direction:column}
 .check-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.check-top h3{font-size:16px;line-height:1.4;margin:0}.check-top .size-result{font-size:11px}
 .check-detail p{font-size:13px;color:var(--muted);margin:12px 0 0}.check-detail .check-mode{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.6px;color:var(--ink)}
-.check-detail .check-note{font-size:12px}.check-links{display:flex;flex-wrap:wrap;gap:16px;padding-top:16px;margin-top:auto;font-size:12px}
+.check-detail .check-note{font-size:12px}.check-detail .check-run{font-size:12px;color:var(--ink)}
+.criteria{border:0;padding:12px 0 0;font-size:12px}.criteria summary{color:var(--accent)}
+.inactive-title{margin:32px 0 0;font-size:18px}.inactive-title span{color:var(--muted);font-weight:500}
+.inactive-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}
+.inactive-grid .check-detail{padding:16px 18px;border-top-width:1px}.check-links{display:flex;flex-wrap:wrap;gap:16px;padding-top:16px;margin-top:auto;font-size:12px}
 .evidence{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:36px;padding:30px;margin-top:24px;background:var(--paper);border:1px solid var(--line);border-radius:12px}
 .evidence h2{margin:0 0 8px;font-size:18px;letter-spacing:-.3px}
 .evidence p{color:var(--muted);font-size:13px;margin:0 0 20px;max-width:420px}
@@ -854,7 +957,9 @@ footer img{display:block;max-width:100%;height:auto}
   .status-panel{align-items:flex-start;padding:20px;gap:16px}
   .status-panel h2{font-size:18px}.decision dd{font-size:17px}
   .metrics{grid-template-columns:1fr;gap:12px}
-  .check-detail{padding:18px}.checks-table th,.checks-table td{padding:7px 9px}
+  .check-detail{padding:18px}.checks-table th,.checks-table td{padding:7px 9px;white-space:normal}
+  .checks-table .check-id{display:block;margin:2px 0 0}.checks-table .mode-cell{display:none}
+  .attention{padding:18px}.inactive-grid{grid-template-columns:1fr}
   .scope-panel{padding:20px}.scope-totals{grid-template-columns:1fr;gap:0}
   .size-table{font-size:12px}
   .size-table th,.size-table td{padding:10px 5px}
@@ -895,6 +1000,7 @@ def _html(metadata: dict[str, Any]) -> str:
   <div class="track" aria-hidden="true"><div class="fill" style="width:{percent:.2f}%"></div></div>
   <p class="metric-note">{note}</p>
 </section>""")
+    ungated = '<dd class="decision-note">Advisory only</dd>' if not metadata["enforced"]["total"] else ''
     timestamps = {
         key: datetime.fromisoformat(str(metadata[key]).replace("Z", "+00:00"))
         .astimezone(timezone.utc)
@@ -923,9 +1029,10 @@ def _html(metadata: dict[str, Any]) -> str:
   <p class="intro">A clear view of the latest published pull-request evaluation.</p>
   <section class="status-panel {tone}" aria-label="Scorecard status">
     <div><div class="status-label"><span class="status-dot" aria-hidden="true"></span>{safe['status']}</div>
-      <h2>{headline}</h2><p>ALLOW means the enforced controls are satisfied for this snapshot. It does not establish mergeability or release readiness.</p></div>
-    <dl class="decision"><dt>Policy decision</dt><dd>{safe['decision'].upper()}</dd></dl>
+      <h2>{headline}</h2><p>{_decision_meaning(metadata)}</p></div>
+    <dl class="decision"><dt>Policy decision</dt><dd>{safe['decision'].upper()}</dd>{ungated}</dl>
   </section>
+  {_attention_html(metadata["controls"], metadata["result_breakdown"])}
   <div class="metrics">{''.join(cards)}</div>
   {_breakdown_html(metadata["result_breakdown"])}
   {_controls_html(metadata["controls"], metadata["source_run_url"], metadata["change_scope"])}

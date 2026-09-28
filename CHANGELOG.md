@@ -8,6 +8,17 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Make the public PR scorecard page easier to scan. A **Needs attention** list
+  above the totals names failed, blocked, and unverified checks, most severe
+  first. Detail sections put those checks first, show execution time as a
+  readable duration, fold assessment criteria behind a disclosure, and group
+  not-activated and not-reported checks in a compact section, roughly halving
+  page length. On narrow screens the checks table keeps each result beside its
+  check name. When no controls are enforced, the status panel says the ALLOW
+  decision is not gated by any control and marks it **Advisory only**; a BLOCK
+  decision no longer shows the ALLOW explanation. Published metadata,
+  evaluation semantics, and badge output are unchanged.
+
 - Run the Snyk and FOSSA adapter from the trusted base revision. The
   `workflows/snyk.yml` and `workflows/fossa.yml` templates check out
   `.proof/adapter.py` from the pull request's base SHA into `trusted/`

@@ -392,13 +392,22 @@ contains no per-file paths or raw scope findings.
 
 ## Reading scorecard evidence
 
-Check names and Details links jump to the corresponding detail section below
-the table. Each section links back to the checks. PR Size jumps directly to its
-files/LOC measurements. Other sections describe their specific assessment, inputs,
-and expected result. Validated execution timestamps, duration, and producer conclusion
-are shown when supplied; unavailable facts are not inferred from a passing status.
-Measurement gaps name the missing fields, such as test totals or coverage percentage. On narrow screens, the table scrolls horizontally so
-check names, results, and modes remain on one line.
+A **Needs attention** list above the totals names every built-in check that
+failed, was blocked, or is unverified, most severe first, and links to its
+detail section. Custom controls without a passing result are counted there but
+not named.
+
+Check names jump to the corresponding detail section below the table. Each
+section links back to the checks. PR Size jumps directly to its files/LOC
+measurements. Detail sections list checks needing attention first, then passed
+checks; not-activated and not-reported checks are grouped in a compact section
+at the end. Each section shows validated execution duration and completion time
+when supplied; its assessment, inputs, expected result, and measurement gaps
+(listed as **Counts not reported**, such as test totals or coverage percentage)
+are under **Assessment criteria**. Not-activated checks are described as excluded
+from the totals; not-reported checks are described as unknown, never excluded.
+Unavailable facts are not inferred from a passing status. On narrow screens,
+the table keeps each check's result beside its name and hides the mode column.
 
 
 A passing control means its declared producer supplied passing evidence for the
@@ -426,7 +435,10 @@ dashboard.
 
 The policy decision **allow** means the enforced controls were satisfied. It
 does not establish GitHub mergeability or deployment readiness. Advisory issues
-remain visible even when the decision allows the change.
+remain visible even when the decision allows the change. When no controls are
+enforced, the dashboard says the decision is not gated by any control and marks
+it **Advisory only**, because an allow with zero enforced controls checks
+nothing. A **block** decision is explained as an enforced control not passing.
 
 The source run and its creation time identify a revision-bound snapshot. A
 publication timestamp records when that snapshot was published, not when the

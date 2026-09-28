@@ -206,7 +206,7 @@ class RendererTests(unittest.TestCase):
                 metadata = self.render(self.write_source(root, self.scope_card(exceeded=exceeded)), output)
                 self.assertEqual(metadata["change_scope"]["availability"], "available")
                 page = (output / "index.html").read_text()
-                for phrase in ("PR Size · Files &amp; LOC", "Advisory", "does not block", "Counted files", "Excluded", "Added + deleted lines"):
+                for phrase in ("Files &amp; lines of code", "Advisory", "does not block", "Counted files", "Excluded", "Added + deleted lines"):
                     self.assertIn(phrase, page)
                 self.assertIn("Above limit" if exceeded else "Within limit", page)
                 for path in output.iterdir():
@@ -228,7 +228,9 @@ class RendererTests(unittest.TestCase):
             card["controls"][-1]["effective_mode"] = "enforced"
             output = root / "published"
             self.render(self.write_source(root, card), output)
-            self.assertIn("Enforced · exceeding a limit blocks", (output / "index.html").read_text())
+            page = (output / "index.html").read_text()
+            self.assertIn("Exceeding a limit blocks the policy decision.", page)
+            self.assertNotIn("warns only", page)
 
     def test_untrusted_or_missing_producer_does_not_publish_metrics(self) -> None:
         for field, value in (("authoritative_provider", {"id": "other"}), ("evidence_status", "no_result"), ("effective_mode", "not_activated")):
@@ -407,11 +409,59 @@ class RendererTests(unittest.TestCase):
             root = Path(directory)
             self.render(self.write_source(root, card), root / "output")
             page = (root / "output/index.html").read_text()
-            self.assertIn("12 seconds", page)
+            self.assertIn("12s (12 seconds)", page)
+            self.assertIn("Ran for <strong>12s</strong>", page)
             self.assertIn("2026-09-27T01:00:12Z", page)
             self.assertNotIn("Passing evidence reported for this snapshot", page)
-            self.assertIn("Tests passed; failed; skipped; total", page)
-            self.assertIn("Measurements not collected", page)
+            self.assertIn("Counts not reported", page)
+            self.assertIn("This report does not include tests passed, failed, skipped, total.", page)
+
+    def test_unknown_rows_are_not_described_as_excluded(self) -> None:
+        card = scorecard()
+        card["controls"] = [{"id": "build", "effective_mode": "enforced", "evidence_status": "passed"}]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.render(self.write_source(root, card), root / "output")
+            page = (root / "output/index.html").read_text()
+            self.assertNotIn("excluded from the active-control totals", page)
+            self.assertIn("whether they count toward the totals is unknown", page)
+
+    def test_durations_are_human_readable(self) -> None:
+        for seconds, expected in ((0, "0s"), (59, "59s"), (60, "1m 0s"), (743, "12m 23s"), (3723, "1h 2m 3s")):
+            self.assertEqual(MODULE._duration(seconds), expected)
+
+    def test_decision_meaning_reflects_enforcement(self) -> None:
+        cases = (
+            (scorecard(), "ALLOW means the enforced controls are satisfied", False),
+            (scorecard(status="ORANGE", enforced=(0, 0), advisory=(3, 4)), "not gated by any control", True),
+            (scorecard(status="RED", decision="block", enforced=(9, 10)), "BLOCK means at least one enforced control", False),
+        )
+        for card, expected, ungated in cases:
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.render(self.write_source(root, card), root / "output")
+                page = (root / "output/index.html").read_text()
+                markdown = (root / "output/scorecard.md").read_text()
+                self.assertIn(expected, page)
+                self.assertIn(expected, markdown)
+                self.assertEqual("Advisory only" in page, ungated)
+                if card["decision"] == "block":
+                    self.assertNotIn("ALLOW means", page)
+
+    def test_attention_counts_unnamed_custom_controls(self) -> None:
+        card = self.breakdown_card()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.render(self.write_source(root, card), root / "output")
+            page = (root / "output/index.html").read_text()
+            self.assertIn("3 custom controls without a passing result", page)
+            self.assertNotIn("private-", page)
+        card = scorecard()
+        card["controls"] = [{"id": "build", "effective_mode": "enforced", "evidence_status": "passed"}]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.render(self.write_source(root, card), root / "output")
+            self.assertNotIn('id="attention-title"', (root / "output/index.html").read_text())
 
     def test_public_catalog_matches_canonical_controls(self) -> None:
         catalog = json.loads((ROOT / "policies/control-catalog.yaml").read_text())["controls"]
@@ -450,7 +500,26 @@ class RendererTests(unittest.TestCase):
                 target = "size-title" if control_id == "change-scope" else f"check-{control_id}"
                 self.assertIn(f'href="#{target}"', page)
                 self.assertEqual(page.count(f'id="{target}"'), 1)
-            self.assertIn('<th scope="col">Check</th><th scope="col">Result</th><th scope="col">Mode</th>', page)
+            self.assertIn('<th scope="col">Check</th><th scope="col">Result</th><th scope="col" class="mode-cell">Mode</th>', page)
+            self.assertNotIn("Details ↓", page)
+            # Checks needing attention lead the page, most severe first, before the totals.
+            attention = page[page.index('id="attention-title"'):page.index('<div class="metrics">')]
+            self.assertLess(attention.index('href="#size-title"'), attention.index('href="#check-deep-sast"'))
+            self.assertLess(attention.index('href="#check-deep-sast"'), attention.index('href="#check-functional-qa"'))
+            self.assertNotIn('href="#check-build"', attention)
+            # Detail cards: attention first, then passes; inactive checks are grouped last.
+            self.assertLess(page.index('id="check-deep-sast"'), page.index('id="check-build"'))
+            self.assertLess(page.index('id="check-build"'), page.index('id="inactive-title"'))
+            self.assertLess(page.index('id="inactive-title"'), page.index('id="check-runtime-soak"'))
+            self.assertIn("Not activated or not reported <span>(", page)
+            self.assertIn("Not activated checks are excluded from the active-control totals.", page)
+            self.assertIn("whether they count toward the totals is unknown", page)
+            self.assertNotIn("excluded from the totals above", page)
+            # PR Size measurements are a subsection of its card, not a nested titled panel.
+            scope_card = page[page.index('id="check-change-scope"'):page.index('id="check-deep-sast"')]
+            self.assertIn('<h4 id="size-title"', scope_card)
+            self.assertNotIn("<h2", scope_card)
+            self.assertEqual(scope_card.count("Advisory"), 1)
             # Each check shows its canonical catalog ID, in the table row and in its detail heading.
             self.assertIn('<a href="#check-build">Build</a> <code class="check-id">build</code>', page)
             self.assertIn('<h3>Build <code class="check-id">build</code></h3>', page)
