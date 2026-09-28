@@ -8,6 +8,17 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Show AI review finding counts on the scorecard dashboard. Each job of the
+  `ai-pr-review.yml` template counts its reviewer's result file with the new
+  `.proof/measurements.py review-findings` command and uploads a
+  self-reported `review_findings` measurement (`total`, `p0`, `p1`, `p2`,
+  `p3`, `unresolved_blocking`), so the AI Engineering, QA, Security, and
+  Repository Standards cards read, for example, **4 findings: 0 P0 · 1 P1 ·
+  2 P2 · 1 P3 · 1 unresolved P0/P1**. Counts are the AI provider's judgment,
+  never change a result, and AI review stays advisory-only. Codex Code Review
+  cards explain that findings are review comments and are not counted.
+  Refresh the runtime and `providers.yaml`, and recopy `ai-pr-review.yml`.
+
 - Show what PR Metadata evaluated on the scorecard dashboard. The trusted PR
   metadata validator now adds `pr_metadata` to its result: `title_matches` and
   the `required_sections` and `missing_sections` counts, never the title, body,

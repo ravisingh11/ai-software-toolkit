@@ -63,6 +63,48 @@ class MeasurementsHelperTests(unittest.TestCase):
                 with self.subTest(document=document), self.assertRaises(ValueError):
                     MODULE.from_diff_cover(self.write(root, "bad.json", json.dumps(document)), 80)
 
+    def test_review_result_is_counted_by_severity_without_publishing_text(self) -> None:
+        findings = [
+            {"id": "ENG-001", "severity": "P0", "status": "resolved", "summary": "secret text", "evidence": "src/private.py:1"},
+            {"id": "ENG-002", "severity": "P1", "summary": "missing status is open"},
+            {"id": "ENG-003", "severity": "P1", "status": None},
+            {"id": "ENG-004", "severity": "P1", "status": "accepted"},
+            {"id": "ENG-005", "severity": "P2", "status": "open", "blocking": True},
+            {"id": "ENG-006", "severity": "P3", "status": "deferred"},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = self.write(root, "engineering.json", json.dumps({"reviewer": "engineering", "findings": findings}))
+            document = MODULE.from_review_result(result)
+            # Unresolved blocking mirrors the consolidation gate: P0/P1 whose status is not resolved.
+            self.assertEqual(document, {"version": 1, "source": "pull-request-workflow", "review_findings": {
+                "total": 6, "p0": 1, "p1": 3, "p2": 1, "p3": 1, "unresolved_blocking": 3}})
+            self.assertNotIn("private", json.dumps(document))
+            empty = self.write(root, "empty.json", json.dumps({"findings": []}))
+            self.assertEqual(MODULE.from_review_result(empty)["review_findings"],
+                             {"total": 0, "p0": 0, "p1": 0, "p2": 0, "p3": 0, "unresolved_blocking": 0})
+            for bad in ([], {"findings": {}}, {"findings": ["P1"]}, {"findings": [{"severity": "p1"}]},
+                        {"findings": [{"severity": "P4"}]}, {"findings": [{"status": "open"}]},
+                        {"findings": [{"severity": "P2", "status": "wontfix"}]}):
+                with self.subTest(bad=bad), self.assertRaises(ValueError):
+                    MODULE.from_review_result(self.write(root, "bad.json", json.dumps(bad)))
+
+    def test_review_findings_package_for_each_ai_review_control(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = self.write(root, "qa.json", json.dumps({"findings": [{"severity": "P1", "status": "open"}]}))
+            counts, packaged = root / "counts.json", root / "packaged.json"
+            self.assertEqual(MODULE.main(["review-findings", str(result), "--output", str(counts)]), 0)
+            self.assertEqual(MODULE.main(["review-findings", str(root / "missing.json"), "--output", str(root / "x.json")]), 2)
+            env = {"GITHUB_RUN_ID": "55", "GITHUB_RUN_ATTEMPT": "1", "GITHUB_REPOSITORY": "owner/repo"}
+            for control in ("ai-engineering-review", "ai-qa-review", "ai-security-review", "ai-repository-standards-review"):
+                for outcome in ("success", "failure"):
+                    with self.subTest(control=control, outcome=outcome), mock.patch.dict(os.environ, env):
+                        self.assertEqual(MODULE.main(["package", "--control", control, "--input", str(counts),
+                                                      "--outcome", outcome, "--head-sha", HEAD,
+                                                      "--output", str(packaged)]), 0)
+                        self.assertEqual(json.loads(packaged.read_text())["control"], control)
+
     def test_package_binds_run_and_validates_against_outcome(self) -> None:
         measurements = {"version": 1, "source": "pull-request-workflow",
                         "tests": {"total": 2, "passed": 1, "failed": 1, "skipped": 0}}

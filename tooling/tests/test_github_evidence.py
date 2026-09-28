@@ -1813,6 +1813,39 @@ class SelfReportedMeasurementsTests(unittest.TestCase):
             self.assertIsNone(MODULE.self_reported_measurements(
                 "owner/repo", "abc123", "token", 55, self.CONTRACT, "unit-tests", "passed"))
 
+    def test_ai_review_adapters_bind_distinct_per_role_finding_count_artifacts(self) -> None:
+        policy, profiles, catalog, providers = contracts()
+        roles = {"ai-engineering-review": "engineering", "ai-qa-review": "qa",
+                 "ai-security-review": "security", "ai-repository-standards-review": "repo-standards"}
+        for control_id in roles:
+            policy["overrides"]["change"][control_id] = "advisory"
+        providers["selections"]["ai-engineering-review"] = {"authoritative": "ai-engineering-adapter", "supplemental": []}
+        expected = MODULE.expected_checks(policy, profiles, catalog, providers, "change")
+        contracts_by_control = {contract["control_ids"][0]: contract for contract in expected.values()
+                                if contract["control_ids"][0] in roles}
+        self.assertEqual({control_id: contract["measurements_artifact_prefix"]
+                          for control_id, contract in contracts_by_control.items()},
+                         {control_id: f"proof-measurements-ai-{role}-" for control_id, role in roles.items()})
+        workflow = (ROOT / "workflows" / "ai-pr-review.yml").read_text(encoding="utf-8")
+        for control_id, role in roles.items():
+            with self.subTest(control_id=control_id):
+                self.assertIn(f"--control {control_id} ", workflow)
+                self.assertIn(f"name: proof-measurements-ai-{role}-${{{{ github.run_id }}}}-${{{{ github.run_attempt }}}}",
+                              workflow)
+        counts = {"version": 1, "source": "pull-request-workflow",
+                  "review_findings": {"total": 2, "p0": 0, "p1": 1, "p2": 1, "p3": 0, "unresolved_blocking": 1}}
+        contract = contracts_by_control["ai-qa-review"]
+        listing = {"total_count": 1, "artifacts": [
+            {"id": 9, "name": "proof-measurements-ai-qa-55-2", "expired": False, "workflow_run": {"id": 55}}]}
+        with mock.patch.object(MODULE, "_request", side_effect=lambda url, token: (
+                {"run_id": 55, "run_attempt": 2, "head_sha": "abc123"} if "/actions/jobs/" in url else listing)), \
+                mock.patch.object(MODULE, "_request_bytes", return_value=artifact_archive(
+                    {**self.document(control="ai-qa-review"), "measurements": counts}, "proof-measurements.json")):
+            for status in ("passed", "failed"):
+                self.assertEqual(MODULE.self_reported_measurements(
+                    "owner/repo", "abc123", "token", 55, contract, "ai-qa-review", status,
+                    check_run("AI QA Review", 55)), counts)
+
     def test_proven_check_attaches_measurements_without_changing_status(self) -> None:
         check = check_run("Unit Tests", 55)
         run = {"id": 55, "name": "Unit Tests", "path": ".github/workflows/unit-tests.yml", "event": "pull_request",

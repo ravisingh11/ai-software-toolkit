@@ -603,6 +603,65 @@ class RendererTests(unittest.TestCase):
         self.assertIn("artifacts produced, build errors depend on its tools", build)
         self.assertIn("Only the overall result was reported", MODULE._counts_gap("Rules checked", "deep-sast"))
 
+    def ai_review_card(self, results: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        card = scorecard(status="ORANGE", enforced=(0, 0), advisory=(2, len(results)))
+        card["controls"] = [{"id": control_id, "effective_mode": "advisory", "evidence_status": result["status"],
+                             "authoritative_result": result} for control_id, result in results.items()]
+        return card
+
+    def test_ai_review_finding_counts_are_shown_as_advisory_self_reported(self) -> None:
+        counts = {"total": 4, "p0": 0, "p1": 1, "p2": 2, "p3": 1, "unresolved_blocking": 1}
+        measured = {"version": 1, "source": "pull-request-workflow", "review_findings": counts}
+        card = self.ai_review_card({
+            "ai-qa-review": {"producer": "GitHub Check: AI QA Review", "status": "failed", "measurements": measured},
+            "ai-security-review": {"producer": "GitHub Check: AI Security Review", "status": "passed", "measurements": {
+                **measured, "review_findings": dict.fromkeys(counts, 0)}},
+            "ai-engineering-review": {"producer": "GitHub Review: Codex Code Review", "status": "passed"},
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = self.render(self.write_source(root, card), root / "output")
+            rows = {row["id"]: row for row in metadata["controls"]}
+            self.assertEqual(rows["ai-qa-review"]["measurements"]["review_findings"], counts)
+            self.assertEqual(rows["ai-engineering-review"]["measurements"],
+                             {"availability": "unavailable", "reason": "review_comments"})
+            self.assertEqual(rows["ai-repository-standards-review"]["measurements"], {"availability": "unavailable"})
+            page = (root / "output/index.html").read_text()
+            markdown = (root / "output/scorecard.md").read_text()
+            for text in (page, markdown):
+                self.assertIn("4 findings: 0 P0 · 1 P1 · 2 P2 · 1 P3 · 1 unresolved P0/P1", text)
+                self.assertIn("No findings reported by the AI reviewer", text)
+                self.assertIn("AI review is advisory-only", text)
+            self.assertIn("- AI QA Review: 4 findings: 0 P0 · 1 P1 · 2 P2 · 1 P3 · 1 unresolved P0/P1 "
+                          "(AI review, advisory-only)", markdown)
+            qa_card = page[page.index('id="check-ai-qa-review"'):]
+            qa_card = qa_card[:qa_card.index("</article>")]
+            self.assertIn("the AI provider's judgment", qa_card)
+            self.assertNotIn("Counts not reported", qa_card)
+            codex_card = page[page.index('id="check-ai-engineering-review"'):]
+            codex_card = codex_card[:codex_card.index("</article>")]
+            self.assertIn("Only the review state was reported", codex_card)
+            self.assertIn("open the pull request&#x27;s reviews", codex_card)
+            self.assertNotIn("Only the overall result was reported", codex_card)
+            standards = page[page.index('id="check-ai-repository-standards-review"'):]
+            standards = standards[:standards.index("</article>")]
+            self.assertIn("Finding counts appear only when an AI PR Review adapter packages", standards)
+
+    def test_ai_review_counts_are_arithmetic_only(self) -> None:
+        consistent = MODULE._measurements_consistent
+        counts = {"total": 3, "p0": 1, "p1": 1, "p2": 1, "p3": 0, "unresolved_blocking": 2}
+        for status in ("passed", "failed"):
+            self.assertTrue(consistent("review_findings", counts, status))
+        self.assertFalse(consistent("review_findings", {**counts, "total": 4}, "failed"))
+        self.assertFalse(consistent("review_findings", {**counts, "unresolved_blocking": 3}, "passed"))
+        self.assertEqual(MODULE._measurement_summary({"availability": "available", "review_findings": {
+            "total": 1, "p0": 0, "p1": 0, "p2": 0, "p3": 1, "unresolved_blocking": 0}}),
+            "1 finding: 0 P0 · 0 P1 · 0 P2 · 1 P3 · 0 unresolved P0/P1")
+        # A review producer only explains missing counts; it never overrides a check's measurements elsewhere.
+        card = self.ai_review_card({"unit-tests": {"producer": "GitHub Review: X", "status": "passed"}})
+        rows = {row["id"]: row for row in MODULE._control_details(card)}
+        self.assertEqual(rows["unit-tests"]["measurements"], {"availability": "unavailable"})
+
     def test_coverage_percent_is_floored_and_empty_diffs_are_explicit(self) -> None:
         summary = MODULE._measurement_summary
         self.assertIn("(89.9%)", summary({"availability": "available", "coverage": {

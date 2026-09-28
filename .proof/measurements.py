@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # Proof installer-owned runtime.
-"""Record self-reported test, coverage, and validator measurements for the Proof scorecard.
+"""Record self-reported test, coverage, validator, and AI review measurements for the Proof scorecard.
 
-Test, coverage, and validator commands run the pull request's own code, so these
-numbers are self-reported display metadata. They never change a check's status.
+Test, coverage, validator, and AI review commands run the pull request's own code, so
+these numbers are self-reported display metadata. They never change a check's status.
 
 A configured command writes a measurements file to ``$PROOF_MEASUREMENTS_FILE``
 with one of the converters below (or directly, using the documented format).
@@ -105,6 +105,38 @@ def from_diff_cover(path: Path, threshold: int) -> dict[str, Any]:
     }}
 
 
+REVIEW_SEVERITIES = ("P0", "P1", "P2", "P3")
+REVIEW_STATUSES = {"open", "resolved", "accepted", "deferred", "needs-context"}
+
+
+def from_review_result(path: Path) -> dict[str, Any]:
+    """Count one AI reviewer result file (pr-review/pr-review.md) by severity.
+
+    Unresolved blocking mirrors the AI PR Review consolidation rule: a P0 or P1
+    finding whose status is not ``resolved``; a missing status counts as open.
+    Only counts leave this function, never finding text, paths, or rule names.
+    """
+    result = json.loads(_read(path))
+    findings = result.get("findings") if isinstance(result, dict) else None
+    if not isinstance(findings, list):
+        raise ValueError(f"{path} is not an AI review result with a findings list")
+    counts = dict.fromkeys(REVIEW_SEVERITIES, 0)
+    unresolved_blocking = 0
+    for finding in findings:
+        if not isinstance(finding, dict):
+            raise ValueError(f"{path} has a finding that is not an object")
+        severity, status = finding.get("severity"), finding.get("status")
+        status = "open" if status is None else status
+        if severity not in counts or status not in REVIEW_STATUSES:
+            raise ValueError(f"{path} has a finding without an allowed severity and status")
+        counts[severity] += 1
+        unresolved_blocking += severity in ("P0", "P1") and status != "resolved"
+    return {"version": 1, "source": "pull-request-workflow", "review_findings": {
+        "total": len(findings), "p0": counts["P0"], "p1": counts["P1"], "p2": counts["P2"], "p3": counts["P3"],
+        "unresolved_blocking": unresolved_blocking,
+    }}
+
+
 def package(control: str, measurements: dict[str, Any], outcome: str, head_sha: str) -> dict[str, Any]:
     status = {"success": "passed", "failure": "failed"}.get(outcome)
     if status is None:
@@ -134,14 +166,17 @@ def main(argv: list[str] | None = None) -> int:
     cover_parser = commands.add_parser("diff-cover", help="summarize a diff-cover JSON report")
     cover_parser.add_argument("report", type=Path)
     cover_parser.add_argument("--threshold", type=int, required=True)
+    review_parser = commands.add_parser("review-findings", help="count an AI reviewer result file by severity")
+    review_parser.add_argument("result", type=Path)
     package_parser = commands.add_parser("package", help="bind measurements to this workflow run")
     package_parser.add_argument("--control", required=True, choices=("unit-tests", "changed-code-coverage", "repository-validation",
                                          "documentation-validation", "repository-ground-truth",
-                                         "migration-validation"))
+                                         "migration-validation", "ai-engineering-review", "ai-qa-review",
+                                         "ai-security-review", "ai-repository-standards-review"))
     package_parser.add_argument("--input", type=Path, required=True)
     package_parser.add_argument("--outcome", required=True)
     package_parser.add_argument("--head-sha", required=True)
-    for command in (unittest_parser, junit_parser, cover_parser, package_parser):
+    for command in (unittest_parser, junit_parser, cover_parser, review_parser, package_parser):
         command.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
@@ -153,6 +188,8 @@ def main(argv: list[str] | None = None) -> int:
             if not 0 <= args.threshold <= 100:
                 raise ValueError("threshold must be between 0 and 100")
             document = from_diff_cover(args.report, args.threshold)
+        elif args.command == "review-findings":
+            document = from_review_result(args.result)
         else:
             document = package(args.control, json.loads(_read(args.input)), args.outcome, args.head_sha)
         _write(args.output, document)

@@ -840,6 +840,35 @@ class MeasurementsEvidenceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     MODULE.validate_measurements(control_id, measurements, status)
 
+    REVIEW_FINDINGS = {"version": 1, "source": "pull-request-workflow",
+                       "review_findings": {"total": 4, "p0": 0, "p1": 1, "p2": 2, "p3": 1, "unresolved_blocking": 1}}
+
+    def test_review_finding_counts_are_arithmetic_only_and_ai_scoped(self) -> None:
+        def changed(**values: object) -> dict:
+            value = copy.deepcopy(self.REVIEW_FINDINGS)
+            value["review_findings"].update(values)
+            return value
+        empty = changed(total=0, p1=0, p2=0, p3=0, unresolved_blocking=0)
+        for control_id in ("ai-engineering-review", "ai-qa-review", "ai-security-review", "ai-repository-standards-review"):
+            # Counts are not coupled to status: adapters can pass with open findings or fail with none.
+            for measurements, status in ((self.REVIEW_FINDINGS, "passed"), (self.REVIEW_FINDINGS, "failed"),
+                                         (empty, "passed"), (empty, "failed"), (changed(unresolved_blocking=0), "passed")):
+                with self.subTest(control_id=control_id, measurements=measurements, status=status):
+                    MODULE.validate_measurements(control_id, measurements, status)
+        for control_id, measurements, status in (
+            ("ai-qa-review", changed(total=5), "passed"),
+            ("ai-qa-review", changed(unresolved_blocking=2), "failed"),
+            ("ai-qa-review", changed(p1=-1, total=2), "passed"),
+            ("ai-qa-review", {**self.REVIEW_FINDINGS, "review_findings": {"total": 0}}, "passed"),
+            ("ai-qa-review", self.MIGRATIONS, "passed"),
+            ("ai-qa-review", self.REVIEW_FINDINGS, "not_run"),
+            ("unit-tests", self.REVIEW_FINDINGS, "passed"),
+        ):
+            with self.subTest(control_id=control_id, measurements=measurements, status=status):
+                with self.assertRaises(ValueError):
+                    MODULE.validate_measurements(control_id, measurements, status)
+        self.validate("ai-security-review", "ai-security-adapter", self.REVIEW_FINDINGS, "failed")
+
     def test_measurements_are_rejected_on_unmeasured_controls(self) -> None:
         with self.assertRaisesRegex(ValueError, "measurements"):
             self.validate("build", "repository-build", self.TESTS)

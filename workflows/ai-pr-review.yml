@@ -40,6 +40,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Run engineering reviewer adapter
+        id: review
         working-directory: ${{ env.AI_REVIEW_WORKING_DIRECTORY }}
         shell: bash
         run: |
@@ -52,6 +53,38 @@ jobs:
           AI_REVIEW_ROLE="${AI_REVIEW_ROLE}" AI_REVIEW_RESULT="${AI_REVIEW_RESULT}" bash -euo pipefail -c "${AI_REVIEW_COMMAND}"
           test -s "${AI_REVIEW_RESULT}"
           jq -e 'type == "object" and (.findings | type == "array")' "${AI_REVIEW_RESULT}" > /dev/null
+      # Optional, self-reported finding counts for the Proof scorecard: never changes this check's result.
+      - name: Package self-reported finding counts
+        id: measurements
+        if: ${{ always() && (steps.review.outcome == 'success' || steps.review.outcome == 'failure') }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OUTCOME: ${{ steps.review.outcome }}
+        shell: bash
+        run: |
+          result="${AI_REVIEW_WORKING_DIRECTORY}/${AI_REVIEW_RESULT}"
+          if [[ ! -f .proof/measurements.py || ! -s "${result}" ]]; then
+            echo "No Proof runtime or reviewer result file; the scorecard will show finding counts as not collected."
+            exit 0
+          fi
+          input="${RUNNER_TEMP}/proof-measurements-input.json"
+          if python3 .proof/measurements.py review-findings "${result}" --output "${input}" \
+              && python3 .proof/measurements.py package --control ai-engineering-review --input "${input}" \
+                --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::Finding counts were not packaged; the check result is unaffected."
+          fi
+      - name: Upload self-reported finding counts
+        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
+        # Optional display metadata: an upload failure must not change the check result.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: proof-measurements-ai-engineering-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload engineering findings
         if: ${{ always() && hashFiles(format('{0}/.ai-review/results/{1}.json', env.AI_REVIEW_WORKING_DIRECTORY, env.AI_REVIEW_ROLE)) != '' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -75,6 +108,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Run QA reviewer adapter
+        id: review
         working-directory: ${{ env.AI_REVIEW_WORKING_DIRECTORY }}
         shell: bash
         run: |
@@ -87,6 +121,38 @@ jobs:
           AI_REVIEW_ROLE="${AI_REVIEW_ROLE}" AI_REVIEW_RESULT="${AI_REVIEW_RESULT}" bash -euo pipefail -c "${AI_REVIEW_COMMAND}"
           test -s "${AI_REVIEW_RESULT}"
           jq -e 'type == "object" and (.findings | type == "array")' "${AI_REVIEW_RESULT}" > /dev/null
+      # Optional, self-reported finding counts for the Proof scorecard: never changes this check's result.
+      - name: Package self-reported finding counts
+        id: measurements
+        if: ${{ always() && (steps.review.outcome == 'success' || steps.review.outcome == 'failure') }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OUTCOME: ${{ steps.review.outcome }}
+        shell: bash
+        run: |
+          result="${AI_REVIEW_WORKING_DIRECTORY}/${AI_REVIEW_RESULT}"
+          if [[ ! -f .proof/measurements.py || ! -s "${result}" ]]; then
+            echo "No Proof runtime or reviewer result file; the scorecard will show finding counts as not collected."
+            exit 0
+          fi
+          input="${RUNNER_TEMP}/proof-measurements-input.json"
+          if python3 .proof/measurements.py review-findings "${result}" --output "${input}" \
+              && python3 .proof/measurements.py package --control ai-qa-review --input "${input}" \
+                --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::Finding counts were not packaged; the check result is unaffected."
+          fi
+      - name: Upload self-reported finding counts
+        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
+        # Optional display metadata: an upload failure must not change the check result.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: proof-measurements-ai-qa-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload QA findings
         if: ${{ always() && hashFiles(format('{0}/.ai-review/results/{1}.json', env.AI_REVIEW_WORKING_DIRECTORY, env.AI_REVIEW_ROLE)) != '' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -110,6 +176,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Run security reviewer adapter
+        id: review
         working-directory: ${{ env.AI_REVIEW_WORKING_DIRECTORY }}
         shell: bash
         run: |
@@ -122,6 +189,38 @@ jobs:
           AI_REVIEW_ROLE="${AI_REVIEW_ROLE}" AI_REVIEW_RESULT="${AI_REVIEW_RESULT}" bash -euo pipefail -c "${AI_REVIEW_COMMAND}"
           test -s "${AI_REVIEW_RESULT}"
           jq -e 'type == "object" and (.findings | type == "array")' "${AI_REVIEW_RESULT}" > /dev/null
+      # Optional, self-reported finding counts for the Proof scorecard: never changes this check's result.
+      - name: Package self-reported finding counts
+        id: measurements
+        if: ${{ always() && (steps.review.outcome == 'success' || steps.review.outcome == 'failure') }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OUTCOME: ${{ steps.review.outcome }}
+        shell: bash
+        run: |
+          result="${AI_REVIEW_WORKING_DIRECTORY}/${AI_REVIEW_RESULT}"
+          if [[ ! -f .proof/measurements.py || ! -s "${result}" ]]; then
+            echo "No Proof runtime or reviewer result file; the scorecard will show finding counts as not collected."
+            exit 0
+          fi
+          input="${RUNNER_TEMP}/proof-measurements-input.json"
+          if python3 .proof/measurements.py review-findings "${result}" --output "${input}" \
+              && python3 .proof/measurements.py package --control ai-security-review --input "${input}" \
+                --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::Finding counts were not packaged; the check result is unaffected."
+          fi
+      - name: Upload self-reported finding counts
+        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
+        # Optional display metadata: an upload failure must not change the check result.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: proof-measurements-ai-security-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload security findings
         if: ${{ always() && hashFiles(format('{0}/.ai-review/results/{1}.json', env.AI_REVIEW_WORKING_DIRECTORY, env.AI_REVIEW_ROLE)) != '' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -145,6 +244,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Run repository standards adapter
+        id: review
         working-directory: ${{ env.AI_REVIEW_WORKING_DIRECTORY }}
         shell: bash
         run: |
@@ -157,6 +257,38 @@ jobs:
           AI_REVIEW_ROLE="${AI_REVIEW_ROLE}" AI_REVIEW_RESULT="${AI_REVIEW_RESULT}" bash -euo pipefail -c "${AI_REVIEW_COMMAND}"
           test -s "${AI_REVIEW_RESULT}"
           jq -e 'type == "object" and (.findings | type == "array")' "${AI_REVIEW_RESULT}" > /dev/null
+      # Optional, self-reported finding counts for the Proof scorecard: never changes this check's result.
+      - name: Package self-reported finding counts
+        id: measurements
+        if: ${{ always() && (steps.review.outcome == 'success' || steps.review.outcome == 'failure') }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OUTCOME: ${{ steps.review.outcome }}
+        shell: bash
+        run: |
+          result="${AI_REVIEW_WORKING_DIRECTORY}/${AI_REVIEW_RESULT}"
+          if [[ ! -f .proof/measurements.py || ! -s "${result}" ]]; then
+            echo "No Proof runtime or reviewer result file; the scorecard will show finding counts as not collected."
+            exit 0
+          fi
+          input="${RUNNER_TEMP}/proof-measurements-input.json"
+          if python3 .proof/measurements.py review-findings "${result}" --output "${input}" \
+              && python3 .proof/measurements.py package --control ai-repository-standards-review --input "${input}" \
+                --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::Finding counts were not packaged; the check result is unaffected."
+          fi
+      - name: Upload self-reported finding counts
+        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
+        # Optional display metadata: an upload failure must not change the check result.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: proof-measurements-ai-repo-standards-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload repository standards findings
         if: ${{ always() && hashFiles(format('{0}/.ai-review/results/{1}.json', env.AI_REVIEW_WORKING_DIRECTORY, env.AI_REVIEW_ROLE)) != '' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

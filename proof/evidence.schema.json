@@ -124,7 +124,7 @@
     },
     "plainResult": {"allOf": [{"$ref": "#/$defs/result"}, {"not": {"required": ["change_scope"]}}, {"not": {"required": ["pr_metadata"]}}]},
     "measurements": {
-      "description": "Optional self-reported display metrics from the pull request's own workflow run; they never change a result status. Evaluator also restricts each kind to its control (tests: unit-tests, coverage: changed-code-coverage, contracts: repository-validation, documentation: documentation-validation, documents: repository-ground-truth, migrations: migration-validation) and checks arithmetic and status consistency.",
+      "description": "Optional self-reported display metrics from the pull request's own workflow run; they never change a result status. Evaluator also restricts each kind to its control (tests: unit-tests, coverage: changed-code-coverage, contracts: repository-validation, documentation: documentation-validation, documents: repository-ground-truth, migrations: migration-validation, review_findings: the four ai-*-review controls) and checks arithmetic and status consistency.",
       "type": "object",
       "additionalProperties": false,
       "required": ["version", "source"],
@@ -192,9 +192,22 @@
             "checked": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
             "failed": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
           }
+        },
+        "review_findings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["total", "p0", "p1", "p2", "p3", "unresolved_blocking"],
+          "properties": {
+            "total": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "p0": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "p1": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "p2": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "p3": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "unresolved_blocking": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+          }
         }
       },
-      "oneOf": [{"required": ["tests"]}, {"required": ["coverage"]}, {"required": ["contracts"]}, {"required": ["documentation"]}, {"required": ["documents"]}, {"required": ["migrations"]}]
+      "oneOf": [{"required": ["tests"]}, {"required": ["coverage"]}, {"required": ["contracts"]}, {"required": ["documentation"]}, {"required": ["documents"]}, {"required": ["migrations"]}, {"required": ["review_findings"]}]
     },
     "checkExecution": {
       "description": "Optional completed-check facts. Evaluator also verifies timestamp validity, ordering, and duration arithmetic.",

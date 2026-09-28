@@ -107,6 +107,7 @@ control:
 | `documentation-validation` | `documentation` | `markdown_files`, `links_checked`, `broken_links`, `mapping_failures` | Broken links cannot exceed links checked; `passed` exactly when there are no broken links or mapping failures |
 | `repository-ground-truth` | `documents` | `declared`, `found`, `missing` | `declared` equals `found + missing`; `passed` exactly when nothing is missing |
 | `migration-validation` | `migrations` | `checked`, `failed` | Failed cannot exceed checked; `passed` cannot report failures |
+| `ai-engineering-review`, `ai-qa-review`, `ai-security-review`, `ai-repository-standards-review` | `review_findings` | `total`, `p0`, `p1`, `p2`, `p3`, `unresolved_blocking` | `total` equals `p0 + p1 + p2 + p3`; `unresolved_blocking` cannot exceed `p0 + p1`; not coupled to status |
 
 The installed repository validator runs its contract groups in order and stops
 at the first failure, so later groups count as `not_run`. The ground-truth
@@ -120,6 +121,21 @@ and failed, because the repository declares none. Build and Format and Lint
 report only their command's exit status. A validator that
 cannot read its own configuration writes no measurements. Document paths and
 link targets are never published.
+
+AI review finding counts come from the reviewer adapter's result file
+(`pr-review/pr-review.md`), counted by `.proof/measurements.py review-findings`
+in the same AI PR Review job: `p0` to `p3` count findings by `severity`, and
+`unresolved_blocking` counts `P0`/`P1` findings whose `status` is not
+`resolved` (a missing status counts as open), the same rule the consolidation
+job uses to fail. A finding with a severity or status outside the documented
+values makes the file uncountable, so no counts are packaged. The counts are
+not coupled to the check status: an adapter can fail without findings, and the
+per-role check reflects the adapter's exit status, not the blocking rule.
+They are the AI provider's judgment, never change a result, and leave AI
+review advisory-only. Only counts are published, never finding text,
+evidence, file paths, or rule names. A native GitHub review provider such as
+Codex Code Review posts findings as review comments and has no result file,
+so its card shows no counts and says where to read the review.
 
 These numbers come from the pull request's own workflow run, which executes
 the pull request's code, so they are **self-reported**. They are display

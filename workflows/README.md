@@ -63,7 +63,13 @@ same with their own validator counts, uploaded as
 `proof-measurements-ground-truth-` artifacts for that run and attempt. The
 Migration Validation workflow also sets `PROOF_MEASUREMENTS_FILE`; a migration
 command that writes `{"version": 1, "source": "pull-request-workflow",
-"migrations": {"checked": N, "failed": M}}` gets those counts shown. The scorecard dashboard shows these as self-reported, because the
+"migrations": {"checked": N, "failed": M}}` gets those counts shown. Each job of the `ai-pr-review.yml` template counts
+its reviewer's result file with `.proof/measurements.py review-findings`
+(findings by severity and unresolved `P0`/`P1`) and uploads
+`proof-measurements-ai-engineering-`, `proof-measurements-ai-qa-`,
+`proof-measurements-ai-security-`, or `proof-measurements-ai-repo-standards-`
+artifacts for that run and attempt; it skips this when the repository has no
+installed Proof runtime. The scorecard dashboard shows these as self-reported, because the
 numbers come from the pull request's own code; they never change a check's
 result. Packaging and upload failures only warn, and commands that do not
 write the file are unaffected.
@@ -197,7 +203,7 @@ Other templates that are shipped but not installed by any profile:
 
 | Template | Workflow / check names | Activation |
 | --- | --- | --- |
-| `ai-pr-review.yml` | `AI PR Review` / `AI Engineering Review`, `AI QA Review`, `AI Security Review`, `AI Repo Standards Review` | The `ai-engineering-adapter`, `ai-qa-adapter`, `ai-security-adapter`, and `ai-repository-standards-adapter` providers; a repository-owned `AI_REVIEW_COMMAND` writes each role's result; advisory-only and never promotable |
+| `ai-pr-review.yml` | `AI PR Review` / `AI Engineering Review`, `AI QA Review`, `AI Security Review`, `AI Repo Standards Review` | The `ai-engineering-adapter`, `ai-qa-adapter`, `ai-security-adapter`, and `ai-repository-standards-adapter` providers; a repository-owned `AI_REVIEW_COMMAND` writes each role's result; each job uploads self-reported finding counts for the scorecard; advisory-only and never promotable |
 | `security-scanning.yml` | `Security Scanning` / `CodeQL`, `Dependency Review`, `Semgrep`, `FOSSA`, `Snyk Open Source`, `Secret Scan` | Requires `CODEQL_LANGUAGES` (or reusable input `codeql-languages`); organization-style bundle that runs consumer-supplied `FOSSA_COMMAND` / `SNYK_OPEN_SOURCE_COMMAND` strings; prefer the adapter templates above, which own the command shape |
 | `soak.yml` | `Soak Check` / `Soak Check` | The `repository-soak` provider for the `runtime-soak` capability; runs `SOAK_COMMAND` on a schedule or dispatch; awaiting an environment-evidence producer and collection path; scheduled checks alone do not activate the control |
 
