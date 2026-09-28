@@ -525,6 +525,40 @@ def _inactive_intro(inactive: list[tuple[str, str]]) -> str:
     return " ".join(parts)
 
 
+def _count_reconciliation(metadata: dict[str, Any]) -> str:
+    """Explain how the aggregate totals relate to the listed built-in checks."""
+    controls = metadata["controls"]
+    listed = len(controls)
+    if metadata["result_breakdown"]["availability"] != "available":
+        return (f"Individual results could not be matched to these totals for this snapshot, so the "
+                f"{listed} built-in checks below are shown as not reported.")
+    active = sum(row["status"] in _ATTENTION_STATUSES + ("passed",) for row in controls)
+    inactive = sum(row["status"] == "not_activated" for row in controls)
+    missing = sum(row["status"] == "not_reported" for row in controls)
+    custom = metadata["total"] - active
+
+    def plural(count: int, noun: str) -> str:
+        return f"{count} {noun}{'' if count == 1 else 's'}"
+
+    parts = [f"The totals count {plural(metadata['total'], 'active check')}."]
+    def verb(count: int, singular: str, plural_form: str) -> str:
+        return f"{count} {singular if count == 1 else plural_form}"
+
+    breakdown = [verb(active, "is active", "are active")]
+    if inactive:
+        breakdown.append(verb(inactive, "is not activated", "are not activated"))
+    if missing:
+        breakdown.append(verb(missing, "is not reported", "are not reported"))
+    joined = breakdown[0] if len(breakdown) == 1 else ", ".join(breakdown[:-1]) + " and " + breakdown[-1]
+    parts.append(f"Of the {listed} built-in checks listed below, {joined}.")
+    if inactive or missing:
+        parts.append("Only active checks count toward the totals.")
+    if custom > 0:
+        parts.append(f"{plural(custom, 'custom check')} also {'counts' if custom == 1 else 'count'} but "
+                     f"{'is' if custom == 1 else 'are'} not listed by name.")
+    return " ".join(parts)
+
+
 def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str, Any]) -> str:
     groups = []
     active_details = []
@@ -945,6 +979,7 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .decision{text-align:right;flex-shrink:0}
 .decision dt{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px}
 .decision dd{color:var(--tone);margin:4px 0 0;font-size:20px;font-weight:750}
+.metrics-note{margin:12px 2px 0;color:var(--muted);font-size:13px}
 .metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .metric{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:24px}
 .metric h2{margin:0 0 12px;font-size:13px;font-weight:650;color:var(--muted)}
@@ -1101,6 +1136,7 @@ def _html(metadata: dict[str, Any]) -> str:
   </section>
   {_attention_html(metadata["controls"], metadata["result_breakdown"])}
   <div class="metrics">{''.join(cards)}</div>
+  <p class="metrics-note">{html.escape(_count_reconciliation(metadata))} <a href="#checks-title">See all checks ↓</a></p>
   {_breakdown_html(metadata["result_breakdown"])}
   {_controls_html(metadata["controls"], metadata["source_run_url"], metadata["change_scope"])}
   <section class="evidence" aria-labelledby="evidence-title">

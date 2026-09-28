@@ -426,6 +426,40 @@ class RendererTests(unittest.TestCase):
             self.assertNotIn("excluded from the active-control totals", page)
             self.assertIn("whether they count toward the totals is unknown", page)
 
+    def test_totals_are_reconciled_with_the_listed_checks(self) -> None:
+        ids = [row[0] for row in MODULE.PUBLIC_CONTROLS]
+        card = scorecard(status="ORANGE", enforced=(0, 0), advisory=(2, 3))
+        card["controls"] = [
+            {"id": "build", "effective_mode": "advisory", "evidence_status": "passed"},
+            {"id": "unit-tests", "effective_mode": "advisory", "evidence_status": "passed"},
+            {"id": "deep-sast", "effective_mode": "advisory", "evidence_status": "failed"},
+            *({"id": control_id, "effective_mode": "not_activated", "evidence_status": "not_activated"}
+              for control_id in ids if control_id not in {"build", "unit-tests", "deep-sast", "runtime-soak"}),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.render(self.write_source(root, card), root / "output")
+            page = (root / "output/index.html").read_text()
+            inactive = len(ids) - 4
+            self.assertIn(f"The totals count 3 active checks. Of the {len(ids)} built-in checks listed below, "
+                          f"3 are active, {inactive} are not activated and 1 is not reported. "
+                          "Only active checks count toward the totals.", page)
+            self.assertLess(page.index('class="metrics-note"'), page.index('id="results-title"'))
+
+    def test_reconciliation_mentions_custom_and_unmatched_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.render(self.write_source(root, self.breakdown_card()), root / "output")
+            page = (root / "output/index.html").read_text()
+            self.assertIn("5 custom checks also count but are not listed by name.", page)
+            self.assertNotIn("private-", page)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.render(self.write_source(root), root / "output")
+            page = (root / "output/index.html").read_text()
+            self.assertIn("Individual results could not be matched to these totals", page)
+            self.assertNotIn("Only active checks count", page)
+
     def test_durations_are_human_readable(self) -> None:
         for seconds, expected in ((0, "0s"), (59, "59s"), (60, "1m 0s"), (743, "12m 23s"), (3723, "1h 2m 3s")):
             self.assertEqual(MODULE._duration(seconds), expected)

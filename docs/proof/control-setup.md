@@ -392,6 +392,11 @@ contains no per-file paths or raw scope findings.
 
 ## Reading scorecard evidence
 
+A sentence under the totals reconciles them with the table: how many
+active checks the totals count, and how many of the listed built-in checks
+are active, not activated, or not reported. Custom controls that count toward
+the totals are reported as a number, not by name.
+
 A **Needs attention** list above the totals names every built-in check that
 failed, was blocked, or is unverified, most severe first, and links to its
 detail section. Custom controls without a passing result are counted there but

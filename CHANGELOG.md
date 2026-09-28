@@ -8,6 +8,11 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Explain how the scorecard totals relate to the check table. A sentence under
+  the totals states how many active checks they count and how many of the
+  listed built-in checks are active, not activated, or not reported, so
+  "13/14" no longer looks inconsistent with 33 listed checks.
+
 - Show self-reported test totals and changed-line coverage on the scorecard
   dashboard. The `Unit Tests` and `Changed Code Coverage` workflow templates
   set `PROOF_MEASUREMENTS_FILE`, package a file the configured command writes
