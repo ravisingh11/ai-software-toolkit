@@ -552,8 +552,9 @@ class RendererTests(unittest.TestCase):
                 self.assertIn("182 of 200 changed lines covered (91.0%) · target 90%", text)
                 self.assertIn("not independently verified", text)
             self.assertNotIn("does not include tests passed", page)
-            self.assertIn("does not include queries run, vulnerabilities by severity.", page)
-            self.assertIn("Test totals, coverage, and validator counts, where shown, are self-reported", page)
+            self.assertIn("CodeQL publishes its findings to GitHub code scanning", page)
+            self.assertIn("Test totals, coverage, validator counts, and Semgrep CE and Gitleaks finding counts, where shown, "
+                          "are self-reported", page)
 
     def test_validator_measurements_are_summarized(self) -> None:
         card = scorecard(status="ORANGE", enforced=(0, 0), advisory=(2, 3))
@@ -601,7 +602,72 @@ class RendererTests(unittest.TestCase):
         build = MODULE._counts_gap("Artifacts produced; build errors", "build")
         self.assertIn("Only the command's exit status is reported", build)
         self.assertIn("artifacts produced, build errors depend on its tools", build)
-        self.assertIn("Only the overall result was reported", MODULE._counts_gap("Rules checked", "deep-sast"))
+        self.assertIn("Only the overall result was reported", MODULE._counts_gap("Rules checked", "runtime-soak"))
+
+    def test_scanners_without_collected_counts_say_where_counts_live(self) -> None:
+        for control_id, expected in (("deep-sast", "GitHub code scanning"), ("static-quality", "SonarQube server"),
+                                     ("dependency-change-review", "Dependency Review check"),
+                                     ("dependency-vulnerability", "do not yet export finding counts"),
+                                     ("license-compliance", "FOSSA project")):
+            with self.subTest(control_id=control_id):
+                gap = MODULE._counts_gap("Anything", control_id)
+                self.assertIn(expected, gap)
+                self.assertNotIn("Anything", gap)
+        self.assertEqual(MODULE._counts_gap(MODULE._CHECK_ASSESSMENTS["secret-detection"][3], "secret-detection"),
+                         "Only the overall result was reported. This report does not include secret findings.")
+
+    def findings_row(self, control_id: str, status: str, numbers: dict[str, Any]) -> dict[str, Any]:
+        return {"id": control_id, "effective_mode": "advisory", "evidence_status": status,
+                "authoritative_result": {"status": status, "measurements": {
+                    "version": 1, "source": "pull-request-workflow", "findings": numbers}}}
+
+    def test_scanner_findings_are_summarized_by_severity(self) -> None:
+        summary = MODULE._measurement_summary
+        zero = dict.fromkeys(("total", "critical", "high", "medium", "low", "unrated"), 0)
+        for numbers, expected in (
+            ({**zero, "total": 17, "high": 1, "medium": 4, "low": 12}, "0 critical · 1 high · 4 medium · 12 low"),
+            ({**zero, "total": 1203, "critical": 2, "low": 1200, "unrated": 1},
+             "2 critical · 0 high · 0 medium · 1,200 low · 1 unrated"),
+            ({**zero, "total": 3, "unrated": 3}, "3 findings · severity not rated by the scanner"),
+            ({**zero, "total": 1, "unrated": 1}, "1 finding · severity not rated by the scanner"),
+            (zero, "No findings reported"),
+        ):
+            with self.subTest(expected=expected):
+                self.assertEqual(summary({"availability": "available", "findings": numbers}), expected)
+        card = scorecard(status="ORANGE", enforced=(0, 0), advisory=(1, 2))
+        card["controls"] = [
+            self.findings_row("custom-static-analysis", "passed", {**zero, "total": 5, "medium": 1, "low": 4}),
+            self.findings_row("secret-detection", "failed", {**zero, "total": 2, "unrated": 2}),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = self.render(self.write_source(root, card), root / "output")
+            rows = {row["id"]: row for row in metadata["controls"]}
+            self.assertEqual(rows["secret-detection"]["measurements"]["findings"]["unrated"], 2)
+            page = (root / "output/index.html").read_text()
+            markdown = (root / "output/scorecard.md").read_text()
+            for text in (page, markdown):
+                self.assertIn("0 critical · 0 high · 1 medium · 4 low", text)
+                self.assertIn("2 findings · severity not rated by the scanner", text)
+            self.assertNotIn("does not include findings by severity.", page)
+            self.assertNotIn("does not include secret findings", page)
+
+    def test_inconsistent_or_misplaced_findings_are_unavailable(self) -> None:
+        zero = dict.fromkeys(("total", "critical", "high", "medium", "low", "unrated"), 0)
+        self.assertFalse(MODULE._measurements_consistent("findings", {**zero, "total": 2, "low": 1}, "passed"))
+        self.assertTrue(MODULE._measurements_consistent("findings", {**zero, "total": 1, "low": 1}, "passed"))
+        self.assertTrue(MODULE._measurements_consistent("findings", zero, "failed"))
+        card = scorecard(status="GREEN", enforced=(0, 0), advisory=(3, 3))
+        card["controls"] = [
+            self.findings_row("custom-static-analysis", "passed", {**zero, "total": 2, "low": 1}),
+            self.findings_row("deep-sast", "passed", zero),
+            self.findings_row("secret-detection", "passed", {**zero, "high": "1"}),
+        ]
+        rows = {row["id"]: row for row in MODULE._control_details(card)}
+        self.assertEqual(rows["deep-sast"]["status"], "passed")
+        for control_id in ("custom-static-analysis", "deep-sast", "secret-detection"):
+            with self.subTest(control_id=control_id):
+                self.assertEqual(rows[control_id]["measurements"], {"availability": "unavailable"})
 
     def ai_review_card(self, results: dict[str, dict[str, Any]]) -> dict[str, Any]:
         card = scorecard(status="ORANGE", enforced=(0, 0), advisory=(2, len(results)))

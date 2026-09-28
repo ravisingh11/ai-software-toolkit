@@ -19,6 +19,10 @@ timeout fails the job (`failed` at the check-run surface). Parameters that
 cannot be set in the UI are documented in the
 [SonarQube analysis parameters reference](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/analysis-parameters/parameters-not-settable-in-ui).
 
+The scorecard dashboard shows only the quality-gate result. Gate conditions,
+bugs, code smells, and duplication stay on the SonarQube server; the card
+points there instead of reporting counts.
+
 ## Install
 
 ```sh

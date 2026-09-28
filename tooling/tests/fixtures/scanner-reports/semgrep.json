@@ -1,0 +1,187 @@
+{
+ "version": "1.175.0",
+ "results": [
+  {
+   "check_id": "proof.python-disabled-tls-verification",
+   "path": "src/client.py",
+   "start": {
+    "line": 4,
+    "col": 1,
+    "offset": 0
+   },
+   "end": {
+    "line": 4,
+    "col": 40,
+    "offset": 39
+   },
+   "extra": {
+    "message": "TLS certificate verification must remain enabled.",
+    "metadata": {},
+    "severity": "ERROR",
+    "fingerprint": "requires login",
+    "lines": "requires login",
+    "validation_state": "NO_VALIDATOR",
+    "engine_kind": "OSS"
+   }
+  },
+  {
+   "check_id": "proof.javascript-disabled-tls-verification",
+   "path": "web/tls.js",
+   "start": {
+    "line": 9,
+    "col": 1,
+    "offset": 0
+   },
+   "end": {
+    "line": 9,
+    "col": 40,
+    "offset": 39
+   },
+   "extra": {
+    "message": "TLS certificate verification must remain enabled.",
+    "metadata": {},
+    "severity": "ERROR",
+    "fingerprint": "requires login",
+    "lines": "requires login",
+    "validation_state": "NO_VALIDATOR",
+    "engine_kind": "OSS"
+   }
+  },
+  {
+   "check_id": "proof.weak-hash",
+   "path": "src/hashing.py",
+   "start": {
+    "line": 12,
+    "col": 1,
+    "offset": 0
+   },
+   "end": {
+    "line": 12,
+    "col": 40,
+    "offset": 39
+   },
+   "extra": {
+    "message": "TLS certificate verification must remain enabled.",
+    "metadata": {},
+    "severity": "WARNING",
+    "fingerprint": "requires login",
+    "lines": "requires login",
+    "validation_state": "NO_VALIDATOR",
+    "engine_kind": "OSS"
+   }
+  },
+  {
+   "check_id": "proof.debug-flag",
+   "path": "src/settings.py",
+   "start": {
+    "line": 3,
+    "col": 1,
+    "offset": 0
+   },
+   "end": {
+    "line": 3,
+    "col": 40,
+    "offset": 39
+   },
+   "extra": {
+    "message": "TLS certificate verification must remain enabled.",
+    "metadata": {},
+    "severity": "INFO",
+    "fingerprint": "requires login",
+    "lines": "requires login",
+    "validation_state": "NO_VALIDATOR",
+    "engine_kind": "OSS"
+   }
+  },
+  {
+   "check_id": "proof.critical-sink",
+   "path": "src/exec.py",
+   "start": {
+    "line": 20,
+    "col": 1,
+    "offset": 0
+   },
+   "end": {
+    "line": 20,
+    "col": 40,
+    "offset": 39
+   },
+   "extra": {
+    "message": "TLS certificate verification must remain enabled.",
+    "metadata": {},
+    "severity": "CRITICAL",
+    "fingerprint": "requires login",
+    "lines": "requires login",
+    "validation_state": "NO_VALIDATOR",
+    "engine_kind": "OSS"
+   }
+  },
+  {
+   "check_id": "proof.inventory-usage",
+   "path": "src/usage.py",
+   "start": {
+    "line": 7,
+    "col": 1,
+    "offset": 0
+   },
+   "end": {
+    "line": 7,
+    "col": 40,
+    "offset": 39
+   },
+   "extra": {
+    "message": "TLS certificate verification must remain enabled.",
+    "metadata": {},
+    "severity": "INVENTORY",
+    "fingerprint": "requires login",
+    "lines": "requires login",
+    "validation_state": "NO_VALIDATOR",
+    "engine_kind": "OSS"
+   }
+  }
+ ],
+ "errors": [
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": "src/legacy.py",
+      "start": {
+       "line": 1,
+       "col": 1,
+       "offset": 0
+      },
+      "end": {
+       "line": 1,
+       "col": 5,
+       "offset": 4
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line src/legacy.py:1",
+   "path": "src/legacy.py"
+  }
+ ],
+ "paths": {
+  "scanned": [
+   "src/client.py",
+   "web/tls.js",
+   "src/hashing.py",
+   "src/settings.py",
+   "src/exec.py",
+   "src/usage.py",
+   "src/legacy.py"
+  ]
+ },
+ "time": {
+  "rules": [],
+  "rules_parse_time": 0.0003
+ },
+ "engine_requested": "OSS",
+ "skipped_rules": [],
+ "profiling_results": []
+}
