@@ -473,6 +473,81 @@ class EvaluateV2Tests(unittest.TestCase):
         self.assertEqual(unselected["deep-sast"]["effective_mode"], "not_activated")
         self.assertEqual(unselected["artifact-sbom"]["readiness"], "GRAY")
 
+    def test_policy_active_rows_on_another_subject_are_marked_separately(self) -> None:
+        policy, _, _, _ = contracts()
+        policy["overrides"]["change"]["pr-metadata"] = "advisory"
+
+        result = self.evaluate(evidence(), policy_document=policy, all_controls=True)
+        rows = {row["id"]: row for row in result["controls"]}
+
+        self.assertEqual(rows["pr-metadata"]["effective_mode"], "not_activated")
+        self.assertEqual(rows["pr-metadata"]["inactive_reason"], "other_subject")
+        self.assertEqual(rows["pr-metadata"]["evidence_subject"], "pull-request")
+        self.assertNotIn("inactive_reason", rows["deep-sast"])
+        self.assertEqual(result["summary"]["advisory"], {"passed": 1, "total": 1})
+
+    def pull_request_companion(self, status: str | None, revision: str = "sha256:pr") -> tuple[str, str, dict]:
+        results = {}
+        if status is not None:
+            result = {"producer": "Repository PR Metadata", "status": status}
+            if status in {"passed", "failed"}:
+                result["evidence"] = ["PR metadata result"]
+            else:
+                result["reason"] = "not evaluated"
+            results = {"pr-metadata": {"repository-pr-metadata": result}}
+        document = {"version": 2, "subject": {"type": "pull-request", "revision": revision}, "results": results}
+        return ("pull-request", "sha256:pr", document)
+
+    def evaluate_with_companion(self, companion: tuple[str, str, dict], mode: str = "advisory") -> dict:
+        policy, profiles, catalog, providers = contracts()
+        policy["overrides"]["change"]["pr-metadata"] = mode
+        return MODULE.evaluate(
+            policy, profiles, catalog, providers, evidence(), "change", "abc123", "git-commit",
+            all_catalog_controls=True, companions=[companion],
+        )
+
+    def test_companion_pull_request_evidence_scores_pr_metadata(self) -> None:
+        for status, readiness, passed in (("passed", "GREEN", 2), ("failed", "ORANGE", 1), (None, "ORANGE", 1)):
+            with self.subTest(status=status):
+                result = self.evaluate_with_companion(self.pull_request_companion(status))
+                row = next(row for row in result["controls"] if row["id"] == "pr-metadata")
+
+                self.assertEqual(row["effective_mode"], "advisory")
+                self.assertEqual(row["readiness"], readiness)
+                self.assertNotIn("inactive_reason", row)
+                self.assertEqual(result["summary"]["advisory"], {"passed": passed, "total": 2})
+                self.assertEqual(result["subject"], {"type": "git-commit", "revision": "abc123"})
+                self.assertEqual(result["companion_subjects"], [{"type": "pull-request", "revision": "sha256:pr"}])
+
+    def test_enforced_companion_failure_blocks(self) -> None:
+        result = self.evaluate_with_companion(self.pull_request_companion("failed"), mode="enforced")
+
+        self.assertEqual(result["decision"], "block")
+
+    def test_stale_companion_evidence_is_unusable_and_blocks(self) -> None:
+        result = self.evaluate_with_companion(self.pull_request_companion("passed", revision="sha256:old"))
+        row = next(row for row in result["controls"] if row["id"] == "pr-metadata")
+        build = next(row for row in result["controls"] if row["id"] == "build")
+
+        self.assertEqual(row["authoritative_evidence_status"], "missing")
+        self.assertEqual(build["authoritative_evidence_status"], "passed")
+        self.assertEqual(result["decision"], "block")
+        self.assertEqual(result["findings"][0]["kind"], "subject_mismatch")
+
+    def test_companion_cannot_repeat_the_primary_subject_or_carry_commit_results(self) -> None:
+        policy, profiles, catalog, providers = contracts()
+        with self.assertRaisesRegex(ValueError, "only once"):
+            MODULE.evaluate(
+                policy, profiles, catalog, providers, evidence(), "change", "abc123", "git-commit",
+                companions=[("git-commit", "abc123", evidence())],
+            )
+        commit_results = evidence(subject_type="pull-request", revision="sha256:pr")
+        with self.assertRaisesRegex(ValueError, "requires git-commit subject"):
+            MODULE.evaluate(
+                policy, profiles, catalog, providers, evidence(), "change", "abc123", "git-commit",
+                companions=[("pull-request", "sha256:pr", commit_results)],
+            )
+
     def test_rejects_malformed_nested_evidence_before_evaluation(self) -> None:
         document = evidence()
         document["results"]["build"]["repository-build"]["status"] = "passed"

@@ -444,19 +444,33 @@ def _control_details(document: dict[str, Any]) -> list[dict[str, Any]]:
         row = rows.get(control_id, {})
         mode, status = row.get("effective_mode"), row.get("evidence_status")
         valid = (mode in ("enforced", "advisory") and status in ("passed", "failed", "blocked", "no_result")) or (mode == status == "not_activated")
+        # Only the allowlisted pull-request subject is published; anything else stays plain not activated.
+        separate = (valid and mode == "not_activated" and row.get("inactive_reason") == "other_subject"
+                    and row.get("evidence_subject") == "pull-request")
         details.append({"id": control_id, "name": name, "purpose": purpose, "group": group,
                         "mode": mode if valid else "not_reported",
                         "status": status if valid else "not_reported",
+                        "separate_subject": "pull-request" if separate else None,
                         "execution": _execution_details(row) if valid else {"availability": "unavailable"},
                         "measurements": _measurements(control_id, row) if valid else {"availability": "unavailable"}})
     return details
+
+
+_SEPARATE_RESULT = ("Checked on the PR", "neutral")
+_SEPARATE_NOTE = ("Policy activates this check on the pull request itself, because a title or description edit does not "
+                  "create a new commit. This snapshot did not include a pull-request result, so the check is excluded "
+                  "from these totals. See the pull request's PR Metadata check.")
+
+
+def _result_label(row: dict[str, Any]) -> tuple[str, str]:
+    return _SEPARATE_RESULT if row.get("separate_subject") else _CONTROL_RESULTS[row["status"]]
 
 
 def _controls_markdown(controls: list[dict[str, Any]]) -> str:
     lines = ["## Individual checks", "", "Every built-in catalog check is listed. Not reported means this snapshot has no validated row; it does not imply disabled or passed.", "",
              "| Check | ID | Mode | Result | Purpose |", "| --- | --- | --- | --- | --- |"]
     for row in controls:
-        lines.append(f"| {row['name']} | `{row['id']}` | {_CONTROL_MODES[row['mode']]} | {_CONTROL_RESULTS[row['status']][0]} | {row['purpose']} |")
+        lines.append(f"| {row['name']} | `{row['id']}` | {_CONTROL_MODES[row['mode']]} | {_result_label(row)[0]} | {row['purpose']} |")
     measured = [(row["name"], _measurement_summary(row["measurements"])) for row in controls]
     measured = [(name, summary) for name, summary in measured if summary]
     if measured:
@@ -518,6 +532,8 @@ def _inactive_intro(inactive: list[tuple[str, str]]) -> str:
     # its relationship to the aggregate totals is unknown and must not be asserted.
     statuses = {status for status, _ in inactive}
     parts = []
+    if "separate" in statuses:
+        parts.append("Checks marked Checked on the PR run against the pull request, not this commit, and are excluded from these totals.")
     if "not_activated" in statuses:
         parts.append("Not activated checks are excluded from the active-control totals.")
     if "not_reported" in statuses:
@@ -533,7 +549,8 @@ def _count_reconciliation(metadata: dict[str, Any]) -> str:
         return (f"Individual results could not be matched to these totals for this snapshot, so the "
                 f"{listed} built-in checks below are shown as not reported.")
     active = sum(row["status"] in _ATTENTION_STATUSES + ("passed",) for row in controls)
-    inactive = sum(row["status"] == "not_activated" for row in controls)
+    separate = sum(bool(row.get("separate_subject")) for row in controls)
+    inactive = sum(row["status"] == "not_activated" for row in controls) - separate
     missing = sum(row["status"] == "not_reported" for row in controls)
     custom = metadata["total"] - active
 
@@ -545,13 +562,15 @@ def _count_reconciliation(metadata: dict[str, Any]) -> str:
         return f"{count} {singular if count == 1 else plural_form}"
 
     breakdown = [verb(active, "is active", "are active")]
+    if separate:
+        breakdown.append(verb(separate, "is checked on the pull request", "are checked on the pull request"))
     if inactive:
         breakdown.append(verb(inactive, "is not activated", "are not activated"))
     if missing:
         breakdown.append(verb(missing, "is not reported", "are not reported"))
     joined = breakdown[0] if len(breakdown) == 1 else ", ".join(breakdown[:-1]) + " and " + breakdown[-1]
     parts.append(f"Of the {listed} built-in checks listed below, {joined}.")
-    if inactive or missing:
+    if separate or inactive or missing:
         parts.append("Only active checks count toward the totals.")
     if custom > 0:
         parts.append(f"{plural(custom, 'custom check')} also {'counts' if custom == 1 else 'count'} but "
@@ -568,7 +587,7 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
         for row in controls:
             if row["group"] != group:
                 continue
-            label, tone = _CONTROL_RESULTS[row["status"]]
+            label, tone = _result_label(row)
             safe = {key: html.escape(value, quote=True) for key, value in row.items() if isinstance(value, str)}
             note = {"not_reported": "No validated row in this snapshot. Activation and outcome are unknown.",
                     "not_activated": "Not activated for this evaluation. Excluded from active-control totals.",
@@ -576,6 +595,8 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
                     "passed": "",
                     "failed": "The producer reported a failure.",
                     "blocked": "The producer reported a blocker."}[row["status"]]
+            if row.get("separate_subject"):
+                note = _SEPARATE_NOTE
             evidence = '' if row["status"] in _INACTIVE_STATUSES else f'<a href="{html.escape(run_url, quote=True)}" aria-label="Source report for {safe["name"]}">Source report ↗</a>'
             target = _check_target(row["id"])
             # A dash means no active mode: unknown (not reported) or excluded (not activated).
@@ -608,7 +629,8 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
             note_html = f'<p class="check-note">{note}</p>' if note else ''
             mode_html = '' if row["mode"] in _INACTIVE_STATUSES else f'<p class="check-mode">{_CONTROL_MODES[row["mode"]]}</p>'
             card = f'<article class="check-detail {tone}" id="check-{safe["id"]}" tabindex="-1"><div class="check-top"><h3>{safe["name"]} <code class="check-id">{safe["id"]}</code></h3><span class="size-result">{label}</span></div><p>{safe["purpose"]}</p>{mode_html}{note_html}{run_facts}{measurements}<div class="check-links">{evidence}<a href="#checks-title">Back to checks ↑</a></div></article>'
-            (inactive_details if row["status"] in _INACTIVE_STATUSES else active_details).append((row["status"], card))
+            detail_status = "separate" if row.get("separate_subject") else row["status"]
+            (inactive_details if row["status"] in _INACTIVE_STATUSES else active_details).append((detail_status, card))
         groups.append(f'<tbody><tr class="check-category"><th colspan="3" scope="rowgroup">{html.escape(group)}</th></tr>{"".join(rows)}</tbody>')
     overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title" tabindex="-1">Individual checks</h2><p class="checks-intro">All built-in catalog checks. Select a check to see its purpose and evidence below. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the check has no active mode in this snapshot. Custom controls may contribute to totals without publishing their private names.</p><div class="checks-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results and policy modes for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col" class="mode-cell">Mode</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
     # Stable sort: checks needing attention first, then passes, each in catalog order.
@@ -617,7 +639,7 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
     inactive = ''.join(card for _, card in inactive_details)
     details = '<section class="checks" aria-labelledby="check-details-title"><h2 id="check-details-title">Check details</h2><p class="checks-intro">Checks needing attention come first. Source report links open the evaluation run containing the detailed evidence.</p>' + active
     if inactive:
-        details += f'<h3 class="inactive-title" id="inactive-title">Not activated or not reported <span>({len(inactive_details)})</span></h3><p class="checks-intro">{_inactive_intro(inactive_details)}</p><div class="inactive-grid">{inactive}</div>'
+        details += f'<h3 class="inactive-title" id="inactive-title">Checked elsewhere, not activated, or not reported <span>({len(inactive_details)})</span></h3><p class="checks-intro">{_inactive_intro(inactive_details)}</p><div class="inactive-grid">{inactive}</div>'
     return overview + details + '</section>'
 
 

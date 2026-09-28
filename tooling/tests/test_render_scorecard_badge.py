@@ -446,6 +446,35 @@ class RendererTests(unittest.TestCase):
                           "Only active checks count toward the totals.", page)
             self.assertLess(page.index('class="metrics-note"'), page.index('id="results-title"'))
 
+    def test_pull_request_checks_are_labeled_as_checked_separately(self) -> None:
+        card = scorecard(status="GREEN", enforced=(0, 0), advisory=(1, 1))
+        card["controls"] = [
+            {"id": "build", "effective_mode": "advisory", "evidence_status": "passed"},
+            {"id": "pr-metadata", "effective_mode": "not_activated", "evidence_status": "not_activated",
+             "inactive_reason": "other_subject", "evidence_subject": "pull-request"},
+            # Only the allowlisted pull-request subject gets the separate label.
+            {"id": "deep-sast", "effective_mode": "not_activated", "evidence_status": "not_activated",
+             "inactive_reason": "other_subject", "evidence_subject": "<script>"},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = self.render(self.write_source(root, card), root / "output")
+            rows = {row["id"]: row for row in metadata["controls"]}
+            self.assertEqual(rows["pr-metadata"]["separate_subject"], "pull-request")
+            self.assertEqual(rows["pr-metadata"]["status"], "not_activated")
+            self.assertIsNone(rows["deep-sast"]["separate_subject"])
+            page = (root / "output/index.html").read_text()
+            card_html = page[page.index('id="check-pr-metadata"'):]
+            card_html = card_html[:card_html.index("</article>")]
+            self.assertIn("Checked on the PR", card_html)
+            self.assertIn("the pull request itself", card_html)
+            self.assertNotIn("Not activated", card_html)
+            self.assertNotIn("<script>", page)
+            self.assertIn("1 is checked on the pull request", page)
+            self.assertIn("Checks marked Checked on the PR run against the pull request", page)
+            markdown = (root / "output/scorecard.md").read_text()
+            self.assertIn("| PR Metadata | `pr-metadata` | Not activated | Checked on the PR |", markdown)
+
     def test_reconciliation_mentions_custom_and_unmatched_rows(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -600,7 +629,7 @@ class RendererTests(unittest.TestCase):
             self.assertLess(page.index('id="check-deep-sast"'), page.index('id="check-build"'))
             self.assertLess(page.index('id="check-build"'), page.index('id="inactive-title"'))
             self.assertLess(page.index('id="inactive-title"'), page.index('id="check-runtime-soak"'))
-            self.assertIn("Not activated or not reported <span>(", page)
+            self.assertIn("Checked elsewhere, not activated, or not reported <span>(", page)
             self.assertIn("Not activated checks are excluded from the active-control totals.", page)
             self.assertIn("whether they count toward the totals is unknown", page)
             self.assertNotIn("excluded from the totals above", page)
