@@ -8,6 +8,17 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Show what PR Metadata evaluated on the scorecard dashboard. The trusted PR
+  metadata validator now adds `pr_metadata` to its result: `title_matches` and
+  the `required_sections` and `missing_sections` counts, never the title, body,
+  or section names. The evaluator and schema accept it only on
+  `pr-metadata.repository-pr-metadata` and check it against the status; the
+  PR Metadata workflow binds it into its run-bound artifact, and the collector
+  omits malformed detail without changing the status. The card reads, for
+  example, **Title matches the required format · 3 of 3 required sections
+  present** and is not labeled self-reported. Refresh the runtime and
+  `pr-metadata.yml` together.
+
 - Show Migration Validation counts on the scorecard dashboard. The Migration
   Validation workflow sets `PROOF_MEASUREMENTS_FILE`, and a migration command
   that writes the new `migrations` measurement (`checked`, `failed`) gets

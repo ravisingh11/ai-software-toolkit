@@ -398,6 +398,30 @@ def validate_change_scope(value: Any, status: str) -> None:
         raise ValueError("change_scope status does not match thresholds")
 
 
+PR_METADATA_MAX_SECTIONS = 20
+
+
+def validate_pr_metadata(value: Any, status: str) -> None:
+    """Validate optional trusted display detail; counts only, never PR text."""
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"version", "title_matches", "required_sections", "missing_sections"}
+        or type(value["version"]) is not int
+        or value["version"] != 1
+        or type(value["title_matches"]) is not bool
+        or status not in {"passed", "failed"}
+    ):
+        raise ValueError("pr_metadata detail contract is invalid")
+    required, missing = value["required_sections"], value["missing_sections"]
+    if (
+        type(required) is not int or type(missing) is not int
+        or not 0 <= missing <= required <= PR_METADATA_MAX_SECTIONS
+    ):
+        raise ValueError("pr_metadata section counts are invalid")
+    if (value["title_matches"] and missing == 0) != (status == "passed"):
+        raise ValueError("pr_metadata status does not match its detail")
+
+
 # Self-reported measurements come from the pull request's own workflow run, so they
 # are display-only: they never change a result status and are labeled as such.
 MEASURED_CONTROLS = {
@@ -511,7 +535,7 @@ def validate_evidence(
                 raise ValueError(f"evidence references unknown provider: {provider_id}")
             if control_id not in providers[provider_id]["capabilities"]:
                 raise ValueError(f"provider {provider_id} does not provide {control_id}")
-            if not isinstance(result, dict) or set(result) - {"producer", "status", "evidence", "reason", "change_scope", "check_execution", "measurements"}:
+            if not isinstance(result, dict) or set(result) - {"producer", "status", "evidence", "reason", "change_scope", "pr_metadata", "check_execution", "measurements"}:
                 raise ValueError(f"evidence {control_id}.{provider_id} is invalid")
             if (
                 not isinstance(result.get("producer"), str)
@@ -528,6 +552,10 @@ def validate_evidence(
                 if (control_id, provider_id) != ("change-scope", "repository-change-scope"):
                     raise ValueError("change_scope metadata is only valid for change-scope.repository-change-scope")
                 validate_change_scope(result["change_scope"], status)
+            if "pr_metadata" in result:
+                if (control_id, provider_id) != ("pr-metadata", "repository-pr-metadata"):
+                    raise ValueError("pr_metadata detail is only valid for pr-metadata.repository-pr-metadata")
+                validate_pr_metadata(result["pr_metadata"], status)
             if "measurements" in result:
                 validate_measurements(control_id, result["measurements"], status)
             records = result.get("evidence")

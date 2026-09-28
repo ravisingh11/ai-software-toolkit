@@ -133,7 +133,8 @@ evaluation, and the latest PR score does not attest current `main`.
 Badge publication runs after evaluation. It is not a capability, provider,
 policy mode, or required check and cannot influence `allow` or `block`. Its
 public projection includes aggregate status/counts, PR-size measurements and
-thresholds, source-run metadata, a revision digest, and one entry for every
+thresholds, PR metadata detail (whether the title matches and how many
+required sections are present, never the title or body text), source-run metadata, a revision digest, and one entry for every
 trusted built-in catalog control. Control IDs, names, and purposes come from
 the trusted catalog; effective modes and evidence statuses come from validated
 scorecard rows. Missing rows display **Not reported**, separately from an

@@ -40,6 +40,7 @@ jobs:
           status=failed
           summary="Trusted PR metadata evaluation could not complete. See workflow logs."
           revision=""
+          detail=null
           if python3 .proof-trusted/.proof/configure.py \
             --policy .proof-trusted/.proof/policy.yaml \
             --profiles .proof-trusted/.proof/profiles.yaml \
@@ -55,6 +56,7 @@ jobs:
             --output .artifacts/proof/pr-metadata-evidence.json)"; then
             status="$(jq -er '.results["pr-metadata"]["repository-pr-metadata"].status | select(. == "passed" or . == "failed")' .artifacts/proof/pr-metadata-evidence.json)"
             summary="$(jq -r '.results["pr-metadata"]["repository-pr-metadata"] | (.evidence // [.reason]) | join(" ") | .[0:1000]' .artifacts/proof/pr-metadata-evidence.json)"
+            detail="$(jq -c '.results["pr-metadata"]["repository-pr-metadata"].pr_metadata // null' .artifacts/proof/pr-metadata-evidence.json)"
             echo "revision=${revision}" >> "${GITHUB_OUTPUT}"
           fi
           jq -n \
@@ -69,7 +71,8 @@ jobs:
             --arg summary "${summary}" \
             --arg mode "${mode}" \
             --arg pull_request_revision "${revision}" \
-            '{version:1,run_id:$run_id,event:$event,base_sha:$base_sha,base_ref:$base_ref,head_sha:$head_sha,revision:$head_sha,repository:$repository,provider_id:$provider_id,status:$status,summary:$summary,mode:$mode,pull_request_revision:$pull_request_revision}' \
+            --argjson pr_metadata "${detail}" \
+            '{version:1,run_id:$run_id,event:$event,base_sha:$base_sha,base_ref:$base_ref,head_sha:$head_sha,revision:$head_sha,repository:$repository,provider_id:$provider_id,status:$status,summary:$summary,mode:$mode,pull_request_revision:$pull_request_revision} + (if $pr_metadata == null then {} else {pr_metadata:$pr_metadata} end)' \
             > "${RUNNER_TEMP}/proof-evidence.json"
       - name: Render pull-request scorecard
         if: steps.evaluate.outputs.revision != ''

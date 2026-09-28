@@ -151,6 +151,11 @@ If the validator cannot bind the event, the scorecard passes the revision
 pass. Manual dispatches have no pull request; their scorecards show the row as
 **Checked on the PR**, which is excluded from totals.
 
+The validator's result also carries `pr_metadata`: whether the title matches
+and how many required sections are configured and missing. The dashboard's PR
+Metadata card shows that detail. Only the predicate and counts are published, never the title, body, or
+marker text. See the [producer contract](producer-contract.md#optional-pr-metadata-detail).
+
 ### Semgrep CE
 
 Core runs `semgrep scan --error` with `.proof/semgrep-rules.yml`. The

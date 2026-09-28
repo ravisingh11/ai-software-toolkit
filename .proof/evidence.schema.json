@@ -29,6 +29,15 @@
             "repository-change-scope": {"$ref": "#/$defs/result"}
           },
           "additionalProperties": {"$ref": "#/$defs/plainResult"}
+        },
+        "pr-metadata": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"$ref": "#/$defs/identifier"},
+          "properties": {
+            "repository-pr-metadata": {"$ref": "#/$defs/result"}
+          },
+          "additionalProperties": {"$ref": "#/$defs/plainResult"}
         }
       }
     }
@@ -55,6 +64,7 @@
         },
         "reason": {"type": "string", "minLength": 1, "maxLength": 1000, "pattern": "\\S"},
         "change_scope": {"$ref": "#/$defs/changeScope"},
+        "pr_metadata": {"$ref": "#/$defs/prMetadata"},
         "check_execution": {"$ref": "#/$defs/checkExecution"},
         "measurements": {"$ref": "#/$defs/measurements"}
       },
@@ -101,10 +111,18 @@
               "status": {"enum": ["passed", "failed"]}
             }
           }
+        },
+        {
+          "if": {"required": ["pr_metadata"]},
+          "then": {
+            "properties": {
+              "status": {"enum": ["passed", "failed"]}
+            }
+          }
         }
       ]
     },
-    "plainResult": {"allOf": [{"$ref": "#/$defs/result"}, {"not": {"required": ["change_scope"]}}]},
+    "plainResult": {"allOf": [{"$ref": "#/$defs/result"}, {"not": {"required": ["change_scope"]}}, {"not": {"required": ["pr_metadata"]}}]},
     "measurements": {
       "description": "Optional self-reported display metrics from the pull request's own workflow run; they never change a result status. Evaluator also restricts each kind to its control (tests: unit-tests, coverage: changed-code-coverage, contracts: repository-validation, documentation: documentation-validation, documents: repository-ground-truth, migrations: migration-validation) and checks arithmetic and status consistency.",
       "type": "object",
@@ -196,6 +214,18 @@
       "format": "date-time",
       "maxLength": 32,
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?(?:Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "prMetadata": {
+      "description": "Optional trusted display detail from the base-branch PR metadata validator: a title predicate and section counts only, never PR text or section names. Evaluator also restricts it to pr-metadata.repository-pr-metadata and checks count and status consistency.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "title_matches", "required_sections", "missing_sections"],
+      "properties": {
+        "version": {"type": "integer", "const": 1},
+        "title_matches": {"type": "boolean"},
+        "required_sections": {"type": "integer", "minimum": 0, "maximum": 20},
+        "missing_sections": {"type": "integer", "minimum": 0, "maximum": 20}
+      }
     },
     "changeScope": {
       "description": "Optional display metrics; evaluator also validates arithmetic and status consistency.",

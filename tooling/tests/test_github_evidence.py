@@ -1408,6 +1408,26 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
                 self.assertEqual(result["status"], "passed")
                 self.assertNotIn("change_scope", result)
 
+    def test_pr_metadata_artifact_preserves_validated_detail(self) -> None:
+        detail = {"version": 1, "title_matches": True, "required_sections": 3, "missing_sections": 0}
+        document = artifact_document(909, provider_id="repository-pr-metadata")
+        document["pr_metadata"] = detail
+        contract = artifact_contract(provider_id="repository-pr-metadata")
+        result = self.prove_artifact(document=document, contract=contract)
+        self.assertEqual(result["pr_metadata"], detail)
+        for invalid in (None, {**detail, "missing_sections": 1}, {**detail, "title_matches": 1}, "text"):
+            with self.subTest(invalid=invalid):
+                document["pr_metadata"] = invalid
+                result = self.prove_artifact(document=document, contract=contract)
+                self.assertEqual(result["status"], "passed")
+                self.assertNotIn("pr_metadata", result)
+        del document["pr_metadata"]
+        self.assertNotIn("pr_metadata", self.prove_artifact(document=document, contract=contract))
+        # Only the PR metadata provider may attach this detail.
+        document = artifact_document(909)
+        document["pr_metadata"] = detail
+        self.assertNotIn("pr_metadata", self.prove_artifact(document=document))
+
     def test_artifact_check_uses_run_id_from_external_id_when_github_rewrites_details_url(self) -> None:
         result = self.prove_artifact(
             details_url="https://github.com/owner/repo/runs/123456",

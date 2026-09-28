@@ -89,16 +89,24 @@ def validate_metadata(event: dict[str, Any], config: dict[str, Any]) -> dict[str
     fields = pull_request_fields(event)
     findings: list[str] = []
     title = fields["title"].strip()
-    if not title or pattern.search(title) is None:
+    title_matches = bool(title) and pattern.search(title) is not None
+    if not title_matches:
         findings.append("Pull-request title does not satisfy title_pattern.")
-    for marker in markers:
-        if marker not in fields["body"]:
-            findings.append(f"Pull-request body is missing required marker: {marker}")
+    missing = [marker for marker in markers if marker not in fields["body"]]
+    findings += [f"Pull-request body is missing required marker: {marker}" for marker in missing]
+    # Public display detail: a predicate and counts only, never title, body, or marker text.
+    detail = {
+        "version": 1,
+        "title_matches": title_matches,
+        "required_sections": len(markers),
+        "missing_sections": len(missing),
+    }
     if findings:
         return {
             "producer": "Repository PR Metadata",
             "status": "failed",
             "evidence": findings,
+            "pr_metadata": detail,
         }
     return {
         "producer": "Repository PR Metadata",
@@ -106,6 +114,7 @@ def validate_metadata(event: dict[str, Any], config: dict[str, Any]) -> dict[str
         "evidence": [
             f"PR {fields['repository']}#{fields['number']} metadata satisfies the configured contract."
         ],
+        "pr_metadata": detail,
     }
 
 

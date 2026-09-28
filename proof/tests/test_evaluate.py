@@ -676,6 +676,64 @@ class ChangeScopeEvidenceTests(unittest.TestCase):
         MODULE.validate_change_scope(metadata, "passed")
 
 
+class PrMetadataEvidenceTests(unittest.TestCase):
+    DETAIL = {"version": 1, "title_matches": True, "required_sections": 3, "missing_sections": 0}
+
+    def document(self, status: str = "passed", **detail) -> dict:
+        return {
+            "version": 2, "subject": {"type": "pull-request", "revision": "sha256:" + "a" * 64},
+            "results": {"pr-metadata": {"repository-pr-metadata": {
+                "producer": "Repository PR Metadata", "status": status,
+                "evidence": ["metadata checked"], "pr_metadata": {**self.DETAIL, **detail},
+            }}},
+        }
+
+    def validate(self, document: dict) -> None:
+        _, _, catalog, providers = contracts()
+        MODULE.validate_evidence(document, MODULE.catalog_map(catalog), providers["providers"])
+
+    def test_detail_is_optional_and_accepts_consistent_pass_and_failure(self) -> None:
+        self.validate(self.document())
+        self.validate(self.document("failed", title_matches=False))
+        self.validate(self.document("failed", missing_sections=3))
+        self.validate(self.document(required_sections=0))
+        document = self.document()
+        del document["results"]["pr-metadata"]["repository-pr-metadata"]["pr_metadata"]
+        self.validate(document)
+
+    def test_rejects_wrong_control_or_provider(self) -> None:
+        row = self.document()["results"]["pr-metadata"]["repository-pr-metadata"]
+        document = {"version": 2, "subject": {"type": "git-commit", "revision": "abc123"},
+                    "results": {"build": {"repository-build": row}}}
+        with self.assertRaisesRegex(ValueError, "only valid"):
+            self.validate(document)
+
+    def test_rejects_malformed_or_inconsistent_detail(self) -> None:
+        cases = [None, {}, {**self.DETAIL, "extra": 0}, {**self.DETAIL, "version": True},
+                 {**self.DETAIL, "version": 2}, {**self.DETAIL, "title_matches": 1},
+                 {**self.DETAIL, "required_sections": True}, {**self.DETAIL, "missing_sections": -1},
+                 {**self.DETAIL, "missing_sections": 4}, {**self.DETAIL, "required_sections": 21},
+                 {**self.DETAIL, "missing_sections": 1.0}, {**self.DETAIL, "missing_sections": 1}]
+        for detail in cases:
+            with self.subTest(detail=detail), self.assertRaises(ValueError):
+                MODULE.validate_pr_metadata(detail, "passed")
+        for status in ("failed", "blocked", "not_run"):
+            with self.subTest(status=status), self.assertRaises(ValueError):
+                MODULE.validate_pr_metadata(self.DETAIL, status)
+
+    def test_schema_restricts_detail_to_pr_metadata_provider(self) -> None:
+        schema = json.loads((ROOT / "proof" / "evidence.schema.json").read_text())
+        definitions = schema["$defs"]
+        metadata = schema["properties"]["results"]["properties"]["pr-metadata"]
+        self.assertEqual(metadata["properties"]["repository-pr-metadata"], {"$ref": "#/$defs/result"})
+        self.assertEqual(metadata["additionalProperties"], {"$ref": "#/$defs/plainResult"})
+        self.assertIn({"not": {"required": ["pr_metadata"]}}, definitions["plainResult"]["allOf"])
+        detail = definitions["prMetadata"]
+        self.assertFalse(detail["additionalProperties"])
+        self.assertEqual(set(detail["required"]), set(self.DETAIL))
+        self.assertEqual(detail["properties"]["title_matches"], {"type": "boolean"})
+
+
 class MeasurementsEvidenceTests(unittest.TestCase):
     TESTS = {"version": 1, "source": "pull-request-workflow",
              "tests": {"total": 12, "passed": 10, "failed": 0, "skipped": 2}}
