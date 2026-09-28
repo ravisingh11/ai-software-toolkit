@@ -411,8 +411,18 @@ class RendererTests(unittest.TestCase):
             self.assertIn("Ran for <strong>12s</strong>", page)
             self.assertIn("2026-09-27T01:00:12Z", page)
             self.assertNotIn("Passing evidence reported for this snapshot", page)
-            self.assertIn("Tests passed; failed; skipped; total", page)
-            self.assertIn("Measurements not collected", page)
+            self.assertIn("Counts not reported", page)
+            self.assertIn("This report does not include tests passed, failed, skipped, total.", page)
+
+    def test_unknown_rows_are_not_described_as_excluded(self) -> None:
+        card = scorecard()
+        card["controls"] = [{"id": "build", "effective_mode": "enforced", "evidence_status": "passed"}]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.render(self.write_source(root, card), root / "output")
+            page = (root / "output/index.html").read_text()
+            self.assertNotIn("excluded from the active-control totals", page)
+            self.assertIn("whether they count toward the totals is unknown", page)
 
     def test_durations_are_human_readable(self) -> None:
         for seconds, expected in ((0, "0s"), (59, "59s"), (60, "1m 0s"), (743, "12m 23s"), (3723, "1h 2m 3s")):
@@ -500,6 +510,9 @@ class RendererTests(unittest.TestCase):
             self.assertLess(page.index('id="check-build"'), page.index('id="inactive-title"'))
             self.assertLess(page.index('id="inactive-title"'), page.index('id="check-runtime-soak"'))
             self.assertIn("Not activated or not reported <span>(", page)
+            self.assertIn("Not activated checks are excluded from the active-control totals.", page)
+            self.assertIn("whether they count toward the totals is unknown", page)
+            self.assertNotIn("excluded from the totals above", page)
             # Each check shows its canonical catalog ID, in the table row and in its detail heading.
             self.assertIn('<a href="#check-build">Build</a> <code class="check-id">build</code>', page)
             self.assertIn('<h3>Build <code class="check-id">build</code></h3>', page)

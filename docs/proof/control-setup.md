@@ -403,7 +403,9 @@ measurements. Detail sections list checks needing attention first, then passed
 checks; not-activated and not-reported checks are grouped in a compact section
 at the end. Each section shows validated execution duration and completion time
 when supplied; its assessment, inputs, expected result, and measurement gaps
-(such as test totals or coverage percentage) are under **Assessment criteria**.
+(listed as **Counts not reported**, such as test totals or coverage percentage)
+are under **Assessment criteria**. Not-activated checks are described as excluded
+from the totals; not-reported checks are described as unknown, never excluded.
 Unavailable facts are not inferred from a passing status. On narrow screens,
 the table keeps each check's result beside its name and hides the mode column.
 

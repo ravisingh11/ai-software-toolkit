@@ -453,6 +453,24 @@ def _attention_html(controls: list[dict[str, Any]], breakdown: dict[str, Any]) -
     return '<section class="attention" aria-labelledby="attention-title"><h2 id="attention-title">Needs attention</h2><ul>' + ''.join(items) + '</ul></section>'
 
 
+def _counts_gap(metrics: str) -> str:
+    """Explain, in a sentence, which counts this check type could report but did not."""
+    fields = ", ".join(part.strip() for part in metrics.split(";"))
+    return f"Only the overall result was reported. This report does not include {fields[:1].lower() + fields[1:]}."
+
+
+def _inactive_intro(inactive: list[tuple[str, str]]) -> str:
+    # Not activated is a known exclusion; not reported means the row is missing, so
+    # its relationship to the aggregate totals is unknown and must not be asserted.
+    statuses = {status for status, _ in inactive}
+    parts = []
+    if "not_activated" in statuses:
+        parts.append("Not activated checks are excluded from the active-control totals.")
+    if "not_reported" in statuses:
+        parts.append("Not reported checks have no validated row in this snapshot; whether they count toward the totals is unknown.")
+    return " ".join(parts)
+
+
 def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str, Any]) -> str:
     groups = []
     active_details = []
@@ -490,7 +508,7 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
             else:
                 criteria.append(("Execution time", "Not supplied by this source report"))
             if row["id"] != "change-scope":
-                criteria.append(("Measurements not collected", metrics))
+                criteria.append(("Counts not reported", _counts_gap(metrics)))
             criteria_rows = ''.join(f'<tr><th scope="row">{html.escape(key)}</th><td>{html.escape(value)}</td></tr>' for key, value in criteria)
             measurements = '<details class="criteria"><summary>Assessment criteria</summary><table class="assessment-table"><caption>Assessment criteria and available detail</caption><tbody>' + criteria_rows + '</tbody></table></details>'
             if row["id"] == "change-scope":
@@ -507,7 +525,7 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
     inactive = ''.join(card for _, card in inactive_details)
     details = '<section class="checks" aria-labelledby="check-details-title"><h2 id="check-details-title">Check details</h2><p class="checks-intro">Checks needing attention come first. Source report links open the evaluation run containing the detailed evidence.</p>' + active
     if inactive:
-        details += f'<h3 class="inactive-title" id="inactive-title">Not activated or not reported <span>({len(inactive_details)})</span></h3><p class="checks-intro">These checks produced no result in this snapshot and are excluded from the totals above.</p><div class="inactive-grid">{inactive}</div>'
+        details += f'<h3 class="inactive-title" id="inactive-title">Not activated or not reported <span>({len(inactive_details)})</span></h3><p class="checks-intro">{_inactive_intro(inactive_details)}</p><div class="inactive-grid">{inactive}</div>'
     return overview + details + '</section>'
 
 
