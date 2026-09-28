@@ -446,10 +446,17 @@ checks ran. The dashboard does not assert that the snapshot is the current PR
 head. The public revision digest identifies the snapshot without exposing a raw
 commit SHA; open the source run to inspect its PR and commit.
 
-Test totals, security finding counts by severity, and numeric coverage are not
-part of the public dashboard evidence contract. A passed check does not imply
-zero findings, a particular test count, or 100% coverage. Read the producer's
-report for those measurements. The coverage report distinguishes changes with
+Test totals and changed-line coverage can appear on the dashboard as
+**self-reported** measurements. The Unit Tests and Changed Code Coverage
+workflows set `PROOF_MEASUREMENTS_FILE`; a configured command that writes it
+(for example with `.proof/measurements.py unittest`, `junit`, or
+`diff-cover`) gets its numbers packaged into a run-bound artifact. Because
+those workflows run the pull request's own code, the numbers are labeled as
+not independently verified and never change a check's result. Commands that
+do not write the file keep working; the dashboard then says the measurements
+were not collected. Security finding counts by severity are not collected. A
+passed check does not imply zero findings, a particular test count, or 100%
+coverage. Read the producer's report for those measurements. The coverage report distinguishes changes with
 no measured lines from a measured coverage percentage.
 
 The coverage workflow keeps the stable Actions title **Changed Code Coverage**

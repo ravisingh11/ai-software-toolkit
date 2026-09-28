@@ -387,6 +387,54 @@ def _execution_details(row: dict[str, Any]) -> dict[str, Any]:
             "duration_seconds": value["duration_seconds"], "conclusion": value["conclusion"]}
 
 
+_MEASURED_FIELDS = {"unit-tests": ("tests", ("total", "passed", "failed", "skipped")),
+                    "changed-code-coverage": ("coverage", ("measured_lines", "covered_lines", "threshold_percent"))}
+
+
+def _measurements(control_id: str, row: dict[str, Any]) -> dict[str, Any]:
+    """Re-validate optional self-reported measurements; never trust them for status."""
+    unavailable = {"availability": "unavailable"}
+    spec = _MEASURED_FIELDS.get(control_id)
+    result = row.get("authoritative_result")
+    value = result.get("measurements") if isinstance(result, dict) else None
+    status = row.get("evidence_status")
+    if spec is None or not isinstance(value, dict) or status not in ("passed", "failed"):
+        return unavailable
+    kind, fields = spec
+    numbers = value.get(kind)
+    if (set(value) != {"version", "source", kind} or type(value.get("version")) is not int or value["version"] != 1
+            or value.get("source") != "pull-request-workflow" or result.get("status") != status
+            or not isinstance(numbers, dict) or set(numbers) != set(fields)
+            or any(type(numbers[key]) is not int or not 0 <= numbers[key] <= 2**53 - 1 for key in fields)):
+        return unavailable
+    if kind == "tests":
+        if (numbers["total"] == 0 or numbers["total"] != numbers["passed"] + numbers["failed"] + numbers["skipped"]
+                or (status == "passed" and numbers["failed"])):
+            return unavailable
+    elif (numbers["covered_lines"] > numbers["measured_lines"] or numbers["threshold_percent"] > 100
+          or (status == "passed" and numbers["covered_lines"] * 100 < numbers["threshold_percent"] * numbers["measured_lines"])):
+        return unavailable
+    return {"availability": "available", "source": "pull-request-workflow", kind: {key: numbers[key] for key in fields}}
+
+
+_SELF_REPORTED_NOTE = "Self-reported by the pull request's own workflow run; not independently verified and never used for the result."
+
+
+def _measurement_summary(measurements: dict[str, Any]) -> str | None:
+    if measurements["availability"] != "available":
+        return None
+    if "tests" in measurements:
+        tests = measurements["tests"]
+        return (f'{tests["passed"]:,} passed · {tests["failed"]:,} failed · {tests["skipped"]:,} skipped '
+                f'({tests["total"]:,} tests)')
+    coverage = measurements["coverage"]
+    measured, covered = coverage["measured_lines"], coverage["covered_lines"]
+    if not measured:
+        return f'No measurable changed lines · target {coverage["threshold_percent"]}%'
+    percent = int(covered * 1000 / measured) / 10  # floor to one decimal; never round up to a target
+    return f'{covered:,} of {measured:,} changed lines covered ({percent:.1f}%) · target {coverage["threshold_percent"]}%'
+
+
 def _control_details(document: dict[str, Any]) -> list[dict[str, Any]]:
     """Project enum-only results for known controls; fail closed on bad totals."""
     consistent = _result_breakdown(document)["availability"] == "available"
@@ -399,7 +447,8 @@ def _control_details(document: dict[str, Any]) -> list[dict[str, Any]]:
         details.append({"id": control_id, "name": name, "purpose": purpose, "group": group,
                         "mode": mode if valid else "not_reported",
                         "status": status if valid else "not_reported",
-                        "execution": _execution_details(row) if valid else {"availability": "unavailable"}})
+                        "execution": _execution_details(row) if valid else {"availability": "unavailable"},
+                        "measurements": _measurements(control_id, row) if valid else {"availability": "unavailable"}})
     return details
 
 
@@ -408,6 +457,11 @@ def _controls_markdown(controls: list[dict[str, Any]]) -> str:
              "| Check | ID | Mode | Result | Purpose |", "| --- | --- | --- | --- | --- |"]
     for row in controls:
         lines.append(f"| {row['name']} | `{row['id']}` | {_CONTROL_MODES[row['mode']]} | {_CONTROL_RESULTS[row['status']][0]} | {row['purpose']} |")
+    measured = [(row["name"], _measurement_summary(row["measurements"])) for row in controls]
+    measured = [(name, summary) for name, summary in measured if summary]
+    if measured:
+        lines += ["", "### Self-reported measurements", "", _SELF_REPORTED_NOTE, ""]
+        lines += [f"- {name}: {summary}" for name, summary in measured]
     return "\n".join(lines)
 
 
@@ -507,7 +561,11 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
                                  ("Producer conclusion", execution["conclusion"].replace("_", " "))])
             else:
                 criteria.append(("Execution time", "Not supplied by this source report"))
-            if row["id"] != "change-scope":
+            measured = _measurement_summary(row["measurements"])
+            if measured:
+                run_facts += f'<p class="check-measure"><strong>{html.escape(measured)}</strong><span>{_SELF_REPORTED_NOTE}</span></p>'
+                criteria.append(("Self-reported measurements", measured))
+            elif row["id"] != "change-scope":
                 criteria.append(("Counts not reported", _counts_gap(metrics)))
             criteria_rows = ''.join(f'<tr><th scope="row">{html.escape(key)}</th><td>{html.escape(value)}</td></tr>' for key, value in criteria)
             measurements = '<details class="criteria"><summary>Assessment criteria</summary><table class="assessment-table"><caption>Assessment criteria and available detail</caption><tbody>' + criteria_rows + '</tbody></table></details>'
@@ -810,6 +868,13 @@ _UNGATED_MEANING = ("No enforced controls are configured, so the policy decision
 _BLOCK_MEANING = "BLOCK means at least one enforced control did not pass for this snapshot."
 
 
+def _collection_note(controls: list[dict[str, Any]]) -> str:
+    if any(row["measurements"]["availability"] == "available" for row in controls):
+        return ("Test totals and coverage, where shown, are self-reported by the pull request's own workflow run "
+                "and are not independently verified. Security finding counts are not collected in this summary.")
+    return "Test totals, security finding counts, and coverage percentages are not collected in this summary."
+
+
 def _decision_meaning(metadata: dict[str, Any]) -> str:
     if metadata["decision"] == "block":
         return _BLOCK_MEANING
@@ -840,7 +905,7 @@ Failed means a reported failure. Blocked means the producer reported a blocker. 
 
 {_decision_meaning(metadata)}
 This is a published PR snapshot. The source timestamp does not prove it matches the current PR head or current main.
-Test totals, security finding counts, and coverage percentages are not collected in this summary.
+{_collection_note(metadata["controls"])}
 {_scope_markdown(metadata["change_scope"])}
 {_controls_markdown(metadata["controls"])}
 """
@@ -926,6 +991,8 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .check-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.check-top h3{font-size:16px;line-height:1.4;margin:0}.check-top .size-result{font-size:11px}
 .check-detail p{font-size:13px;color:var(--muted);margin:12px 0 0}.check-detail .check-mode{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.6px;color:var(--ink)}
 .check-detail .check-note{font-size:12px}.check-detail .check-run{font-size:12px;color:var(--ink)}
+.check-detail .check-measure{font-size:13px;color:var(--ink);padding:10px 12px;background:var(--canvas);border-radius:8px}
+.check-measure span{display:block;color:var(--muted);font-size:11px;margin-top:2px}
 .criteria{border:0;padding:12px 0 0;font-size:12px}.criteria summary{color:var(--accent)}
 .inactive-title{margin:32px 0 0;font-size:18px}.inactive-title span{color:var(--muted);font-weight:500}
 .inactive-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}
@@ -1051,7 +1118,7 @@ def _html(metadata: dict[str, Any]) -> str:
   <aside class="scope-note"><span class="note-mark" aria-hidden="true">ⓘ</span>
     <p><strong>A PR snapshot, not an assessment of current main.</strong> Counts show controls with passing evidence.
     The source timestamp does not prove this matches the current PR head. Advisory gaps do not block the policy decision.
-    Test totals, security finding counts, and coverage percentages are not collected in this summary.</p>
+    {_collection_note(metadata["controls"])}</p>
   </aside>
   <details><summary>Verification details</summary>
     <p class="digest">Subject digest<code>{safe['subject_digest']}</code></p>

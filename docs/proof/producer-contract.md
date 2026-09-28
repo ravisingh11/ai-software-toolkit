@@ -66,6 +66,41 @@ producer status but omits unavailable or malformed optional measurements.
 The dashboard then displays measurements as unavailable. This extension does
 not change policy evaluation or promote scope from advisory to enforced.
 
+### Optional self-reported test and coverage measurements
+
+A `unit-tests` result may include `measurements` with `version: 1`,
+`source: "pull-request-workflow"`, and `tests` (`total`, `passed`, `failed`,
+`skipped`). A `changed-code-coverage` result may include `measurements` with
+the same `version` and `source` and `coverage` (`measured_lines`,
+`covered_lines`, `threshold_percent`). Measurements are accepted only for
+`passed` or `failed` results and on no other control. Counts are nonnegative
+integers; `total` must equal the sum of its parts and be positive; covered
+lines cannot exceed measured lines; the threshold is 0–100. A `passed` result
+cannot report failed tests or coverage below its threshold.
+
+These numbers come from the pull request's own workflow run, which executes
+the pull request's code, so they are **self-reported**. They are display
+metadata only: they never change a result's status, and the dashboard labels
+them as not independently verified. `tooling/proof_measurements.py`
+(installed as `.proof/measurements.py`) converts `python -m unittest` logs,
+JUnit XML, or a `diff-cover` JSON report into this format and packages it.
+Tests that are skipped or marked as expected failures count as skipped,
+never as passed.
+
+The provider contract opts in with `measurements_artifact_prefix` and
+`measurements_member`, which require a `workflow_path` pull-request check and
+no `external_id_prefix`. The workflow sets `PROOF_MEASUREMENTS_FILE`; when the
+configured command writes that file, the workflow binds it to the run ID, run
+attempt, repository, head SHA, and control, and uploads the artifact
+`<prefix><run_id>-<run_attempt>`. The upload step is non-fatal, so an
+artifact-service failure never changes the check result. The GitHub collector
+attaches the measurements only after the check's own provenance passes, reads
+the attempt from the check's own job, and requires every binding to match, so a
+re-run never displays an earlier attempt's numbers. Missing,
+expired, duplicated, unbound, or inconsistent measurements are omitted
+without changing the check result, and the dashboard shows them as not
+collected.
+
 Adapters written by this toolkit start a `blocked` or `not_run` reason with a
 standard code followed by a colon: `configuration-missing`,
 `credential-missing`, `authentication-failed`, `execution-error`,

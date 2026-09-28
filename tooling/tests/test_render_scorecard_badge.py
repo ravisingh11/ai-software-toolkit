@@ -463,6 +463,61 @@ class RendererTests(unittest.TestCase):
             self.render(self.write_source(root, card), root / "output")
             self.assertNotIn('id="attention-title"', (root / "output/index.html").read_text())
 
+    def measured_card(self, tests: dict[str, Any] | None = None, coverage: dict[str, Any] | None = None) -> dict[str, Any]:
+        card = scorecard(status="GREEN", enforced=(0, 0), advisory=(2, 2))
+        tests = tests or {"total": 415, "passed": 412, "failed": 0, "skipped": 3}
+        coverage = coverage or {"measured_lines": 200, "covered_lines": 182, "threshold_percent": 90}
+        card["controls"] = [
+            {"id": control_id, "effective_mode": "advisory", "evidence_status": "passed",
+             "authoritative_result": {"status": "passed", "measurements": {
+                 "version": 1, "source": "pull-request-workflow", kind: values}}}
+            for control_id, kind, values in (("unit-tests", "tests", tests), ("changed-code-coverage", "coverage", coverage))
+        ]
+        return card
+
+    def test_self_reported_measurements_are_labeled_and_replace_gaps(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = self.render(self.write_source(root, self.measured_card()), root / "output")
+            rows = {row["id"]: row for row in metadata["controls"]}
+            self.assertEqual(rows["unit-tests"]["measurements"]["tests"]["passed"], 412)
+            self.assertEqual(rows["build"]["measurements"], {"availability": "unavailable"})
+            page = (root / "output/index.html").read_text()
+            markdown = (root / "output/scorecard.md").read_text()
+            for text in (page, markdown):
+                self.assertIn("412 passed · 0 failed · 3 skipped (415 tests)", text)
+                self.assertIn("182 of 200 changed lines covered (91.0%) · target 90%", text)
+                self.assertIn("not independently verified", text)
+            self.assertNotIn("does not include tests passed", page)
+            self.assertIn("does not include queries run, vulnerabilities by severity.", page)
+            self.assertIn("Test totals and coverage, where shown, are self-reported", page)
+
+    def test_coverage_percent_is_floored_and_empty_diffs_are_explicit(self) -> None:
+        summary = MODULE._measurement_summary
+        self.assertIn("(89.9%)", summary({"availability": "available", "coverage": {
+            "measured_lines": 1000, "covered_lines": 899, "threshold_percent": 80}}))
+        self.assertEqual(summary({"availability": "available", "coverage": {
+            "measured_lines": 0, "covered_lines": 0, "threshold_percent": 80}}), "No measurable changed lines · target 80%")
+
+    def test_invalid_or_contradictory_measurements_are_unavailable(self) -> None:
+        for tests, coverage in (
+            ({"total": 3, "passed": 2, "failed": 1, "skipped": 0}, None),
+            ({"total": 9, "passed": 2, "failed": 0, "skipped": 0}, None),
+            (None, {"measured_lines": 10, "covered_lines": 11, "threshold_percent": 90}),
+            (None, {"measured_lines": 10, "covered_lines": 5, "threshold_percent": 90}),
+        ):
+            with self.subTest(tests=tests, coverage=coverage):
+                card = self.measured_card(tests, coverage)
+                rows = {row["id"]: row for row in MODULE._control_details(card)}
+                target = "unit-tests" if tests else "changed-code-coverage"
+                self.assertEqual(rows[target]["measurements"], {"availability": "unavailable"})
+        card = self.measured_card()
+        card["controls"][0]["authoritative_result"]["measurements"]["source"] = "trusted"
+        card["controls"][1]["authoritative_result"]["status"] = "failed"
+        rows = {row["id"]: row for row in MODULE._control_details(card)}
+        self.assertEqual(rows["unit-tests"]["measurements"], {"availability": "unavailable"})
+        self.assertEqual(rows["changed-code-coverage"]["measurements"], {"availability": "unavailable"})
+
     def test_public_catalog_matches_canonical_controls(self) -> None:
         catalog = json.loads((ROOT / "policies/control-catalog.yaml").read_text())["controls"]
         expected = [(row["id"], "PR Size" if row["id"] == "change-scope" else row["name"], row["purpose"]) for row in catalog]

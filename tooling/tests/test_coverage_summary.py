@@ -12,11 +12,13 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class CoverageSummaryTests(unittest.TestCase):
-    def run_coverage(self, report: str, status: int, *, summary_enabled: bool = True):
+    def run_coverage(self, report: str, status: int, *, summary_enabled: bool = True,
+                     measurements: bool = False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "tooling").mkdir()
             shutil.copy2(ROOT / "tooling/changed_code_coverage.sh", root / "tooling")
+            shutil.copy2(ROOT / "tooling/proof_measurements.py", root / "tooling")
             binaries = root / "bin"
             binaries.mkdir()
             coverage = binaries / "coverage"
@@ -33,7 +35,13 @@ class CoverageSummaryTests(unittest.TestCase):
                 '#!/bin/bash\nset -eu\n'
                 'while (($#)); do\n'
                 '  if [[ "$1" == "--format" ]]; then\n'
-                '    printf \'%s\\n\' "$TEST_REPORT" > "${2#markdown:}"\n'
+                '    IFS=, read -ra outputs <<< "$2"\n'
+                '    for output in "${outputs[@]}"; do\n'
+                '      case "$output" in\n'
+                '        markdown:*) printf \'%s\\n\' "$TEST_REPORT" > "${output#markdown:}" ;;\n'
+                '        json:*) printf \'%s\\n\' "$TEST_JSON" > "${output#json:}" ;;\n'
+                '      esac\n'
+                '    done\n'
                 '    shift\n'
                 '  fi\n'
                 '  shift\n'
@@ -49,7 +57,12 @@ class CoverageSummaryTests(unittest.TestCase):
                 "PROOF_COVERAGE_TARGET": "90",
                 "TEST_REPORT": report,
                 "TEST_STATUS": str(status),
+                "TEST_JSON": '{"total_num_lines": 20, "total_num_violations": 1}',
             }
+            environment.pop("PROOF_MEASUREMENTS_FILE", None)
+            measurements_file = root / "measurements.json"
+            if measurements:
+                environment["PROOF_MEASUREMENTS_FILE"] = str(measurements_file)
             summary = root / "summary.md"
             if summary_enabled:
                 summary.write_text("Earlier step summary\n", encoding="utf-8")
@@ -61,6 +74,8 @@ class CoverageSummaryTests(unittest.TestCase):
                 cwd=root, env=environment, capture_output=True, text=True,
                 check=False, timeout=10,
             )
+            if measurements:
+                return completed, measurements_file.read_text() if measurements_file.exists() else None
             return completed, summary.read_text() if summary.exists() else None
 
     def test_empty_diff_explains_no_percentage_instead_of_claiming_full_coverage(self):
@@ -94,3 +109,9 @@ class CoverageSummaryTests(unittest.TestCase):
         completed, summary = self.run_coverage("# Diff Coverage", 0, summary_enabled=False)
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIsNone(summary)
+
+    def test_measurements_file_records_self_reported_changed_line_coverage(self):
+        completed, measurements = self.run_coverage("# Diff Coverage", 0, measurements=True)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIsNotNone(measurements)
+        self.assertIn('"coverage": {"covered_lines": 19, "measured_lines": 20, "threshold_percent": 90}', measurements)

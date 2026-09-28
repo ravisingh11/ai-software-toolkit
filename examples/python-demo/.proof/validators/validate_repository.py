@@ -27,6 +27,7 @@ REQUIRED_FILES = (
     "scorecard.py",
     "configure.py",
     "adapter.py",
+    "measurements.py",
     "scan.py",
     "doctor.py",
     "github_evidence.py",

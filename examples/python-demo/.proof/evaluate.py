@@ -150,6 +150,7 @@ def validate_provider_config(config: dict[str, Any], controls: dict[str, dict[st
                 or set(check) - {
                     "check_name", "workflow", "workflow_path", "app_slug", "external_id_prefix",
                     "artifact_name_prefix", "artifact_member", "trusted_paths",
+                    "measurements_artifact_prefix", "measurements_member",
                 }
             ):
                 raise ValueError(f"provider {provider_id} {capability} check is invalid")
@@ -213,6 +214,28 @@ def validate_provider_config(config: dict[str, Any], controls: dict[str, dict[st
                 raise ValueError(f"provider {provider_id} {capability} custom check artifact contract is incomplete")
             if prefix is None and any(value is not None for value in artifact_fields):
                 raise ValueError(f"provider {provider_id} {capability} artifact contract requires external_id_prefix")
+            measurements_prefix = check.get("measurements_artifact_prefix")
+            measurements_member = check.get("measurements_member")
+            if measurements_prefix is not None and (
+                not isinstance(measurements_prefix, str)
+                or re.fullmatch(r"[A-Za-z0-9._-]+", measurements_prefix) is None
+                or len(measurements_prefix) > 150
+            ):
+                raise ValueError(f"provider {provider_id} {capability} measurements_artifact_prefix is invalid")
+            if measurements_member is not None and (
+                not isinstance(measurements_member, str)
+                or re.fullmatch(r"[A-Za-z0-9._-]+", measurements_member) is None
+                or len(measurements_member) > 100
+            ):
+                raise ValueError(f"provider {provider_id} {capability} measurements_member is invalid")
+            if (measurements_prefix is None) != (measurements_member is None):
+                raise ValueError(f"provider {provider_id} {capability} measurements contract is incomplete")
+            if measurements_prefix is not None and (
+                capability not in MEASURED_CONTROLS or workflow_path is None or prefix is not None
+            ):
+                raise ValueError(
+                    f"provider {provider_id} {capability} measurements require a measured control and a pull_request workflow_path"
+                )
             if prefix is not None and workflow_path is None:
                 raise ValueError(f"provider {provider_id} {capability} artifact contract requires workflow_path")
         reviews = provider.get("reviews", {})
@@ -375,6 +398,48 @@ def validate_change_scope(value: Any, status: str) -> None:
         raise ValueError("change_scope status does not match thresholds")
 
 
+# Self-reported measurements come from the pull request's own workflow run, so they
+# are display-only: they never change a result status and are labeled as such.
+MEASURED_CONTROLS = {"unit-tests": "tests", "changed-code-coverage": "coverage"}
+MEASUREMENT_FIELDS = {
+    "tests": {"total", "passed", "failed", "skipped"},
+    "coverage": {"measured_lines", "covered_lines", "threshold_percent"},
+}
+
+
+def validate_measurements(control_id: str, value: Any, status: str) -> None:
+    """Validate optional self-reported measurements for a measured control."""
+    kind = MEASURED_CONTROLS.get(control_id)
+    if (
+        kind is None
+        or status not in {"passed", "failed"}
+        or not isinstance(value, dict)
+        or set(value) != {"version", "source", kind}
+        or type(value["version"]) is not int
+        or value["version"] != 1
+        or value["source"] != "pull-request-workflow"
+    ):
+        raise ValueError("measurements metadata contract is invalid")
+    numbers = value[kind]
+    if (
+        not isinstance(numbers, dict)
+        or set(numbers) != MEASUREMENT_FIELDS[kind]
+        or any(type(number) is not int or not 0 <= number <= 2**53 - 1 for number in numbers.values())
+    ):
+        raise ValueError("measurements values are invalid")
+    if kind == "tests":
+        if numbers["total"] != numbers["passed"] + numbers["failed"] + numbers["skipped"] or numbers["total"] == 0:
+            raise ValueError("test measurements are inconsistent")
+        if status == "passed" and numbers["failed"]:
+            raise ValueError("test measurements contradict a passed status")
+    else:
+        if numbers["covered_lines"] > numbers["measured_lines"] or numbers["threshold_percent"] > 100:
+            raise ValueError("coverage measurements are inconsistent")
+        below = numbers["covered_lines"] * 100 < numbers["threshold_percent"] * numbers["measured_lines"]
+        if status == "passed" and below:
+            raise ValueError("coverage measurements contradict a passed status")
+
+
 def validate_evidence(
     evidence: dict[str, Any],
     controls: dict[str, dict[str, Any]],
@@ -405,7 +470,7 @@ def validate_evidence(
                 raise ValueError(f"evidence references unknown provider: {provider_id}")
             if control_id not in providers[provider_id]["capabilities"]:
                 raise ValueError(f"provider {provider_id} does not provide {control_id}")
-            if not isinstance(result, dict) or set(result) - {"producer", "status", "evidence", "reason", "change_scope", "check_execution"}:
+            if not isinstance(result, dict) or set(result) - {"producer", "status", "evidence", "reason", "change_scope", "check_execution", "measurements"}:
                 raise ValueError(f"evidence {control_id}.{provider_id} is invalid")
             if (
                 not isinstance(result.get("producer"), str)
@@ -422,6 +487,8 @@ def validate_evidence(
                 if (control_id, provider_id) != ("change-scope", "repository-change-scope"):
                     raise ValueError("change_scope metadata is only valid for change-scope.repository-change-scope")
                 validate_change_scope(result["change_scope"], status)
+            if "measurements" in result:
+                validate_measurements(control_id, result["measurements"], status)
             records = result.get("evidence")
             if status in {"passed", "failed"} and (
                 not isinstance(records, list) or not records or any(not isinstance(item, str) or not item.strip() for item in records)

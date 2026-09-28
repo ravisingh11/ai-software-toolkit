@@ -1711,5 +1711,105 @@ class CheckExecutionMetadataTests(unittest.TestCase):
                 self.assertEqual(result, baseline)
 
 
+class SelfReportedMeasurementsTests(unittest.TestCase):
+    CONTRACT = {"check_name": "Unit Tests", "workflow": "Unit Tests", "provider_id": "repository-unit-tests",
+                "workflow_path": ".github/workflows/unit-tests.yml", "control_ids": ["unit-tests"],
+                "measurements_artifact_prefix": "proof-measurements-", "measurements_member": "proof-measurements.json"}
+    MEASUREMENTS = {"version": 1, "source": "pull-request-workflow",
+                    "tests": {"total": 10, "passed": 9, "failed": 0, "skipped": 1}}
+
+    def document(self, **overrides: object) -> dict:
+        return {"version": 1, "run_id": 55, "run_attempt": 2, "repository": "owner/repo", "head_sha": "abc123",
+                "control": "unit-tests", "measurements": copy.deepcopy(self.MEASUREMENTS), **overrides}
+
+    def fetch(self, document: dict, *, listing: dict | None = None, status: str = "passed",
+              contract: dict | None = None, job: dict | None = None, check: dict | None = None) -> object:
+        listing = listing or {"total_count": 1, "artifacts": [
+            {"id": 9, "name": "proof-measurements-55-2", "expired": False, "workflow_run": {"id": 55}}]}
+        job = job or {"id": 1, "run_id": 55, "run_attempt": 2, "head_sha": "abc123"}
+        requested: list[str] = []
+
+        def request(url: str, token: str) -> dict:
+            requested.append(url)
+            return job if "/actions/jobs/" in url else listing
+
+        with mock.patch.object(MODULE, "_request", side_effect=request), \
+                mock.patch.object(MODULE, "_request_bytes", return_value=artifact_archive(document, "proof-measurements.json")):
+            result = MODULE.self_reported_measurements(
+                "owner/repo", "abc123", "token", 55, contract or self.CONTRACT, "unit-tests", status,
+                check or check_run("Unit Tests", 55))
+        self.requested = requested
+        return result
+
+    def test_bound_valid_measurements_are_returned(self) -> None:
+        self.assertEqual(self.fetch(self.document()), self.MEASUREMENTS)
+        self.assertIn("name=proof-measurements-55-2&", self.requested[1])
+
+    def test_measurements_bind_to_the_checks_own_attempt(self) -> None:
+        # A re-run keeps the run ID; an earlier attempt's artifact must not be used.
+        self.assertIsNone(self.fetch(self.document(run_attempt=1)))
+        stale = {"total_count": 1, "artifacts": [
+            {"id": 9, "name": "proof-measurements-55-1", "expired": False, "workflow_run": {"id": 55}}]}
+        self.assertIsNone(self.fetch(self.document(run_attempt=1), listing=stale))
+        for job in ({"run_id": 56, "run_attempt": 2, "head_sha": "abc123"},
+                    {"run_id": 55, "run_attempt": 2, "head_sha": "other"},
+                    {"run_id": 55, "run_attempt": True, "head_sha": "abc123"},
+                    {"run_id": 55, "run_attempt": 0, "head_sha": "abc123"}):
+            with self.subTest(job=job):
+                self.assertIsNone(self.fetch(self.document(), job=job))
+        for url in ("https://github.com/owner/repo/actions/runs/55", "https://github.com/owner/repo/actions/runs/54/job/1"):
+            with self.subTest(url=url):
+                self.assertIsNone(self.fetch(self.document(), check={**check_run("Unit Tests", 55), "details_url": url}))
+
+    def test_unbound_or_inconsistent_measurements_are_dropped(self) -> None:
+        bad_tests = {**self.MEASUREMENTS, "tests": {"total": 10, "passed": 8, "failed": 1, "skipped": 1}}
+        for overrides in ({"run_id": 56}, {"head_sha": "other"}, {"repository": "owner/other"},
+                          {"control": "changed-code-coverage"}, {"version": 2}, {"extra": True},
+                          {"measurements": bad_tests}, {"measurements": {**self.MEASUREMENTS, "source": "trusted"}}):
+            with self.subTest(overrides=overrides):
+                self.assertIsNone(self.fetch(self.document(**overrides)))
+        self.assertEqual(self.fetch(self.document(measurements=bad_tests), status="failed"), bad_tests)
+
+    def test_missing_expired_duplicate_or_foreign_artifacts_are_dropped(self) -> None:
+        artifact = {"id": 9, "name": "proof-measurements-55-2", "expired": False, "workflow_run": {"id": 55}}
+        for listing in ({"total_count": 0, "artifacts": []},
+                        {"total_count": 2, "artifacts": [artifact, artifact]},
+                        {"total_count": 1, "artifacts": [{**artifact, "expired": True}]},
+                        {"total_count": 1, "artifacts": [{**artifact, "workflow_run": {"id": 1}}]},
+                        {"total_count": 1, "artifacts": [{**artifact, "name": "proof-measurements-55"}]}):
+            with self.subTest(listing=listing):
+                self.assertIsNone(self.fetch(self.document(), listing=listing))
+
+    def test_no_contract_or_non_result_status_skips_fetching(self) -> None:
+        with mock.patch.object(MODULE, "_request", side_effect=AssertionError("no fetch expected")):
+            contract = {key: value for key, value in self.CONTRACT.items() if not key.startswith("measurements")}
+            self.assertIsNone(MODULE.self_reported_measurements(
+                "owner/repo", "abc123", "token", 55, contract, "unit-tests", "passed"))
+            self.assertIsNone(MODULE.self_reported_measurements(
+                "owner/repo", "abc123", "token", 55, self.CONTRACT, "unit-tests", "not_run"))
+
+    def test_download_errors_leave_the_check_result_unchanged(self) -> None:
+        with mock.patch.object(MODULE, "_request", side_effect=OSError("offline")):
+            self.assertIsNone(MODULE.self_reported_measurements(
+                "owner/repo", "abc123", "token", 55, self.CONTRACT, "unit-tests", "passed"))
+
+    def test_proven_check_attaches_measurements_without_changing_status(self) -> None:
+        check = check_run("Unit Tests", 55)
+        run = {"id": 55, "name": "Unit Tests", "path": ".github/workflows/unit-tests.yml", "event": "pull_request",
+               "head_sha": "abc123", "check_suite_id": 55 + 10_000,
+               "pull_requests": [{"number": 17, "head": {"sha": "abc123"}}]}
+        baseline = MODULE.check_run_evidence("Unit Tests", "Repository Unit Test Command", check)
+        for measurements in (self.MEASUREMENTS, None):
+            with self.subTest(measurements=measurements), \
+                    mock.patch.object(MODULE, "_request", return_value=run), \
+                    mock.patch.object(MODULE, "trusted_paths_match_trusted_base", return_value=True), \
+                    mock.patch.object(MODULE, "self_reported_measurements", return_value=measurements):
+                result = MODULE.proven_check_evidence(
+                    "owner/repo", "abc123", "token", self.CONTRACT, check, "Repository Unit Test Command",
+                    trusted_base_revision="base456", trusted_workflow_ref="refs/heads/main")
+                expected = {**baseline, "measurements": measurements} if measurements else baseline
+                self.assertEqual(result, expected)
+
+
 if __name__ == "__main__":
     unittest.main()
