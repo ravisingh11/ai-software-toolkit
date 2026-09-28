@@ -534,6 +534,7 @@ def self_reported_measurements(
     contract: dict[str, Any],
     control_id: str,
     status: str,
+    check: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Return validated display-only measurements from the check's own run, or None.
 
@@ -545,8 +546,21 @@ def self_reported_measurements(
     member = contract.get("measurements_member")
     if not isinstance(prefix, str) or not isinstance(member, str) or status not in {"passed", "failed"}:
         return None
-    expected_name = f"{prefix}{run_id}"
+    # Re-runs keep the run ID, so bind to the attempt of the job that produced this check.
+    job_match = re.search(r"/actions/runs/([0-9]+)/job/([0-9]+)(?:[/?#]|$)", (check or {}).get("details_url") or "")
+    if not job_match or int(job_match.group(1)) != run_id:
+        return None
     try:
+        job = _request(f"https://api.github.com/repos/{repo}/actions/jobs/{job_match.group(2)}", token)
+        attempt = job.get("run_attempt")
+        if (
+            job.get("run_id") != run_id
+            or job.get("head_sha") != revision
+            or type(attempt) is not int
+            or attempt < 1
+        ):
+            return None
+        expected_name = f"{prefix}{run_id}-{attempt}"
         listing = _request(
             f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts"
             f"?name={quote(expected_name, safe='')}&per_page=100",
@@ -576,9 +590,10 @@ def self_reported_measurements(
     except (HTTPError, URLError, OSError, ValueError, AttributeError, TypeError):
         return None
     if (
-        set(document) != {"version", "run_id", "repository", "head_sha", "control", "measurements"}
+        set(document) != {"version", "run_id", "run_attempt", "repository", "head_sha", "control", "measurements"}
         or document["version"] != 1
         or document["run_id"] != run_id
+        or document["run_attempt"] != attempt
         or document["repository"] != repo
         or document["head_sha"] != revision
         or document["control"] != control_id
@@ -726,7 +741,7 @@ def proven_check_evidence(
     control_ids = contract.get("control_ids") or []
     if len(control_ids) == 1:
         measurements = self_reported_measurements(
-            repo, revision, token, run_id, contract, control_ids[0], result["status"],
+            repo, revision, token, run_id, contract, control_ids[0], result["status"], check,
         )
         if measurements is not None:
             result["measurements"] = measurements

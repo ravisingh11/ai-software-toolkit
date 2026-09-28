@@ -88,10 +88,13 @@ JUnit XML, or a `diff-cover` JSON report into this format and packages it.
 The provider contract opts in with `measurements_artifact_prefix` and
 `measurements_member`, which require a `workflow_path` pull-request check and
 no `external_id_prefix`. The workflow sets `PROOF_MEASUREMENTS_FILE`; when the
-configured command writes that file, the workflow binds it to the run ID,
-repository, head SHA, and control, and uploads the artifact
-`<prefix><run_id>`. The GitHub collector attaches the measurements only after
-the check's own provenance passes and every binding matches. Missing,
+configured command writes that file, the workflow binds it to the run ID, run
+attempt, repository, head SHA, and control, and uploads the artifact
+`<prefix><run_id>-<run_attempt>`. The upload step is non-fatal, so an
+artifact-service failure never changes the check result. The GitHub collector
+attaches the measurements only after the check's own provenance passes, reads
+the attempt from the check's own job, and requires every binding to match, so a
+re-run never displays an earlier attempt's numbers. Missing,
 expired, duplicated, unbound, or inconsistent measurements are omitted
 without changing the check result, and the dashboard shows them as not
 collected.

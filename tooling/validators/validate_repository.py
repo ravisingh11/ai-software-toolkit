@@ -241,8 +241,9 @@ def validate_provider_document(config: dict, catalog: dict[str, dict]) -> None:
                     or "external_id_prefix" in check
                     or any(
                         not isinstance(check[field], str)
-                        or re.fullmatch(r"[A-Za-z0-9._-]{1,100}", check[field]) is None
-                        for field in measurement_fields
+                        or re.fullmatch(r"[A-Za-z0-9._-]+", check[field]) is None
+                        or len(check[field]) > limit
+                        for field, limit in (("measurements_artifact_prefix", 150), ("measurements_member", 100))
                     )
                 ):
                     raise ValueError(f"provider {provider_id} {capability} measurements contract is invalid")

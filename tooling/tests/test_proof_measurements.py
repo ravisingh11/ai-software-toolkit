@@ -63,14 +63,17 @@ class MeasurementsHelperTests(unittest.TestCase):
     def test_package_binds_run_and_validates_against_outcome(self) -> None:
         measurements = {"version": 1, "source": "pull-request-workflow",
                         "tests": {"total": 2, "passed": 1, "failed": 1, "skipped": 0}}
-        with mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "55", "GITHUB_REPOSITORY": "owner/repo"}):
+        with mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "55", "GITHUB_RUN_ATTEMPT": "2", "GITHUB_REPOSITORY": "owner/repo"}):
             document = MODULE.package("unit-tests", measurements, "failure", HEAD)
-            self.assertEqual(document, {"version": 1, "run_id": 55, "repository": "owner/repo",
+            self.assertEqual(document, {"version": 1, "run_id": 55, "run_attempt": 2, "repository": "owner/repo",
                                         "head_sha": HEAD, "control": "unit-tests", "measurements": measurements})
             for control, outcome, head in (("unit-tests", "success", HEAD), ("unit-tests", "cancelled", HEAD),
                                            ("changed-code-coverage", "failure", HEAD), ("unit-tests", "failure", "abc")):
                 with self.subTest(control=control, outcome=outcome, head=head), self.assertRaises(ValueError):
                     MODULE.package(control, measurements, outcome, head)
+        with mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "55", "GITHUB_RUN_ATTEMPT": "", "GITHUB_REPOSITORY": "owner/repo"}):
+            with self.assertRaises(ValueError):
+                MODULE.package("unit-tests", measurements, "failure", HEAD)
 
     def test_cli_writes_output_and_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

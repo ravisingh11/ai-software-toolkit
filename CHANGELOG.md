@@ -12,13 +12,14 @@ or evidence contracts require a major release and migration guidance.
   dashboard. The `Unit Tests` and `Changed Code Coverage` workflow templates
   set `PROOF_MEASUREMENTS_FILE`, package a file the configured command writes
   with the new `.proof/measurements.py` helper (unittest logs, JUnit XML, or
-  diff-cover JSON), and upload a run-bound `proof-measurements-<run_id>`
-  artifact. Evidence results gain an optional, display-only `measurements`
+  diff-cover JSON), and upload a non-fatal, attempt-bound
+  `proof-measurements-<run_id>-<run_attempt>` artifact. Evidence results gain an optional, display-only `measurements`
   field accepted only on `unit-tests` and `changed-code-coverage`; provider
   checks gain optional `measurements_artifact_prefix` and
   `measurements_member`. The collector attaches measurements only when the
   run, repository, head SHA, and control bind and the numbers agree with the
-  check status; otherwise they are omitted. Because the numbers come from the
+  check status; otherwise they are omitted. `tooling/test.sh` now runs every
+  suite before returning a failure, so failed runs also record totals. Because the numbers come from the
   pull request's own code, the dashboard labels them as not independently
   verified, and they never change a result. Refresh the runtime, schemas,
   provider config, and both workflows together; older evaluators reject the

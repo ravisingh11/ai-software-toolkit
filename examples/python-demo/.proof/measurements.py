@@ -109,10 +109,12 @@ def package(control: str, measurements: dict[str, Any], outcome: str, head_sha: 
         raise ValueError("only successful or failed command outcomes carry measurements")
     evaluator().validate_measurements(control, measurements, status)
     run_id, repository = os.environ.get("GITHUB_RUN_ID", ""), os.environ.get("GITHUB_REPOSITORY", "")
-    if not run_id.isdigit() or not repository or re.fullmatch(r"[0-9a-f]{40}", head_sha) is None:
-        raise ValueError("GITHUB_RUN_ID, GITHUB_REPOSITORY, and an exact head SHA are required")
-    return {"version": 1, "run_id": int(run_id), "repository": repository, "head_sha": head_sha,
-            "control": control, "measurements": measurements}
+    attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "")
+    if (not run_id.isdigit() or not attempt.isdigit() or int(attempt) < 1 or not repository
+            or re.fullmatch(r"[0-9a-f]{40}", head_sha) is None):
+        raise ValueError("GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT, GITHUB_REPOSITORY, and an exact head SHA are required")
+    return {"version": 1, "run_id": int(run_id), "run_attempt": int(attempt), "repository": repository,
+            "head_sha": head_sha, "control": control, "measurements": measurements}
 
 
 def _write(path: Path, document: dict[str, Any]) -> None:
