@@ -129,6 +129,11 @@ Markdown to the job summary, and uploads `.artifacts/proof` as
 `--all-catalog-controls`, so a control the policy explicitly sets to
 `not_activated` is published as **Not activated** on the dashboard rather than
 collapsing to **Not reported**; those `GRAY` rows never count toward totals.
+For pull-request events, the workflow also runs the trusted base PR metadata
+validator on the event's title and body. It scores that result on the
+`pull-request` subject beside the commit, and it also runs when the PR is
+`edited`, so the dashboard's PR Metadata row reflects the current title and
+body.
 
 The native **Scorecard Workflow** badge reports whether this workflow ran. The
 optional **Latest PR Scorecard** badge reports readiness and passed/active count

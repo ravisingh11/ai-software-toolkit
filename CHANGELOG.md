@@ -8,6 +8,22 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Score PR Metadata on the scorecard dashboard. `Proof Scorecard` now also
+  runs when a pull request is edited, runs the trusted base PR metadata
+  validator on the current title and body, and passes the result to
+  `.proof/scorecard.py` with the new `--pull-request-revision` and
+  `--pull-request-evidence` options. The evaluator's new `companions`
+  argument scores that `pull-request` subject beside the commit, and it
+  counts toward the same totals. A missing result reports **Unverified**. The scorecard JSON gains an optional
+  `companion_subjects` list. A control that policy activates on a subject the
+  evaluation did not score keeps `not_activated`, but adds `inactive_reason:
+  other_subject` and `evidence_subject`; the dashboard labels it
+  **Checked on the PR** instead of **Not activated**. This repository's
+  `.proof/pr-metadata.yaml` now requires Conventional Commit titles and a
+  `## Verification` body section; the installed consumer default is unchanged.
+  Refresh the runtime and `proof-scorecard.yml` together; the workflow skips
+  PR metadata scoring when the trusted runtime lacks the new options.
+
 - Explain how the scorecard totals relate to the check table. A sentence under
   the totals states how many active checks they count and how many of the
   listed built-in checks are active, not activated, or not reported, so

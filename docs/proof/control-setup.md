@@ -141,6 +141,16 @@ promoting the control. New events cancel older in-progress runs for the same
 pull request. The custom check fails if its required run-bound evidence artifact
 cannot be uploaded.
 
+The PR scorecard also scores this control. `Proof Scorecard` runs on the same
+events plus reviews, runs the trusted base validator on the event's current
+title and body, and passes that result with `--pull-request-revision` and
+`--pull-request-evidence`. The evaluator scores it on its own `pull-request`
+subject beside the commit checks, so it counts toward the dashboard totals.
+If the validator cannot bind the event, the scorecard passes the revision
+`unavailable` without evidence and the control reports **Unverified**, never a
+pass. Manual dispatches have no pull request; their scorecards show the row as
+**Checked on the PR**, which is excluded from totals.
+
 ### Semgrep CE
 
 Core runs `semgrep scan --error` with `.proof/semgrep-rules.yml`. The
@@ -394,7 +404,8 @@ contains no per-file paths or raw scope findings.
 
 A sentence under the totals reconciles them with the table: how many
 active checks the totals count, and how many of the listed built-in checks
-are active, not activated, or not reported. Custom controls that count toward
+are active, checked on the pull request, not activated, or not reported.
+Custom controls that count toward
 the totals are reported as a number, not by name.
 
 A **Needs attention** list above the totals names every built-in check that
@@ -423,7 +434,9 @@ all 33 trusted built-in catalog controls in a compact table, grouped into qualit
 security, AI/QA, and lifecycle checks. Each entry shows its name, ID, purpose,
 and validated effective mode and evidence status when reported. Evidence
 labels are **Passed**, **Failed**, **Blocked**, **Unverified**,
-**Not activated**, and **Not reported**.
+**Not activated**, **Not reported**, and **Checked on the PR** (the policy
+activates the check on the pull-request subject, but this snapshot has no
+pull-request result).
 This includes PR Size alongside the other catalog checks; PR Size also retains
 its dedicated measurements and thresholds panel.
 

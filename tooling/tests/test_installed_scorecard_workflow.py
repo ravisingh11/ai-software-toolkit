@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import os
 import re
 import subprocess
 import tempfile
@@ -173,6 +175,7 @@ class InstalledScorecardWorkflowTests(unittest.TestCase):
                     ".proof-trusted/.proof/github_evidence.py",
                     ".proof-trusted/.proof/scorecard.py",
                     ".proof-trusted/.proof/scorecard.py",
+                    ".proof-trusted/.proof/scorecard.py",
                 ],
             )
             self.assertTrue(trusted_paths)
@@ -194,10 +197,59 @@ class InstalledScorecardWorkflowTests(unittest.TestCase):
                 trusted_checkout / ".github/workflows/proof-scorecard.yml"
             ).read_text(encoding="utf-8")
             segments = workflow.split("python3 .proof-trusted/.proof/scorecard.py")
-            commands = [segment.split("||", 1)[0] for segment in segments[1:]]
+            commands = [
+                segment.split("||", 1)[0]
+                for segment in segments[1:]
+                if not segment.lstrip().startswith("--help")
+            ]
             self.assertEqual(len(commands), 2)
             for command in commands:
                 self.assertIn("--all-catalog-controls", command)
+                # PR title/body is scored on its own pull-request subject beside the commit.
+                self.assertIn('"${pull_request_args[@]}"', command)
+
+    def test_scorecard_scores_pull_request_metadata_with_trusted_code(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary)
+            trusted_checkout = target / ".proof-trusted"
+            trusted_checkout.mkdir()
+            MODULE.install(trusted_checkout, dry_run=False, profiles=["github"])
+            (trusted_checkout / ".proof/pr-metadata.yaml").write_text(
+                json.dumps({"version": 2, "title_pattern": "^feat: ", "required_body_markers": ["## Testing"]}),
+                encoding="utf-8",
+            )
+            workflow = (trusted_checkout / ".github/workflows/proof-scorecard.yml").read_text(encoding="utf-8")
+            self.assertIn("types: [opened, edited, synchronize, reopened]", workflow)
+            self.assertNotIn("github.event.pull_request.title", workflow)
+            self.assertNotIn("github.event.pull_request.body", workflow)
+            step = workflow_step_script(workflow, "Evaluate pull-request metadata")
+
+            def run_step(event: dict) -> dict[str, str]:
+                (target / ".artifacts/proof").mkdir(parents=True, exist_ok=True)
+                event_path = target / "event.json"
+                env_path = target / "github.env"
+                event_path.write_text(json.dumps(event), encoding="utf-8")
+                env_path.write_text("", encoding="utf-8")
+                subprocess.run(
+                    ["bash", "-c", step], cwd=target, check=True, text=True, capture_output=True,
+                    env={**os.environ, "GITHUB_EVENT_PATH": str(event_path), "GITHUB_ENV": str(env_path)},
+                )
+                return dict(line.split("=", 1) for line in env_path.read_text().splitlines())
+
+            pull_request = {
+                "number": 7, "title": "feat: $(touch pwned)", "body": "## Testing\nran it",
+                "updated_at": "2026-09-28T00:00:00Z", "head": {"sha": "b" * 40},
+            }
+            env = run_step({"repository": {"full_name": "owner/repo"}, "pull_request": pull_request})
+            self.assertRegex(env["PROOF_PULL_REQUEST_REVISION"], r"^sha256:[0-9a-f]{64}$")
+            evidence = json.loads((target / env["PROOF_PULL_REQUEST_EVIDENCE"]).read_text())
+            self.assertEqual(evidence["subject"]["revision"], env["PROOF_PULL_REQUEST_REVISION"])
+            self.assertEqual(evidence["results"]["pr-metadata"]["repository-pr-metadata"]["status"], "passed")
+            self.assertFalse((target / "pwned").exists())
+
+            # An event the trusted validator cannot bind still yields an explicit no-result input.
+            env = run_step({"repository": {"full_name": "owner/repo"}, "pull_request": {"number": 7}})
+            self.assertEqual(env, {"PROOF_PULL_REQUEST_REVISION": "unavailable"})
 
 
 if __name__ == "__main__":
