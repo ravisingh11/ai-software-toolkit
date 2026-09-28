@@ -84,6 +84,8 @@ metadata only: they never change a result's status, and the dashboard labels
 them as not independently verified. `tooling/proof_measurements.py`
 (installed as `.proof/measurements.py`) converts `python -m unittest` logs,
 JUnit XML, or a `diff-cover` JSON report into this format and packages it.
+Tests that are skipped or marked as expected failures count as skipped,
+never as passed.
 
 The provider contract opts in with `measurements_artifact_prefix` and
 `measurements_member`, which require a `workflow_path` pull-request check and

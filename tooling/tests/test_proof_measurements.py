@@ -33,6 +33,9 @@ class MeasurementsHelperTests(unittest.TestCase):
             plain = self.write(root, "c.log", "..\nRan 2 tests in 0.0s\n\nOK\n")
             self.assertEqual(MODULE.from_unittest_logs([ok, failed, plain])["tests"],
                              {"total": 10, "passed": 7, "failed": 2, "skipped": 1})
+            expected = self.write(root, "d.log", "x.\nRan 2 tests in 0.0s\n\nOK (expected failures=1)\n")
+            self.assertEqual(MODULE.from_unittest_logs([expected])["tests"],
+                             {"total": 2, "passed": 1, "failed": 0, "skipped": 1})
 
     def test_unittest_logs_reject_missing_or_ambiguous_summaries(self) -> None:
         for text in ("no summary\n", "Ran 2 tests in 0s\n\nOK\nRan 1 test in 0s\n\nOK\n",

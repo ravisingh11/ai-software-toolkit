@@ -53,6 +53,15 @@ keep matching. A custom coverage command can write its measured results to
 diffs without measured lines. A successful docs-only run is not a claim of
 100% coverage. Changing a workflow updates future runs, not historical titles.
 
+The Unit Tests and Changed Code Coverage workflows set `PROOF_MEASUREMENTS_FILE`.
+A command that writes it (for example with `.proof/measurements.py unittest`,
+`junit`, or `diff-cover`) gets its test totals or changed-line coverage
+packaged and uploaded as the `proof-measurements-<run_id>-<run_attempt>`
+artifact. The scorecard dashboard shows these as self-reported, because the
+numbers come from the pull request's own code; they never change a check's
+result. Packaging and upload failures only warn, and commands that do not
+write the file are unaffected.
+
 Semgrep CE runs its repository-owned rule tests, then `semgrep scan --error`
 from the exact pinned container with networking disabled. Gitleaks runs the MIT
 CLI from its exact pinned container against complete Git history. Core does not

@@ -69,11 +69,13 @@ def from_unittest_logs(paths: list[Path]) -> dict[str, Any]:
             counts[key] = int(value)
         total = int(ran[0])
         run_failed = counts["failures"] + counts["errors"] + counts["unexpected successes"]
-        if (results[0][0] == "OK") != (run_failed == 0) or run_failed + counts["skipped"] > total:
+        # An expected failure is a known-broken test: never report it as passed.
+        not_run = counts["skipped"] + counts["expected failures"]
+        if (results[0][0] == "OK") != (run_failed == 0) or run_failed + not_run > total:
             raise ValueError(f"{path} unittest summary is inconsistent")
-        passed += total - run_failed - counts["skipped"]
+        passed += total - run_failed - not_run
         failed += run_failed
-        skipped += counts["skipped"]
+        skipped += not_run
     return _tests(passed, failed, skipped)
 
 
