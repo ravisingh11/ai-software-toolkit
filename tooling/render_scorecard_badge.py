@@ -216,6 +216,9 @@ _CONTROL_MODES = {"enforced": "Enforced", "advisory": "Advisory",
                   "not_activated": "Not activated", "not_reported": "Not reported"}
 
 
+_REVIEW_FINDING_METRICS = 'Findings by severity (P0 to P3); unresolved P0/P1 findings'
+
+
 # Check-specific assessment criteria; these describe the contract, not claimed measurements.
 _CHECK_ASSESSMENTS = {'repository-validation': ('Installed Proof contracts',
                            'Installed runtime files, Semgrep self-test fixtures, schemas, and the control catalog, profiles, providers, and policy',
@@ -304,19 +307,19 @@ _CHECK_ASSESSMENTS = {'repository-validation': ('Installed Proof contracts',
  'ai-engineering-review': ('Engineering review dimensions',
                            'Correctness, architecture, maintainability, and regression risk',
                            'Advisory review completes with a documented disposition',
-                           'Findings by severity; unresolved findings'),
+                           _REVIEW_FINDING_METRICS),
  'ai-qa-review': ('Test adequacy review',
                   'Test assertions, edge cases, failure paths, and coverage gaps',
                   'Advisory review completes with a documented disposition',
-                  'Test gaps; missing assertions; unresolved findings'),
+                  _REVIEW_FINDING_METRICS),
  'ai-security-review': ('Security review dimensions',
                         'Authentication, isolation, injection, secrets, and privilege boundaries',
                         'Advisory review completes with a documented disposition',
-                        'Security findings by severity; unresolved findings'),
+                        _REVIEW_FINDING_METRICS),
  'ai-repository-standards-review': ('Repository standards review',
                                     'Changes compared with repository-owned engineering requirements',
                                     'Advisory review completes with a documented disposition',
-                                    'Requirements reviewed; deviations; unresolved findings'),
+                                    _REVIEW_FINDING_METRICS),
  'runtime-soak': ('Sustained runtime behavior',
                   'Degradation, resource leaks, errors, and performance drift over time',
                   'Observed runtime stays within configured environment limits',
@@ -392,7 +395,10 @@ _MEASURED_FIELDS = {"unit-tests": ("tests", ("total", "passed", "failed", "skipp
                     "repository-validation": ("contracts", ("total", "passed", "failed", "not_run")),
                     "documentation-validation": ("documentation", ("markdown_files", "links_checked", "broken_links", "mapping_failures")),
                     "repository-ground-truth": ("documents", ("declared", "found", "missing")),
-                    "migration-validation": ("migrations", ("checked", "failed"))}
+                    "migration-validation": ("migrations", ("checked", "failed")),
+                    **{control_id: ("review_findings", ("total", "p0", "p1", "p2", "p3", "unresolved_blocking"))
+                       for control_id in ("ai-engineering-review", "ai-qa-review", "ai-security-review",
+                                          "ai-repository-standards-review")}}
 
 
 def _measurements_consistent(kind: str, numbers: dict[str, int], status: str) -> bool:
@@ -414,6 +420,9 @@ def _measurements_consistent(kind: str, numbers: dict[str, int], status: str) ->
                 and passed == (numbers["broken_links"] + numbers["mapping_failures"] == 0))
     if kind == "migrations":
         return numbers["failed"] <= numbers["checked"] and not (passed and numbers["failed"])
+    if kind == "review_findings":
+        blocking = numbers["p0"] + numbers["p1"]
+        return numbers["total"] == blocking + numbers["p2"] + numbers["p3"] and numbers["unresolved_blocking"] <= blocking
     return numbers["declared"] == numbers["found"] + numbers["missing"] and passed == (numbers["missing"] == 0)
 
 
@@ -424,9 +433,15 @@ def _measurements(control_id: str, row: dict[str, Any]) -> dict[str, Any]:
     result = row.get("authoritative_result")
     value = result.get("measurements") if isinstance(result, dict) else None
     status = row.get("evidence_status")
-    if spec is None or not isinstance(value, dict) or status not in ("passed", "failed"):
+    if spec is None or status not in ("passed", "failed"):
         return unavailable
     kind, fields = spec
+    producer = result.get("producer") if isinstance(result, dict) else None
+    if kind == "review_findings" and isinstance(producer, str) and producer.startswith("GitHub Review: "):
+        # A native GitHub review posts findings as comments; there is no result file to count.
+        return {"availability": "unavailable", "reason": "review_comments"}
+    if not isinstance(value, dict):
+        return unavailable
     numbers = value.get(kind)
     if (set(value) != {"version", "source", kind} or type(value.get("version")) is not int or value["version"] != 1
             or value.get("source") != "pull-request-workflow" or result.get("status") != status
@@ -438,6 +453,12 @@ def _measurements(control_id: str, row: dict[str, Any]) -> dict[str, Any]:
 
 
 _SELF_REPORTED_NOTE = "Self-reported by the pull request's own workflow run; not independently verified and never used for the result."
+_AI_REVIEW_NOTE = ("Counted from the AI reviewer's result file in the pull request's own workflow run. The findings are "
+                   "the AI provider's judgment, not independently verified, and never used for the result; AI review is advisory-only.")
+
+
+def _measurement_note(measurements: dict[str, Any]) -> str:
+    return _AI_REVIEW_NOTE if "review_findings" in measurements else _SELF_REPORTED_NOTE
 
 
 def _measurement_summary(measurements: dict[str, Any]) -> str | None:
@@ -459,6 +480,13 @@ def _measurement_summary(measurements: dict[str, Any]) -> str | None:
         counts = measurements["documents"]
         return (f'{counts["found"]:,} of {counts["declared"]:,} declared documents found · '
                 f'{counts["missing"]:,} missing')
+    if "review_findings" in measurements:
+        counts = measurements["review_findings"]
+        if not counts["total"]:
+            return "No findings reported by the AI reviewer"
+        noun = "finding" if counts["total"] == 1 else "findings"
+        return (f'{counts["total"]:,} {noun}: {counts["p0"]:,} P0 · {counts["p1"]:,} P1 · {counts["p2"]:,} P2 · '
+                f'{counts["p3"]:,} P3 · {counts["unresolved_blocking"]:,} unresolved P0/P1')
     if "migrations" in measurements:
         counts = measurements["migrations"]
         if not counts["checked"]:
@@ -546,11 +574,14 @@ def _controls_markdown(controls: list[dict[str, Any]]) -> str:
              "| Check | ID | Mode | Result | Purpose |", "| --- | --- | --- | --- | --- |"]
     for row in controls:
         lines.append(f"| {row['name']} | `{row['id']}` | {_CONTROL_MODES[row['mode']]} | {_result_label(row)[0]} | {row['purpose']} |")
-    measured = [(row["name"], _measurement_summary(row["measurements"])) for row in controls]
-    measured = [(name, summary) for name, summary in measured if summary]
+    measured = [(row["name"], _measurement_summary(row["measurements"]), row["measurements"]) for row in controls]
+    measured = [(name, summary, values) for name, summary, values in measured if summary]
     if measured:
         lines += ["", "### Self-reported measurements", "", _SELF_REPORTED_NOTE, ""]
-        lines += [f"- {name}: {summary}" for name, summary in measured]
+        lines += [f"- {name}: {summary}" + (" (AI review, advisory-only)" if "review_findings" in values else "")
+                  for name, summary, values in measured]
+        if any("review_findings" in values for *_, values in measured):
+            lines += ["", _AI_REVIEW_NOTE]
     trusted = [(row["name"], _pr_metadata_summary(row["detail"])) for row in controls]
     trusted = [(name, summary) for name, summary in trusted if summary]
     if trusted:
@@ -605,8 +636,15 @@ def _attention_html(controls: list[dict[str, Any]], breakdown: dict[str, Any]) -
 _EXIT_STATUS_ONLY = {"build", "format-and-lint"}
 
 
-def _counts_gap(metrics: str, control_id: str = "") -> str:
+def _counts_gap(metrics: str, control_id: str = "", measurements: dict[str, Any] | None = None) -> str:
     """Explain, in a sentence, which counts this check type could report but did not."""
+    if (measurements or {}).get("reason") == "review_comments":
+        return ("Only the review state was reported. This reviewer posts its findings as pull request review comments, "
+                "which this report does not count; open the pull request's reviews to read them.")
+    if _MEASURED_FIELDS.get(control_id, ("",))[0] == "review_findings":
+        return ("Only the overall result was reported. Finding counts appear only when an AI PR Review adapter packages "
+                "its result file for this run; a native GitHub review posts findings as review comments instead. "
+                "Open the source report for the review output.")
     if control_id in _EXIT_STATUS_ONLY:
         return ("Only the command's exit status is reported. This repository supplies the command, so counts such as "
                 f"{metrics[:1].lower() + metrics[1:].replace('; ', ', ')} depend on its tools; open the source report for their output.")
@@ -709,10 +747,10 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
                 run_facts += f'<p class="check-measure"><strong>{html.escape(evaluated)}</strong><span>{_PR_METADATA_NOTE}</span></p>'
                 criteria.append(("Evaluated", evaluated))
             elif measured:
-                run_facts += f'<p class="check-measure"><strong>{html.escape(measured)}</strong><span>{_SELF_REPORTED_NOTE}</span></p>'
+                run_facts += f'<p class="check-measure"><strong>{html.escape(measured)}</strong><span>{_measurement_note(row["measurements"])}</span></p>'
                 criteria.append(("Self-reported measurements", measured))
             elif row["id"] != "change-scope":
-                criteria.append(("Counts not reported", _counts_gap(metrics, row["id"])))
+                criteria.append(("Counts not reported", _counts_gap(metrics, row["id"], row["measurements"])))
             criteria_rows = ''.join(f'<tr><th scope="row">{html.escape(key)}</th><td>{html.escape(value)}</td></tr>' for key, value in criteria)
             measurements = '<details class="criteria"><summary>Assessment criteria</summary><table class="assessment-table"><caption>Assessment criteria and available detail</caption><tbody>' + criteria_rows + '</tbody></table></details>'
             if row["id"] == "change-scope":

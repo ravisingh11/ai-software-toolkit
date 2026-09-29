@@ -431,6 +431,11 @@ MEASURED_CONTROLS = {
     "documentation-validation": "documentation",
     "repository-ground-truth": "documents",
     "migration-validation": "migrations",
+    # AI reviews count the reviewer's own result file; the findings are the AI's judgment.
+    "ai-engineering-review": "review_findings",
+    "ai-qa-review": "review_findings",
+    "ai-security-review": "review_findings",
+    "ai-repository-standards-review": "review_findings",
 }
 MEASUREMENT_FIELDS = {
     "tests": {"total", "passed", "failed", "skipped"},
@@ -439,6 +444,7 @@ MEASUREMENT_FIELDS = {
     "documentation": {"markdown_files", "links_checked", "broken_links", "mapping_failures"},
     "documents": {"declared", "found", "missing"},
     "migrations": {"checked", "failed"},
+    "review_findings": {"total", "p0", "p1", "p2", "p3", "unresolved_blocking"},
 }
 
 
@@ -477,6 +483,12 @@ def _measurement_problem(kind: str, numbers: dict[str, int], status: str) -> str
             return "migration measurements are inconsistent"
         if status == "passed" and numbers["failed"]:
             return "migration measurements contradict a passed status"
+    elif kind == "review_findings":
+        # Not coupled to status: an adapter may fail for other reasons, and the per-role
+        # check does not itself enforce the blocking rule (consolidation does).
+        blocking = numbers["p0"] + numbers["p1"]
+        if numbers["total"] != blocking + numbers["p2"] + numbers["p3"] or numbers["unresolved_blocking"] > blocking:
+            return "review finding measurements are inconsistent"
     return None
 
 

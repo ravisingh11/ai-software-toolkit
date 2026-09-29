@@ -66,6 +66,12 @@ the path in `AI_REVIEW_RESULT`:
 }
 ```
 
+The Proof scorecard counts each result file by `severity` and by unresolved
+`P0`/`P1` findings (any `status` other than `resolved`; a missing status is
+open), using the severities and statuses in
+`references/finding-format.md`. A file with any other severity or status gets
+no counts. Only counts are published, never finding text or evidence.
+
 The adapter must exit non-zero when it cannot complete the review or when
 unresolved `P0`/`P1` findings are present. This keeps the review outcome
 truthful without granting it merge authority. The shared workflow consolidates
