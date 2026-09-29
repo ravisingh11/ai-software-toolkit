@@ -15,7 +15,8 @@ name: FOSSA
 # environment and the interpreter and PATH recorded beforehand, so nothing
 # the candidate adds to GITHUB_PATH or GITHUB_ENV reaches the key. The key reaches only the adapter step. This
 # workflow is used directly (not through workflow_call) so its check name
-# matches the provider contract exactly.
+# matches the provider contract exactly. Set the FOSSA_ENABLED repository
+# variable to "false" to skip the job when FOSSA is not selected.
 
 on:
   pull_request:
@@ -35,6 +36,8 @@ env:
 jobs:
   fossa:
     name: FOSSA
+    # Fork pull requests receive no secrets; skip rather than report credential-missing.
+    if: ${{ vars.FOSSA_ENABLED != 'false' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:

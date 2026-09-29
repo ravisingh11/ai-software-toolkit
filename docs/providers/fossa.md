@@ -56,6 +56,13 @@ adapter is checked out from the base revision (`trusted/`) and scans the head
 checkout (`candidate/`); a pull request that changes `.proof/adapter.py` or
 the workflow file yields `not_run` evidence until it is merged.
 
+This protects the evidence, not the key, from a same-repository pull
+request: its author can already edit the `pull_request` workflow that
+receives the key, and job code on GitHub-hosted runners has passwordless sudo.
+Fork pull requests receive no secrets, so the jobs are skipped for them and
+the scorecard reports no result, never a pass. Grant write access only to people
+trusted with the credential.
+
 The scorecard dashboard does not collect FOSSA issue or license counts yet:
 the dependency vulnerability and license compliance cards show only the check
 result and say so. Read counts from the job summary or the FOSSA project.

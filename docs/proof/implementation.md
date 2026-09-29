@@ -33,6 +33,14 @@ thresholds, ground-truth inventory, validators, Semgrep rules, rule fixtures,
 and selected workflow templates. Refresh preserves repository-owned policy,
 provider selection, documentation, scope, and ground-truth files.
 
+This source repository runs the workflow templates it ships with identical
+content, except the three listed in `NOT_INSTALLED` (`ai-toolkit-setup.yml`,
+`security-scanning.yml`, and `soak.yml`), so Dependabot's action bumps under
+`.github/workflows/` reach the other templates; the excluded ones still must
+use the same pins. `tooling/sync_workflow_templates.py` (repository-only, not
+installed) reports drift and, with `--write`, copies pin-only bumps into the
+templates; a unit test fails on any drift.
+
 ## Runtime sequence
 
 1. Resolve and validate policy, profiles, catalog, and providers.

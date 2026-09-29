@@ -203,6 +203,18 @@ standard reason code (`credential-missing`, `authentication-failed`,
 `revision-mismatch`, `configuration-missing`) in the job summary and an
 uploaded evidence fragment.
 
+This repository runs the templates it ships from `.github/workflows/` with
+identical content, except those listed in `NOT_INSTALLED` in
+`tooling/sync_workflow_templates.py` (`ai-toolkit-setup.yml`,
+`security-scanning.yml`, and `soak.yml`), which Dependabot does not see; the
+Python demo's installed workflows must also match. Every action uses one pin
+across all of them, including the excluded templates.
+Dependabot bumps only `.github/workflows/`, so after a pin bump run
+`python3 tooling/sync_workflow_templates.py --write` (it parses workflows
+with PyYAML from `tooling/requirements-lint.txt`); it copies pin-only changes
+into the templates and refuses any other difference or symlinked workflow. The unit tests
+fail on drift.
+
 Other templates that are shipped but not installed by any profile:
 
 | Template | Workflow / check names | Activation |
