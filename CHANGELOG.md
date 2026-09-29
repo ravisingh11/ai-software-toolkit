@@ -37,6 +37,12 @@ or evidence contracts require a major release and migration guidance.
   Until the new templates reach the default branch, the pull request that adds
   them shows these checks as not run.
 
+- Stop intermittent `Directory not empty` failures in the unit tests.
+  `tooling/test.sh` sets `maintenance.auto`, `maintenance.autoDetach`,
+  `gc.auto`, and `gc.autoDetach` off through git's environment configuration,
+  so background git maintenance started by a test's commits can no longer race
+  the removal of its temporary repository.
+
 - Activate `dependency-vulnerability` (Snyk Open Source) as advisory in this
   repository's `.proof/policy.yaml`. The Snyk workflow already ran and
   uploaded finding counts, but the control was not activated, so the
