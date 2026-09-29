@@ -15,7 +15,7 @@ contracts and evaluator.
 | `tooling/scan_repository.py` | `.proof/scan.py` | Local producer execution, evidence merge, and report writing |
 | `tooling/proof_scorecard.py` | `.proof/scorecard.py` | Public scorecard rendering |
 | `tooling/github_evidence.py` | `.proof/github_evidence.py` | Exact-head GitHub check collection and provenance validation |
-| `tooling/proof_measurements.py` | `.proof/measurements.py` | Self-reported test and coverage measurements for the Unit Tests and Changed Code Coverage workflows |
+| `tooling/proof_measurements.py` | `.proof/measurements.py` | Self-reported test, coverage, and validator measurements for the Unit Tests, Changed Code Coverage, and Validate workflows |
 | `tooling/produce_proof_evidence.py` | `.proof/produce.py` | Repository command, Semgrep CE, and Gitleaks evidence |
 | `tooling/validators/validate_pr_metadata.py` | `.proof/validators/validate_pr_metadata.py` | Mutable pull-request fingerprint and metadata evidence |
 | `proof/validate_repository.py` | `.proof/validators/validate_repository.py` | Installed runtime inventory and contract validation |

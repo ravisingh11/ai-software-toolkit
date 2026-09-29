@@ -8,6 +8,18 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Show repository validator counts on the scorecard dashboard. The Validate
+  workflow's repository, docs, and ground-truth jobs now record self-reported
+  measurements: contract groups passed, failed, and not run; Markdown files,
+  local links checked, broken links, and documentation mapping failures; and
+  ground-truth documents declared, found, and missing. The evidence schema
+  gains the `contracts`, `documentation`, and `documents` measurement kinds,
+  each limited to its control and checked for arithmetic and status
+  consistency. The installed repository validator now runs named contract
+  groups in order. The dashboard's assessment text now states that ground
+  truth checks only that each declared document exists. Refresh the runtime,
+  `providers.yaml`, and `repository-validation.yml` together.
+
 - Score PR Metadata on the scorecard dashboard. `Proof Scorecard` now also
   runs when a pull request is edited, runs the trusted base PR metadata
   validator on the current title and body, and passes the result to

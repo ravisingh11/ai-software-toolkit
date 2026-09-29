@@ -66,7 +66,7 @@ producer status but omits unavailable or malformed optional measurements.
 The dashboard then displays measurements as unavailable. This extension does
 not change policy evaluation or promote scope from advisory to enforced.
 
-### Optional self-reported test and coverage measurements
+### Optional self-reported test, coverage, and validator measurements
 
 A `unit-tests` result may include `measurements` with `version: 1`,
 `source: "pull-request-workflow"`, and `tests` (`total`, `passed`, `failed`,
@@ -77,6 +77,22 @@ the same `version` and `source` and `coverage` (`measured_lines`,
 integers; `total` must equal the sum of its parts and be positive; covered
 lines cannot exceed measured lines; the threshold is 0–100. A `passed` result
 cannot report failed tests or coverage below its threshold.
+
+The repository validators report counts the same way, each on its own
+control:
+
+| Control | Kind | Fields | Consistency rules |
+| --- | --- | --- | --- |
+| `repository-validation` | `contracts` | `total`, `passed`, `failed`, `not_run` | `total` is positive and equals the sum; `passed` means no failed or not-run groups; `failed` needs a failed group |
+| `documentation-validation` | `documentation` | `markdown_files`, `links_checked`, `broken_links`, `mapping_failures` | Broken links cannot exceed links checked; `passed` exactly when there are no broken links or mapping failures |
+| `repository-ground-truth` | `documents` | `declared`, `found`, `missing` | `declared` equals `found + missing`; `passed` exactly when nothing is missing |
+
+The installed repository validator runs its contract groups in order and stops
+at the first failure, so later groups count as `not_run`. The ground-truth
+validator counts documents declared in `.proof/ground-truth-ai.yaml` and checks
+only that each exists; it does not assess their contents. A validator that
+cannot read its own configuration writes no measurements. Document paths and
+link targets are never published.
 
 These numbers come from the pull request's own workflow run, which executes
 the pull request's code, so they are **self-reported**. They are display

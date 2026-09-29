@@ -57,7 +57,10 @@ The Unit Tests and Changed Code Coverage workflows set `PROOF_MEASUREMENTS_FILE`
 A command that writes it (for example with `.proof/measurements.py unittest`,
 `junit`, or `diff-cover`) gets its test totals or changed-line coverage
 packaged and uploaded as the `proof-measurements-<run_id>-<run_attempt>`
-artifact. The scorecard dashboard shows these as self-reported, because the
+artifact. The Validate workflow's repository, docs, and ground-truth jobs do the
+same with their own validator counts, uploaded as
+`proof-measurements-repository-`, `proof-measurements-docs-`, and
+`proof-measurements-ground-truth-` artifacts for that run and attempt. The scorecard dashboard shows these as self-reported, because the
 numbers come from the pull request's own code; they never change a check's
 result. Packaging and upload failures only warn, and commands that do not
 write the file are unaffected.

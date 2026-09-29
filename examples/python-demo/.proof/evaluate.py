@@ -400,11 +400,53 @@ def validate_change_scope(value: Any, status: str) -> None:
 
 # Self-reported measurements come from the pull request's own workflow run, so they
 # are display-only: they never change a result status and are labeled as such.
-MEASURED_CONTROLS = {"unit-tests": "tests", "changed-code-coverage": "coverage"}
+MEASURED_CONTROLS = {
+    "unit-tests": "tests",
+    "changed-code-coverage": "coverage",
+    "repository-validation": "contracts",
+    "documentation-validation": "documentation",
+    "repository-ground-truth": "documents",
+}
 MEASUREMENT_FIELDS = {
     "tests": {"total", "passed", "failed", "skipped"},
     "coverage": {"measured_lines", "covered_lines", "threshold_percent"},
+    "contracts": {"total", "passed", "failed", "not_run"},
+    "documentation": {"markdown_files", "links_checked", "broken_links", "mapping_failures"},
+    "documents": {"declared", "found", "missing"},
 }
+
+
+def _measurement_problem(kind: str, numbers: dict[str, int], status: str) -> str | None:
+    """Return why measurements are inconsistent with themselves or the status, or None."""
+    if kind == "tests":
+        if numbers["total"] != numbers["passed"] + numbers["failed"] + numbers["skipped"] or numbers["total"] == 0:
+            return "test measurements are inconsistent"
+        if status == "passed" and numbers["failed"]:
+            return "test measurements contradict a passed status"
+    elif kind == "coverage":
+        if numbers["covered_lines"] > numbers["measured_lines"] or numbers["threshold_percent"] > 100:
+            return "coverage measurements are inconsistent"
+        below = numbers["covered_lines"] * 100 < numbers["threshold_percent"] * numbers["measured_lines"]
+        if status == "passed" and below:
+            return "coverage measurements contradict a passed status"
+    elif kind == "contracts":
+        if numbers["total"] != numbers["passed"] + numbers["failed"] + numbers["not_run"] or numbers["total"] == 0:
+            return "contract measurements are inconsistent"
+        if (status == "passed") != (numbers["failed"] == 0 and numbers["not_run"] == 0):
+            return "contract measurements contradict the status"
+        if status == "failed" and not numbers["failed"]:
+            return "contract measurements contradict a failed status"
+    elif kind == "documentation":
+        if numbers["broken_links"] > numbers["links_checked"]:
+            return "documentation measurements are inconsistent"
+        if (status == "passed") != (numbers["broken_links"] + numbers["mapping_failures"] == 0):
+            return "documentation measurements contradict the status"
+    elif kind == "documents":
+        if numbers["declared"] != numbers["found"] + numbers["missing"]:
+            return "document measurements are inconsistent"
+        if (status == "passed") != (numbers["missing"] == 0):
+            return "document measurements contradict the status"
+    return None
 
 
 def validate_measurements(control_id: str, value: Any, status: str) -> None:
@@ -427,17 +469,9 @@ def validate_measurements(control_id: str, value: Any, status: str) -> None:
         or any(type(number) is not int or not 0 <= number <= 2**53 - 1 for number in numbers.values())
     ):
         raise ValueError("measurements values are invalid")
-    if kind == "tests":
-        if numbers["total"] != numbers["passed"] + numbers["failed"] + numbers["skipped"] or numbers["total"] == 0:
-            raise ValueError("test measurements are inconsistent")
-        if status == "passed" and numbers["failed"]:
-            raise ValueError("test measurements contradict a passed status")
-    else:
-        if numbers["covered_lines"] > numbers["measured_lines"] or numbers["threshold_percent"] > 100:
-            raise ValueError("coverage measurements are inconsistent")
-        below = numbers["covered_lines"] * 100 < numbers["threshold_percent"] * numbers["measured_lines"]
-        if status == "passed" and below:
-            raise ValueError("coverage measurements contradict a passed status")
+    problem = _measurement_problem(kind, numbers, status)
+    if problem:
+        raise ValueError(problem)
 
 
 def validate_evidence(

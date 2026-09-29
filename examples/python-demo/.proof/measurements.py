@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # Proof installer-owned runtime.
-"""Record self-reported test and coverage measurements for the Proof scorecard.
+"""Record self-reported test, coverage, and validator measurements for the Proof scorecard.
 
-Test and coverage commands run the pull request's own code, so these numbers
-are self-reported display metadata. They never change a check's status.
+Test, coverage, and validator commands run the pull request's own code, so these
+numbers are self-reported display metadata. They never change a check's status.
 
 A configured command writes a measurements file to ``$PROOF_MEASUREMENTS_FILE``
 with one of the converters below (or directly, using the documented format).
@@ -135,7 +135,8 @@ def main(argv: list[str] | None = None) -> int:
     cover_parser.add_argument("report", type=Path)
     cover_parser.add_argument("--threshold", type=int, required=True)
     package_parser = commands.add_parser("package", help="bind measurements to this workflow run")
-    package_parser.add_argument("--control", required=True, choices=("unit-tests", "changed-code-coverage"))
+    package_parser.add_argument("--control", required=True, choices=("unit-tests", "changed-code-coverage", "repository-validation",
+                                         "documentation-validation", "repository-ground-truth"))
     package_parser.add_argument("--input", type=Path, required=True)
     package_parser.add_argument("--outcome", required=True)
     package_parser.add_argument("--head-sha", required=True)

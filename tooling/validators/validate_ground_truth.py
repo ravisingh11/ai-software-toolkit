@@ -5,7 +5,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
+
+
+def record_measurements(declared: int, missing: int) -> None:
+    """Write optional display counts for the scorecard; never affects the result."""
+    target = os.environ.get("PROOF_MEASUREMENTS_FILE")
+    if not target:
+        return
+    document = {"version": 1, "source": "pull-request-workflow", "documents": {
+        "declared": declared, "found": declared - missing, "missing": missing,
+    }}
+    try:
+        Path(target).write_text(json.dumps(document, sort_keys=True) + "\n", encoding="utf-8")
+    except OSError as error:
+        print(f"WARNING: ground-truth measurements were not recorded: {error}")
 
 
 def main() -> int:
@@ -57,6 +72,7 @@ def main() -> int:
         for declared_path, resolved_path in resolved_documents
         if not resolved_path.is_file()
     ]
+    record_measurements(len(resolved_documents), len(missing))
     if missing:
         print("Missing repository ground-truth documents:")
         for path in missing:

@@ -106,7 +106,7 @@
     },
     "plainResult": {"allOf": [{"$ref": "#/$defs/result"}, {"not": {"required": ["change_scope"]}}]},
     "measurements": {
-      "description": "Optional self-reported display metrics from the pull request's own workflow run; they never change a result status. Evaluator also restricts tests to unit-tests and coverage to changed-code-coverage and checks arithmetic and status consistency.",
+      "description": "Optional self-reported display metrics from the pull request's own workflow run; they never change a result status. Evaluator also restricts each kind to its control (tests: unit-tests, coverage: changed-code-coverage, contracts: repository-validation, documentation: documentation-validation, documents: repository-ground-truth) and checks arithmetic and status consistency.",
       "type": "object",
       "additionalProperties": false,
       "required": ["version", "source"],
@@ -133,9 +133,41 @@
             "covered_lines": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
             "threshold_percent": {"type": "integer", "minimum": 0, "maximum": 100}
           }
+        },
+        "contracts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["total", "passed", "failed", "not_run"],
+          "properties": {
+            "total": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+            "passed": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "failed": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "not_run": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+          }
+        },
+        "documentation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["markdown_files", "links_checked", "broken_links", "mapping_failures"],
+          "properties": {
+            "markdown_files": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "links_checked": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "broken_links": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "mapping_failures": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+          }
+        },
+        "documents": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["declared", "found", "missing"],
+          "properties": {
+            "declared": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "found": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "missing": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+          }
         }
       },
-      "oneOf": [{"required": ["tests"]}, {"required": ["coverage"]}]
+      "oneOf": [{"required": ["tests"]}, {"required": ["coverage"]}, {"required": ["contracts"]}, {"required": ["documentation"]}, {"required": ["documents"]}]
     },
     "checkExecution": {
       "description": "Optional completed-check facts. Evaluator also verifies timestamp validity, ordering, and duration arithmetic.",

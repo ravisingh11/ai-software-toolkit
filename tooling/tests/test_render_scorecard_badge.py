@@ -553,7 +553,39 @@ class RendererTests(unittest.TestCase):
                 self.assertIn("not independently verified", text)
             self.assertNotIn("does not include tests passed", page)
             self.assertIn("does not include queries run, vulnerabilities by severity.", page)
-            self.assertIn("Test totals and coverage, where shown, are self-reported", page)
+            self.assertIn("Test totals, coverage, and validator counts, where shown, are self-reported", page)
+
+    def test_validator_measurements_are_summarized(self) -> None:
+        card = scorecard(status="ORANGE", enforced=(0, 0), advisory=(2, 3))
+        values = (("repository-validation", "passed", "contracts", {"total": 4, "passed": 4, "failed": 0, "not_run": 0}),
+                  ("documentation-validation", "failed", "documentation",
+                   {"markdown_files": 171, "links_checked": 912, "broken_links": 2, "mapping_failures": 0}),
+                  ("repository-ground-truth", "passed", "documents", {"declared": 6, "found": 6, "missing": 0}))
+        card["controls"] = [
+            {"id": control_id, "effective_mode": "advisory", "evidence_status": status,
+             "authoritative_result": {"status": status, "measurements": {
+                 "version": 1, "source": "pull-request-workflow", kind: numbers}}}
+            for control_id, status, kind, numbers in values
+        ]
+        rows = {row["id"]: row for row in MODULE._control_details(card)}
+        summaries = {control_id: MODULE._measurement_summary(rows[control_id]["measurements"]) for control_id, *_ in values}
+        self.assertEqual(summaries, {
+            "repository-validation": "4 passed · 0 failed · 0 not run (4 contract groups)",
+            "documentation-validation": "171 Markdown files · 912 local links checked · 2 broken · 0 documentation mapping failures",
+            "repository-ground-truth": "6 of 6 declared documents found · 0 missing",
+        })
+
+    def test_contradictory_validator_measurements_are_unavailable(self) -> None:
+        consistent = MODULE._measurements_consistent
+        self.assertFalse(consistent("contracts", {"total": 4, "passed": 3, "failed": 0, "not_run": 1}, "passed"))
+        self.assertFalse(consistent("contracts", {"total": 4, "passed": 4, "failed": 0, "not_run": 0}, "failed"))
+        self.assertFalse(consistent("documentation", {"markdown_files": 1, "links_checked": 1, "broken_links": 2,
+                                                      "mapping_failures": 0}, "failed"))
+        self.assertFalse(consistent("documentation", {"markdown_files": 1, "links_checked": 1, "broken_links": 0,
+                                                      "mapping_failures": 0}, "failed"))
+        self.assertFalse(consistent("documents", {"declared": 6, "found": 5, "missing": 1}, "passed"))
+        self.assertFalse(consistent("documents", {"declared": 6, "found": 6, "missing": 1}, "failed"))
+        self.assertTrue(consistent("documents", {"declared": 6, "found": 5, "missing": 1}, "failed"))
 
     def test_coverage_percent_is_floored_and_empty_diffs_are_explicit(self) -> None:
         summary = MODULE._measurement_summary

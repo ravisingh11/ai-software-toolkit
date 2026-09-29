@@ -23,7 +23,41 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - run: python3 .proof/validators/validate_repository.py
+      - name: Validate installed contracts
+        id: validate
+        run: python3 .proof/validators/validate_repository.py
+        env:
+          PROOF_MEASUREMENTS_FILE: ${{ runner.temp }}/proof-measurements-input.json
+      # Optional, self-reported display counts: never changes this check's result.
+      - name: Package self-reported measurements
+        id: measurements
+        if: ${{ always() && (steps.validate.outcome == 'success' || steps.validate.outcome == 'failure') }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OUTCOME: ${{ steps.validate.outcome }}
+        run: |
+          input="${RUNNER_TEMP}/proof-measurements-input.json"
+          if [[ ! -f "${input}" ]]; then
+            echo "No measurements file was written; the scorecard will show measurements as not collected."
+            exit 0
+          fi
+          if python3 .proof/measurements.py package --control repository-validation --input "${input}" \
+              --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::Measurements were not packaged; the check result is unaffected."
+          fi
+      - name: Upload self-reported measurements
+        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
+        # Optional display metadata: an upload failure must not change the check result.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: proof-measurements-repository-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          if-no-files-found: error
+          retention-days: 7
+
 
   standards-source:
     name: Validate / standards source
@@ -50,10 +84,42 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - run: python3 .proof/validators/validate_documentation.py --base-ref "${BASE_REF}" --head-ref "${HEAD_REF}"
+      - name: Validate documentation
+        id: validate
+        run: python3 .proof/validators/validate_documentation.py --base-ref "${BASE_REF}" --head-ref "${HEAD_REF}"
         env:
           BASE_REF: ${{ github.event.pull_request.base.sha || 'HEAD~1' }}
           HEAD_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+          PROOF_MEASUREMENTS_FILE: ${{ runner.temp }}/proof-measurements-input.json
+      # Optional, self-reported display counts: never changes this check's result.
+      - name: Package self-reported measurements
+        id: measurements
+        if: ${{ always() && (steps.validate.outcome == 'success' || steps.validate.outcome == 'failure') }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OUTCOME: ${{ steps.validate.outcome }}
+        run: |
+          input="${RUNNER_TEMP}/proof-measurements-input.json"
+          if [[ ! -f "${input}" ]]; then
+            echo "No measurements file was written; the scorecard will show measurements as not collected."
+            exit 0
+          fi
+          if python3 .proof/measurements.py package --control documentation-validation --input "${input}" \
+              --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::Measurements were not packaged; the check result is unaffected."
+          fi
+      - name: Upload self-reported measurements
+        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
+        # Optional display metadata: an upload failure must not change the check result.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: proof-measurements-docs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          if-no-files-found: error
+          retention-days: 7
   ground-truth:
     name: Validate / ground truth
     runs-on: ubuntu-latest
@@ -63,4 +129,37 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - run: python3 .proof/validate_ground_truth.py --policy .proof/ground-truth-ai.yaml
+      - name: Validate ground truth
+        id: validate
+        run: python3 .proof/validate_ground_truth.py --policy .proof/ground-truth-ai.yaml
+        env:
+          PROOF_MEASUREMENTS_FILE: ${{ runner.temp }}/proof-measurements-input.json
+      # Optional, self-reported display counts: never changes this check's result.
+      - name: Package self-reported measurements
+        id: measurements
+        if: ${{ always() && (steps.validate.outcome == 'success' || steps.validate.outcome == 'failure') }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OUTCOME: ${{ steps.validate.outcome }}
+        run: |
+          input="${RUNNER_TEMP}/proof-measurements-input.json"
+          if [[ ! -f "${input}" ]]; then
+            echo "No measurements file was written; the scorecard will show measurements as not collected."
+            exit 0
+          fi
+          if python3 .proof/measurements.py package --control repository-ground-truth --input "${input}" \
+              --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::Measurements were not packaged; the check result is unaffected."
+          fi
+      - name: Upload self-reported measurements
+        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
+        # Optional display metadata: an upload failure must not change the check result.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: proof-measurements-ground-truth-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          if-no-files-found: error
+          retention-days: 7

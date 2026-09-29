@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -109,9 +110,11 @@ def link_target(raw: str) -> str:
     return value.split(maxsplit=1)[0]
 
 
-def validate_markdown_links(root: Path) -> list[str]:
+def validate_markdown_links(root: Path, counts: dict[str, int] | None = None) -> list[str]:
     failures: list[str] = []
-    for document in markdown_files(root):
+    documents = markdown_files(root)
+    checked = 0
+    for document in documents:
         text = document.read_text(encoding="utf-8")
         for raw in LINK_PATTERN.findall(text):
             target = link_target(raw)
@@ -121,6 +124,7 @@ def validate_markdown_links(root: Path) -> list[str]:
                 or re.match(r"^(?:https?|mailto|tel|data):", target)
             ):
                 continue
+            checked += 1
             local = unquote(target.split("#", 1)[0].split("?", 1)[0])
             candidate = (document.parent / local).resolve()
             try:
@@ -134,6 +138,8 @@ def validate_markdown_links(root: Path) -> list[str]:
                 failures.append(
                     f"{document.relative_to(root)} has missing link target: {target}"
                 )
+    if counts is not None:
+        counts.update(markdown_files=len(documents), links_checked=checked, broken_links=len(failures))
     return failures
 
 
@@ -244,15 +250,28 @@ def validate(
     root: Path,
     policy_path: Path,
     changed_files: list[str] | None = None,
+    counts: dict[str, int] | None = None,
 ) -> list[str]:
     policy = load_policy(policy_path)
-    failures = [
-        *validate_markdown_links(root),
-        *validate_document_targets(root, policy),
-    ]
+    link_failures = validate_markdown_links(root, counts)
+    mapping_failures = validate_document_targets(root, policy)
     if changed_files is not None:
-        failures.extend(validate_changed_files(policy, changed_files))
-    return failures
+        mapping_failures.extend(validate_changed_files(policy, changed_files))
+    if counts is not None:
+        counts["mapping_failures"] = len(mapping_failures)
+    return [*link_failures, *mapping_failures]
+
+
+def record_measurements(counts: dict[str, int]) -> None:
+    """Write optional display counts for the scorecard; never affects the result."""
+    target = os.environ.get("PROOF_MEASUREMENTS_FILE")
+    if not target:
+        return
+    document = {"version": 1, "source": "pull-request-workflow", "documentation": counts}
+    try:
+        Path(target).write_text(json.dumps(document, sort_keys=True) + "\n", encoding="utf-8")
+    except OSError as error:
+        print(f"WARNING: documentation measurements were not recorded: {error}", file=sys.stderr)
 
 
 def main() -> int:
@@ -277,11 +296,13 @@ def main() -> int:
                 args.head_ref,
                 args.fallback_base,
             )
-        failures = validate(ROOT, args.policy, changed_files)
+        counts: dict[str, int] = {}
+        failures = validate(ROOT, args.policy, changed_files, counts)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
 
+    record_measurements(counts)
     if failures:
         for failure in failures:
             print(f"ERROR: {failure}", file=sys.stderr)

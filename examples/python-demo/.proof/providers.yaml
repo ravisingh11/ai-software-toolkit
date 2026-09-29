@@ -6,9 +6,9 @@
       "activation": "repository",
       "capabilities": ["repository-validation", "documentation-validation", "repository-ground-truth"],
       "checks": {
-        "repository-validation": {"check_name": "Validate / repository", "workflow": "Validate", "workflow_path": ".github/workflows/repository-validation.yml", "trusted_paths": [".proof/validators/validate_repository.py", ".proof/evaluate.py"]},
-        "documentation-validation": {"check_name": "Validate / docs", "workflow": "Validate", "workflow_path": ".github/workflows/repository-validation.yml", "trusted_paths": [".proof/validators/validate_documentation.py", ".proof/documentation.yaml"]},
-        "repository-ground-truth": {"check_name": "Validate / ground truth", "workflow": "Validate", "workflow_path": ".github/workflows/repository-validation.yml", "trusted_paths": [".proof/validate_ground_truth.py", ".proof/ground-truth-ai.yaml"]}
+        "repository-validation": {"check_name": "Validate / repository", "workflow": "Validate", "workflow_path": ".github/workflows/repository-validation.yml", "trusted_paths": [".proof/validators/validate_repository.py", ".proof/evaluate.py"], "measurements_artifact_prefix": "proof-measurements-repository-", "measurements_member": "proof-measurements.json"},
+        "documentation-validation": {"check_name": "Validate / docs", "workflow": "Validate", "workflow_path": ".github/workflows/repository-validation.yml", "trusted_paths": [".proof/validators/validate_documentation.py", ".proof/documentation.yaml"], "measurements_artifact_prefix": "proof-measurements-docs-", "measurements_member": "proof-measurements.json"},
+        "repository-ground-truth": {"check_name": "Validate / ground truth", "workflow": "Validate", "workflow_path": ".github/workflows/repository-validation.yml", "trusted_paths": [".proof/validate_ground_truth.py", ".proof/ground-truth-ai.yaml"], "measurements_artifact_prefix": "proof-measurements-ground-truth-", "measurements_member": "proof-measurements.json"}
       },
       "template": "workflows/repository-validation.yml",
       "template_available": true,
