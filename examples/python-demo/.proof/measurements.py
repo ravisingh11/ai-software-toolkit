@@ -151,6 +151,95 @@ def _findings(severities: list[str]) -> dict[str, Any]:
     return {"version": 1, "source": "pull-request-workflow", "findings": {"total": len(severities), **counts}}
 
 
+# SARIF levels for results whose rule has no numeric security-severity.
+SARIF_LEVELS = {"error": "high", "warning": "medium", "note": "low"}
+
+
+def _security_bucket(score: Any) -> str | None:
+    """GitHub code scanning's CVSS bands for a rule's security-severity, or None when absent."""
+    try:
+        value = float(score)
+    except (TypeError, ValueError):
+        return None
+    if value >= 9.0:
+        return "critical"
+    if value >= 7.0:
+        return "high"
+    if value >= 4.0:
+        return "medium"
+    return "low" if value > 0 else None
+
+
+def _sarif_rule(result: dict[str, Any], components: list[dict[str, Any]]) -> dict[str, Any]:
+    """The rule a SARIF result refers to, looked up in its own tool component (driver when unnamed)."""
+    reference = result.get("rule") if isinstance(result.get("rule"), dict) else {}
+    component_reference = reference.get("toolComponent")
+    rule_id = result.get("ruleId") or reference.get("id")
+    rule_index = reference.get("index", result.get("ruleIndex"))
+    if isinstance(component_reference, dict) and type(component_reference.get("index")) is int:
+        # SARIF toolComponent indexes point into tool.extensions; the driver is components[0].
+        position = component_reference["index"] + 1
+        candidates = [components[position]] if 0 < position < len(components) else []
+    else:
+        candidates = components[:1]
+    for component in candidates:
+        rules = [rule for rule in (component.get("rules") or []) if isinstance(rule, dict)]
+        if type(rule_index) is int and 0 <= rule_index < len(rules):
+            return rules[rule_index]
+        for rule in rules:
+            if rule.get("id") == rule_id:
+                return rule
+    if not isinstance(component_reference, dict):
+        # No component named: older producers put pack rules only in extensions, so search them by ID.
+        for component in components[1:]:
+            for rule in component.get("rules") or []:
+                if isinstance(rule, dict) and rule.get("id") == rule_id:
+                    return rule
+    return {}
+
+
+def _suppressed(result: dict[str, Any]) -> bool:
+    """A suppression is in force when accepted or when it states no status; rejected or under-review ones are not."""
+    suppressions = result.get("suppressions")
+    return isinstance(suppressions, list) and any(
+        isinstance(item, dict) and item.get("status", "accepted") == "accepted" for item in suppressions)
+
+
+def from_sarif(paths: list[Path]) -> dict[str, Any]:
+    """Count SARIF results (for example CodeQL's, one file per language) by security severity.
+
+    A result's severity comes from its rule's ``security-severity`` property, resolved in the
+    result's own tool component; otherwise from the result level, then the rule's default
+    level, then SARIF's ``warning`` default. Results with a suppression in force are not
+    counted. Counts only: never paths, rule IDs, or messages.
+    """
+    severities: list[str] = []
+    for path in paths:
+        report = json.loads(_read(path))
+        runs = report.get("runs") if isinstance(report, dict) else None
+        if not isinstance(runs, list):
+            raise ValueError(f"{path} is not a SARIF report")
+        for run in runs:
+            tool = run.get("tool") if isinstance(run, dict) else None
+            results = run.get("results") if isinstance(run, dict) else None
+            if not isinstance(tool, dict) or not isinstance(results, list):
+                raise ValueError(f"{path} has a malformed SARIF run")
+            components = [component if isinstance(component, dict) else {}
+                          for component in [tool.get("driver") or {}, *(tool.get("extensions") or [])]]
+            for result in results:
+                if not isinstance(result, dict):
+                    raise ValueError(f"{path} has a malformed SARIF result")
+                if _suppressed(result):
+                    continue
+                rule = _sarif_rule(result, components)
+                default_level = (rule.get("defaultConfiguration") or {}).get("level")
+                level = result.get("level") or default_level or "warning"
+                bucket = (_security_bucket((rule.get("properties") or {}).get("security-severity"))
+                          or SARIF_LEVELS.get(level, "unrated"))
+                severities.append(bucket)
+    return _findings(severities)
+
+
 def from_semgrep(path: Path) -> dict[str, Any]:
     """Count a ``semgrep scan --json-output`` report by rule severity; counts only, never paths or messages."""
     report = json.loads(_read(path))
@@ -214,6 +303,8 @@ def main(argv: list[str] | None = None) -> int:
     semgrep_parser.add_argument("report", type=Path)
     gitleaks_parser = commands.add_parser("gitleaks", help="count a gitleaks JSON report")
     gitleaks_parser.add_argument("report", type=Path)
+    sarif_parser = commands.add_parser("sarif", help="count SARIF reports (for example CodeQL) by security severity")
+    sarif_parser.add_argument("reports", nargs="+", type=Path)
     package_parser = commands.add_parser("package", help="bind measurements to this workflow run")
     package_parser.add_argument("--control", required=True, choices=("unit-tests", "changed-code-coverage", "repository-validation",
                                          "documentation-validation", "repository-ground-truth",
@@ -224,7 +315,7 @@ def main(argv: list[str] | None = None) -> int:
     package_parser.add_argument("--input", type=Path, required=True)
     package_parser.add_argument("--outcome", required=True)
     package_parser.add_argument("--head-sha", required=True)
-    for command in (unittest_parser, junit_parser, cover_parser, review_parser, semgrep_parser, gitleaks_parser,
+    for command in (unittest_parser, junit_parser, cover_parser, review_parser, semgrep_parser, gitleaks_parser, sarif_parser,
                     package_parser):
         command.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -243,6 +334,8 @@ def main(argv: list[str] | None = None) -> int:
             document = from_semgrep(args.report)
         elif args.command == "gitleaks":
             document = from_gitleaks(args.report)
+        elif args.command == "sarif":
+            document = from_sarif(args.reports)
         else:
             document = package(args.control, json.loads(_read(args.input)), args.outcome, args.head_sha)
         _write(args.output, document)

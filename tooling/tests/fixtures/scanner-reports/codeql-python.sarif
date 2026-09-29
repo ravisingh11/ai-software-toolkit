@@ -1,0 +1,35 @@
+{
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "CodeQL",
+          "rules": [{"id": "py/unused-import", "properties": {"precision": "very-high"}}]
+        },
+        "extensions": [
+          {
+            "name": "codeql/python-queries",
+            "rules": [
+              {"id": "py/sql-injection", "properties": {"security-severity": "8.8"}},
+              {"id": "py/command-line-injection", "properties": {"security-severity": "9.8"}},
+              {"id": "py/clear-text-logging-sensitive-data", "properties": {"security-severity": "7.5"}},
+              {"id": "py/weak-cryptographic-algorithm", "properties": {"security-severity": "5.0"}},
+              {"id": "py/stack-trace-exposure", "properties": {"security-severity": "0.0"}}
+            ]
+          }
+        ]
+      },
+      "results": [
+        {"ruleId": "py/sql-injection", "level": "error", "message": {"text": "src/private/query.py"}},
+        {"rule": {"id": "py/command-line-injection", "toolComponent": {"index": 0}}, "level": "error", "message": {"text": "x"}},
+        {"ruleId": "py/clear-text-logging-sensitive-data", "level": "error", "message": {"text": "x"},
+         "suppressions": [{"kind": "inSource"}]},
+        {"ruleId": "py/weak-cryptographic-algorithm", "level": "warning", "message": {"text": "x"}},
+        {"ruleId": "py/stack-trace-exposure", "level": "note", "message": {"text": "x"}},
+        {"ruleId": "py/unused-import", "message": {"text": "x"}},
+        {"ruleId": "py/unknown", "level": "none", "message": {"text": "x"}}
+      ]
+    }
+  ]
+}

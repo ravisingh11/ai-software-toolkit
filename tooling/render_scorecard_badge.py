@@ -652,9 +652,9 @@ def _attention_html(controls: list[dict[str, Any]], breakdown: dict[str, Any]) -
 _EXIT_STATUS_ONLY = {"build", "format-and-lint"}
 # Scanners whose finding counts live in the provider's own service or check, not in this report.
 _COUNTS_ELSEWHERE = {
-    "deep-sast": ("Finding counts are not collected for this check's provider. CodeQL publishes its findings to GitHub code "
-                  "scanning (the repository's Security tab) and Semgrep App keeps them in its own report; Snyk Code counts "
-                  "appear when the Snyk workflow packages them. Open the provider's report for vulnerabilities by severity."),
+    "deep-sast": ("Finding counts are not collected for this run. CodeQL and Snyk Code counts appear when their workflows "
+                  "package them; Semgrep App keeps its findings in its own report. Open the provider's report, or GitHub code "
+                  "scanning (the repository's Security tab) for CodeQL, for vulnerabilities by severity."),
     "static-quality": ("Only the quality-gate result is reported. SonarQube keeps quality-gate conditions, bugs, code smells, "
                        "and duplication on the SonarQube server; open the project there for them."),
     "dependency-change-review": ("Only the overall result is reported. GitHub Dependency Review writes changed dependencies, "
@@ -1089,9 +1089,9 @@ _BLOCK_MEANING = "BLOCK means at least one enforced control did not pass for thi
 
 def _collection_note(controls: list[dict[str, Any]]) -> str:
     if any(row["measurements"]["availability"] == "available" for row in controls):
-        return ("Test totals, coverage, validator counts, and Semgrep CE and Gitleaks finding counts, where shown, are "
-                "self-reported by the pull request's own workflow run and are not independently verified. Finding counts "
-                "from other security scanners are not collected in this summary.")
+        return ("Test totals, coverage, validator counts, and scanner finding counts, where shown, are self-reported by "
+                "the pull request's own workflow run and are not independently verified. A scanner card without counts "
+                "says where that scanner keeps its findings.")
     return "Test totals, security finding counts, and coverage percentages are not collected in this summary."
 
 

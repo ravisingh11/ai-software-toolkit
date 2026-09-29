@@ -31,3 +31,39 @@ jobs:
         with:
           languages: ${{ vars.PROOF_CODEQL_LANGUAGES }}
       - uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        id: analyze
+        with:
+          output: ${{ runner.temp }}/codeql-results
+      # Optional, self-reported finding counts for the Proof scorecard: never changes this check's result.
+      - name: Package self-reported finding counts
+        id: measurements
+        # Only a complete analysis is counted: a failed multi-language run can leave a partial set of SARIF files.
+        if: ${{ always() && steps.analyze.outcome == 'success' }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          reports=("${RUNNER_TEMP}"/codeql-results/*.sarif)
+          if [[ ! -f .proof/measurements.py || ${#reports[@]} -eq 0 ]]; then
+            echo "No Proof runtime or SARIF output; the scorecard will show finding counts as not collected."
+            exit 0
+          fi
+          input="${RUNNER_TEMP}/proof-measurements-input.json"
+          if python3 .proof/measurements.py sarif "${reports[@]}" --output "${input}" \
+              && python3 .proof/measurements.py package --control deep-sast --input "${input}" \
+                --outcome success --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::Finding counts were not packaged; the check result is unaffected."
+          fi
+      - name: Upload self-reported finding counts
+        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
+        # Optional display metadata: an upload failure must not change the check result.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: proof-measurements-codeql-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          if-no-files-found: error
+          retention-days: 7

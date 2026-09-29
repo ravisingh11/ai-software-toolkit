@@ -8,6 +8,16 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Show CodeQL finding counts by security severity on the scorecard dashboard.
+  The CodeQL workflow template writes its SARIF output to the runner, counts it
+  with the new `.proof/measurements.py sarif` converter, and uploads a
+  self-reported `findings` measurement for `deep-sast`. Each result takes its
+  rule's `security-severity` (from the driver or any query-pack extension) in
+  GitHub code scanning's bands (resolved per tool component), falling back to
+  the result level and then the rule's default level; results with a
+  suppression in force are skipped, and only a successful analysis is counted. Refresh the runtime, `providers.yaml`, and `codeql.yml`
+  together.
+
 - Keep shipped workflow templates current. Dependabot updates only
   `.github/workflows/`, so templates under `workflows/` had drifted to older
   action pins (checkout v6, upload-artifact v4, CodeQL v3 in

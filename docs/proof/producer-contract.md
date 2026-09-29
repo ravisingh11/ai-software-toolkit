@@ -153,6 +153,7 @@ published. Severities map onto the buckets as follows:
 | Gitleaks | — | — | — | — | Every finding; Gitleaks does not rate severity |
 | Snyk Code | — | SARIF `error` | SARIF `warning` | SARIF `note` | Any other level |
 | Snyk Open Source | `critical` | `high` | `medium` | `low` | Any other severity |
+| CodeQL (SARIF) | `security-severity` ≥ 9.0 | ≥ 7.0 | ≥ 4.0 | > 0; otherwise level `note` | Level `none`, or an unknown level |
 
 The Semgrep converter refuses a report that records a Semgrep error above
 `warn` or `info`, because the scan may be incomplete and its counts would
@@ -160,8 +161,19 @@ understate findings; the dashboard then shows the counts as not collected.
 The scanners run from pinned containers with networking disabled, and the
 provider contract requires their workflow to match the trusted base, but the
 converter is the pull request's own `.proof/measurements.py`, so these counts
-are labeled self-reported like the other measurements. Finding counts are not
-collected for CodeQL (GitHub code scanning holds its results), SonarQube (the
+are labeled self-reported like the other measurements. The CodeQL workflow
+writes its SARIF to the runner (`analyze` `output`) and counts it with
+`.proof/measurements.py sarif`: a result takes its rule's `security-severity`,
+resolved in the result's own tool component (the driver or the query-pack
+extension it names), using GitHub code scanning's bands; a rule without a
+score falls back to the result level, then the rule's
+`defaultConfiguration.level`, then SARIF's `warning` default (`error` high,
+`warning` medium, `note` low). Results with a suppression in force (accepted,
+or no status) are not counted; rejected or under-review suppressions are.
+Counts are recorded only when the whole analysis succeeds, so a failed
+multi-language run never shows a partial total. The count covers every alert
+in the analysis, not only new ones. Finding
+counts are not collected for SonarQube (the
 SonarQube server holds them), GitHub Dependency Review (its job summary holds
 them), Semgrep App, or the FOSSA adapter; their dashboard cards say where to
 look instead.
