@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # Proof installer-owned runtime.
-"""Record self-reported test, coverage, validator, and AI review measurements for the Proof scorecard.
+"""Record self-reported test, coverage, validator, AI review, and scanner measurements for the Proof scorecard.
 
-Test, coverage, validator, and AI review commands run the pull request's own code, so
-these numbers are self-reported display metadata. They never change a check's status.
+Test, coverage, validator, and AI review commands run the pull request's own code, and the
+scanner counts are produced by this pull request's copy of the converter, so these
+numbers are self-reported display metadata. They never change a check's status.
 
 A configured command writes a measurements file to ``$PROOF_MEASUREMENTS_FILE``
 with one of the converters below (or directly, using the documented format).
@@ -137,6 +138,47 @@ def from_review_result(path: Path) -> dict[str, Any]:
     }}
 
 
+# Semgrep rule severities onto the shared buckets. Semgrep CE has no critical legacy
+# level; INVENTORY, EXPERIMENT, or an unknown value is counted as unrated.
+SEMGREP_SEVERITIES = {"CRITICAL": "critical", "ERROR": "high", "HIGH": "high", "WARNING": "medium",
+                      "MEDIUM": "medium", "INFO": "low", "LOW": "low"}
+
+
+def _findings(severities: list[str]) -> dict[str, Any]:
+    counts = dict.fromkeys(("critical", "high", "medium", "low", "unrated"), 0)
+    for severity in severities:
+        counts[severity] += 1
+    return {"version": 1, "source": "pull-request-workflow", "findings": {"total": len(severities), **counts}}
+
+
+def from_semgrep(path: Path) -> dict[str, Any]:
+    """Count a ``semgrep scan --json-output`` report by rule severity; counts only, never paths or messages."""
+    report = json.loads(_read(path))
+    results = report.get("results") if isinstance(report, dict) else None
+    errors = report.get("errors") if isinstance(report, dict) else None
+    if not isinstance(results, list) or not isinstance(errors, list):
+        raise ValueError(f"{path} is not a Semgrep JSON report")
+    # A fatal error can leave targets unscanned, so the counts would understate findings.
+    if any(not isinstance(error, dict) or error.get("level") not in ("warn", "info") for error in errors):
+        raise ValueError(f"{path} records a Semgrep error; the scan may be incomplete")
+    severities = []
+    for result in results:
+        extra = result.get("extra") if isinstance(result, dict) else None
+        if not isinstance(extra, dict):
+            raise ValueError(f"{path} has a malformed Semgrep result")
+        severity = extra.get("severity")
+        severities.append(SEMGREP_SEVERITIES.get(severity.upper() if isinstance(severity, str) else "", "unrated"))
+    return _findings(severities)
+
+
+def from_gitleaks(path: Path) -> dict[str, Any]:
+    """Count a gitleaks JSON report; gitleaks does not rate severity, so every finding is unrated."""
+    report = json.loads(_read(path))
+    if not isinstance(report, list) or any(not isinstance(finding, dict) or "RuleID" not in finding for finding in report):
+        raise ValueError(f"{path} is not a gitleaks JSON report")
+    return _findings(["unrated"] * len(report))
+
+
 def package(control: str, measurements: dict[str, Any], outcome: str, head_sha: str) -> dict[str, Any]:
     status = {"success": "passed", "failure": "failed"}.get(outcome)
     if status is None:
@@ -168,15 +210,21 @@ def main(argv: list[str] | None = None) -> int:
     cover_parser.add_argument("--threshold", type=int, required=True)
     review_parser = commands.add_parser("review-findings", help="count an AI reviewer result file by severity")
     review_parser.add_argument("result", type=Path)
+    semgrep_parser = commands.add_parser("semgrep", help="count a Semgrep JSON report by severity")
+    semgrep_parser.add_argument("report", type=Path)
+    gitleaks_parser = commands.add_parser("gitleaks", help="count a gitleaks JSON report")
+    gitleaks_parser.add_argument("report", type=Path)
     package_parser = commands.add_parser("package", help="bind measurements to this workflow run")
     package_parser.add_argument("--control", required=True, choices=("unit-tests", "changed-code-coverage", "repository-validation",
                                          "documentation-validation", "repository-ground-truth",
                                          "migration-validation", "ai-engineering-review", "ai-qa-review",
-                                         "ai-security-review", "ai-repository-standards-review"))
+                                         "ai-security-review", "ai-repository-standards-review",
+                                         "custom-static-analysis", "secret-detection"))
     package_parser.add_argument("--input", type=Path, required=True)
     package_parser.add_argument("--outcome", required=True)
     package_parser.add_argument("--head-sha", required=True)
-    for command in (unittest_parser, junit_parser, cover_parser, review_parser, package_parser):
+    for command in (unittest_parser, junit_parser, cover_parser, review_parser, semgrep_parser, gitleaks_parser,
+                    package_parser):
         command.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
@@ -190,6 +238,10 @@ def main(argv: list[str] | None = None) -> int:
             document = from_diff_cover(args.report, args.threshold)
         elif args.command == "review-findings":
             document = from_review_result(args.result)
+        elif args.command == "semgrep":
+            document = from_semgrep(args.report)
+        elif args.command == "gitleaks":
+            document = from_gitleaks(args.report)
         else:
             document = package(args.control, json.loads(_read(args.input)), args.outcome, args.head_sha)
         _write(args.output, document)

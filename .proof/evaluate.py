@@ -436,6 +436,8 @@ MEASURED_CONTROLS = {
     "ai-qa-review": "review_findings",
     "ai-security-review": "review_findings",
     "ai-repository-standards-review": "review_findings",
+    "custom-static-analysis": "findings",
+    "secret-detection": "findings",
 }
 MEASUREMENT_FIELDS = {
     "tests": {"total", "passed", "failed", "skipped"},
@@ -445,6 +447,8 @@ MEASUREMENT_FIELDS = {
     "documents": {"declared", "found", "missing"},
     "migrations": {"checked", "failed"},
     "review_findings": {"total", "p0", "p1", "p2", "p3", "unresolved_blocking"},
+    # Scanner findings by severity bucket; "unrated" holds findings the tool does not rate.
+    "findings": {"total", "critical", "high", "medium", "low", "unrated"},
 }
 
 
@@ -489,6 +493,12 @@ def _measurement_problem(kind: str, numbers: dict[str, int], status: str) -> str
         blocking = numbers["p0"] + numbers["p1"]
         if numbers["total"] != blocking + numbers["p2"] + numbers["p3"] or numbers["unresolved_blocking"] > blocking:
             return "review finding measurements are inconsistent"
+    elif kind == "findings":
+        # Arithmetic only: a scan may pass with findings below the tool's own threshold,
+        # and may fail for reasons other than a counted finding.
+        buckets = ("critical", "high", "medium", "low", "unrated")
+        if numbers["total"] != sum(numbers[bucket] for bucket in buckets):
+            return "finding measurements are inconsistent"
     return None
 
 

@@ -8,6 +8,20 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Show Semgrep CE and Gitleaks finding counts on the scorecard dashboard. The
+  Semgrep CE and Gitleaks workflows write their JSON report under the runner's
+  temporary directory, count it with the new `.proof/measurements.py semgrep`
+  and `gitleaks` converters, and upload only the counts as a self-reported
+  `findings` measurement (`total`, `critical`, `high`, `medium`, `low`,
+  `unrated`) for `custom-static-analysis` and `secret-detection`. Semgrep
+  `CRITICAL` maps to critical, `ERROR`/`HIGH` to high, `WARNING`/`MEDIUM` to
+  medium, and `INFO`/`LOW` to low; Gitleaks findings are unrated because the
+  scanner does not rate severity. Findings are checked for arithmetic only,
+  never against the check status. Cards for CodeQL, SonarQube, Dependency
+  Review, Snyk, and FOSSA now say where their counts live instead of implying
+  they were omitted. Refresh the runtime, `providers.yaml`, `semgrep-ce.yml`,
+  and `gitleaks.yml` together.
+
 - Show AI review finding counts on the scorecard dashboard. Each job of the
   `ai-pr-review.yml` template counts its reviewer's result file with the new
   `.proof/measurements.py review-findings` command and uploads a

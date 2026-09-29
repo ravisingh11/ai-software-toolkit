@@ -17,6 +17,7 @@ if SPEC is None or SPEC.loader is None:
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 HEAD = "a" * 40
+REPORTS = ROOT / "tooling/tests/fixtures/scanner-reports"
 
 
 class MeasurementsHelperTests(unittest.TestCase):
@@ -104,6 +105,52 @@ class MeasurementsHelperTests(unittest.TestCase):
                                                       "--outcome", outcome, "--head-sha", HEAD,
                                                       "--output", str(packaged)]), 0)
                         self.assertEqual(json.loads(packaged.read_text())["control"], control)
+
+    def test_semgrep_report_is_counted_by_severity(self) -> None:
+        document = MODULE.from_semgrep(REPORTS / "semgrep.json")
+        self.assertEqual(document, {"version": 1, "source": "pull-request-workflow", "findings": {
+            "total": 6, "critical": 1, "high": 2, "medium": 1, "low": 1, "unrated": 1}})
+        # Counts only: nothing from the report's paths, rules, or messages is carried over.
+        self.assertNotIn("src/", json.dumps(document))
+        with tempfile.TemporaryDirectory() as directory:
+            clean = self.write(Path(directory), "clean.json", json.dumps({"results": [], "errors": []}))
+            self.assertEqual(MODULE.from_semgrep(clean)["findings"]["total"], 0)
+
+    def test_semgrep_report_rejects_malformed_or_incomplete_scans(self) -> None:
+        for document in ([], {"results": []}, {"results": {}, "errors": []}, {"results": [1], "errors": []},
+                         {"results": [], "errors": [{"level": "error", "message": "rule parse failure"}]},
+                         {"results": [], "errors": ["boom"]}):
+            with self.subTest(document=document), tempfile.TemporaryDirectory() as directory:
+                with self.assertRaises(ValueError):
+                    MODULE.from_semgrep(self.write(Path(directory), "bad.json", json.dumps(document)))
+
+    def test_gitleaks_findings_are_unrated(self) -> None:
+        document = MODULE.from_gitleaks(REPORTS / "gitleaks.json")
+        self.assertEqual(document["findings"], {"total": 3, "critical": 0, "high": 0, "medium": 0, "low": 0, "unrated": 3})
+        self.assertNotIn("config/", json.dumps(document))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(MODULE.from_gitleaks(self.write(root, "clean.json", "[]"))["findings"]["total"], 0)
+            for text in ("{}", "[1]", '[{"File": "x"}]', "not json"):
+                with self.subTest(text=text), self.assertRaises(ValueError):
+                    MODULE.from_gitleaks(self.write(root, "bad.json", text))
+
+    def test_scanner_reports_package_for_their_controls(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, mock.patch.dict(
+                os.environ, {"GITHUB_RUN_ID": "7", "GITHUB_RUN_ATTEMPT": "1", "GITHUB_REPOSITORY": "o/r"}):
+            root = Path(directory)
+            for converter, report, control in (("semgrep", "semgrep.json", "custom-static-analysis"),
+                                               ("gitleaks", "gitleaks.json", "secret-detection")):
+                with self.subTest(converter=converter):
+                    counts, packaged = root / f"{converter}-input.json", root / f"{converter}-package.json"
+                    self.assertEqual(MODULE.main([converter, str(REPORTS / report), "--output", str(counts)]), 0)
+                    self.assertEqual(MODULE.main(["package", "--control", control, "--input", str(counts),
+                                                  "--outcome", "failure", "--head-sha", HEAD, "--output", str(packaged)]), 0)
+                    self.assertEqual(json.loads(packaged.read_text())["control"], control)
+                    rejected = root / f"{converter}-rejected.json"
+                    self.assertEqual(MODULE.main(["package", "--control", "unit-tests", "--input", str(counts),
+                                                  "--outcome", "failure", "--head-sha", HEAD, "--output", str(rejected)]), 2)
+                    self.assertFalse(rejected.exists())
 
     def test_package_binds_run_and_validates_against_outcome(self) -> None:
         measurements = {"version": 1, "source": "pull-request-workflow",

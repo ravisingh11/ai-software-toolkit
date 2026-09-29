@@ -868,6 +868,42 @@ class MeasurementsEvidenceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     MODULE.validate_measurements(control_id, measurements, status)
         self.validate("ai-security-review", "ai-security-adapter", self.REVIEW_FINDINGS, "failed")
+    FINDINGS = {"version": 1, "source": "pull-request-workflow",
+                "findings": {"total": 17, "critical": 0, "high": 1, "medium": 4, "low": 12, "unrated": 0}}
+
+    def test_findings_check_arithmetic_but_not_status(self) -> None:
+        def changed(**values: object) -> dict:
+            value = copy.deepcopy(self.FINDINGS)
+            value["findings"].update(values)
+            return value
+        empty = changed(total=0, high=0, medium=0, low=0)
+        unrated = changed(total=3, high=0, medium=0, low=0, unrated=3)
+        # A scan may pass with findings under its own threshold, or fail with none counted.
+        for control_id, provider, measurements, status in (
+            ("custom-static-analysis", "semgrep-ce", self.FINDINGS, "passed"),
+            ("custom-static-analysis", "semgrep-ce", self.FINDINGS, "failed"),
+            ("custom-static-analysis", "semgrep-ce", empty, "failed"),
+            ("secret-detection", "gitleaks", unrated, "failed"),
+            ("secret-detection", "gitleaks", empty, "passed"),
+        ):
+            with self.subTest(control_id=control_id, measurements=measurements, status=status):
+                self.validate(control_id, provider, measurements, status)
+        for control_id, measurements in (
+            ("custom-static-analysis", changed(total=18)),
+            ("custom-static-analysis", changed(total=16)),
+            ("secret-detection", changed(unrated=-1, total=16)),
+            ("custom-static-analysis", changed(high="1")),
+            ("secret-detection", self.MIGRATIONS),
+            ("deep-sast", self.FINDINGS),
+            ("unit-tests", self.FINDINGS),
+        ):
+            with self.subTest(control_id=control_id, measurements=measurements):
+                with self.assertRaises(ValueError):
+                    MODULE.validate_measurements(control_id, measurements, "failed")
+        without_unrated = copy.deepcopy(self.FINDINGS)
+        without_unrated["findings"].pop("unrated")
+        with self.assertRaises(ValueError):
+            MODULE.validate_measurements("secret-detection", without_unrated, "passed")
 
     def test_measurements_are_rejected_on_unmeasured_controls(self) -> None:
         with self.assertRaisesRegex(ValueError, "measurements"):

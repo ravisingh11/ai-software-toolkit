@@ -1790,6 +1790,38 @@ class SelfReportedMeasurementsTests(unittest.TestCase):
                 self.assertIsNone(self.fetch(self.document(**overrides)))
         self.assertEqual(self.fetch(self.document(measurements=bad_tests), status="failed"), bad_tests)
 
+    def test_scanner_findings_are_returned_for_either_result(self) -> None:
+        findings = {"version": 1, "source": "pull-request-workflow",
+                    "findings": {"total": 3, "critical": 0, "high": 0, "medium": 0, "low": 0, "unrated": 3}}
+        contract = {**self.CONTRACT, "check_name": "Gitleaks", "workflow": "Gitleaks", "provider_id": "gitleaks",
+                    "workflow_path": ".github/workflows/gitleaks.yml", "control_ids": ["secret-detection"]}
+        job = {"id": 1, "run_id": 55, "run_attempt": 2, "head_sha": "abc123"}
+        listing = {"total_count": 1, "artifacts": [
+            {"id": 9, "name": "proof-measurements-55-2", "expired": False, "workflow_run": {"id": 55}}]}
+
+        def fetch(measurements: dict, status: str) -> object:
+            archive = artifact_archive(self.document(control="secret-detection", measurements=measurements),
+                                       "proof-measurements.json")
+            with mock.patch.object(MODULE, "_request", side_effect=lambda url, token: job if "/actions/jobs/" in url else listing), \
+                    mock.patch.object(MODULE, "_request_bytes", return_value=archive):
+                return MODULE.self_reported_measurements(
+                    "owner/repo", "abc123", "token", 55, contract, "secret-detection", status, check_run("Gitleaks", 55))
+
+        for status in ("passed", "failed"):
+            with self.subTest(status=status):
+                self.assertEqual(fetch(findings, status), findings)
+        # Counts that do not add up are dropped rather than displayed.
+        self.assertIsNone(fetch({**findings, "findings": {**findings["findings"], "total": 4}}, "failed"))
+
+    def test_scanner_contracts_opt_in_to_measurements_for_one_control(self) -> None:
+        config = json.loads((ROOT / "policies/provider-config.yaml").read_text(encoding="utf-8"))
+        for provider_id, control_id in (("semgrep-ce", "custom-static-analysis"), ("gitleaks", "secret-detection")):
+            with self.subTest(provider_id=provider_id):
+                check = config["providers"][provider_id]["checks"][control_id]
+                self.assertEqual(check["measurements_artifact_prefix"], "proof-measurements-")
+                self.assertEqual(check["measurements_member"], "proof-measurements.json")
+                self.assertEqual(config["providers"][provider_id]["capabilities"], [control_id])
+
     def test_missing_expired_duplicate_or_foreign_artifacts_are_dropped(self) -> None:
         artifact = {"id": 9, "name": "proof-measurements-55-2", "expired": False, "workflow_run": {"id": 55}}
         for listing in ({"total_count": 0, "artifacts": []},

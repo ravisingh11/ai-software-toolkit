@@ -25,8 +25,43 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Scan available Git history with redaction
-        run: >-
-          docker run --rm --network none
-          -v "${GITHUB_WORKSPACE}:/repo:ro" -w /repo
-          ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
-          git --redact --no-banner .
+        id: scan
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/gitleaks-report"
+          docker run --rm --network none \
+            -v "${GITHUB_WORKSPACE}:/repo:ro" -v "${RUNNER_TEMP}/gitleaks-report:/report" -w /repo \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git --redact --no-banner --report-format json --report-path /report/gitleaks.json .
+      # Optional, self-reported display counts: never changes this check's result.
+      - name: Package self-reported finding counts
+        id: measurements
+        if: ${{ always() && (steps.scan.outcome == 'success' || steps.scan.outcome == 'failure') }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OUTCOME: ${{ steps.scan.outcome }}
+        run: |
+          report="${RUNNER_TEMP}/gitleaks-report/gitleaks.json"
+          input="${RUNNER_TEMP}/proof-measurements-input.json"
+          if [[ ! -f "${report}" ]]; then
+            echo "No gitleaks JSON report was written; the scorecard will show finding counts as not collected."
+            exit 0
+          fi
+          # Counts only: the report's paths, rule messages, and secrets are never packaged or uploaded.
+          if python3 .proof/measurements.py gitleaks "${report}" --output "${input}" \
+              && python3 .proof/measurements.py package --control secret-detection --input "${input}" \
+                --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::Finding counts were not packaged; the check result is unaffected."
+          fi
+      - name: Upload self-reported finding counts
+        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
+        # Optional display metadata: an upload failure must not change the check result.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: proof-measurements-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          if-no-files-found: error
+          retention-days: 7

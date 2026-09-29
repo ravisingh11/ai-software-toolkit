@@ -56,6 +56,10 @@ adapter is checked out from the base revision (`trusted/`) and scans the head
 checkout (`candidate/`); a pull request that changes `.proof/adapter.py` or
 the workflow file yields `not_run` evidence until it is merged.
 
+The scorecard dashboard does not collect FOSSA issue or license counts yet:
+the dependency vulnerability and license compliance cards show only the check
+result and say so. Read counts from the job summary or the FOSSA project.
+
 ## Verify
 
 Open a pull request, confirm the `FOSSA` check binds to the head commit and

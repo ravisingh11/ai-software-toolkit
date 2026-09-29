@@ -60,11 +60,47 @@ jobs:
               raise SystemExit("safe fixtures unexpectedly produced Semgrep findings")
           PY
       - name: Semgrep scan with repository-owned rules
-        run: >-
-          docker run --rm --network none
-          -v "${GITHUB_WORKSPACE}:/src:ro" -w /src
-          semgrep/semgrep@sha256:b94b53d02fd4a022f9eac4e2af1380f5c3c4c21400e79d3336bdff1d1db5e796
-          semgrep scan --metrics off --error --config .proof/semgrep-rules.yml
-          --exclude .proof/semgrep-tests/fixtures
-          --exclude examples/python-demo/.proof/semgrep-tests/fixtures
-          --exclude security/semgrep/tests/fixtures .
+        id: scan
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/semgrep-report"
+          docker run --rm --network none \
+            -v "${GITHUB_WORKSPACE}:/src:ro" -v "${RUNNER_TEMP}/semgrep-report:/report" -w /src \
+            semgrep/semgrep@sha256:b94b53d02fd4a022f9eac4e2af1380f5c3c4c21400e79d3336bdff1d1db5e796 \
+            semgrep scan --metrics off --error --config .proof/semgrep-rules.yml \
+            --json-output=/report/semgrep.json \
+            --exclude .proof/semgrep-tests/fixtures \
+            --exclude examples/python-demo/.proof/semgrep-tests/fixtures \
+            --exclude security/semgrep/tests/fixtures .
+      # Optional, self-reported display counts: never changes this check's result.
+      - name: Package self-reported finding counts
+        id: measurements
+        if: ${{ always() && (steps.scan.outcome == 'success' || steps.scan.outcome == 'failure') }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OUTCOME: ${{ steps.scan.outcome }}
+        run: |
+          report="${RUNNER_TEMP}/semgrep-report/semgrep.json"
+          input="${RUNNER_TEMP}/proof-measurements-input.json"
+          if [[ ! -f "${report}" ]]; then
+            echo "No Semgrep JSON report was written; the scorecard will show finding counts as not collected."
+            exit 0
+          fi
+          # Counts only: the report's paths, rule messages, and secrets are never packaged or uploaded.
+          if python3 .proof/measurements.py semgrep "${report}" --output "${input}" \
+              && python3 .proof/measurements.py package --control custom-static-analysis --input "${input}" \
+                --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::Finding counts were not packaged; the check result is unaffected."
+          fi
+      - name: Upload self-reported finding counts
+        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
+        # Optional display metadata: an upload failure must not change the check result.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: proof-measurements-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          if-no-files-found: error
+          retention-days: 7

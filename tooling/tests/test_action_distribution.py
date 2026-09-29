@@ -189,8 +189,22 @@ class ActionDistributionTests(unittest.TestCase):
         self.assertNotIn("semgrep ci", semgrep)
         self.assertIn(GITLEAKS_IMAGE, gitleaks)
         self.assertIn("fetch-depth: 0", gitleaks)
-        self.assertIn(f"{GITLEAKS_IMAGE}\n          git --redact --no-banner .", gitleaks)
-        self.assertNotIn(f"{GITLEAKS_IMAGE}\n          gitleaks git", gitleaks)
+        self.assertIn(
+            f"{GITLEAKS_IMAGE} \\\n            git --redact --no-banner --report-format json --report-path /report/gitleaks.json .",
+            gitleaks,
+        )
+        self.assertNotIn(f"{GITLEAKS_IMAGE} \\\n            gitleaks git", gitleaks)
+        self.assertIn("--json-output=/report/semgrep.json", semgrep)
+        for text, converter, control in ((semgrep, "semgrep", "custom-static-analysis"),
+                                         (gitleaks, "gitleaks", "secret-detection")):
+            # Finding counts are optional display metadata and never change the scan's result.
+            self.assertIn(f"python3 .proof/measurements.py {converter} ", text)
+            self.assertIn(f"package --control {control} ", text)
+            self.assertIn("steps.scan.outcome == 'success' || steps.scan.outcome == 'failure'", text)
+            self.assertIn("continue-on-error: true", text)
+            self.assertIn("name: proof-measurements-${{ github.run_id }}-${{ github.run_attempt }}", text)
+            self.assertNotIn("semgrep-report/semgrep.json\n", text.split("upload-artifact", 1)[1])
+            self.assertNotIn("gitleaks-report", text.split("upload-artifact", 1)[1])
         combined = "\n".join(
             path.read_text()
             for directory in (ROOT / "tooling", ROOT / "workflows", ROOT / ".github/workflows", ROOT / ".proof")

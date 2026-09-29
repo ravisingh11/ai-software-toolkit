@@ -173,12 +173,19 @@ Local scans prefer Docker with networking disabled. Without Docker they require
 host Semgrep `1.175.0` exactly. Missing rules, unavailable Docker, or a host
 version mismatch reports `NO RESULT`.
 
+The scan also writes a Semgrep JSON report under the runner's temporary
+directory. The workflow counts its findings by severity (`CRITICAL` as
+critical, `ERROR` or `HIGH` as high, `WARNING` or `MEDIUM` as medium, `INFO` or
+`LOW` as low, anything else as unrated) and uploads only those counts as
+self-reported measurements. Counting never changes the check result.
+
 Repository-owned and third-party Semgrep rules can have licenses independent of
 the Semgrep engine. Review every rule pack before copying it.
 
 ### Gitleaks CLI
 
-Core runs `gitleaks git --redact --no-banner .` from this pinned container:
+Core runs `gitleaks git --redact --no-banner .` from this pinned container,
+writing a redacted JSON report under the runner's temporary directory:
 
 ```text
 ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
@@ -186,7 +193,9 @@ ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9a
 
 The workflow checks out full history. Local scans require complete Git history
 and either Docker or host Gitleaks `8.30.1` exactly. Proof uses the MIT
-Gitleaks CLI, not the separately licensed Gitleaks Action.
+Gitleaks CLI, not the separately licensed Gitleaks Action. The workflow uploads
+only the number of findings, as unrated self-reported measurements, because
+Gitleaks does not rate severity; the report itself never leaves the runner.
 
 ## GitHub profile
 
@@ -489,7 +498,13 @@ workflows set `PROOF_MEASUREMENTS_FILE`; a configured command that writes it
 those workflows run the pull request's own code, the numbers are labeled as
 not independently verified and never change a check's result. Commands that
 do not write the file keep working; the dashboard then says the measurements
-were not collected. Security finding counts by severity are not collected. A
+were not collected. The Semgrep CE and Gitleaks workflows record their
+finding counts without configuration: Semgrep by severity (for example
+**0 critical · 1 high · 4 medium · 12 low**), and Gitleaks as a count whose
+severity the scanner does not rate. Only counts are recorded; paths, rules, and
+secret values never leave the runner. Finding counts from CodeQL, SonarQube,
+Dependency Review, Semgrep App, Snyk, and FOSSA are not collected; their cards
+say where the provider keeps them. A
 passed check does not imply zero findings, a particular test count, or 100%
 coverage. Read the producer's report for those measurements. The coverage report distinguishes changes with
 no measured lines from a measured coverage percentage.

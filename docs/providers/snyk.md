@@ -61,6 +61,10 @@ adapter is checked out from the base revision (`trusted/`) and scans the head
 checkout (`candidate/`); a pull request that changes `.proof/adapter.py` or
 the workflow file yields `not_run` evidence until it is merged.
 
+The scorecard dashboard does not collect Snyk finding counts yet: the deep
+SAST and dependency vulnerability cards show only the check result and say so. Read
+counts by severity from the job summary or the Snyk project.
+
 ## Verify
 
 Open a pull request after installing the workflow and confirm that the `Snyk

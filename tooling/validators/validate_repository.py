@@ -241,6 +241,7 @@ def validate_provider_document(config: dict, catalog: dict[str, dict]) -> None:
                         "documentation-validation", "repository-ground-truth", "migration-validation",
                         "ai-engineering-review", "ai-qa-review", "ai-security-review",
                         "ai-repository-standards-review",
+                        "custom-static-analysis", "secret-detection",
                     }
                     or "workflow_path" not in check
                     or "external_id_prefix" in check

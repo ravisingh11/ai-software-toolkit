@@ -267,11 +267,11 @@ _CHECK_ASSESSMENTS = {'repository-validation': ('Installed Proof contracts',
  'custom-static-analysis': ('Custom static rules',
                             'Repository and organization-specific analysis rules',
                             'Configured analyzer completes without policy-blocking findings',
-                            'Rules executed; findings by severity'),
+                            'Findings by severity'),
  'secret-detection': ('Secrets in source history',
                       'Credential patterns in the configured scan scope',
                       'Scanner reports no policy-blocking secret findings',
-                      'Files or commits scanned; secret findings'),
+                      'Secret findings'),
  'deep-sast': ('Semantic security analysis',
                'Data flow and security queries for configured languages',
                'Selected security analysis satisfies its configured policy',
@@ -390,6 +390,8 @@ def _execution_details(row: dict[str, Any]) -> dict[str, Any]:
             "duration_seconds": value["duration_seconds"], "conclusion": value["conclusion"]}
 
 
+_SEVERITIES = ("critical", "high", "medium", "low")
+_FINDING_FIELDS = ("total", *_SEVERITIES, "unrated")
 _MEASURED_FIELDS = {"unit-tests": ("tests", ("total", "passed", "failed", "skipped")),
                     "changed-code-coverage": ("coverage", ("measured_lines", "covered_lines", "threshold_percent")),
                     "repository-validation": ("contracts", ("total", "passed", "failed", "not_run")),
@@ -398,7 +400,8 @@ _MEASURED_FIELDS = {"unit-tests": ("tests", ("total", "passed", "failed", "skipp
                     "migration-validation": ("migrations", ("checked", "failed")),
                     **{control_id: ("review_findings", ("total", "p0", "p1", "p2", "p3", "unresolved_blocking"))
                        for control_id in ("ai-engineering-review", "ai-qa-review", "ai-security-review",
-                                          "ai-repository-standards-review")}}
+                                          "ai-repository-standards-review")},
+                    **{control_id: ("findings", _FINDING_FIELDS) for control_id in ("custom-static-analysis", "secret-detection")}}
 
 
 def _measurements_consistent(kind: str, numbers: dict[str, int], status: str) -> bool:
@@ -423,6 +426,9 @@ def _measurements_consistent(kind: str, numbers: dict[str, int], status: str) ->
     if kind == "review_findings":
         blocking = numbers["p0"] + numbers["p1"]
         return numbers["total"] == blocking + numbers["p2"] + numbers["p3"] and numbers["unresolved_blocking"] <= blocking
+    if kind == "findings":
+        # Arithmetic only: a scan may pass with findings under its own threshold.
+        return numbers["total"] == sum(numbers[key] for key in _FINDING_FIELDS[1:])
     return numbers["declared"] == numbers["found"] + numbers["missing"] and passed == (numbers["missing"] == 0)
 
 
@@ -492,6 +498,15 @@ def _measurement_summary(measurements: dict[str, Any]) -> str | None:
         if not counts["checked"]:
             return "No migrations found to check"
         return f'{counts["checked"]:,} migrations checked · {counts["failed"]:,} failed'
+    if "findings" in measurements:
+        counts = measurements["findings"]
+        if not counts["total"]:
+            return "No findings reported"
+        if not any(counts[key] for key in _SEVERITIES):
+            plural = "s" if counts["total"] != 1 else ""
+            return f'{counts["total"]:,} finding{plural} · severity not rated by the scanner'
+        summary = " · ".join(f"{counts[key]:,} {key}" for key in _SEVERITIES)
+        return summary + (f' · {counts["unrated"]:,} unrated' if counts["unrated"] else "")
     coverage = measurements["coverage"]
     measured, covered = coverage["measured_lines"], coverage["covered_lines"]
     if not measured:
@@ -634,6 +649,22 @@ def _attention_html(controls: list[dict[str, Any]], breakdown: dict[str, Any]) -
 
 # Repository-owned commands whose only portable signal is their exit status.
 _EXIT_STATUS_ONLY = {"build", "format-and-lint"}
+# Scanners whose finding counts live in the provider's own service or check, not in this report.
+_COUNTS_ELSEWHERE = {
+    "deep-sast": ("Finding counts are not collected for this check. CodeQL publishes its findings to GitHub code scanning "
+                  "(the repository's Security tab), and Snyk Code and Semgrep App keep theirs in their own reports; "
+                  "open those for vulnerabilities by severity."),
+    "static-quality": ("Only the quality-gate result is reported. SonarQube keeps quality-gate conditions, bugs, code smells, "
+                       "and duplication on the SonarQube server; open the project there for them."),
+    "dependency-change-review": ("Only the overall result is reported. GitHub Dependency Review writes changed dependencies, "
+                                 "new vulnerabilities, and license violations to its own job summary; open the pull "
+                                 "request's Dependency Review check for them."),
+    "dependency-vulnerability": ("Only the overall result is reported. The Snyk Open Source and FOSSA adapters do not yet "
+                                 "export finding counts; open the pull request's provider check or the provider project "
+                                 "for findings by severity."),
+    "license-compliance": ("Only the overall result is reported. The FOSSA adapter does not yet export license counts; "
+                           "open the pull request's FOSSA check or the FOSSA project for them."),
+}
 
 
 def _counts_gap(metrics: str, control_id: str = "", measurements: dict[str, Any] | None = None) -> str:
@@ -645,6 +676,8 @@ def _counts_gap(metrics: str, control_id: str = "", measurements: dict[str, Any]
         return ("Only the overall result was reported. Finding counts appear only when an AI PR Review adapter packages "
                 "its result file for this run; a native GitHub review posts findings as review comments instead. "
                 "Open the source report for the review output.")
+    if control_id in _COUNTS_ELSEWHERE:
+        return _COUNTS_ELSEWHERE[control_id]
     if control_id in _EXIT_STATUS_ONLY:
         return ("Only the command's exit status is reported. This repository supplies the command, so counts such as "
                 f"{metrics[:1].lower() + metrics[1:].replace('; ', ', ')} depend on its tools; open the source report for their output.")
@@ -1055,8 +1088,9 @@ _BLOCK_MEANING = "BLOCK means at least one enforced control did not pass for thi
 
 def _collection_note(controls: list[dict[str, Any]]) -> str:
     if any(row["measurements"]["availability"] == "available" for row in controls):
-        return ("Test totals, coverage, and validator counts, where shown, are self-reported by the pull request's own workflow run "
-                "and are not independently verified. Security finding counts are not collected in this summary.")
+        return ("Test totals, coverage, validator counts, and Semgrep CE and Gitleaks finding counts, where shown, are "
+                "self-reported by the pull request's own workflow run and are not independently verified. Finding counts "
+                "from other security scanners are not collected in this summary.")
     return "Test totals, security finding counts, and coverage percentages are not collected in this summary."
 
 

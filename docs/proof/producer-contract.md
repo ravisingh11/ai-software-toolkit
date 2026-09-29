@@ -86,7 +86,7 @@ was not reported. Refresh the evaluator, schema, validator, collector,
 renderer, and `pr-metadata.yml` together; older runtimes reject unknown result
 fields.
 
-### Optional self-reported test, coverage, and validator measurements
+### Optional self-reported test, coverage, validator, AI review, and scanner measurements
 
 A `unit-tests` result may include `measurements` with `version: 1`,
 `source: "pull-request-workflow"`, and `tests` (`total`, `passed`, `failed`,
@@ -108,6 +108,7 @@ control:
 | `repository-ground-truth` | `documents` | `declared`, `found`, `missing` | `declared` equals `found + missing`; `passed` exactly when nothing is missing |
 | `migration-validation` | `migrations` | `checked`, `failed` | Failed cannot exceed checked; `passed` cannot report failures |
 | `ai-engineering-review`, `ai-qa-review`, `ai-security-review`, `ai-repository-standards-review` | `review_findings` | `total`, `p0`, `p1`, `p2`, `p3`, `unresolved_blocking` | `total` equals `p0 + p1 + p2 + p3`; `unresolved_blocking` cannot exceed `p0 + p1`; not coupled to status |
+| `custom-static-analysis`, `secret-detection` | `findings` | `total`, `critical`, `high`, `medium`, `low`, `unrated` | `total` equals the sum of the five buckets; no status rule |
 
 The installed repository validator runs its contract groups in order and stops
 at the first failure, so later groups count as `not_run`. The ground-truth
@@ -137,12 +138,39 @@ evidence, file paths, or rule names. A native GitHub review provider such as
 Codex Code Review posts findings as review comments and has no result file,
 so its card shows no counts and says where to read the review.
 
+Scanner `findings` are checked for arithmetic only. A scan can pass with
+findings below the tool's own threshold, and it can fail without a counted
+finding (for example, on an execution error), so no status rule would hold
+for every scanner. The Semgrep CE and Gitleaks workflows write their tool's
+JSON report outside the checkout, count it with `.proof/measurements.py
+semgrep` or `gitleaks`, and package only the counts; file paths, rule IDs,
+messages, commits, and secret values are never packaged, uploaded, or
+published. Severities map onto the buckets as follows:
+
+| Tool | `critical` | `high` | `medium` | `low` | `unrated` |
+| --- | --- | --- | --- | --- | --- |
+| Semgrep | `CRITICAL` | `ERROR`, `HIGH` | `WARNING`, `MEDIUM` | `INFO`, `LOW` | Any other value, such as `INVENTORY` or `EXPERIMENT` |
+| Gitleaks | — | — | — | — | Every finding; Gitleaks does not rate severity |
+
+The Semgrep converter refuses a report that records a Semgrep error above
+`warn` or `info`, because the scan may be incomplete and its counts would
+understate findings; the dashboard then shows the counts as not collected.
+The scanners run from pinned containers with networking disabled, and the
+provider contract requires their workflow to match the trusted base, but the
+converter is the pull request's own `.proof/measurements.py`, so these counts
+are labeled self-reported like the other measurements. Finding counts are not
+collected for CodeQL (GitHub code scanning holds its results), SonarQube (the
+SonarQube server holds them), GitHub Dependency Review (its job summary holds
+them), Semgrep App, or the Snyk and FOSSA adapters; their dashboard cards say
+where to look instead.
+
 These numbers come from the pull request's own workflow run, which executes
 the pull request's code, so they are **self-reported**. They are display
 metadata only: they never change a result's status, and the dashboard labels
 them as not independently verified. `tooling/proof_measurements.py`
 (installed as `.proof/measurements.py`) converts `python -m unittest` logs,
-JUnit XML, or a `diff-cover` JSON report into this format and packages it.
+JUnit XML, a `diff-cover` JSON report, a Semgrep JSON report, or a Gitleaks
+JSON report into this format and packages it.
 Tests that are skipped or marked as expected failures count as skipped,
 never as passed.
 
