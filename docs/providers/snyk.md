@@ -61,6 +61,15 @@ adapter is checked out from the base revision (`trusted/`) and scans the head
 checkout (`candidate/`); a pull request that changes `.proof/adapter.py` or
 the workflow file yields `not_run` evidence until it is merged.
 
+This protects the evidence, not the secret, from a same-repository pull
+request. Its author can already edit the `pull_request` workflow that receives
+the secret, and job code on GitHub-hosted runners has passwordless sudo, so in
+the Snyk Open Source job the repository setup command could also tamper with
+the installed CLI. Fork pull requests receive no secrets, so the jobs are skipped for them and
+the scorecard reports no result, never a pass. Grant write access
+only to people trusted with the provider credential, and scope the token to
+the minimum the scan needs.
+
 The scorecard dashboard shows Snyk finding counts by severity on the deep SAST
 and dependency vulnerability cards, for example **0 critical · 2 high · 5 medium
 · 1 low**. The trusted adapter counts the JSON Snyk prints (Snyk Code SARIF

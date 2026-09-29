@@ -3,7 +3,22 @@ name: SonarQube
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      project-base-directory:
+        description: Directory passed to the SonarQube scanner.
+        required: false
+        type: string
+        default: '.'
+      sonar-args:
+        description: Optional repository-specific SonarQube scanner arguments.
+        required: false
+        type: string
+        default: ''
+    secrets:
+      SONAR_TOKEN:
+        description: SonarQube or SonarQube Cloud authentication token.
+        required: true
 
 concurrency:
   group: sonar-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
@@ -15,8 +30,15 @@ permissions:
 jobs:
   sonar:
     name: SonarQube Quality Gate
+    # Skipped until a SonarQube server is configured; a skipped check is never a pass.
     if: ${{ vars.SONAR_HOST_URL != '' }}
     runs-on: ubuntu-latest
+    env:
+      SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+      SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+      SONAR_ARGS: ${{ inputs.sonar-args || vars.SONAR_ARGS }}
+      PROJECT_BASE_DIRECTORY: ${{ inputs.project-base-directory || vars.SONAR_PROJECT_BASE_DIRECTORY || '.' }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - name: Check out repository with history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -24,14 +46,36 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Validate SonarQube configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${SONAR_TOKEN}" ]]; then
+            echo "The SONAR_TOKEN secret must be configured in the consuming repository or organization." >&2
+            exit 1
+          fi
+          if [[ -z "${SONAR_PROJECT_KEY}" && ! -f "${PROJECT_BASE_DIRECTORY}/sonar-project.properties" ]]; then
+            echo "Configure SONAR_PROJECT_KEY or provide sonar-project.properties." >&2
+            exit 1
+          fi
+
       - name: Run SonarQube analysis
         uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4 # v8.2.2
+        with:
+          projectBaseDir: ${{ env.PROJECT_BASE_DIRECTORY }}
+          args: ${{ env.SONAR_ARGS }}
         env:
-          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ env.SONAR_PROJECT_KEY }}
+
       - name: Check SonarQube Quality Gate
         uses: SonarSource/sonarqube-quality-gate-action@7a5fffe8e523c40e0c740b6bc2712ab503e52efa # v1.2.1
+        timeout-minutes: 10
+        with:
+          # The scanner writes its metadata under the project base directory.
+          scanMetadataReportFile: ${{ env.PROJECT_BASE_DIRECTORY }}/.scannerwork/report-task.txt
         env:
-          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}

@@ -8,6 +8,25 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Keep shipped workflow templates current. Dependabot updates only
+  `.github/workflows/`, so templates under `workflows/` had drifted to older
+  action pins (checkout v6, upload-artifact v4, CodeQL v3 in
+  `security-scanning.yml`, an older SonarQube quality gate). Templates now use
+  the pins this repository runs, and `tooling/sync_workflow_templates.py`
+  checks (and with `--write`, repairs) that each installed template matches
+  its source and that every action has one pin; a unit test enforces it. CodeQL moves to
+  4.38.2 everywhere (superseding Dependabot PRs #68–#70, which bumped only
+  `.github/workflows/`). This
+  repository now runs the shipped Snyk, FOSSA, and SonarQube templates instead
+  of older local variants, so Snyk runs through the trusted adapter (its
+  previous SARIF upload to code scanning and push-to-main scan are dropped) and
+  the FOSSA workflow is
+  installed but not activated here (`FOSSA_ENABLED=false`) until a valid
+  `FOSSA_API_KEY` is configured; the adapter reported the current key as
+  `authentication-failed`. The FOSSA template gains a
+  `FOSSA_ENABLED=false` opt-out like Snyk's, and the SonarQube template skips
+  until `SONAR_HOST_URL` is set.
+
 - **Breaking (AI PR Review template):** `workflows/ai-pr-review.yml` now runs
   `AI_REVIEW_COMMAND` from the pull request's base revision (`trusted/`)
   against the head revision (`candidate/`), passes only `ANTHROPIC_API_KEY`

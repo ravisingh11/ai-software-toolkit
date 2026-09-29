@@ -10,7 +10,8 @@ name: Snyk
 # SNYK_OPEN_SOURCE_ENABLED repository variable to "false" to skip a job whose
 # provider is not selected. The adapter is checked out from the pull request's
 # base revision (`trusted/`) and runs against the head revision (`candidate/`),
-# so a pull request cannot change the code that receives the token. The trusted
+# so a pull request cannot change the adapter code or its evidence (see
+# docs/providers/snyk.md for what this does not protect). The trusted
 # checkout happens immediately before the adapter step, after the setup
 # command and CLI installation, so nothing that ran earlier in the job can
 # replace it, and the adapter step runs with a reset environment and the
@@ -36,7 +37,8 @@ permissions:
 jobs:
   snyk-code:
     name: Snyk Code
-    if: ${{ vars.SNYK_CODE_ENABLED != 'false' }}
+    # Fork pull requests receive no secrets; skip rather than report credential-missing.
+    if: ${{ vars.SNYK_CODE_ENABLED != 'false' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -161,7 +163,7 @@ jobs:
 
   snyk-open-source:
     name: Snyk Open Source
-    if: ${{ vars.SNYK_OPEN_SOURCE_ENABLED != 'false' }}
+    if: ${{ vars.SNYK_OPEN_SOURCE_ENABLED != 'false' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
