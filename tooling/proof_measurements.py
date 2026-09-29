@@ -136,7 +136,8 @@ def main(argv: list[str] | None = None) -> int:
     cover_parser.add_argument("--threshold", type=int, required=True)
     package_parser = commands.add_parser("package", help="bind measurements to this workflow run")
     package_parser.add_argument("--control", required=True, choices=("unit-tests", "changed-code-coverage", "repository-validation",
-                                         "documentation-validation", "repository-ground-truth"))
+                                         "documentation-validation", "repository-ground-truth",
+                                         "migration-validation"))
     package_parser.add_argument("--input", type=Path, required=True)
     package_parser.add_argument("--outcome", required=True)
     package_parser.add_argument("--head-sha", required=True)

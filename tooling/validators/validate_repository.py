@@ -238,7 +238,7 @@ def validate_provider_document(config: dict, catalog: dict[str, dict]) -> None:
                     not measurement_fields.issubset(check)
                     or capability not in {
                         "unit-tests", "changed-code-coverage", "repository-validation",
-                        "documentation-validation", "repository-ground-truth",
+                        "documentation-validation", "repository-ground-truth", "migration-validation",
                     }
                     or "workflow_path" not in check
                     or "external_id_prefix" in check

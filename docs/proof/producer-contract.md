@@ -86,11 +86,18 @@ control:
 | `repository-validation` | `contracts` | `total`, `passed`, `failed`, `not_run` | `total` is positive and equals the sum; `passed` means no failed or not-run groups; `failed` needs a failed group |
 | `documentation-validation` | `documentation` | `markdown_files`, `links_checked`, `broken_links`, `mapping_failures` | Broken links cannot exceed links checked; `passed` exactly when there are no broken links or mapping failures |
 | `repository-ground-truth` | `documents` | `declared`, `found`, `missing` | `declared` equals `found + missing`; `passed` exactly when nothing is missing |
+| `migration-validation` | `migrations` | `checked`, `failed` | Failed cannot exceed checked; `passed` cannot report failures |
 
 The installed repository validator runs its contract groups in order and stops
 at the first failure, so later groups count as `not_run`. The ground-truth
 validator counts documents declared in `.proof/ground-truth-ai.yaml` and checks
-only that each exists; it does not assess their contents. A validator that
+only that each exists; it does not assess their contents. Migration
+Validation runs a repository-owned command, so its counts appear only when
+that command writes `migrations` to `PROOF_MEASUREMENTS_FILE`; zero checked
+means no migrations were found to check. This repository's
+`validate_no_migrations.py` counts each migration surface it finds as checked
+and failed, because the repository declares none. Build and Format and Lint
+report only their command's exit status. A validator that
 cannot read its own configuration writes no measurements. Document paths and
 link targets are never published.
 

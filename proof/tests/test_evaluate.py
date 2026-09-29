@@ -732,6 +732,8 @@ class MeasurementsEvidenceTests(unittest.TestCase):
                                        "mapping_failures": 0}}
     DOCUMENTS = {"version": 1, "source": "pull-request-workflow",
                  "documents": {"declared": 6, "found": 6, "missing": 0}}
+    MIGRATIONS = {"version": 1, "source": "pull-request-workflow",
+                  "migrations": {"checked": 3, "failed": 0}}
 
     def test_accepts_consistent_validator_measurements(self) -> None:
         def changed(base: dict, kind: str, **values: object) -> dict:
@@ -745,9 +747,14 @@ class MeasurementsEvidenceTests(unittest.TestCase):
             ("documentation-validation", changed(self.DOCUMENTATION, "documentation", mapping_failures=1), "failed"),
             ("repository-ground-truth", self.DOCUMENTS, "passed"),
             ("repository-ground-truth", changed(self.DOCUMENTS, "documents", found=5, missing=1), "failed"),
+            ("migration-validation", self.MIGRATIONS, "passed"),
+            ("migration-validation", changed(self.MIGRATIONS, "migrations", checked=0), "passed"),
+            ("migration-validation", changed(self.MIGRATIONS, "migrations", failed=1), "failed"),
+            ("migration-validation", self.MIGRATIONS, "failed"),
         ):
             with self.subTest(control_id=control_id, status=status):
-                self.validate(control_id, "repository-validator", measurements, status)
+                provider = "repository-migration-validation" if control_id == "migration-validation" else "repository-validator"
+                self.validate(control_id, provider, measurements, status)
 
     def test_rejects_contradictory_validator_measurements(self) -> None:
         def changed(base: dict, kind: str, **values: object) -> dict:
@@ -767,6 +774,9 @@ class MeasurementsEvidenceTests(unittest.TestCase):
             ("repository-ground-truth", changed(self.DOCUMENTS, "documents", found=5, missing=1), "passed"),
             ("repository-ground-truth", self.DOCUMENTS, "failed"),
             ("repository-ground-truth", self.CONTRACTS, "passed"),
+            ("migration-validation", changed(self.MIGRATIONS, "migrations", failed=4), "failed"),
+            ("migration-validation", changed(self.MIGRATIONS, "migrations", failed=1), "passed"),
+            ("migration-validation", self.DOCUMENTS, "passed"),
         ):
             with self.subTest(control_id=control_id, measurements=measurements, status=status):
                 with self.assertRaises(ValueError):

@@ -586,6 +586,22 @@ class RendererTests(unittest.TestCase):
         self.assertFalse(consistent("documents", {"declared": 6, "found": 5, "missing": 1}, "passed"))
         self.assertFalse(consistent("documents", {"declared": 6, "found": 6, "missing": 1}, "failed"))
         self.assertTrue(consistent("documents", {"declared": 6, "found": 5, "missing": 1}, "failed"))
+        self.assertFalse(consistent("migrations", {"checked": 1, "failed": 2}, "failed"))
+        self.assertFalse(consistent("migrations", {"checked": 2, "failed": 1}, "passed"))
+        self.assertTrue(consistent("migrations", {"checked": 0, "failed": 0}, "failed"))
+
+    def test_migration_summary_distinguishes_nothing_to_check(self) -> None:
+        summary = MODULE._measurement_summary
+        self.assertEqual(summary({"availability": "available", "migrations": {"checked": 0, "failed": 0}}),
+                         "No migrations found to check")
+        self.assertEqual(summary({"availability": "available", "migrations": {"checked": 12, "failed": 1}}),
+                         "12 migrations checked · 1 failed")
+
+    def test_command_owned_checks_explain_exit_status_only(self) -> None:
+        build = MODULE._counts_gap("Artifacts produced; build errors", "build")
+        self.assertIn("Only the command's exit status is reported", build)
+        self.assertIn("artifacts produced, build errors depend on its tools", build)
+        self.assertIn("Only the overall result was reported", MODULE._counts_gap("Rules checked", "deep-sast"))
 
     def test_coverage_percent_is_floored_and_empty_diffs_are_explicit(self) -> None:
         summary = MODULE._measurement_summary

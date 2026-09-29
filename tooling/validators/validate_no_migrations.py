@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -50,6 +51,22 @@ def migration_paths(root: Path) -> list[Path]:
     return sorted(found)
 
 
+def record_measurements(found: int) -> None:
+    """Write optional display counts for the scorecard; never affects the result.
+
+    With no declared migration surface, every surface found is a failed check.
+    """
+    target = os.environ.get("PROOF_MEASUREMENTS_FILE")
+    if not target:
+        return
+    document = {"version": 1, "source": "pull-request-workflow",
+                "migrations": {"checked": found, "failed": found}}
+    try:
+        Path(target).write_text(json.dumps(document, sort_keys=True) + "\n", encoding="utf-8")
+    except OSError as error:
+        print(f"WARNING: migration measurements were not recorded: {error}", file=sys.stderr)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Fail if a database migration surface is introduced without a real validator."
@@ -58,6 +75,7 @@ def main() -> int:
     args = parser.parse_args()
 
     found = migration_paths(args.root.resolve())
+    record_measurements(len(found))
     if found:
         rendered = ", ".join(path.as_posix() for path in found)
         print(

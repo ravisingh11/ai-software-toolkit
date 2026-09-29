@@ -8,6 +8,15 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Show Migration Validation counts on the scorecard dashboard. The Migration
+  Validation workflow sets `PROOF_MEASUREMENTS_FILE`, and a migration command
+  that writes the new `migrations` measurement (`checked`, `failed`) gets
+  them shown as self-reported; zero checked reads **No migrations found to
+  check**. `validate_no_migrations.py` records each migration surface it finds
+  as checked and failed. Build and Format and Lint cards now explain that only
+  the command's exit status is reported and why. Refresh the runtime,
+  `providers.yaml`, and `migration-validation.yml` together.
+
 - Show repository validator counts on the scorecard dashboard. The Validate
   workflow's repository, docs, and ground-truth jobs now record self-reported
   measurements: contract groups passed, failed, and not run; Markdown files,

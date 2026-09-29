@@ -106,7 +106,7 @@
     },
     "plainResult": {"allOf": [{"$ref": "#/$defs/result"}, {"not": {"required": ["change_scope"]}}]},
     "measurements": {
-      "description": "Optional self-reported display metrics from the pull request's own workflow run; they never change a result status. Evaluator also restricts each kind to its control (tests: unit-tests, coverage: changed-code-coverage, contracts: repository-validation, documentation: documentation-validation, documents: repository-ground-truth) and checks arithmetic and status consistency.",
+      "description": "Optional self-reported display metrics from the pull request's own workflow run; they never change a result status. Evaluator also restricts each kind to its control (tests: unit-tests, coverage: changed-code-coverage, contracts: repository-validation, documentation: documentation-validation, documents: repository-ground-truth, migrations: migration-validation) and checks arithmetic and status consistency.",
       "type": "object",
       "additionalProperties": false,
       "required": ["version", "source"],
@@ -165,9 +165,18 @@
             "found": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
             "missing": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
           }
+        },
+        "migrations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["checked", "failed"],
+          "properties": {
+            "checked": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "failed": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+          }
         }
       },
-      "oneOf": [{"required": ["tests"]}, {"required": ["coverage"]}, {"required": ["contracts"]}, {"required": ["documentation"]}, {"required": ["documents"]}]
+      "oneOf": [{"required": ["tests"]}, {"required": ["coverage"]}, {"required": ["contracts"]}, {"required": ["documentation"]}, {"required": ["documents"]}, {"required": ["migrations"]}]
     },
     "checkExecution": {
       "description": "Optional completed-check facts. Evaluator also verifies timestamp validity, ordering, and duration arithmetic.",
