@@ -37,6 +37,11 @@ or evidence contracts require a major release and migration guidance.
   Until the new templates reach the default branch, the pull request that adds
   them shows these checks as not run.
 
+- Activate `dependency-vulnerability` (Snyk Open Source) as advisory in this
+  repository's `.proof/policy.yaml`. The Snyk workflow already ran and
+  uploaded finding counts, but the control was not activated, so the
+  scorecard omitted it. The installed consumer baseline is unchanged.
+
 - Show CodeQL finding counts by security severity on the scorecard dashboard.
   The CodeQL workflow template writes its SARIF output to the runner, counts it
   with the new `.proof/measurements.py sarif` converter, and uploads a

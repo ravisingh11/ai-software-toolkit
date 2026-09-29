@@ -13,6 +13,7 @@
       "migration-validation": "advisory",
       "build": "advisory",
       "unit-tests": "advisory",
+      "dependency-vulnerability": "advisory",
       "dependency-remediation": "not_activated"
     },
     "release": {}
