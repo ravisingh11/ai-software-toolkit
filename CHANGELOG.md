@@ -55,6 +55,24 @@ or evidence contracts require a major release and migration guidance.
   Until the new templates reach the default branch, the pull request that adds
   them shows these checks as not run.
 
+- **Breaking (Security Scanning bundle):** `workflows/security-scanning.yml`
+  no longer has `FOSSA` or `Snyk Open Source` jobs, and no longer declares the
+  `FOSSA_API_KEY` / `SNYK_TOKEN` secrets or the `fossa-command` /
+  `snyk-open-source-command` inputs. Those jobs put the credential in a
+  `pull_request` job that checked out the pull-request head and ran a
+  consumer-supplied `FOSSA_COMMAND` / `SNYK_OPEN_SOURCE_COMMAND`, so a
+  same-repository pull request could read it. The bundle now holds no secret.
+  To migrate, copy the `fossa.yml` and `snyk.yml` adapter templates, move
+  the command's arguments into `FOSSA_ARGS` / `SNYK_OPEN_SOURCE_ARGS`, remove
+  the two inputs and secrets from any `workflow_call` caller (GitHub rejects a
+  caller that passes an undeclared input or secret), and delete the
+  `FOSSA_COMMAND` / `SNYK_OPEN_SOURCE_COMMAND` variables. Proof results do not
+  change: the provider contracts accept these checks only from the `FOSSA` and
+  `Snyk` workflows, never from `Security Scanning`. A ruleset that required the
+  `FOSSA` or `Snyk Open Source` context by name waits, rather than passes,
+  until an adapter template produces it. Controls stay advisory, and this
+  repository does not run the bundle.
+
 - Stop intermittent `Directory not empty` failures in the unit tests.
   `tooling/test.sh` sets `maintenance.auto`, `maintenance.autoDetach`,
   `gc.auto`, and `gc.autoDetach` off through git's environment configuration,
