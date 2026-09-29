@@ -80,7 +80,10 @@ behavior are stable, and a remediation owner exists.
 
 The catalog may further restrict promotion. `advisory-only` controls cannot be
 set to `enforced`; all AI review controls use this contract so AI is never the
-sole merge gate. Other runnable controls are `promotable`.
+sole merge gate. Other runnable controls are `promotable`. The AI PR Review
+template runs each reviewer from the base revision, so a pull request cannot
+change the code that holds the provider key; a role's check fails on
+unresolved `P0`/`P1` findings, which the scorecard shows as advisory.
 
 ### Configuration grants no authority
 

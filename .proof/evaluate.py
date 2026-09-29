@@ -490,8 +490,8 @@ def _measurement_problem(kind: str, numbers: dict[str, int], status: str) -> str
         if status == "passed" and numbers["failed"]:
             return "migration measurements contradict a passed status"
     elif kind == "review_findings":
-        # Not coupled to status: an adapter may fail for other reasons, and the per-role
-        # check does not itself enforce the blocking rule (consolidation does).
+        # Not coupled to status: the check reflects the adapter's exit status, and an
+        # adapter may fail for reasons other than a counted finding.
         blocking = numbers["p0"] + numbers["p1"]
         if numbers["total"] != blocking + numbers["p2"] + numbers["p3"] or numbers["unresolved_blocking"] > blocking:
             return "review finding measurements are inconsistent"

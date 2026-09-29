@@ -8,6 +8,23 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- **Breaking (AI PR Review template):** `workflows/ai-pr-review.yml` now runs
+  `AI_REVIEW_COMMAND` from the pull request's base revision (`trusted/`)
+  against the head revision (`candidate/`), passes only `ANTHROPIC_API_KEY`
+  to the review step, and exposes `AI_REVIEW_TARGET`, `AI_REVIEW_BASE_SHA`,
+  `AI_REVIEW_HEAD_SHA`, and `AI_REVIEW_MODEL`; result files are written
+  outside the checkouts. An optional `AI_REVIEW_SETUP_COMMAND`
+  (`review-setup-command` input) installs dependencies in a separate step
+  without the key. Jobs are skipped instead of failing until
+  `AI_REVIEW_COMMAND` is set, and the consolidation job summarizes findings
+  without failing. An existing adapter command that assumed it ran in the head
+  checkout must read `AI_REVIEW_TARGET` instead. Add the opt-in reference
+  adapter `tooling/ai_review_claude.py` (pinned by
+  `tooling/requirements-ai-review.txt`), which reviews the diff with Claude,
+  default model `claude-sonnet-5-5`. This repository replaces its four
+  unmatched per-role AI review workflows with the template, so its AI review
+  checks can match the provider contracts once configured.
+
 - Show Snyk finding counts by severity on the scorecard dashboard. The provider
   adapter gains `--measurements PATH`, which writes the `findings` measurement
   from the JSON Snyk already prints (Snyk Code SARIF levels, Snyk Open Source

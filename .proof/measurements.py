@@ -113,7 +113,7 @@ REVIEW_STATUSES = {"open", "resolved", "accepted", "deferred", "needs-context"}
 def from_review_result(path: Path) -> dict[str, Any]:
     """Count one AI reviewer result file (pr-review/pr-review.md) by severity.
 
-    Unresolved blocking mirrors the AI PR Review consolidation rule: a P0 or P1
+    Unresolved blocking mirrors the pr-review blocking rule: a P0 or P1
     finding whose status is not ``resolved``; a missing status counts as open.
     Only counts leave this function, never finding text, paths, or rule names.
     """
