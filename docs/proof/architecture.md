@@ -126,6 +126,15 @@ superseded runs so an older event cannot publish after a newer title, body, or
 head update. Artifact upload is part of the check contract: a failed proof
 upload forces the exact-head check to fail.
 
+A scorecard evaluation can score a companion subject beside its primary one.
+`Proof Scorecard` evaluates the commit and, for pull-request events, the
+pull-request subject. The evaluator validates each evidence document against its
+own expected subject and adds both to the same totals. Stale companion evidence
+is a subject mismatch and blocks, like stale commit evidence. A control that
+policy activates on a subject the evaluation did not score keeps the
+`not_activated` mode, with `inactive_reason: other_subject` and its
+`evidence_subject`, so reports do not present it as switched off.
+
 GitHub collection additionally verifies the exact check name/head/app, workflow
 run name and declared path (including GitHub's optional `@ref` suffix),
 pull-request event and exact PR-head association, and configured external-ID/run

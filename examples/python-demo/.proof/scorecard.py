@@ -65,10 +65,11 @@ def scorecard(
     *,
     subject_type: str,
     all_catalog_controls: bool = False,
+    companions: list[tuple[str, str, dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     result = evaluator_module().evaluate(
         policy, profiles, catalog, providers, evidence, operation, revision,
-        subject_type, all_catalog_controls=all_catalog_controls,
+        subject_type, all_catalog_controls=all_catalog_controls, companions=companions,
     )
     controls = []
     readiness = {color: 0 for color in ("GREEN", "ORANGE", "GRAY", "RED")}
@@ -91,7 +92,7 @@ def scorecard(
         if finding.get("status") in PUBLIC_STATUS:
             public["status"] = PUBLIC_STATUS[finding["status"]]
         findings.append(public)
-    return normalize_public({
+    card = {
         "version": 2,
         "status": result["status"],
         "decision": result["decision"],
@@ -103,7 +104,10 @@ def scorecard(
         "readiness": readiness,
         "controls": controls,
         "findings": findings,
-    })
+    }
+    if "companion_subjects" in result:
+        card["companion_subjects"] = result["companion_subjects"]
+    return normalize_public(card)
 
 
 def render(card: dict[str, Any]) -> str:
@@ -113,12 +117,15 @@ def render(card: dict[str, Any]) -> str:
         f"Decision: {card['decision'].upper()}",
         f"Policy: {card['policy']} ({card['operation']})",
         f"Subject: {subject['type']}@{subject['revision']}",
+        *(f"Companion subject: {item['type']}@{item['revision']}" for item in card.get("companion_subjects", [])),
         f"Enforced: {card['enforced']['passed']}/{card['enforced']['total']} passed",
         f"Advisory: {card['advisory']['passed']}/{card['advisory']['total']} passed",
     ]
     for control in card["controls"]:
         provider = control["authoritative_provider"]
         provider_name = provider["display_name"] if provider else "Not activated"
+        if control.get("inactive_reason") == "other_subject":
+            provider_name = f"Checked separately on the {control['evidence_subject']} subject"
         line = f"  {control['readiness']} {control['name']} — {provider_name}: {control['evidence_status']}"
         if control["supplemental"]:
             details = ", ".join(f"{item['display_name']}={item['status']}" for item in control["supplemental"])
@@ -153,15 +160,37 @@ def main() -> int:
     parser.add_argument("--revision", required=True)
     parser.add_argument("--subject-type", required=True, choices=("git-commit", "artifact", "environment", "pull-request"))
     parser.add_argument("--all-catalog-controls", action="store_true")
+    parser.add_argument(
+        "--pull-request-revision",
+        help="Also score pull-request-subject controls against this exact pull-request revision",
+    )
+    parser.add_argument(
+        "--pull-request-evidence", type=Path,
+        help="Pull-request-subject evidence; omitted means no pull-request result was produced",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
+    if args.pull_request_evidence and not args.pull_request_revision:
+        parser.error("--pull-request-evidence requires --pull-request-revision")
     try:
+        companions = None
+        if args.pull_request_revision:
+            if args.subject_type == "pull-request":
+                raise ValueError("--pull-request-revision needs a primary subject other than pull-request")
+            pull_request_evidence = (
+                load_json_object(args.pull_request_evidence)
+                if args.pull_request_evidence
+                # No producer result: pull-request controls report no result, never a pass.
+                else {"version": 2, "subject": {"type": "pull-request", "revision": args.pull_request_revision}, "results": {}}
+            )
+            companions = [("pull-request", args.pull_request_revision, pull_request_evidence)]
         card = scorecard(
             load_json_object(args.policy), load_json_object(args.profiles),
             load_json_object(args.catalog), load_json_object(args.providers),
             load_json_object(args.evidence), args.operation, args.revision,
             subject_type=args.subject_type,
             all_catalog_controls=args.all_catalog_controls,
+            companions=companions,
         )
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"ERROR: {error}", file=sys.stderr)

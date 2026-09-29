@@ -3,7 +3,7 @@ name: Proof Scorecard
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    types: [opened, edited, synchronize, reopened]
   pull_request_review:
     types: [submitted, dismissed]
   workflow_dispatch:
@@ -150,11 +150,46 @@ jobs:
             --output "${EVIDENCE_JSON}" \
             --wait-seconds 1800
           cp "${EVIDENCE_JSON}" .artifacts/proof/evidence.json
+      - name: Evaluate pull-request metadata
+        if: ${{ github.event.pull_request != null }}
+        run: |
+          set -euo pipefail
+          # PR title and body live on the pull-request subject, which a commit
+          # scorecard cannot carry. Score them with the trusted base validator.
+          if ! python3 .proof-trusted/.proof/scorecard.py --help 2>&1 | \
+            grep -q -- "--pull-request-revision"
+          then
+            exit 0
+          fi
+          validator=.proof-trusted/.proof/validators/validate_pr_metadata.py
+          config=.proof-trusted/.proof/pr-metadata.yaml
+          evidence=.artifacts/proof/pr-metadata-evidence.json
+          revision=""
+          if [ -f "${validator}" ] && [ -f "${config}" ] && \
+            revision="$(python3 "${validator}" \
+              --event "${GITHUB_EVENT_PATH}" \
+              --config "${config}" \
+              --output "${evidence}")"
+          then
+            echo "PROOF_PULL_REQUEST_EVIDENCE=${evidence}" >> "${GITHUB_ENV}"
+          else
+            # No usable result: the scorecard reports the control as unverified.
+            revision=unavailable
+            rm -f "${evidence}"
+          fi
+          echo "PROOF_PULL_REQUEST_REVISION=${revision}" >> "${GITHUB_ENV}"
       - name: Render scorecard
         env:
           REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
+          pull_request_args=()
+          if [ -n "${PROOF_PULL_REQUEST_REVISION:-}" ]; then
+            pull_request_args+=(--pull-request-revision "${PROOF_PULL_REQUEST_REVISION}")
+            if [ -n "${PROOF_PULL_REQUEST_EVIDENCE:-}" ]; then
+              pull_request_args+=(--pull-request-evidence "${PROOF_PULL_REQUEST_EVIDENCE}")
+            fi
+          fi
           EVIDENCE_JSON=".artifacts/proof/evidence-${PROOF_TIMESTAMP}.json"
           SCORECARD_JSON=".artifacts/proof/scorecard-${PROOF_TIMESTAMP}.json"
           SCORECARD_MARKDOWN=".artifacts/proof/scorecard-${PROOF_TIMESTAMP}.md"
@@ -169,6 +204,7 @@ jobs:
             --revision "${REVISION}" \
             --subject-type git-commit \
             --all-catalog-controls \
+            "${pull_request_args[@]}" \
             --json \
             > "${SCORECARD_JSON}" || json_status=$?
           markdown_status=0
@@ -182,6 +218,7 @@ jobs:
             --revision "${REVISION}" \
             --subject-type git-commit \
             --all-catalog-controls \
+            "${pull_request_args[@]}" \
             > "${SCORECARD_MARKDOWN}" || markdown_status=$?
           cat "${SCORECARD_MARKDOWN}" >> "${GITHUB_STEP_SUMMARY}"
           if [ "${json_status}" -ne 0 ]; then

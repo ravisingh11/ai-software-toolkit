@@ -104,6 +104,17 @@ capability is `GRAY`. Default output omits inactive and `evidence-only`
 controls; `--all-catalog-controls` includes them as `GRAY` / `not_activated`
 rows. Supplemental results never alter readiness or decision.
 
+An evaluation can also score companion subjects beside its primary subject.
+`evaluate(..., companions=[(subject_type, revision, evidence)])` and
+`scorecard.py --pull-request-revision <rev> [--pull-request-evidence <path>]`
+score `pull-request` controls, such as PR metadata, beside a `git-commit`
+evaluation. Their rows count toward the same totals. Each document must
+match its own expected subject; a mismatch blocks. A missing
+pull-request result reports `no_result`. The output adds
+`companion_subjects`. When policy activates a control on a subject that the
+evaluation did not score, its row stays `not_activated` and adds
+`inactive_reason: other_subject` and `evidence_subject`.
+
 ## Operations
 
 Profiles define defaults separately for `change` and `release`. Repository

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 import unittest
 from pathlib import Path
 from typing import Any
@@ -124,6 +125,79 @@ class ScorecardV2Tests(unittest.TestCase):
         self.assertNotIn('"not_run"', encoded)
         self.assertNotIn('"missing"', encoded)
         self.assertIn('"no_result"', encoded)
+
+
+class PullRequestCompanionTests(unittest.TestCase):
+    def fixture(self) -> tuple[dict[str, Any], ...]:
+        policy, profiles, catalog, providers, evidence = fixture()
+        policy["profiles"] = ["core", "github"]
+        policy["overrides"]["change"].update({
+            control_id: "not_activated"
+            for control_id in json.loads((ROOT / "policies" / "profiles.yaml").read_text())["profiles"]["core"]["defaults"]["change"]
+        })
+        policy["overrides"]["change"]["pr-metadata"] = "advisory"
+        return policy, profiles, catalog, providers, evidence
+
+    def test_pull_request_metadata_row_is_scored_beside_commit_checks(self) -> None:
+        policy, profiles, catalog, providers, evidence = self.fixture()
+        companion = {
+            "version": 2,
+            "subject": {"type": "pull-request", "revision": "sha256:pr"},
+            "results": {"pr-metadata": {"repository-pr-metadata": {
+                "producer": "Repository PR Metadata", "status": "failed",
+                "evidence": ["Pull-request title does not satisfy title_pattern."],
+            }}},
+        }
+        card = MODULE.scorecard(
+            policy, profiles, catalog, providers, evidence, "change", "abc123",
+            subject_type="git-commit", all_catalog_controls=True,
+            companions=[("pull-request", "sha256:pr", companion)],
+        )
+        rows = {row["id"]: row for row in card["controls"]}
+
+        self.assertEqual(rows["pr-metadata"]["evidence_status"], "failed")
+        self.assertEqual(card["advisory"]["total"], 2)
+        self.assertEqual(card["status"], "ORANGE")
+        self.assertEqual(card["companion_subjects"], [{"type": "pull-request", "revision": "sha256:pr"}])
+        self.assertIn("Companion subject: pull-request@sha256:pr", MODULE.render(card))
+
+    def test_without_companion_the_row_is_marked_as_checked_separately(self) -> None:
+        policy, profiles, catalog, providers, evidence = self.fixture()
+        card = MODULE.scorecard(
+            policy, profiles, catalog, providers, evidence, "change", "abc123",
+            subject_type="git-commit", all_catalog_controls=True,
+        )
+        row = next(row for row in card["controls"] if row["id"] == "pr-metadata")
+
+        self.assertEqual(row["evidence_status"], "not_activated")
+        self.assertEqual(row["inactive_reason"], "other_subject")
+        self.assertNotIn("companion_subjects", card)
+        self.assertIn("PR Metadata — Checked separately on the pull-request subject", MODULE.render(card))
+
+    def test_cli_reports_missing_pull_request_result_as_unverified(self) -> None:
+        import subprocess
+        import tempfile
+
+        policy, profiles, catalog, providers, evidence = self.fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = {}
+            for name, document in (("policy", policy), ("profiles", profiles), ("catalog", catalog),
+                                   ("providers", providers), ("evidence", evidence)):
+                paths[name] = root / f"{name}.json"
+                paths[name].write_text(json.dumps(document), encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, str(SCRIPT), *(f"--{name}={path}" for name, path in paths.items()),
+                 "--operation=change", "--revision=abc123", "--subject-type=git-commit",
+                 "--all-catalog-controls", "--pull-request-revision=unavailable", "--json"],
+                capture_output=True, text=True, check=False,
+            )
+        card = json.loads(completed.stdout)
+        row = next(row for row in card["controls"] if row["id"] == "pr-metadata")
+
+        self.assertEqual(row["evidence_status"], "no_result")
+        self.assertEqual(row["effective_mode"], "advisory")
+        self.assertEqual(card["advisory"], {"passed": 1, "total": 2, "percent": 50.0})
 
 
 if __name__ == "__main__":

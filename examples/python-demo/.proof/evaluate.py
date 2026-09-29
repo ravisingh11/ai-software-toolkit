@@ -568,26 +568,46 @@ def evaluate(
     expected_subject_type: str,
     *,
     all_catalog_controls: bool = False,
+    companions: list[tuple[str, str, dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
-    if not expected_revision or len(expected_revision) > 200:
-        raise ValueError("expected revision must be 1-200 characters")
-    if expected_subject_type not in {"git-commit", "artifact", "environment", "pull-request"}:
-        raise ValueError("expected subject type is invalid")
-    selected, controls, providers = effective_controls(
-        policy, profiles, catalog, provider_config, operation, expected_subject_type
-    )
-    validate_evidence(evidence, controls, providers)
-    subject = evidence["subject"]
-    subject_matches = subject == {"type": expected_subject_type, "revision": expected_revision}
+    """Evaluate one primary subject plus optional companion subjects.
+
+    A companion is ``(subject_type, expected_revision, evidence)`` and scores
+    the controls bound to that subject type, such as mutable pull-request
+    metadata beside commit-bound checks. Each evidence document must exactly
+    match its own expected subject.
+    """
+    subjects = [(expected_subject_type, expected_revision, evidence), *(companions or [])]
+    if len({subject_type for subject_type, _, _ in subjects}) != len(subjects):
+        raise ValueError("each evaluated subject type may appear only once")
+    selected: dict[str, dict[str, Any]] = {}
+    sources: dict[str, tuple[dict[str, Any], bool]] = {}
     findings: list[dict[str, Any]] = []
-    if not subject_matches:
-        findings.append({
-            "kind": "subject_mismatch",
-            "status": "mismatch",
-            "expected_subject": {"type": expected_subject_type, "revision": expected_revision},
-            "observed_subject": dict(subject),
-            "message": "evidence subject type and revision must exactly match the evaluated subject",
-        })
+    all_subjects_match = True
+    for subject_type, revision, document in subjects:
+        if not revision or len(revision) > 200:
+            raise ValueError("expected revision must be 1-200 characters")
+        if subject_type not in {"git-commit", "artifact", "environment", "pull-request"}:
+            raise ValueError("expected subject type is invalid")
+        subject_selected, controls, providers = effective_controls(
+            policy, profiles, catalog, provider_config, operation, subject_type
+        )
+        validate_evidence(document, controls, providers)
+        matches = document["subject"] == {"type": subject_type, "revision": revision}
+        if not matches:
+            all_subjects_match = False
+            findings.append({
+                "kind": "subject_mismatch",
+                "status": "mismatch",
+                "expected_subject": {"type": subject_type, "revision": revision},
+                "observed_subject": dict(document["subject"]),
+                "message": "evidence subject type and revision must exactly match the evaluated subject",
+            })
+        for control_id, selection in subject_selected.items():
+            selected[control_id] = selection
+            sources[control_id] = (document, matches)
+    subject = evidence["subject"]
+    evaluated_subject_types = {subject_type for subject_type, _, _ in subjects}
 
     rows: list[dict[str, Any]] = []
     counts = {mode: {"passed": 0, "total": 0} for mode in ("enforced", "advisory")}
@@ -596,7 +616,7 @@ def evaluate(
         control = controls[control_id]
         selection = selected.get(control_id)
         if selection is None:
-            rows.append({
+            row = {
                 "id": control_id,
                 "name": control.get("name", control_id),
                 "effective_mode": "not_activated",
@@ -604,12 +624,21 @@ def evaluate(
                 "authoritative_evidence_status": "missing",
                 "readiness": "GRAY",
                 "supplemental": [],
-            })
+            }
+            control_subject = control.get("evidence_subject")
+            if control_subject not in evaluated_subject_types and control_id in effective_controls(
+                policy, profiles, catalog, provider_config, operation, control_subject
+            )[0]:
+                # Policy activates this control, but on a subject this evaluation did not score.
+                row["inactive_reason"] = "other_subject"
+                row["evidence_subject"] = control_subject
+            rows.append(row)
             continue
         mode = selection["mode"]
         authority_id = selection["authoritative"]
+        source, subject_matches = sources[control_id]
         authority_result = (
-            evidence["results"].get(control_id, {}).get(authority_id)
+            source["results"].get(control_id, {}).get(authority_id)
             if subject_matches
             else None
         )
@@ -622,7 +651,7 @@ def evaluate(
         supplemental = []
         for provider_id in selection["supplemental"]:
             provider_result = (
-                evidence["results"].get(control_id, {}).get(provider_id)
+                source["results"].get(control_id, {}).get(provider_id)
                 if subject_matches
                 else None
             )
@@ -654,9 +683,9 @@ def evaluate(
                 "message": f"only fresh passed evidence from {providers[authority_id]['display_name']} satisfies {control.get('name', control_id)}",
             })
 
-    blocked = not subject_matches or any(row["readiness"] == "RED" for row in rows)
+    blocked = not all_subjects_match or any(row["readiness"] == "RED" for row in rows)
     status = "RED" if blocked else "ORANGE" if any(row["readiness"] == "ORANGE" for row in rows) else "GREEN"
-    return {
+    result = {
         "version": 2,
         "decision": "block" if blocked else "allow",
         "status": status,
@@ -667,6 +696,9 @@ def evaluate(
         "controls": rows,
         "findings": findings,
     }
+    if companions:
+        result["companion_subjects"] = [dict(document["subject"]) for _, _, document in companions]
+    return result
 
 
 def render(result: dict[str, Any]) -> str:
