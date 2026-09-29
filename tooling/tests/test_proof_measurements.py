@@ -124,6 +124,48 @@ class MeasurementsHelperTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     MODULE.from_semgrep(self.write(Path(directory), "bad.json", json.dumps(document)))
 
+    def test_codeql_sarif_is_counted_by_security_severity(self) -> None:
+        report = REPORTS / "codeql-python.sarif"
+        document = MODULE.from_sarif([report])
+        # 9.8 critical, 8.8 high, 5.0 medium; 0.0 and unscored rules fall back to the level
+        # (note -> low, default warning -> medium, none -> unrated); the suppressed result is skipped.
+        self.assertEqual(document, {"version": 1, "source": "pull-request-workflow", "findings": {
+            "total": 6, "critical": 1, "high": 1, "medium": 2, "low": 1, "unrated": 1}})
+        self.assertNotIn("private", json.dumps(document))
+        self.assertEqual(MODULE.from_sarif([report, report])["findings"]["total"], 12)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for text in ("[]", '{"runs": {}}', '{"runs": [{"results": []}]}', '{"runs": [{"tool": {}, "results": [1]}]}'):
+                with self.subTest(text=text), self.assertRaises(ValueError):
+                    MODULE.from_sarif([self.write(root, "bad.sarif", text)])
+            output = root / "counts.json"
+            self.assertEqual(MODULE.main(["sarif", str(report), "--output", str(output)]), 0)
+            self.assertEqual(json.loads(output.read_text())["findings"]["total"], 6)
+
+    def test_sarif_rules_resolve_per_component_with_default_levels_and_suppression_status(self) -> None:
+        report = {"runs": [{
+            "tool": {
+                "driver": {"rules": [{"id": "shared", "defaultConfiguration": {"level": "note"}}]},
+                "extensions": [
+                    {"rules": [{"id": "shared", "properties": {"security-severity": "9.5"}}]},
+                    {"rules": [{"id": "shared", "properties": {"security-severity": "4.5"}}]},
+                ],
+            },
+            "results": [
+                {"rule": {"id": "shared", "toolComponent": {"index": 0}}},   # extension 0 -> 9.5 critical
+                {"rule": {"id": "shared", "toolComponent": {"index": 1}}},   # extension 1 -> 4.5 medium
+                {"ruleId": "shared"},                                          # driver, no score, default note -> low
+                {"ruleId": "shared", "suppressions": [{"kind": "inSource", "status": "rejected"}]},     # counted: low
+                {"ruleId": "shared", "suppressions": [{"kind": "external", "status": "underReview"}]},  # counted: low
+                {"ruleId": "shared", "suppressions": [{"kind": "inSource"}]},                          # skipped
+                {"ruleId": "shared", "suppressions": [{"kind": "external", "status": "accepted"}]},    # skipped
+            ],
+        }]}
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(Path(directory), "multi.sarif", json.dumps(report))
+            self.assertEqual(MODULE.from_sarif([path])["findings"],
+                             {"total": 5, "critical": 1, "high": 0, "medium": 1, "low": 3, "unrated": 0})
+
     def test_gitleaks_findings_are_unrated(self) -> None:
         document = MODULE.from_gitleaks(REPORTS / "gitleaks.json")
         self.assertEqual(document["findings"], {"total": 3, "critical": 0, "high": 0, "medium": 0, "low": 0, "unrated": 3})
