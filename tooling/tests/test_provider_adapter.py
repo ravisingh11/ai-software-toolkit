@@ -118,6 +118,31 @@ class SnykContractTests(AdapterFixture):
         _, outcome = self.run_provider("snyk-open-source", FAKE_SNYK_MODE="findings-plain")
         self.assertEqual(outcome.message, "snyk test: findings reported")
 
+    def test_severity_counts_from_snyk_json(self):
+        counts = self.module.severity_counts
+        sarif = {"runs": [{"results": [{"level": "error"}, {"level": "warning"}, {"level": "note"}, {}]},
+                          {"results": [{"level": "error"}]}]}
+        self.assertEqual(counts(sarif, "sarif"),
+                         {"total": 5, "critical": 0, "high": 2, "medium": 1, "low": 1, "unrated": 1})
+        projects = [{"vulnerabilities": [{"severity": "critical"}, {"severity": "high"}, {"severity": "odd"}]},
+                    {"vulnerabilities": [{"severity": "low"}]}]
+        self.assertEqual(counts(projects, "vulnerabilities"),
+                         {"total": 4, "critical": 1, "high": 1, "medium": 0, "low": 1, "unrated": 1})
+        self.assertEqual(counts({"vulnerabilities": []}, "vulnerabilities")["total"], 0)
+        for document, key in ((None, "sarif"), ({"ok": True}, "sarif"), ({"runs": [{"results": {}}]}, "sarif"),
+                              ([], "vulnerabilities"), (["x"], "vulnerabilities"), ({"ok": True}, "vulnerabilities")):
+            with self.subTest(document=document):
+                self.assertIsNone(counts(document, key))
+
+    def test_outcomes_carry_counts_only_for_completed_scans(self):
+        _, outcome = self.run_provider("snyk-code", FAKE_SNYK_MODE="findings-code")
+        self.assertEqual(outcome.findings, {"total": 2, "critical": 0, "high": 0, "medium": 0, "low": 0, "unrated": 2})
+        self.assertNotIn("findings", outcome.result("Snyk Code"))
+        _, outcome = self.run_provider("snyk-code", FAKE_SNYK_MODE="clean")
+        self.assertIsNone(outcome.findings)
+        _, outcome = self.run_provider("snyk-open-source", FAKE_SNYK_MODE="auth")
+        self.assertIsNone(outcome.findings)
+
     def test_authentication_error_unsupported_and_timeout(self):
         _, outcome = self.run_provider("snyk-code", FAKE_SNYK_MODE="auth")
         self.assertEqual((outcome.status, outcome.code), ("blocked", "authentication-failed"))
@@ -312,6 +337,36 @@ class FragmentAndCliTests(AdapterFixture):
             with contextlib.redirect_stderr(io.StringIO()) as stderr:
                 self.assertEqual(self.module.main(["fossa", "--target", str(self.target)]), 2)
         self.assertIn("symlink", stderr.getvalue())
+
+    def test_cli_writes_optional_finding_counts(self):
+        measurements = self.root / "out" / "measurements.json"
+        with patch.dict(os.environ, self.environment(FAKE_SNYK_MODE="findings-oss")):
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = self.module.main(["snyk-open-source", "--target", str(self.target), "--measurements", str(measurements)])
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(measurements.read_text(encoding="utf-8")), {
+            "version": 1, "source": "pull-request-workflow",
+            "findings": {"total": 3, "critical": 0, "high": 0, "medium": 0, "low": 0, "unrated": 3}})
+        measurements.unlink()
+        with patch.dict(os.environ, self.environment(FAKE_SNYK_MODE="error")):
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.module.main(["snyk-code", "--target", str(self.target), "--measurements", str(measurements)])
+        self.assertFalse(measurements.exists())
+        os.symlink(self.root / "elsewhere.json", measurements)
+        with patch.dict(os.environ, self.environment(FAKE_SNYK_MODE="findings-code")):
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as stderr:
+                code = self.module.main(["snyk-code", "--target", str(self.target), "--measurements", str(measurements)])
+        self.assertEqual(code, 1)
+        self.assertIn("finding counts were not recorded", stderr.getvalue())
+
+    def test_snyk_workflow_passes_measurements_only_to_adapters_that_support_it(self):
+        workflow = (ROOT / "workflows" / "snyk.yml").read_text(encoding="utf-8")
+        self.assertEqual(workflow.count("adapter.py --help 2>/dev/null"), 2)
+        self.assertEqual(workflow.count('${measurement_args[@]+"${measurement_args[@]}"}'), 2)
+        self.assertNotIn('--measurements "${RUNNER_TEMP}/proof-measurements-input.json" |', workflow)
+        with contextlib.redirect_stdout(io.StringIO()) as stdout, self.assertRaises(SystemExit):
+            self.module.main(["--help"])
+        self.assertIn("--measurements", stdout.getvalue())
 
     def test_fragment_merges_into_local_scan(self):
         """The scanner accepts adapter fragments for the exact subject and rejects stale ones."""

@@ -503,7 +503,9 @@ finding counts without configuration: Semgrep by severity (for example
 **0 critical · 1 high · 4 medium · 12 low**), and Gitleaks as a count whose
 severity the scanner does not rate. Only counts are recorded; paths, rules, and
 secret values never leave the runner. Finding counts from CodeQL, SonarQube,
-Dependency Review, Semgrep App, Snyk, and FOSSA are not collected; their cards
+Dependency Review, Semgrep App, and FOSSA are not collected; the Snyk workflow
+records Snyk Code and Snyk Open Source counts by severity through its trusted
+adapter. The other cards
 say where the provider keeps them. A
 passed check does not imply zero findings, a particular test count, or 100%
 coverage. Read the producer's report for those measurements. The coverage report distinguishes changes with

@@ -108,7 +108,7 @@ control:
 | `repository-ground-truth` | `documents` | `declared`, `found`, `missing` | `declared` equals `found + missing`; `passed` exactly when nothing is missing |
 | `migration-validation` | `migrations` | `checked`, `failed` | Failed cannot exceed checked; `passed` cannot report failures |
 | `ai-engineering-review`, `ai-qa-review`, `ai-security-review`, `ai-repository-standards-review` | `review_findings` | `total`, `p0`, `p1`, `p2`, `p3`, `unresolved_blocking` | `total` equals `p0 + p1 + p2 + p3`; `unresolved_blocking` cannot exceed `p0 + p1`; not coupled to status |
-| `custom-static-analysis`, `secret-detection` | `findings` | `total`, `critical`, `high`, `medium`, `low`, `unrated` | `total` equals the sum of the five buckets; no status rule |
+| `custom-static-analysis`, `secret-detection`, `deep-sast`, `dependency-vulnerability` | `findings` | `total`, `critical`, `high`, `medium`, `low`, `unrated` | `total` equals the sum of the five buckets; no status rule |
 
 The installed repository validator runs its contract groups in order and stops
 at the first failure, so later groups count as `not_run`. The ground-truth
@@ -151,6 +151,8 @@ published. Severities map onto the buckets as follows:
 | --- | --- | --- | --- | --- | --- |
 | Semgrep | `CRITICAL` | `ERROR`, `HIGH` | `WARNING`, `MEDIUM` | `INFO`, `LOW` | Any other value, such as `INVENTORY` or `EXPERIMENT` |
 | Gitleaks | — | — | — | — | Every finding; Gitleaks does not rate severity |
+| Snyk Code | — | SARIF `error` | SARIF `warning` | SARIF `note` | Any other level |
+| Snyk Open Source | `critical` | `high` | `medium` | `low` | Any other severity |
 
 The Semgrep converter refuses a report that records a Semgrep error above
 `warn` or `info`, because the scan may be incomplete and its counts would
@@ -161,8 +163,19 @@ converter is the pull request's own `.proof/measurements.py`, so these counts
 are labeled self-reported like the other measurements. Finding counts are not
 collected for CodeQL (GitHub code scanning holds its results), SonarQube (the
 SonarQube server holds them), GitHub Dependency Review (its job summary holds
-them), Semgrep App, or the Snyk and FOSSA adapters; their dashboard cards say
-where to look instead.
+them), Semgrep App, or the FOSSA adapter; their dashboard cards say where to
+look instead.
+
+Snyk Code and Snyk Open Source counts come from the provider adapter, which the
+Snyk workflow runs from the base revision. `.proof/adapter.py --measurements
+PATH` writes `findings` from the JSON Snyk already prints, summing every
+project with `--all-projects`; Snyk Open Source counts one entry per
+vulnerable dependency path, as Snyk reports them. The workflow packages the file
+with the base revision's `.proof/measurements.py` in a reset environment and
+uploads `proof-measurements-snyk-code-` or `proof-measurements-snyk-open-source-`.
+Counts are written only for a completed scan (`passed` or `failed`); a passed
+scan may report findings below a configured severity threshold. They use the
+same measurement contract and label as the other counts.
 
 These numbers come from the pull request's own workflow run, which executes
 the pull request's code, so they are **self-reported**. They are display

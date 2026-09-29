@@ -18,7 +18,9 @@ name: Snyk
 # candidate adds to GITHUB_PATH or GITHUB_ENV reaches the token. The token
 # reaches only the adapter step, never the repository setup command. This
 # workflow is used directly (not through workflow_call) so its check names
-# match the provider contract exactly.
+# match the provider contract exactly. The adapter also writes finding counts by
+# severity, which the base revision's measurements.py packages for the Proof
+# scorecard; packaging never changes the check result.
 
 on:
   pull_request:
@@ -68,6 +70,8 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             .proof/adapter.py
+            .proof/measurements.py
+            .proof/evaluate.py
           sparse-checkout-cone-mode: false
       - name: Require the trusted adapter
         shell: bash
@@ -82,6 +86,7 @@ jobs:
             exit 1
           fi
       - name: Run Snyk Code through the trusted adapter
+        id: scan
         shell: bash
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -92,6 +97,13 @@ jobs:
           # A reset environment, the interpreter and PATH recorded before the setup command
           # ran, and isolated mode: nothing the candidate added to GITHUB_PATH or GITHUB_ENV
           # reaches the process that holds the credential.
+          # An older base adapter predates --measurements; pass it only when supported so an
+          # upgrade pull request still scans with the base revision's adapter.
+          measurement_args=()
+          if /usr/bin/env -i PATH="${TRUSTED_PATH}" HOME="${HOME}" "${TRUSTED_PYTHON}" -I trusted/.proof/adapter.py --help 2>/dev/null \
+              | /usr/bin/grep -q -- '--measurements'; then
+            measurement_args=(--measurements "${RUNNER_TEMP}/proof-measurements-input.json")
+          fi
           /usr/bin/env -i \
             PATH="${TRUSTED_PATH}" HOME="${HOME}" CI=true \
             SNYK_TOKEN="${SNYK_TOKEN}" SNYK_CODE_ARGS="${SNYK_CODE_ARGS}" \
@@ -99,10 +111,45 @@ jobs:
             --target "candidate/${PROOF_WORKING_DIRECTORY}" \
             --revision "${HEAD_SHA}" \
             --timeout 1200 \
-            --evidence-dir "${RUNNER_TEMP}/evidence" | /usr/bin/tee "${RUNNER_TEMP}/snyk-code.txt"
+            --evidence-dir "${RUNNER_TEMP}/evidence" \
+            ${measurement_args[@]+"${measurement_args[@]}"} | /usr/bin/tee "${RUNNER_TEMP}/snyk-code.txt"
           status=${PIPESTATUS[0]}
           printf '### Snyk Code\n\n```text\n%s\n```\n' "$(/bin/cat "${RUNNER_TEMP}/snyk-code.txt")" >> "${GITHUB_STEP_SUMMARY}"
           exit "${status}"
+      # Optional finding counts for the Proof scorecard, packaged by the base revision's
+      # runtime in a reset environment: never changes this check's result.
+      - name: Package finding counts
+        id: measurements
+        if: ${{ always() && (steps.scan.outcome == 'success' || steps.scan.outcome == 'failure') }}
+        shell: bash
+        env:
+          TRUSTED_PATH: ${{ steps.tools.outputs.path }}
+          TRUSTED_PYTHON: ${{ steps.tools.outputs.python }}
+          OUTCOME: ${{ steps.scan.outcome }}
+        run: |
+          input="${RUNNER_TEMP}/proof-measurements-input.json"
+          if [[ ! -s "${input}" || -L trusted/.proof/measurements.py || ! -f trusted/.proof/measurements.py ]]; then
+            echo "No finding counts or no trusted Proof runtime; the scorecard will show counts as not collected."
+            exit 0
+          fi
+          if /usr/bin/env -i PATH="${TRUSTED_PATH}" HOME="${HOME}" \
+              GITHUB_RUN_ID="${GITHUB_RUN_ID}" GITHUB_RUN_ATTEMPT="${GITHUB_RUN_ATTEMPT}" GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
+              "${TRUSTED_PYTHON}" -I trusted/.proof/measurements.py package --control deep-sast --input "${input}" \
+              --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::Finding counts were not packaged; the check result is unaffected."
+          fi
+      - name: Upload finding counts
+        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
+        # Optional display metadata: an upload failure must not change the check result.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: proof-measurements-snyk-code-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload evidence fragment
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -154,6 +201,8 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             .proof/adapter.py
+            .proof/measurements.py
+            .proof/evaluate.py
           sparse-checkout-cone-mode: false
       - name: Require the trusted adapter
         shell: bash
@@ -168,6 +217,7 @@ jobs:
             exit 1
           fi
       - name: Run Snyk Open Source through the trusted adapter
+        id: scan
         shell: bash
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -178,6 +228,13 @@ jobs:
           # A reset environment, the interpreter and PATH recorded before the setup command
           # ran, and isolated mode: nothing the candidate added to GITHUB_PATH or GITHUB_ENV
           # reaches the process that holds the credential.
+          # An older base adapter predates --measurements; pass it only when supported so an
+          # upgrade pull request still scans with the base revision's adapter.
+          measurement_args=()
+          if /usr/bin/env -i PATH="${TRUSTED_PATH}" HOME="${HOME}" "${TRUSTED_PYTHON}" -I trusted/.proof/adapter.py --help 2>/dev/null \
+              | /usr/bin/grep -q -- '--measurements'; then
+            measurement_args=(--measurements "${RUNNER_TEMP}/proof-measurements-input.json")
+          fi
           /usr/bin/env -i \
             PATH="${TRUSTED_PATH}" HOME="${HOME}" CI=true \
             SNYK_TOKEN="${SNYK_TOKEN}" SNYK_OPEN_SOURCE_ARGS="${SNYK_OPEN_SOURCE_ARGS}" \
@@ -185,10 +242,45 @@ jobs:
             --target "candidate/${PROOF_WORKING_DIRECTORY}" \
             --revision "${HEAD_SHA}" \
             --timeout 1200 \
-            --evidence-dir "${RUNNER_TEMP}/evidence" | /usr/bin/tee "${RUNNER_TEMP}/snyk-open-source.txt"
+            --evidence-dir "${RUNNER_TEMP}/evidence" \
+            ${measurement_args[@]+"${measurement_args[@]}"} | /usr/bin/tee "${RUNNER_TEMP}/snyk-open-source.txt"
           status=${PIPESTATUS[0]}
           printf '### Snyk Open Source\n\n```text\n%s\n```\n' "$(/bin/cat "${RUNNER_TEMP}/snyk-open-source.txt")" >> "${GITHUB_STEP_SUMMARY}"
           exit "${status}"
+      # Optional finding counts for the Proof scorecard, packaged by the base revision's
+      # runtime in a reset environment: never changes this check's result.
+      - name: Package finding counts
+        id: measurements
+        if: ${{ always() && (steps.scan.outcome == 'success' || steps.scan.outcome == 'failure') }}
+        shell: bash
+        env:
+          TRUSTED_PATH: ${{ steps.tools.outputs.path }}
+          TRUSTED_PYTHON: ${{ steps.tools.outputs.python }}
+          OUTCOME: ${{ steps.scan.outcome }}
+        run: |
+          input="${RUNNER_TEMP}/proof-measurements-input.json"
+          if [[ ! -s "${input}" || -L trusted/.proof/measurements.py || ! -f trusted/.proof/measurements.py ]]; then
+            echo "No finding counts or no trusted Proof runtime; the scorecard will show counts as not collected."
+            exit 0
+          fi
+          if /usr/bin/env -i PATH="${TRUSTED_PATH}" HOME="${HOME}" \
+              GITHUB_RUN_ID="${GITHUB_RUN_ID}" GITHUB_RUN_ATTEMPT="${GITHUB_RUN_ATTEMPT}" GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
+              "${TRUSTED_PYTHON}" -I trusted/.proof/measurements.py package --control dependency-vulnerability --input "${input}" \
+              --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::Finding counts were not packaged; the check result is unaffected."
+          fi
+      - name: Upload finding counts
+        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
+        # Optional display metadata: an upload failure must not change the check result.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: proof-measurements-snyk-open-source-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload evidence fragment
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

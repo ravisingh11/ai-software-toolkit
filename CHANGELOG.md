@@ -8,6 +8,16 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Show Snyk finding counts by severity on the scorecard dashboard. The provider
+  adapter gains `--measurements PATH`, which writes the `findings` measurement
+  from the JSON Snyk already prints (Snyk Code SARIF levels, Snyk Open Source
+  severities, summed across `--all-projects`) for a completed scan. The Snyk
+  workflow checks out the base revision's `measurements.py` and `evaluate.py`
+  beside the adapter, packages the counts in a reset environment, and uploads
+  `proof-measurements-snyk-code-` / `proof-measurements-snyk-open-source-`.
+  `deep-sast` and `dependency-vulnerability` accept `findings`. Refresh the
+  runtime, `providers.yaml`, and `snyk.yml` together.
+
 - Show Semgrep CE and Gitleaks finding counts on the scorecard dashboard. The
   Semgrep CE and Gitleaks workflows write their JSON report under the runner's
   temporary directory, count it with the new `.proof/measurements.py semgrep`

@@ -156,6 +156,8 @@ and [producer contract](producer-contract.md).
 
 Per-check details also show trusted assessment criteria and validated optional
 execution timestamps, duration, and conclusion. These facts do not imply test
-counts or security finding totals. Missing measurements are explicitly named;
+counts or security finding totals; finding counts appear only where a scanner
+workflow packages them (Semgrep CE, Gitleaks, and the Snyk adapter). Missing
+measurements are explicitly named;
 no numerical result is inferred from a passing check. See the
 [execution evidence contract](implementation.md#optional-check-execution-facts) for upgrade compatibility.
