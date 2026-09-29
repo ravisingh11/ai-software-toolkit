@@ -77,7 +77,7 @@ class MeasurementsHelperTests(unittest.TestCase):
             root = Path(directory)
             result = self.write(root, "engineering.json", json.dumps({"reviewer": "engineering", "findings": findings}))
             document = MODULE.from_review_result(result)
-            # Unresolved blocking mirrors the consolidation gate: P0/P1 whose status is not resolved.
+            # Unresolved blocking mirrors the pr-review blocking rule: P0/P1 whose status is not resolved.
             self.assertEqual(document, {"version": 1, "source": "pull-request-workflow", "review_findings": {
                 "total": 6, "p0": 1, "p1": 3, "p2": 1, "p3": 1, "unresolved_blocking": 3}})
             self.assertNotIn("private", json.dumps(document))

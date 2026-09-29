@@ -233,7 +233,7 @@
       "checks": {"ai-engineering-review": {"check_name": "AI Engineering Review", "workflow": "AI PR Review", "workflow_path": ".github/workflows/ai-pr-review.yml", "measurements_artifact_prefix": "proof-measurements-ai-engineering-", "measurements_member": "proof-measurements.json"}},
       "template": "workflows/ai-pr-review.yml",
       "template_available": true,
-      "secrets": [],
+      "secrets": ["ANTHROPIC_API_KEY"],
       "enabled_by_default": false
     },
     "codex-github-review": {
@@ -254,7 +254,7 @@
       "checks": {"ai-qa-review": {"check_name": "AI QA Review", "workflow": "AI PR Review", "workflow_path": ".github/workflows/ai-pr-review.yml", "measurements_artifact_prefix": "proof-measurements-ai-qa-", "measurements_member": "proof-measurements.json"}},
       "template": "workflows/ai-pr-review.yml",
       "template_available": true,
-      "secrets": [],
+      "secrets": ["ANTHROPIC_API_KEY"],
       "enabled_by_default": false
     },
     "ai-security-adapter": {
@@ -264,7 +264,7 @@
       "checks": {"ai-security-review": {"check_name": "AI Security Review", "workflow": "AI PR Review", "workflow_path": ".github/workflows/ai-pr-review.yml", "measurements_artifact_prefix": "proof-measurements-ai-security-", "measurements_member": "proof-measurements.json"}},
       "template": "workflows/ai-pr-review.yml",
       "template_available": true,
-      "secrets": [],
+      "secrets": ["ANTHROPIC_API_KEY"],
       "enabled_by_default": false
     },
     "ai-repository-standards-adapter": {
@@ -274,7 +274,7 @@
       "checks": {"ai-repository-standards-review": {"check_name": "AI Repo Standards Review", "workflow": "AI PR Review", "workflow_path": ".github/workflows/ai-pr-review.yml", "measurements_artifact_prefix": "proof-measurements-ai-repo-standards-", "measurements_member": "proof-measurements.json"}},
       "template": "workflows/ai-pr-review.yml",
       "template_available": true,
-      "secrets": [],
+      "secrets": ["ANTHROPIC_API_KEY"],
       "enabled_by_default": false
     },
     "repository-soak": {

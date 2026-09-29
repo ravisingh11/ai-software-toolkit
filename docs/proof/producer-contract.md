@@ -127,8 +127,8 @@ AI review finding counts come from the reviewer adapter's result file
 (`pr-review/pr-review.md`), counted by `.proof/measurements.py review-findings`
 in the same AI PR Review job: `p0` to `p3` count findings by `severity`, and
 `unresolved_blocking` counts `P0`/`P1` findings whose `status` is not
-`resolved` (a missing status counts as open), the same rule the consolidation
-job uses to fail. A finding with a severity or status outside the documented
+`resolved` (a missing status counts as open), the same rule that makes a
+`pr-review` adapter exit non-zero. A finding with a severity or status outside the documented
 values makes the file uncountable, so no counts are packaged. The counts are
 not coupled to the check status: an adapter can fail without findings, and the
 per-role check reflects the adapter's exit status, not the blocking rule.

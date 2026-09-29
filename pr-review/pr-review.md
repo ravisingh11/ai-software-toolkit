@@ -74,8 +74,27 @@ no counts. Only counts are published, never finding text or evidence.
 
 The adapter must exit non-zero when it cannot complete the review or when
 unresolved `P0`/`P1` findings are present. This keeps the review outcome
-truthful without granting it merge authority. The shared workflow consolidates
-the result files but does not choose an AI provider.
+truthful without granting it merge authority. The shared workflow
+(`workflows/ai-pr-review.yml`) runs `AI_REVIEW_COMMAND` from the pull
+request's base revision, so a pull request cannot change the code that
+receives the provider key. An optional `AI_REVIEW_SETUP_COMMAND` installs
+dependencies first in a separate step without the key. The workflow gives the
+review command `AI_REVIEW_ROLE`, `AI_REVIEW_RESULT`,
+`AI_REVIEW_TARGET` (the head checkout), `AI_REVIEW_BASE_SHA`,
+`AI_REVIEW_HEAD_SHA`, and `AI_REVIEW_MODEL`. No pull-request code runs in the
+review jobs. The consolidation job summarizes the result files and never
+fails, so each role's own check carries its outcome.
+
+`tooling/ai_review_claude.py` is an opt-in reference adapter that sends the
+merge-base diff, this framework's role instructions, and the base branch's
+ground truth (the root `AGENTS.md`, the documents in
+`.proof/ground-truth-ai.yaml` or, only when that file is absent, the
+repository-standards list, plus any `AGENTS.md` above a changed file) to
+Claude with a structured-output schema matching the finding format,
+including each finding's verification state. It treats the diff as
+untrusted data, refuses a diff above its size limit instead of truncating it,
+uses server-side refusal fallbacks on models that accept them, and writes no
+result when the review cannot be completed.
 
 ## Consolidation
 
