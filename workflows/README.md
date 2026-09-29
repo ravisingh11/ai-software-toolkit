@@ -236,7 +236,9 @@ suite and is not the merge context. Workflow-level concurrency is scoped to the
 pull-request number, and a newer event cancels any older in-progress metadata
 run. The evidence upload outcome is part of the custom-check decision; upload
 failure always publishes a failing exact-head check rather than success without
-proof.
+proof. The run-bound artifact also carries the validator's `pr_metadata` detail
+(title match and required-section counts, no PR text) when the trusted base
+validator emits it.
 
 For `Format and Lint` and `Migration Validation`, configure the repository
 command first and verify both success and failure behavior. The job remains

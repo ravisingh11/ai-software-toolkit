@@ -629,6 +629,73 @@ class RendererTests(unittest.TestCase):
         self.assertEqual(rows["unit-tests"]["measurements"], {"availability": "unavailable"})
         self.assertEqual(rows["changed-code-coverage"]["measurements"], {"availability": "unavailable"})
 
+    def pr_metadata_card(self, status: str = "passed", **detail: Any) -> dict[str, Any]:
+        card = scorecard(status="GREEN", enforced=(0, 0), advisory=(1 if status == "passed" else 0, 1))
+        values = {"version": 1, "title_matches": True, "required_sections": 3, "missing_sections": 0, **detail}
+        card["controls"] = [{"id": "pr-metadata", "effective_mode": "advisory", "evidence_status": status,
+                             "authoritative_provider": {"id": "repository-pr-metadata"},
+                             "authoritative_result": {"status": status, "pr_metadata": values}}]
+        return card
+
+    def test_trusted_pr_metadata_detail_replaces_counts_gap(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = self.render(self.write_source(root, self.pr_metadata_card()), root / "output")
+            rows = {row["id"]: row for row in metadata["controls"]}
+            self.assertEqual(rows["pr-metadata"]["detail"], {
+                "availability": "available", "title_matches": True, "required_sections": 3, "missing_sections": 0})
+            self.assertEqual(rows["build"]["detail"], {"availability": "unavailable"})
+            page = (root / "output/index.html").read_text()
+            card_html = page[page.index('id="check-pr-metadata"'):]
+            card_html = card_html[:card_html.index("</article>")]
+            markdown = (root / "output/scorecard.md").read_text()
+            for text in (card_html, markdown):
+                self.assertIn("Title matches the required format · 3 of 3 required sections present", text)
+                self.assertIn("trusted base-branch PR metadata validator", text)
+            self.assertNotIn("Counts not reported", card_html)
+            self.assertNotIn("self-reported", card_html.lower())
+            self.assertNotIn("Self-reported measurements", markdown)
+
+    def test_pr_metadata_summary_wording(self) -> None:
+        summary = MODULE._pr_metadata_summary
+        base = {"availability": "available", "title_matches": False, "missing_sections": 1}
+        self.assertEqual(summary({**base, "required_sections": 1}),
+                         "Title does not match the required format · 0 of 1 required section present")
+        self.assertEqual(summary({**base, "missing_sections": 0, "required_sections": 0}),
+                         "Title does not match the required format · No required sections configured")
+        self.assertIsNone(summary({"availability": "unavailable"}))
+
+    def test_invalid_or_contradictory_pr_metadata_detail_is_unavailable(self) -> None:
+        cases = [({"title_matches": 1}, "passed"), ({"missing_sections": 4}, "failed"),
+                 ({"required_sections": 21, "missing_sections": 21}, "failed"), ({"required_sections": True}, "passed"),
+                 ({"version": 2}, "passed"), ({"extra": 0}, "passed"), ({"missing_sections": 1}, "passed"),
+                 ({"title_matches": False}, "passed"), ({}, "failed")]
+        for detail, status in cases:
+            with self.subTest(detail=detail, status=status):
+                rows = {row["id"]: row for row in MODULE._control_details(self.pr_metadata_card(status, **detail))}
+                self.assertEqual(rows["pr-metadata"]["detail"], {"availability": "unavailable"})
+        for mutate in (lambda row: row.update(authoritative_provider={"id": "other"}),
+                       lambda row: row["authoritative_result"].update(status="failed")):
+            card = self.pr_metadata_card()
+            mutate(card["controls"][0])
+            rows = {row["id"]: row for row in MODULE._control_details(card)}
+            self.assertEqual(rows["pr-metadata"]["detail"], {"availability": "unavailable"})
+        card = self.pr_metadata_card()
+        card["controls"][0]["id"] = "build"
+        rows = {row["id"]: row for row in MODULE._control_details(card)}
+        self.assertEqual(rows["build"]["detail"], {"availability": "unavailable"})
+
+    def test_pr_metadata_without_detail_explains_the_gap(self) -> None:
+        card = self.pr_metadata_card()
+        del card["controls"][0]["authoritative_result"]["pr_metadata"]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.render(self.write_source(root, card), root / "output")
+            page = (root / "output/index.html").read_text()
+            card_html = page[page.index('id="check-pr-metadata"'):]
+            self.assertIn("does not include whether the title matches, required sections present and missing.",
+                          card_html[:card_html.index("</article>")])
+
     def test_public_catalog_matches_canonical_controls(self) -> None:
         catalog = json.loads((ROOT / "policies/control-catalog.yaml").read_text())["controls"]
         expected = [(row["id"], "PR Size" if row["id"] == "change-scope" else row["name"], row["purpose"]) for row in catalog]

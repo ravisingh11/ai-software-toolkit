@@ -517,6 +517,14 @@ def run_artifact_evidence(
                 pass
             else:
                 result["change_scope"] = scope
+        elif provider_id == "repository-pr-metadata" and "pr_metadata" in document:
+            detail = document["pr_metadata"]
+            try:
+                evaluator_module().validate_pr_metadata(detail, status)
+            except ValueError:
+                pass  # Same rule as change_scope: omit malformed detail, keep the proven status.
+            else:
+                result["pr_metadata"] = detail
         return bounded_result(result)
     return bounded_result({
         "producer": provider_name,

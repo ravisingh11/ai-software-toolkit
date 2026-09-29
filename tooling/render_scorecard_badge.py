@@ -234,9 +234,9 @@ _CHECK_ASSESSMENTS = {'repository-validation': ('Installed Proof contracts',
                   'Each measurement is within its configured limit',
                   'Files and LOC are shown below'),
  'pr-metadata': ('PR title and description',
-                 'Configured title expression and required body sections',
-                 'Title and body satisfy repository metadata rules',
-                 'Missing sections; title violations'),
+                 'Configured title pattern and required description sections; title and description text are not published',
+                 'Title matches the configured pattern and every required section is present',
+                 'Whether the title matches; required sections present and missing'),
  'format-and-lint': ('Formatting and lint rules',
                      'Repository-configured formatter and lint command',
                      'Configured command completes successfully',
@@ -472,6 +472,43 @@ def _measurement_summary(measurements: dict[str, Any]) -> str | None:
     return f'{covered:,} of {measured:,} changed lines covered ({percent:.1f}%) · target {coverage["threshold_percent"]}%'
 
 
+_PR_METADATA_NOTE = ("Evaluated by the trusted base-branch PR metadata validator. "
+                     "The title, description, and section names are not published.")
+
+
+def _pr_metadata_detail(control_id: str, row: dict[str, Any]) -> dict[str, Any]:
+    """Re-validate trusted PR metadata counts; mirrors evaluate.validate_pr_metadata."""
+    unavailable = {"availability": "unavailable"}
+    result = row.get("authoritative_result")
+    value = result.get("pr_metadata") if isinstance(result, dict) else None
+    status = row.get("evidence_status")
+    provider = row.get("authoritative_provider")
+    if (control_id != "pr-metadata" or not isinstance(value, dict) or status not in ("passed", "failed")
+            or not isinstance(provider, dict) or provider.get("id") != "repository-pr-metadata"
+            or result.get("status") != status
+            or set(value) != {"version", "title_matches", "required_sections", "missing_sections"}
+            or type(value["version"]) is not int or value["version"] != 1
+            or type(value["title_matches"]) is not bool):
+        return unavailable
+    required, missing = value["required_sections"], value["missing_sections"]
+    if (type(required) is not int or type(missing) is not int or not 0 <= missing <= required <= 20
+            or (value["title_matches"] and missing == 0) != (status == "passed")):
+        return unavailable
+    return {"availability": "available", "title_matches": value["title_matches"],
+            "required_sections": required, "missing_sections": missing}
+
+
+def _pr_metadata_summary(detail: dict[str, Any]) -> str | None:
+    if detail["availability"] != "available":
+        return None
+    title = "Title matches" if detail["title_matches"] else "Title does not match"
+    required = detail["required_sections"]
+    if not required:
+        return f"{title} the required format · No required sections configured"
+    noun = "section" if required == 1 else "sections"
+    return f"{title} the required format · {required - detail['missing_sections']:,} of {required:,} required {noun} present"
+
+
 def _control_details(document: dict[str, Any]) -> list[dict[str, Any]]:
     """Project enum-only results for known controls; fail closed on bad totals."""
     consistent = _result_breakdown(document)["availability"] == "available"
@@ -489,7 +526,8 @@ def _control_details(document: dict[str, Any]) -> list[dict[str, Any]]:
                         "status": status if valid else "not_reported",
                         "separate_subject": "pull-request" if separate else None,
                         "execution": _execution_details(row) if valid else {"availability": "unavailable"},
-                        "measurements": _measurements(control_id, row) if valid else {"availability": "unavailable"}})
+                        "measurements": _measurements(control_id, row) if valid else {"availability": "unavailable"},
+                        "detail": _pr_metadata_detail(control_id, row) if valid else {"availability": "unavailable"}})
     return details
 
 
@@ -513,6 +551,11 @@ def _controls_markdown(controls: list[dict[str, Any]]) -> str:
     if measured:
         lines += ["", "### Self-reported measurements", "", _SELF_REPORTED_NOTE, ""]
         lines += [f"- {name}: {summary}" for name, summary in measured]
+    trusted = [(row["name"], _pr_metadata_summary(row["detail"])) for row in controls]
+    trusted = [(name, summary) for name, summary in trusted if summary]
+    if trusted:
+        lines += ["", "### PR metadata", "", _PR_METADATA_NOTE, ""]
+        lines += [f"- {name}: {summary}" for name, summary in trusted]
     return "\n".join(lines)
 
 
@@ -661,7 +704,11 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
             else:
                 criteria.append(("Execution time", "Not supplied by this source report"))
             measured = _measurement_summary(row["measurements"])
-            if measured:
+            evaluated = _pr_metadata_summary(row["detail"])
+            if evaluated:
+                run_facts += f'<p class="check-measure"><strong>{html.escape(evaluated)}</strong><span>{_PR_METADATA_NOTE}</span></p>'
+                criteria.append(("Evaluated", evaluated))
+            elif measured:
                 run_facts += f'<p class="check-measure"><strong>{html.escape(measured)}</strong><span>{_SELF_REPORTED_NOTE}</span></p>'
                 criteria.append(("Self-reported measurements", measured))
             elif row["id"] != "change-scope":

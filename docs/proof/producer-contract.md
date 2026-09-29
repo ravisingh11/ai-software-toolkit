@@ -66,6 +66,26 @@ producer status but omits unavailable or malformed optional measurements.
 The dashboard then displays measurements as unavailable. This extension does
 not change policy evaluation or promote scope from advisory to enforced.
 
+### Optional PR metadata detail
+
+The `pr-metadata.repository-pr-metadata` result may include `pr_metadata`
+with `version: 1`, a boolean `title_matches`, and the integer counts
+`required_sections` and `missing_sections` (0–20, missing never above
+required). It is accepted only for `passed` or `failed` results and on no
+other control or provider, and `passed` must equal "title matches and zero
+missing sections". The trusted base-branch `validate_pr_metadata.py` produces
+it, so it is not labeled self-reported. It never carries the title, body, or
+section names.
+
+The PR Metadata workflow copies the detail into its run-bound artifact. The
+GitHub collector attaches it after artifact provenance passes and omits a
+missing or malformed value without changing the proven status. The dashboard
+re-validates it and shows, for example, **Title matches the required format ·
+3 of 3 required sections present**; without it, the card states which detail
+was not reported. Refresh the evaluator, schema, validator, collector,
+renderer, and `pr-metadata.yml` together; older runtimes reject unknown result
+fields.
+
 ### Optional self-reported test, coverage, and validator measurements
 
 A `unit-tests` result may include `measurements` with `version: 1`,
