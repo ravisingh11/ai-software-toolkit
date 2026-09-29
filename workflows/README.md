@@ -68,7 +68,9 @@ its reviewer's result file with the default branch's `.proof/measurements.py rev
 (findings by severity and unresolved `P0`/`P1`) and puts the counts in its
 run-bound `proof-<provider>-<run_id>` evidence artifact. The Semgrep CE and Gitleaks workflows count their own JSON reports with
 `.proof/measurements.py semgrep` or `gitleaks` and upload only the finding
-counts (`findings`: total, critical, high, medium, low, unrated). The Snyk
+counts (`findings`: total, critical, high, medium, low, unrated). The CodeQL
+workflow counts its SARIF output with `.proof/measurements.py sarif` and
+uploads `proof-measurements-codeql-`. The Snyk
 workflow's trusted adapter writes the same counts for Snyk Code and Snyk Open
 Source into its run-bound evidence artifact. The scorecard dashboard shows these as self-reported, because the
 numbers describe the pull request's own code or come from its own commands; they never change a check's

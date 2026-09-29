@@ -123,12 +123,12 @@ def github_setup(target: Path, repository: str, selected: dict, providers: dict,
             else "Repository-level variable is empty or not enabled." if status == "action_needed"
             else "Repository-level variable was not found or could not be read; inherited values were not queried.",
             f"Verify effective Actions variable {name}" + (f"={expected}" if expected else "") + "; run the corresponding workflow.")
-    environment_secrets = {name for provider_id in selected_providers & set(ENVIRONMENT_PROVIDERS)
-                           for name in providers[provider_id].get("secrets", [])}
-    if environment_secrets:
-        rows.extend(provider_environment_rows(api, collection, environment_secrets, secrets))
-    for name in sorted({name for provider_id in selected_providers for name in providers[provider_id].get("secrets", [])}
-                       - environment_secrets):
+    environment_names = {name for provider_id in selected_providers & set(ENVIRONMENT_PROVIDERS)
+                         for name in secret_names(providers[provider_id])}
+    if environment_names:
+        rows.extend(provider_environment_rows(api, collection, environment_names, secrets))
+    for name in sorted({name for provider_id in selected_providers for name in secret_names(providers[provider_id])}
+                       - environment_names):
         present = secrets is not None and name in secrets
         add(f"github.secret.{name}", "configured" if present else "unverified",
             "Repository-level secret name exists; its value, validity, permissions, and workflow availability are unverified." if present
@@ -148,6 +148,12 @@ def github_setup(target: Path, repository: str, selected: dict, providers: dict,
     add("github.producer-evidence", "unverified", "Only setup metadata was queried; no check runs, findings, or secret values were collected.",
         "Open a representative PR and inspect its Proof Scorecard; metadata alone cannot satisfy a control.")
     return rows
+
+
+def secret_names(provider: dict) -> list[str]:
+    """Names of the secrets a provider declares; names only, never values."""
+    return [name for key, value in provider.items() if key == "secrets" and isinstance(value, list)
+            for name in value if isinstance(name, str)]
 
 
 def provider_environment_rows(api, collection, names: set[str], repository_secrets: dict | None) -> list[dict]:
@@ -236,7 +242,7 @@ def adapter_setup(target: Path, selected: dict, providers: dict, environment: di
     for provider_id in sorted(external_providers):
         provider = providers[provider_id]
         # Names of declared GitHub secrets; values are never read or printed.
-        credential_names = [name for key, value in provider.items() if key == "secrets" and isinstance(value, list) for name in value if isinstance(name, str)]
+        credential_names = secret_names(provider)
         if provider_id in ADAPTER_BACKED_PROVIDERS and (contracts is None or provider_id not in contracts):
             rows.append({"id": f"provider.{provider_id}.adapter", "status": "action_needed",
                          "message": "The installed runtime has no adapter contract for this provider; adapter-owned commands cannot run.",

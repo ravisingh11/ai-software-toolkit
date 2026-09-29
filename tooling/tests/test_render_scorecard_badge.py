@@ -552,9 +552,9 @@ class RendererTests(unittest.TestCase):
                 self.assertIn("182 of 200 changed lines covered (91.0%) · target 90%", text)
                 self.assertIn("not independently verified", text)
             self.assertNotIn("does not include tests passed", page)
-            self.assertIn("CodeQL publishes its findings to GitHub code scanning", page)
-            self.assertIn("Test totals, coverage, validator counts, and Semgrep CE and Gitleaks finding counts, where shown, "
-                          "are self-reported", page)
+            self.assertIn("for CodeQL, for vulnerabilities by severity", page)
+            self.assertIn("Test totals, coverage, validator counts, and scanner finding counts, where shown, are "
+                          "self-reported", page)
 
     def test_validator_measurements_are_summarized(self) -> None:
         card = scorecard(status="ORANGE", enforced=(0, 0), advisory=(2, 3))

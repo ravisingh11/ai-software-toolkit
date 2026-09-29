@@ -502,7 +502,8 @@ were not collected. The Semgrep CE and Gitleaks workflows record their
 finding counts without configuration: Semgrep by severity (for example
 **0 critical · 1 high · 4 medium · 12 low**), and Gitleaks as a count whose
 severity the scanner does not rate. Only counts are recorded; paths, rules, and
-secret values never leave the runner. Finding counts from CodeQL, SonarQube,
+secret values never leave the runner. The CodeQL workflow records counts by
+security severity from its SARIF output. Finding counts from SonarQube,
 Dependency Review, Semgrep App, and FOSSA are not collected; the Snyk workflow
 records Snyk Code and Snyk Open Source counts by severity through its trusted
 adapter. The other cards
