@@ -607,7 +607,7 @@ class RendererTests(unittest.TestCase):
     def test_scanners_without_collected_counts_say_where_counts_live(self) -> None:
         for control_id, expected in (("deep-sast", "GitHub code scanning"), ("static-quality", "SonarQube server"),
                                      ("dependency-change-review", "Dependency Review check"),
-                                     ("dependency-vulnerability", "do not yet export finding counts"),
+                                     ("dependency-vulnerability", "FOSSA adapter does not export finding counts"),
                                      ("license-compliance", "FOSSA project")):
             with self.subTest(control_id=control_id):
                 gap = MODULE._counts_gap("Anything", control_id)
@@ -652,6 +652,17 @@ class RendererTests(unittest.TestCase):
             self.assertNotIn("does not include findings by severity.", page)
             self.assertNotIn("does not include secret findings", page)
 
+    def test_snyk_controls_show_finding_counts(self) -> None:
+        counts = {"total": 8, "critical": 0, "high": 2, "medium": 5, "low": 1, "unrated": 0}
+        card = scorecard(status="ORANGE", enforced=(0, 0), advisory=(1, 2))
+        card["controls"] = [self.findings_row("deep-sast", "passed", counts),
+                            self.findings_row("dependency-vulnerability", "failed", counts)]
+        rows = {row["id"]: row for row in MODULE._control_details(card)}
+        for control_id in ("deep-sast", "dependency-vulnerability"):
+            with self.subTest(control_id=control_id):
+                self.assertEqual(rows[control_id]["measurements"]["findings"], counts)
+                self.assertIn("2 high", MODULE._measurement_summary(rows[control_id]["measurements"]))
+
     def test_inconsistent_or_misplaced_findings_are_unavailable(self) -> None:
         zero = dict.fromkeys(("total", "critical", "high", "medium", "low", "unrated"), 0)
         self.assertFalse(MODULE._measurements_consistent("findings", {**zero, "total": 2, "low": 1}, "passed"))
@@ -660,12 +671,12 @@ class RendererTests(unittest.TestCase):
         card = scorecard(status="GREEN", enforced=(0, 0), advisory=(3, 3))
         card["controls"] = [
             self.findings_row("custom-static-analysis", "passed", {**zero, "total": 2, "low": 1}),
-            self.findings_row("deep-sast", "passed", zero),
+            self.findings_row("static-quality", "passed", zero),
             self.findings_row("secret-detection", "passed", {**zero, "high": "1"}),
         ]
         rows = {row["id"]: row for row in MODULE._control_details(card)}
-        self.assertEqual(rows["deep-sast"]["status"], "passed")
-        for control_id in ("custom-static-analysis", "deep-sast", "secret-detection"):
+        self.assertEqual(rows["static-quality"]["status"], "passed")
+        for control_id in ("custom-static-analysis", "static-quality", "secret-detection"):
             with self.subTest(control_id=control_id):
                 self.assertEqual(rows[control_id]["measurements"], {"availability": "unavailable"})
 

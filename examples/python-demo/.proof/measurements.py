@@ -219,7 +219,8 @@ def main(argv: list[str] | None = None) -> int:
                                          "documentation-validation", "repository-ground-truth",
                                          "migration-validation", "ai-engineering-review", "ai-qa-review",
                                          "ai-security-review", "ai-repository-standards-review",
-                                         "custom-static-analysis", "secret-detection"))
+                                         "custom-static-analysis", "secret-detection", "deep-sast",
+                                         "dependency-vulnerability"))
     package_parser.add_argument("--input", type=Path, required=True)
     package_parser.add_argument("--outcome", required=True)
     package_parser.add_argument("--head-sha", required=True)

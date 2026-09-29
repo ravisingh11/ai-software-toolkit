@@ -71,7 +71,9 @@ its reviewer's result file with `.proof/measurements.py review-findings`
 artifacts for that run and attempt; it skips this when the repository has no
 installed Proof runtime. The Semgrep CE and Gitleaks workflows count their own JSON reports with
 `.proof/measurements.py semgrep` or `gitleaks` and upload only the finding
-counts (`findings`: total, critical, high, medium, low, unrated). The scorecard dashboard shows these as self-reported, because the
+counts (`findings`: total, critical, high, medium, low, unrated). The Snyk
+workflow's trusted adapter writes the same counts for Snyk Code and Snyk Open
+Source, packaged with the base revision's runtime. The scorecard dashboard shows these as self-reported, because the
 numbers come from the pull request's own code; they never change a check's
 result. Packaging and upload failures only warn, and commands that do not
 write the file are unaffected.

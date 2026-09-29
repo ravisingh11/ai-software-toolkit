@@ -894,7 +894,7 @@ class MeasurementsEvidenceTests(unittest.TestCase):
             ("secret-detection", changed(unrated=-1, total=16)),
             ("custom-static-analysis", changed(high="1")),
             ("secret-detection", self.MIGRATIONS),
-            ("deep-sast", self.FINDINGS),
+            ("static-quality", self.FINDINGS),
             ("unit-tests", self.FINDINGS),
         ):
             with self.subTest(control_id=control_id, measurements=measurements):

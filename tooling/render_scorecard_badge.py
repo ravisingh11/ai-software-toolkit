@@ -401,7 +401,8 @@ _MEASURED_FIELDS = {"unit-tests": ("tests", ("total", "passed", "failed", "skipp
                     **{control_id: ("review_findings", ("total", "p0", "p1", "p2", "p3", "unresolved_blocking"))
                        for control_id in ("ai-engineering-review", "ai-qa-review", "ai-security-review",
                                           "ai-repository-standards-review")},
-                    **{control_id: ("findings", _FINDING_FIELDS) for control_id in ("custom-static-analysis", "secret-detection")}}
+                    **{control_id: ("findings", _FINDING_FIELDS) for control_id in ("custom-static-analysis", "secret-detection",
+                                                                          "deep-sast", "dependency-vulnerability")}}
 
 
 def _measurements_consistent(kind: str, numbers: dict[str, int], status: str) -> bool:
@@ -651,17 +652,17 @@ def _attention_html(controls: list[dict[str, Any]], breakdown: dict[str, Any]) -
 _EXIT_STATUS_ONLY = {"build", "format-and-lint"}
 # Scanners whose finding counts live in the provider's own service or check, not in this report.
 _COUNTS_ELSEWHERE = {
-    "deep-sast": ("Finding counts are not collected for this check. CodeQL publishes its findings to GitHub code scanning "
-                  "(the repository's Security tab), and Snyk Code and Semgrep App keep theirs in their own reports; "
-                  "open those for vulnerabilities by severity."),
+    "deep-sast": ("Finding counts are not collected for this check's provider. CodeQL publishes its findings to GitHub code "
+                  "scanning (the repository's Security tab) and Semgrep App keeps them in its own report; Snyk Code counts "
+                  "appear when the Snyk workflow packages them. Open the provider's report for vulnerabilities by severity."),
     "static-quality": ("Only the quality-gate result is reported. SonarQube keeps quality-gate conditions, bugs, code smells, "
                        "and duplication on the SonarQube server; open the project there for them."),
     "dependency-change-review": ("Only the overall result is reported. GitHub Dependency Review writes changed dependencies, "
                                  "new vulnerabilities, and license violations to its own job summary; open the pull "
                                  "request's Dependency Review check for them."),
-    "dependency-vulnerability": ("Only the overall result is reported. The Snyk Open Source and FOSSA adapters do not yet "
-                                 "export finding counts; open the pull request's provider check or the provider project "
-                                 "for findings by severity."),
+    "dependency-vulnerability": ("Only the overall result is reported. Snyk Open Source counts appear when the Snyk workflow "
+                                 "packages them; the FOSSA adapter does not export finding counts. Open the pull request's "
+                                 "provider check or the provider project for findings by severity."),
     "license-compliance": ("Only the overall result is reported. The FOSSA adapter does not yet export license counts; "
                            "open the pull request's FOSSA check or the FOSSA project for them."),
 }

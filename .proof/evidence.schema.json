@@ -124,7 +124,7 @@
     },
     "plainResult": {"allOf": [{"$ref": "#/$defs/result"}, {"not": {"required": ["change_scope"]}}, {"not": {"required": ["pr_metadata"]}}]},
     "measurements": {
-      "description": "Optional self-reported display metrics from the pull request's own workflow run; they never change a result status. Evaluator also restricts each kind to its control (tests: unit-tests, coverage: changed-code-coverage, contracts: repository-validation, documentation: documentation-validation, documents: repository-ground-truth, migrations: migration-validation, review_findings: the four ai-*-review controls, findings: custom-static-analysis and secret-detection) and checks arithmetic and status consistency; review_findings and findings are checked for arithmetic only.",
+      "description": "Optional self-reported display metrics from the pull request's own workflow run; they never change a result status. Evaluator also restricts each kind to its control (tests: unit-tests, coverage: changed-code-coverage, contracts: repository-validation, documentation: documentation-validation, documents: repository-ground-truth, migrations: migration-validation, review_findings: the four ai-*-review controls, findings: custom-static-analysis, secret-detection, deep-sast, and dependency-vulnerability) and checks arithmetic and status consistency; review_findings and findings are checked for arithmetic only.",
       "type": "object",
       "additionalProperties": false,
       "required": ["version", "source"],

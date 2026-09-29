@@ -70,7 +70,7 @@ NO_TARGET_PATTERN = re.compile(r"(could not detect supported target files|no sup
 
 
 class Outcome:
-    __slots__ = ("status", "code", "message", "evidence")
+    __slots__ = ("status", "code", "message", "evidence", "findings")
 
     def __init__(self, status: str, message: str, *, code: str | None = None, evidence: list[str] | None = None):
         if status not in {"passed", "failed", "blocked", "not_run"}:
@@ -81,6 +81,8 @@ class Outcome:
         self.code = code
         self.message = message
         self.evidence = evidence or []
+        # Optional severity counts for the scorecard; never part of the result or its status.
+        self.findings: dict[str, int] | None = None
 
     def result(self, producer: str) -> dict[str, Any]:
         result: dict[str, Any] = {"producer": producer, "status": self.status}
@@ -161,8 +163,48 @@ def findings_count(document: Any, findings_key: str) -> int | None:
     return len(findings) if isinstance(findings, list) else None
 
 
+# Snyk Code SARIF levels and Snyk Open Source severities onto the scorecard buckets.
+SARIF_LEVELS = {"error": "high", "warning": "medium", "note": "low"}
+SNYK_SEVERITIES = {"critical": "critical", "high": "high", "medium": "medium", "low": "low"}
+
+
+def severity_counts(document: Any, findings_key: str) -> dict[str, int] | None:
+    """Findings by severity bucket from Snyk JSON, or None when the document cannot be counted.
+
+    Snyk Open Source prints one document per project with ``--all-projects``; they are summed.
+    Counts only: nothing else from the document leaves this function.
+    """
+    documents = document if isinstance(document, list) else [document]
+    if not documents or any(not isinstance(item, dict) for item in documents):
+        return None
+    counts = dict.fromkeys(("critical", "high", "medium", "low", "unrated"), 0)
+    for item in documents:
+        if findings_key == "sarif":
+            runs = item.get("runs")
+            if not isinstance(runs, list) or any(not isinstance(run, dict) or not isinstance(run.get("results"), list) for run in runs):
+                return None
+            findings = [(result.get("level") if isinstance(result, dict) else None, SARIF_LEVELS)
+                        for run in runs for result in run["results"]]
+        else:
+            vulnerabilities = item.get(findings_key)
+            if not isinstance(vulnerabilities, list):
+                return None
+            findings = [(vulnerability.get("severity") if isinstance(vulnerability, dict) else None, SNYK_SEVERITIES)
+                        for vulnerability in vulnerabilities]
+        for severity, mapping in findings:
+            counts[mapping.get(severity, "unrated") if isinstance(severity, str) else "unrated"] += 1
+    return {"total": sum(counts.values()), **counts}
+
+
 def snyk_outcome(exit_code: int | None, output: str, *, command: str, findings_key: str) -> Outcome:
     """Snyk CLI: 0 no issues, 1 issues, 2 error, 3 no supported projects."""
+    outcome = _snyk_outcome(exit_code, output, command=command, findings_key=findings_key)
+    if outcome.status in {"passed", "failed"}:
+        outcome.findings = severity_counts(json_document(output), findings_key)
+    return outcome
+
+
+def _snyk_outcome(exit_code: int | None, output: str, *, command: str, findings_key: str) -> Outcome:
     if exit_code == 0:
         # Exit 0 with findings in the document means the CLI was told to tolerate them
         # (a severity threshold); say so rather than claim "no issues".
@@ -345,6 +387,18 @@ def write_fragment(document: dict[str, Any], evidence_dir: Path, provider_id: st
     return path
 
 
+def write_measurements(outcome: Outcome, path: Path) -> bool:
+    """Write optional finding counts for the scorecard; returns whether a file was written."""
+    if outcome.findings is None or outcome.status not in {"passed", "failed"}:
+        return False
+    if path.is_symlink():
+        raise ValueError(f"refusing to write through a symlink: {path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    document = {"version": 1, "source": "pull-request-workflow", "findings": outcome.findings}
+    path.write_text(json.dumps(document, sort_keys=True) + "\n", encoding="utf-8")
+    return True
+
+
 def summary_line(provider_id: str, outcome: Outcome) -> str:
     display = PROVIDERS[provider_id]["display_name"]
     if outcome.status in {"passed", "failed"}:
@@ -360,6 +414,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--args", default=None, help="extra provider arguments; defaults to the provider's *_ARGS variable")
     parser.add_argument("--timeout", type=int, default=1800, help="seconds per provider command")
     parser.add_argument("--evidence-dir", type=Path, default=None, help="default: <target>/.artifacts/proof/evidence")
+    parser.add_argument("--measurements", type=Path, default=None,
+                        help="also write finding counts by severity here, when the provider reports them")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     target = args.target.resolve()
@@ -381,6 +437,12 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError) as error:
         print(f"ERROR {error}", file=sys.stderr)
         return 2
+    if args.measurements is not None:
+        try:
+            write_measurements(outcome, args.measurements.absolute())
+        except (OSError, ValueError) as error:
+            # Optional display metadata: never changes the evidence or the exit status.
+            print(f"WARNING finding counts were not recorded: {error}", file=sys.stderr)
     if args.json:
         print(json.dumps({"provider": args.provider, "revision": revision, "status": outcome.status, "reason_code": outcome.code,
                           "message": outcome.message, "fragment": str(path)}, indent=2))

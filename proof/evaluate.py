@@ -438,6 +438,8 @@ MEASURED_CONTROLS = {
     "ai-repository-standards-review": "review_findings",
     "custom-static-analysis": "findings",
     "secret-detection": "findings",
+    "deep-sast": "findings",
+    "dependency-vulnerability": "findings",
 }
 MEASUREMENT_FIELDS = {
     "tests": {"total", "passed", "failed", "skipped"},
