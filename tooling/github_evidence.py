@@ -39,7 +39,7 @@ CHECK_RUNS_PER_PAGE = 100
 MAX_CHECK_RUN_PAGES = 10
 PULL_REQUEST_REVIEWS_PER_PAGE = 100
 MAX_PULL_REQUEST_REVIEW_PAGES = 10
-ARTIFACT_STATUSES = {"passed", "failed", "not_run"}
+ARTIFACT_STATUSES = {"passed", "failed", "blocked", "not_run"}
 
 
 class NoRedirectHandler(HTTPRedirectHandler):
@@ -103,25 +103,32 @@ def check_run_evidence(control_id: str, provider_name: str, check: dict[str, Any
         result["reason"] = f"GitHub check concluded {conclusion}; the provider did not return a passing result."
         if check.get("name"):
             result["evidence"] = [f"{check['name']}: {conclusion}; {url}"]
-    if check.get("status") == "completed" and conclusion in CONCLUSIONS:
-        evaluator = evaluator_module()
-        try:
-            started = evaluator.check_timestamp(check.get("started_at"))
-            completed = evaluator.check_timestamp(check.get("completed_at"))
-            execution = {
-                "version": 1,
-                "started_at": check["started_at"],
-                "completed_at": check["completed_at"],
-                "duration_seconds": int((completed - started).total_seconds()),
-                "conclusion": conclusion,
-            }
-            evaluator.validate_check_execution(execution, status)
-        except (ValueError, TypeError, OverflowError):
-            # Optional display metadata never changes the check's evidence status.
-            pass
-        else:
-            result["check_execution"] = execution
+    execution = check_execution(check, status)
+    if execution is not None:
+        result["check_execution"] = execution
     return bounded_result(result)
+
+
+def check_execution(check: dict[str, Any], status: str) -> dict[str, Any] | None:
+    """Optional check timing for display; never changes the check's evidence status."""
+    conclusion = check.get("conclusion")
+    if check.get("status") != "completed" or conclusion not in CONCLUSIONS:
+        return None
+    evaluator = evaluator_module()
+    try:
+        started = evaluator.check_timestamp(check.get("started_at"))
+        completed = evaluator.check_timestamp(check.get("completed_at"))
+        execution = {
+            "version": 1,
+            "started_at": check["started_at"],
+            "completed_at": check["completed_at"],
+            "duration_seconds": int((completed - started).total_seconds()),
+            "conclusion": conclusion,
+        }
+        evaluator.validate_check_execution(execution, status)
+    except (ValueError, TypeError, OverflowError):
+        return None
+    return execution
 
 
 def _request(url: str, token: str) -> Any:
@@ -525,10 +532,21 @@ def run_artifact_evidence(
                 pass  # Same rule as change_scope: omit malformed detail, keep the proven status.
             else:
                 result["pr_metadata"] = detail
+        execution = check_execution(check, status)
+        if execution is not None:
+            result["check_execution"] = execution
+        control_ids = contract.get("control_ids") or []
+        if "measurements" in document and len(control_ids) == 1 and document.get("control") == control_ids[0]:
+            try:
+                evaluator_module().validate_measurements(control_ids[0], document["measurements"], status)
+            except (ValueError, TypeError, KeyError):
+                pass  # Optional display metadata: omit malformed counts, keep the proven status.
+            else:
+                result["measurements"] = document["measurements"]
         return bounded_result(result)
     return bounded_result({
         "producer": provider_name,
-        "status": "not_run",
+        "status": status,
         "reason": summary,
         "evidence": [f"{check_name}: run-bound artifact; {url}"],
     })
@@ -640,6 +658,8 @@ def proven_check_evidence(
         and not platform_proof_required
     ):
         return check_run_evidence(check_name, provider_name, check)
+    if platform_proof_required and check.get("status") != "completed":
+        return not_run(check_name, "The artifact-backed check has not completed.")
     app = check.get("app")
     app_slug = contract.get("app_slug")
     workflow_path = contract.get("workflow_path")

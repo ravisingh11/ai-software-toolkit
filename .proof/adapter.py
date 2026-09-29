@@ -11,6 +11,15 @@ Installed as ``.proof/adapter.py``. Writes a nested v2 evidence fragment
 that ``scan.py`` merges from ``.artifacts/proof/evidence/`` and that the
 provider workflow templates upload and summarize. Exit status is 0 only when
 the provider returned ``passed``.
+
+``--data-only`` is for the credentialed provider workflows, which hold the
+provider credential while the target is an unexecuted pull-request checkout.
+In that mode nothing in the target may run or redirect the credential: FOSSA
+runs with ``--static-only-analysis`` and a fixed endpoint, and refuses a
+candidate config that names a server or API key; Snyk Open Source tests only
+lockfiles whose parsers read the file without running a package manager or
+build tool, and reports ``requires-dependency-resolution`` when the checkout
+also contains manifests that need one. Snyk Code never executes the target.
 """
 
 from __future__ import annotations
@@ -29,12 +38,14 @@ from typing import Any
 REASON_CODES = {
     "configuration-missing": "A required tool, file, or setting is absent; nothing was scanned.",
     "credential-missing": "The provider credential is not available to this run; nothing was scanned.",
+    "credential-withheld": "The workflow did not use the credential for this pull request (a fork); nothing was scanned.",
     "authentication-failed": "The provider rejected the credential; nothing was evaluated.",
     "execution-error": "The provider command failed before producing a result.",
     "analysis-incomplete": "The scan was uploaded or started but the provider did not finish evaluating it.",
     "revision-mismatch": "The evidence is not bound to the revision under evaluation.",
     "unsupported-project": "The provider found nothing it can analyze in this repository.",
     "timed-out": "The provider command exceeded the adapter timeout.",
+    "requires-dependency-resolution": "Resolving these dependencies would run pull-request code next to the credential; nothing was scanned.",
 }
 
 PROVIDERS: dict[str, dict[str, Any]] = {
@@ -231,6 +242,136 @@ def run_snyk(provider_id: str, target: Path, *, arguments: list[str], timeout: i
     return snyk_outcome(exit_code, output, command=label, findings_key=findings_key)
 
 
+# Lockfiles whose Snyk parsers read the file without running a package manager or build tool.
+STATIC_LOCKFILES = frozenset({"package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "Gemfile.lock"})
+JAVASCRIPT_LOCKFILES = STATIC_LOCKFILES - {"Gemfile.lock"}
+# Manifests Snyk resolves by running a build tool, package manager, or interpreter, or that
+# ship an executable wrapper Snyk prefers. Scanning around them would under-report, and
+# scanning them would run pull-request code, so data-only mode reports neither as a pass.
+RESOLVING_MANIFESTS = frozenset({
+    "pom.xml", "mvnw", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "gradlew",
+    "build.sbt", "requirements.txt", "setup.py", "Pipfile", "Pipfile.lock", "pyproject.toml", "poetry.lock",
+    "go.mod", "Gopkg.lock", "vendor.json", "packages.config", "project.json", "project.assets.json",
+    "paket.dependencies", "Package.swift", "Podfile", "Podfile.lock", "mix.exs", "conanfile.txt", "conanfile.py",
+    "composer.json", "composer.lock", "Cargo.toml", "Cargo.lock",
+})
+RESOLVING_SUFFIXES = (".csproj", ".vbproj", ".fsproj")
+# Snyk options that choose what to scan; data-only mode chooses each lockfile itself.
+DISCOVERY_OPTIONS = {"--all-projects", "--yarn-workspaces", "--detection-depth"}
+TARGET_OPTIONS = {"--file", "--package-manager", "--command", "--project-name"}
+SKIPPED_DIRECTORIES = {".git", "node_modules"}
+
+
+def dependency_inventory(target: Path, excluded: set[str]) -> tuple[list[str], list[str], list[str]]:
+    """Static lockfiles, manifests that need resolution, and symlinked manifests, as target-relative paths."""
+    lockfiles: list[str] = []
+    resolving: list[str] = []
+    symlinks: list[str] = []
+    package_directories: list[Path] = []
+    lock_directories: set[Path] = set()
+    for directory, subdirectories, files in os.walk(target):
+        subdirectories[:] = sorted(name for name in subdirectories if name not in SKIPPED_DIRECTORIES | excluded)
+        here = Path(directory)
+        relative = here.relative_to(target)
+        for name in sorted(files):
+            if name in excluded:
+                continue
+            path = relative / name
+            manifest = (name in STATIC_LOCKFILES or name in RESOLVING_MANIFESTS or name.endswith(RESOLVING_SUFFIXES)
+                        or name in {"package.json", "Gemfile"})
+            if manifest and (here / name).is_symlink():
+                symlinks.append(path.as_posix())
+            elif name in STATIC_LOCKFILES:
+                lockfiles.append(path.as_posix())
+                if name in JAVASCRIPT_LOCKFILES:
+                    lock_directories.add(relative)
+            elif name in RESOLVING_MANIFESTS or name.endswith(RESOLVING_SUFFIXES):
+                resolving.append(path.as_posix())
+            elif name == "package.json":
+                package_directories.append(relative)
+            elif name == "Gemfile" and not (here / "Gemfile.lock").is_file():
+                resolving.append(path.as_posix())
+    # A workspace package.json is covered by a lockfile in its own directory or an ancestor.
+    for directory in package_directories:
+        if not any(candidate in lock_directories for candidate in (directory, *directory.parents)):
+            resolving.append((directory / "package.json").as_posix())
+    return lockfiles, sorted(resolving), symlinks
+
+
+def combine_outcomes(outcomes: list[tuple[str, Outcome]]) -> Outcome:
+    """One Snyk Open Source outcome for several lockfiles: any non-completed scan wins, then any finding."""
+    for status in ("blocked", "not_run"):
+        for path, outcome in outcomes:
+            if outcome.status == status:
+                return Outcome(status, f"{path}: {outcome.message}", code=outcome.code)
+    counts = [outcome.findings for _, outcome in outcomes]
+    evidence = [f"{path}: {item}" for path, outcome in outcomes for item in (outcome.evidence or [outcome.message])]
+    failed = [(path, outcome) for path, outcome in outcomes if outcome.status == "failed"]
+    if failed:
+        combined = Outcome("failed", f"snyk test: findings in {len(failed)} of {len(outcomes)} lockfiles", evidence=evidence)
+    else:
+        combined = Outcome("passed", f"snyk test: {len(outcomes)} lockfiles, no issues at the configured threshold", evidence=evidence)
+    if all(isinstance(count, dict) for count in counts):
+        combined.findings = {key: sum(count[key] for count in counts) for key in counts[0]}
+    return combined
+
+
+def run_snyk_lockfiles(target: Path, *, arguments: list[str], timeout: int, environment: dict[str, str]) -> Outcome:
+    """Snyk Open Source in data-only mode: one ``snyk test --file`` per static lockfile."""
+    excluded: set[str] = set()
+    passthrough: list[str] = []
+    for argument in arguments:
+        option, _, value = argument.partition("=")
+        if option == "--exclude":
+            excluded.update(name.strip() for name in value.split(",") if name.strip())
+        elif option in DISCOVERY_OPTIONS:
+            continue
+        elif option in TARGET_OPTIONS or not argument.startswith("-"):
+            return Outcome("not_run", f"SNYK_OPEN_SOURCE_ARGS selects targets ({argument}); the credentialed workflow selects each "
+                           "lockfile itself.", code="configuration-missing")
+        else:
+            passthrough.append(argument)
+    lockfiles, resolving, symlinks = dependency_inventory(target, excluded)
+    if symlinks:
+        return Outcome("not_run", f"dependency manifests are symlinks, so the scan could read outside {target.name}: "
+                       f"{', '.join(symlinks[:3])}.", code="revision-mismatch")
+    if resolving:
+        more = f" and {len(resolving) - 3} more" if len(resolving) > 3 else ""
+        return Outcome("not_run", f"{', '.join(resolving[:3])}{more} can only be resolved by running a build tool or package "
+                       "manager; the credentialed workflow never runs pull-request code.", code="requires-dependency-resolution")
+    if not lockfiles:
+        return Outcome("not_run", "no supported lockfile was found.", code="unsupported-project")
+    outcomes = []
+    for lockfile in lockfiles:
+        exit_code, output = run_command(["snyk", "test", "--json", f"--file={lockfile}", *passthrough],
+                                        cwd=target, timeout=timeout, environment=environment)
+        outcomes.append((lockfile, snyk_outcome(exit_code, output, command="snyk test", findings_key="vulnerabilities")))
+    return combine_outcomes(outcomes)
+
+
+FOSSA_DEFAULT_ENDPOINT = "https://app.fossa.com"
+FOSSA_CONFIG_FILES = (".fossa.yml", ".fossa.yaml")
+# Config keys that would send the credential elsewhere or substitute the account that evaluates it.
+FOSSA_REDIRECTING_KEYS = re.compile(r"\b(server|apiKey|api_key|endpoint)\b")
+FOSSA_OWNED_OPTIONS = {"--endpoint", "-e", "--fossa-api-key", "--config", "-c"}
+
+
+def fossa_data_only_refusal(target: Path, arguments: list[str]) -> Outcome | None:
+    owned = [argument for argument in arguments if argument.split("=", 1)[0] in FOSSA_OWNED_OPTIONS]
+    if owned:
+        return Outcome("not_run", f"FOSSA_ARGS sets options the credentialed workflow owns: {' '.join(owned)}.",
+                       code="configuration-missing")
+    for name in FOSSA_CONFIG_FILES:
+        path = target / name
+        if path.is_symlink():
+            return Outcome("not_run", f"{name} is a symlink; the credentialed workflow reads no configuration from outside "
+                           "the checkout.", code="revision-mismatch")
+        if path.is_file() and FOSSA_REDIRECTING_KEYS.search(path.read_text(encoding="utf-8", errors="replace")):
+            return Outcome("not_run", f"{name} names a server, endpoint, or API key; the credentialed workflow does not let "
+                           "the pull request choose where the key is sent.", code="configuration-missing")
+    return None
+
+
 def fossa_outcome(analyze: tuple[int | None, str], test: tuple[int | None, str] | None) -> Outcome:
     """FOSSA: ``analyze`` uploads; only a completed ``test`` yields a policy result."""
     analyze_code, analyze_output = analyze
@@ -260,12 +401,22 @@ def fossa_outcome(analyze: tuple[int | None, str], test: tuple[int | None, str] 
     return classify_failure(text, exit_code=test_code, tool="fossa test")
 
 
-def run_fossa(target: Path, *, revision: str, arguments: list[str], timeout: int, environment: dict[str, str]) -> Outcome:
-    analyze = run_command(["fossa", "analyze", "--revision", revision, *arguments], cwd=target, timeout=timeout, environment=environment)
+def run_fossa(target: Path, *, revision: str, arguments: list[str], timeout: int, environment: dict[str, str],
+              data_only: bool = False) -> Outcome:
+    analyze_options: list[str] = []
+    common: list[str] = []
+    if data_only:
+        refusal = fossa_data_only_refusal(target, arguments)
+        if refusal:
+            return refusal
+        common = ["--endpoint", environment.get("FOSSA_ENDPOINT", "").strip() or FOSSA_DEFAULT_ENDPOINT]
+        analyze_options = ["--static-only-analysis"]
+    analyze = run_command(["fossa", "analyze", "--revision", revision, *common, *analyze_options, *arguments],
+                          cwd=target, timeout=timeout, environment=environment)
     if analyze[0] != 0:
         return fossa_outcome(analyze, None)
     test = run_command(
-        ["fossa", "test", "--revision", revision, "--format", "json", "--timeout", str(timeout)],
+        ["fossa", "test", "--revision", revision, *common, "--format", "json", "--timeout", str(timeout)],
         cwd=target, timeout=timeout + 30, environment=environment,
     )
     return fossa_outcome(analyze, test)
@@ -330,7 +481,7 @@ def head_revision(target: Path) -> str | None:
 
 
 def run_provider(provider_id: str, target: Path, *, revision: str | None, arguments: list[str], timeout: int,
-                 environment: dict[str, str] | None = None) -> tuple[str, Outcome]:
+                 environment: dict[str, str] | None = None, data_only: bool = False) -> tuple[str, Outcome]:
     if provider_id not in PROVIDERS:
         raise ValueError(f"unknown provider {provider_id}")
     provider = PROVIDERS[provider_id]
@@ -355,7 +506,10 @@ def run_provider(provider_id: str, target: Path, *, revision: str | None, argume
     if not shutil.which(provider["binary"], path=environment.get("PATH")):
         return revision, Outcome("not_run", f"the {provider['binary']} CLI is not on PATH.", code="configuration-missing")
     if provider_id == "fossa":
-        outcome = run_fossa(target, revision=revision, arguments=arguments, timeout=timeout, environment=environment)
+        outcome = run_fossa(target, revision=revision, arguments=arguments, timeout=timeout, environment=environment,
+                            data_only=data_only)
+    elif provider_id == "snyk-open-source" and data_only:
+        outcome = run_snyk_lockfiles(target, arguments=arguments, timeout=timeout, environment=environment)
     else:
         outcome = run_snyk(provider_id, target, arguments=arguments, timeout=timeout, environment=environment)
     # The tree must still be the same revision afterwards; otherwise the provider examined
@@ -416,6 +570,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--evidence-dir", type=Path, default=None, help="default: <target>/.artifacts/proof/evidence")
     parser.add_argument("--measurements", type=Path, default=None,
                         help="also write finding counts by severity here, when the provider reports them")
+    parser.add_argument("--data-only", action="store_true",
+                        help="the target is an unexecuted pull-request checkout: never run or trust anything in it")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     target = args.target.resolve()
@@ -429,7 +585,8 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as error:
         print(f"ERROR invalid {provider['arguments_variable']}: {error}", file=sys.stderr)
         return 2
-    revision, outcome = run_provider(args.provider, target, revision=args.revision or None, arguments=arguments, timeout=args.timeout)
+    revision, outcome = run_provider(args.provider, target, revision=args.revision or None, arguments=arguments, timeout=args.timeout,
+                                     data_only=args.data_only)
     document = fragment(args.provider, revision, outcome)
     evidence_dir = args.evidence_dir.resolve() if args.evidence_dir else target / ".artifacts" / "proof" / "evidence"
     try:

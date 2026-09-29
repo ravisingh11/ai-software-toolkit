@@ -46,37 +46,79 @@ as `--file=/elsewhere/package.json`, `--policy-path=../shared`, or a committed
 symlink that leaves the tree, because the provider would then examine or
 filter something other than the revision.
 
-The workflow templates check out `.proof/adapter.py` from the pull request's
-base revision into `trusted/` and run it against the head revision in
-`candidate/`, so a pull request cannot change the code that receives the
-credential. The base revision must already contain the adapter; the first
-pull request that installs it fails the job with that message until the
-installation is merged. The provider contracts also list the adapter as a
-trusted path, so the scorecard refuses `Snyk Code`, `Snyk Open Source`, and
-`FOSSA` evidence (`not_run`) from any pull request whose adapter or workflow
-file differs from the base, including one that refreshes the runtime through
-`ai-toolkit update`. The trusted checkout is the last step before the adapter
-runs, after the repository setup command and the CLI installation, so code
-that executes during setup cannot replace the adapter it finds on disk.
-The adapter step itself runs through a reset environment (`env -i`) with the
-interpreter and `PATH` recorded before the setup command ran, in Python's
-isolated mode, so nothing the setup command or the candidate adds to
-`GITHUB_PATH` or `GITHUB_ENV` reaches the process that holds the credential.
-Tools the setup command puts on the path are therefore not visible to the
-adapter; install them where the recorded `PATH` already looks, or name them
-in `*_ARGS` by a path inside the checkout.
+## Credential isolation
 
-What remains is shared-runner trust. On a same-repository pull request the
-workflow file itself comes from the head, which is the trust GitHub gives
-every `pull_request` workflow that uses a secret, so protect
-`.github/workflows/` with review requirements; fork pull requests receive no
-secret at all. The setup command is a repository variable, but it executes
-the candidate's package manifests and lifecycle hooks, and the provider CLI
-runs the repository's own build integration, all on the same runner and
-before or during the secret-bearing step. A pull request that compromises
-the runner that way is outside what the workflow can detect; if that matters,
-run setup on a separate job or runner, or require review for changes to
-manifests and hooks.
+The Snyk, FOSSA, and AI PR Review workflows hold a provider credential. None
+of them shares a job or a runner with pull-request code:
+
+1. **The workflow comes from the default branch.** The templates run on
+   `pull_request_target`, and GitHub always takes a `pull_request_target`
+   workflow file and checkout commit from the default branch
+   ([GitHub changelog, 2025-11-07](https://github.blog/changelog/2025-11-07-actions-pull_request_target-and-environment-branch-protections-changes/)).
+   Each job checks out `.proof/` from that same commit (`trusted/`). A pull
+   request that edits the workflow or the runtime changes nothing until it is
+   merged.
+2. **The secret is readable only from the default branch.** Store
+   `SNYK_TOKEN`, `FOSSA_API_KEY`, and `ANTHROPIC_API_KEY` as secrets of an
+   environment named `proof-providers`, with deployment branches limited to
+   the default branch, and delete any repository or organization secret of the
+   same name. A repository secret is readable by any workflow pushed to any
+   branch, so a workflow split alone would not protect it. GitHub checks
+   environment rules for `pull_request` runs against `refs/pull/<n>/merge`,
+   and for `pull_request_target` runs against the default branch. The jobs
+   use `deployment: false`, so they create no deployment records.
+3. **The pull-request head is data.** Each job checks the head out into
+   `candidate/` without credentials and never executes it. There is no setup
+   command, dependency installation, build tool, or local action. The adapter
+   runs with `--data-only`: FOSSA runs static analysis against a fixed
+   endpoint, and Snyk Open Source tests only lockfiles whose parsers run
+   nothing (see [Snyk](snyk.md)).
+
+Each job posts the check named in the provider contract for the pull-request
+head, with the external id `proof:<provider>:<run id>:<head sha>`, and uploads
+the same result as the run-bound artifact `proof-<provider>-<run id>`
+(`.proof/provider_check.py`, source `tooling/provider_check.py`). The Proof
+collector trusts that check only when
+its run is a `pull_request_target` run of the declared workflow, and it reads
+the status from the artifact: the artifact must name the same run,
+repository, provider, base SHA, base ref, and head SHA. The job's own check
+has a different name (for example `Snyk Code scan`), so it can never stand in
+for the provider check. A missing runtime, a missing or unreadable adapter
+result, or a job that never finishes yields no pass.
+
+**Fork pull requests** are not scanned by default. The credential would be
+safe, because no pull-request code runs, but scanning sends an outside
+contributor's code to the provider and lets anyone spend the provider's
+quota; `pull_request_target` runs have no approval gate. Such a pull request
+gets the provider check with the conclusion `action_required` and `not_run`
+evidence (`credential-withheld`). Set the `PROOF_PROVIDERS_SCAN_FORKS`
+repository variable to `true` to scan forks. Dependabot pull requests receive
+no Actions or environment secrets and report `credential-missing`.
+
+`tooling/doctor.py --github <owner>/<repo>` reports whether `proof-providers`
+exists, whether only the default branch can use it, and whether any provider
+secret still has a repository or organization copy. It reads names only,
+never secret values.
+
+### Migrating from the `pull_request` templates
+
+1. Create the `proof-providers` environment with deployment branches limited
+   to the default branch. Add the provider secrets to it, and then delete the
+   repository and organization copies.
+2. Refresh the runtime (`tooling/install.py --refresh-existing`) and copy the
+   new `snyk.yml`, `fossa.yml`, and `ai-pr-review.yml` templates over the old
+   ones. The paths, workflow names, and provider check names are unchanged, so
+   rulesets and the scorecard need no change.
+3. Expect the pull request that makes this change to show the provider checks
+   as not run. Its workflows no longer run on `pull_request`, and until merge
+   the default branch still has the old files. The next pull request after
+   merge runs the new workflows.
+4. `PROOF_SETUP_COMMAND` no longer affects Snyk. Projects whose dependencies
+   need a build tool or package manager to resolve get Snyk Open Source
+   `requires-dependency-resolution`.
+5. `ai-pr-review.yml` no longer offers `workflow_call`. Set
+   `AI_REVIEW_COMMAND`, `AI_REVIEW_SETUP_COMMAND`, and
+   `AI_REVIEW_WORKING_DIRECTORY` as repository variables.
 
 ## Reason codes
 

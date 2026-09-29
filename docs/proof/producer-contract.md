@@ -167,12 +167,15 @@ them), Semgrep App, or the FOSSA adapter; their dashboard cards say where to
 look instead.
 
 Snyk Code and Snyk Open Source counts come from the provider adapter, which the
-Snyk workflow runs from the base revision. `.proof/adapter.py --measurements
+Snyk workflow runs from the default branch. `.proof/adapter.py --measurements
 PATH` writes `findings` from the JSON Snyk already prints, summing every
-project with `--all-projects`; Snyk Open Source counts one entry per
-vulnerable dependency path, as Snyk reports them. The workflow packages the file
-with the base revision's `.proof/measurements.py` in a reset environment and
-uploads `proof-measurements-snyk-code-` or `proof-measurements-snyk-open-source-`.
+lockfile it tested; Snyk Open Source counts one entry per
+vulnerable dependency path, as Snyk reports them. The workflow's
+`.proof/provider_check.py` validates the counts and puts them, with the
+`control` they describe, in the run-bound `proof-snyk-code-` or
+`proof-snyk-open-source-` evidence artifact; the collector keeps them only when
+that control is the check's single control. AI PR Review counts travel the
+same way.
 Counts are written only for a completed scan (`passed` or `failed`); a passed
 scan may report findings below a configured severity threshold. They use the
 same measurement contract and label as the other counts.

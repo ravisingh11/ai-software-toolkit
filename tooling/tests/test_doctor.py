@@ -137,8 +137,9 @@ class DoctorTests(unittest.TestCase):
         policy["profiles"].append("github")
         path.write_text(json.dumps(policy))
 
-    def github_probe(self, security=None, variables=None, secrets=None):
+    def github_probe(self, security=None, variables=None, secrets=None, environment=None):
         original = self.module.probe
+        environment = environment or {}
 
         def run(command, target):
             if command[0] != "gh":
@@ -146,12 +147,15 @@ class DoctorTests(unittest.TestCase):
             self.assertIn("GET", command)
             self.assertIn("--hostname", command)
             endpoint = command[-1]
+            if "/environments/" in endpoint or "/organization-secrets" in endpoint:
+                suffix = endpoint.removeprefix("repos/owner/repo")
+                return (0, json.dumps(environment[suffix])) if suffix in environment else (1, "HTTP 404")
             if endpoint.endswith("/variables?per_page=100"):
                 return 0, json.dumps(variables or [{"variables": []}])
             if endpoint.endswith("/actions/secrets?per_page=100"):
                 return 0, json.dumps(secrets or [{"secrets": []}])
             self.assertEqual(endpoint, "repos/owner/repo")
-            return 0, json.dumps({"security_and_analysis": security or {}})
+            return 0, json.dumps({"security_and_analysis": security or {}, "default_branch": "main"})
         return run
 
     def test_github_configured_secret_is_not_proof_of_scanning_or_token_validity(self):
@@ -437,11 +441,48 @@ class AdapterDiagnosticTests(DoctorTests):
         checks = self.checks(self.report())
         self.assertEqual(checks["provider.snyk-code.adapter"]["status"], "configured")
         self.assertIn("local.credential.SNYK_TOKEN", checks)
-        for secrets, expected in (([{"secrets": [{"name": "SNYK_TOKEN"}]}], "configured"),
+        # A repository copy is readable by any pushed workflow, so only the protected environment counts.
+        for secrets, expected in (([{"secrets": [{"name": "SNYK_TOKEN"}]}], "action_needed"),
                                   ([{"secrets": []}], "unverified")):
             with self.subTest(expected=expected), patch.object(self.module, "probe", side_effect=self.github_probe(secrets=secrets)):
                 rows = self.checks(self.report(github="owner/repo"))
             self.assertEqual(rows["github.secret.SNYK_TOKEN"]["status"], expected)
+        self.assertEqual(rows["github.environment.proof-providers"]["status"], "unverified")
+
+    def test_provider_secrets_must_live_in_the_default_branch_environment(self):
+        self.select_external()
+        environment = "/environments/proof-providers"
+        policies = f"{environment}/deployment-branch-policies?per_page=100"
+        stored = {f"{environment}/secrets?per_page=100": [{"secrets": [{"name": "SNYK_TOKEN"}, {"name": "FOSSA_API_KEY"}]}]}
+        main_only = {environment: {"name": "proof-providers",
+                                   "deployment_branch_policy": {"protected_branches": False, "custom_branch_policies": True}},
+                     policies: [{"branch_policies": [{"name": "main", "type": "branch"}]}]}
+        cases = (
+            ("main only", {**main_only, **stored}, None, "configured", "configured"),
+            ("any branch", {environment: {"name": "proof-providers", "deployment_branch_policy": None}, **stored},
+             None, "action_needed", "unverified"),
+            ("protected", {environment: {"name": "proof-providers",
+                                         "deployment_branch_policy": {"protected_branches": True}}, **stored},
+             None, "configured", "configured"),
+            ("wildcard", {**main_only, policies: [{"branch_policies": [{"name": "*", "type": "branch"}]}], **stored},
+             None, "action_needed", "unverified"),
+            ("tag", {**main_only, policies: [{"branch_policies": [{"name": "main", "type": "tag"}]}], **stored},
+             None, "action_needed", "unverified"),
+            ("missing", {}, None, "unverified", "unverified"),
+            ("repository copy", {**main_only, **stored}, [{"secrets": [{"name": "SNYK_TOKEN"}]}], "configured",
+             "action_needed"),
+            ("organization copy", {**main_only, **stored, "/actions/organization-secrets?per_page=100":
+                                   [{"secrets": [{"name": "SNYK_TOKEN"}]}]}, None, "configured", "action_needed"),
+            ("not stored", {**main_only, f"{environment}/secrets?per_page=100": [{"secrets": []}]}, None,
+             "configured", "action_needed"),
+        )
+        for label, responses, secrets, environment_status, secret_status in cases:
+            with self.subTest(label=label), patch.object(
+                    self.module, "probe", side_effect=self.github_probe(secrets=secrets, environment=responses)):
+                rows = self.checks(self.report(github="owner/repo"))
+            self.assertEqual(rows["github.environment.proof-providers"]["status"], environment_status)
+            self.assertEqual(rows["github.secret.SNYK_TOKEN"]["status"], secret_status)
+            self.assertNotIn("github.secret.SECURITY_SETTINGS_TOKEN", rows)
 
     def test_stale_adapter_missing_selected_contract_is_action_needed(self):
         self.select_external()

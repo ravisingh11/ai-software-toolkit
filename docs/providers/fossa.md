@@ -6,9 +6,9 @@
 | Capabilities | `dependency-vulnerability`, `license-compliance` |
 | Check name | `FOSSA` |
 | Workflow | `FOSSA` (`.github/workflows/fossa.yml`) |
-| Adapter commands | `fossa analyze --revision <sha>` then `fossa test --revision <sha> --format json --timeout <s>` |
-| Arguments variable | `FOSSA_ARGS` (extra `fossa analyze` arguments) |
-| Credential | `FOSSA_API_KEY` (GitHub secret) |
+| Adapter commands | `fossa analyze --revision <sha>` then `fossa test --revision <sha> --format json --timeout <s>`; in the workflow both also get `--endpoint`, and `analyze` gets `--static-only-analysis` |
+| Arguments variable | `FOSSA_ARGS` (extra `fossa analyze` arguments); `FOSSA_ENDPOINT` for a server other than `https://app.fossa.com` |
+| Credential | `FOSSA_API_KEY` (secret of the `proof-providers` environment) |
 | CLI pin | version and SHA-256 in the workflow `env:`; update both together |
 
 ## Why two commands
@@ -22,9 +22,16 @@ when `test` does not finish.
 
 ## Prerequisites
 
-- A FOSSA account and an API key stored as the `FOSSA_API_KEY` secret.
-- The Proof runtime installed with `.proof/adapter.py`.
-- Optional `.fossa.yml` in the repository for project and target settings.
+- A FOSSA account and an API key.
+- A `proof-providers` environment whose deployment branches are limited to
+  the default branch, with the key stored as its `FOSSA_API_KEY` secret, and
+  no repository or organization secret of the same name. See
+  [Credential isolation](README.md#credential-isolation).
+- The Proof runtime, including `.proof/adapter.py` and
+  `.proof/provider_check.py`, merged to the default branch.
+- Optional `.fossa.yml` in the repository for project and target settings. It
+  must not set `server`, `endpoint`, or `apiKey`; the workflow refuses a
+  configuration that would choose where the key is sent.
 
 ## Install
 
@@ -50,18 +57,38 @@ python3 .proof/configure.py --select-provider license-compliance=fossa --set lic
 | `--revision` differs from `HEAD`, no resolvable `HEAD`, or a dirty worktree | `not_run` | `revision-mismatch` |
 | arguments naming a path outside the checkout (`--file=/abs/manifest`, `../dir`, a symlink that leaves the tree) | `not_run` | `revision-mismatch` |
 
-`FOSSA_API_KEY` is injected only into the adapter step. The template runs
-only on `pull_request` so its check name matches the provider contract. The
-adapter is checked out from the base revision (`trusted/`) and scans the head
-checkout (`candidate/`); a pull request that changes `.proof/adapter.py` or
-the workflow file yields `not_run` evidence until it is merged.
+In the workflow, the adapter runs with `--data-only`, which adds:
 
-This protects the evidence, not the key, from a same-repository pull
-request: its author can already edit the `pull_request` workflow that
-receives the key, and job code on GitHub-hosted runners has passwordless sudo.
-Fork pull requests receive no secrets, so the jobs are skipped for them and
-the scorecard reports no result, never a pass. Grant write access only to people
-trusted with the credential.
+| Situation | Evidence | Reason code |
+| --- | --- | --- |
+| `.fossa.yml` or `.fossa.yaml` names `server`, `endpoint`, or `apiKey` | `not_run`, nothing sent | `configuration-missing` |
+| `FOSSA_ARGS` sets `--endpoint`, `--fossa-api-key`, or `--config` | `not_run` | `configuration-missing` |
+| `.fossa.yml` is a symlink | `not_run` | `revision-mismatch` |
+| fork pull request without `PROOF_PROVIDERS_SCAN_FORKS=true` | `not_run`, check concluded `action_required` | `credential-withheld` |
+
+The workflow posts the `FOSSA` check for the pull-request head and fails its
+own `FOSSA scan` job for every outcome except `passed`. Set the
+`FOSSA_ENABLED` repository variable to `false` to skip the job when FOSSA is
+not selected.
+
+## How the key is protected
+
+`FOSSA_API_KEY` never shares a job or a runner with pull-request code:
+
+- The workflow runs on `pull_request_target`, so GitHub takes it and the
+  `.proof` runtime from the default branch.
+- The key is a secret of the `proof-providers` environment, which only the
+  default branch can use.
+- The job checks the pull-request head out as data. `fossa analyze` runs with
+  `--static-only-analysis`, so it invokes no build tool or package manager.
+  Both commands run with an explicit `--endpoint`, so a candidate
+  configuration cannot redirect the key.
+
+Static analysis is less complete than a build-integrated analysis for
+ecosystems where FOSSA would otherwise run the build tool, such as Gradle,
+Maven, or sbt without lockfiles. Read FOSSA's
+[strategy documentation](https://docs.fossa.com/docs/cli/references/subcommands/analyze)
+for what each ecosystem reports statically.
 
 The scorecard dashboard does not collect FOSSA issue or license counts yet:
 the dependency vulnerability and license compliance cards show only the check
@@ -69,6 +96,7 @@ result and say so. Read counts from the job summary or the FOSSA project.
 
 ## Verify
 
-Open a pull request, confirm the `FOSSA` check binds to the head commit and
-that the scorecard shows the evidence, then add a row to the
+After the workflow and runtime are on the default branch, open a
+same-repository pull request, confirm the `FOSSA` check binds to the head
+commit and that the scorecard shows the evidence, then add a row to the
 [verification ledger](verification.md).
