@@ -49,6 +49,19 @@ commands, existing workflows and provider integrations (SonarQube, Snyk,
 FOSSA, CodeQL, Semgrep, Gitleaks), documentation, and installed agent clients.
 In a polyglot repository the commands for one capability are chained with
 `&&` so every detected suite must run and pass.
+Python discovery reads development dependencies from `[dependency-groups]`
+as well as project dependencies, extras, and requirements files. It proposes
+pytest when declared. Without a pytest declaration, it proposes unittest only
+when every discovered test file contains explicit `unittest.TestCase` or
+`IsolatedAsyncioTestCase` classes with test methods, including normal import
+aliases. Imports of helpers such as `unittest.mock` do not establish a runner.
+Mixed suites containing standalone test functions or plain test classes, and
+unrecognized shapes such as custom base classes, need an explicitly configured
+test command; discovery does not guess a runner that would omit those tests.
+The default unittest command also requires `__init__.py` in every directory
+between nested test files and the repository root. Custom layouts without
+those package markers need an explicit command with the appropriate start
+directory.
 `init` previews the files it would write and applies them only after `--yes`
 or an interactive confirmation. Options:
 
@@ -197,8 +210,14 @@ agent client: a detected client is left alone and a client named with
 `--clients` is refused, because adopting one means installing skills for it.
 A managed skill whose directory is missing at re-init time keeps its lock
 entries, so the next `update` restores it instead of forgetting it.
+A preserved conflict records the offered canonical version's hash in the
+lock, so successive upgrades continue to preserve local edits and report
+conflicts. Accepting the offered `.toolkit` copy resolves that conflict for
+the next upgrade. This also applies to installations without a prior lock;
+the baseline never comes from the preserved local bytes.
 A backup of every managed file
-is kept under `.artifacts/ai-toolkit/backup/<timestamp>/`; `--rollback`
+is kept under `.artifacts/ai-toolkit/backup/<timestamp>-<unique-id>/`; even
+updates within the same second have separate backups. `--rollback`
 restores it and the previous lock. `update`, a project `skills install`, and
 `qa bootstrap` refuse before touching any file when `toolkit.toml` or
 `toolkit.lock.json` cannot be rewritten (either is a symlink, a directory, or

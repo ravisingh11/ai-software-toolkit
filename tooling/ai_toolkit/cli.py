@@ -831,7 +831,10 @@ def _timestamp() -> str:
 
 
 def _backup(target: Path, paths: list[str], backup_root: Path | None = None) -> Path:
-    backup_root = backup_root or target / ".artifacts" / "ai-toolkit" / "backup" / _timestamp()
+    if backup_root is None:
+        backups = target / ".artifacts" / "ai-toolkit" / "backup"
+        backups.mkdir(parents=True, exist_ok=True)
+        backup_root = Path(tempfile.mkdtemp(prefix=_timestamp() + "-", dir=backups))
     for relative_path in paths:
         source = target / relative_path
         if source.is_file():
@@ -953,7 +956,13 @@ def cmd_update(args: argparse.Namespace) -> int:
         configuration["toolkit"]["revision"] = current
         config.write_configuration(target, configuration)
         managed = managed_files(target, configuration, lock)
-        config.write_lock(target, config.build_lock(current, components=components, managed=config.hash_managed(target, managed), previous=previous))
+        hashes = config.hash_managed(target, managed)
+        # Preserve edits as conflicts against the offered canonical version, so
+        # accepting that version also resumes normal refreshes on later upgrades.
+        for row in conflicts:
+            path = row["path"]
+            hashes[path] = sha256_file(sources[path])
+        config.write_lock(target, config.build_lock(current, components=components, managed=hashes, previous=previous))
     except (ToolkitError, OSError) as error:
         # Every mutation after the backup is undone together, including the configuration
         # and lock, so the files on disk never disagree with the lock that describes them.
