@@ -7,7 +7,7 @@
 | Check name | `FOSSA` |
 | Workflow | `FOSSA` (`.github/workflows/fossa.yml`) |
 | Adapter commands | `fossa analyze --revision <sha>` then `fossa test --revision <sha> --format json --timeout <s>` |
-| Arguments variable | `FOSSA_ARGS` (extra `fossa analyze` arguments) |
+| Arguments variable | `FOSSA_ARGS` (analysis options; project identity is shared with `test`) |
 | Credential | `FOSSA_API_KEY` (GitHub secret) |
 | CLI pin | version and SHA-256 in the workflow `env:`; update both together |
 
@@ -19,6 +19,15 @@ asynchronously by FOSSA and returned only by `fossa test`
 A workflow that runs only `analyze` has produced no evidence. The adapter
 always runs both for the exact revision and reports `analysis-incomplete`
 when `test` does not finish.
+
+Project, configuration, and endpoint options (`--project`/`-p`,
+`--config`/`-c`, `--endpoint`/`-e`) are passed to both commands, so `test`
+evaluates the uploaded project. Analysis filters stay on `analyze`.
+Arguments that disable uploading (`--output`/`-o`), replace the adapter's
+revision (`--revision`/`-r`), or supply a different API key are refused as
+`not_run` with `configuration-missing`; the revision and credential belong
+to the adapter. Missing values for project identity options are also refused
+before either command runs.
 
 ## Prerequisites
 

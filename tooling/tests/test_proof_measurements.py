@@ -166,6 +166,31 @@ class MeasurementsHelperTests(unittest.TestCase):
             self.assertEqual(MODULE.from_sarif([path])["findings"],
                              {"total": 5, "critical": 1, "high": 0, "medium": 1, "low": 3, "unrated": 0})
 
+    def test_sarif_guid_references_select_their_own_component_severity(self) -> None:
+        driver_guid = "11111111-1111-1111-8111-111111111111"
+        extension_guid = "22222222-2222-2222-8222-222222222222"
+        # Both components use the same rule ID and index; only component identity distinguishes them.
+        tool = {"driver": {"name": "scanner", "guid": driver_guid, "rules": [
+                    {"id": "shared", "properties": {"security-severity": "4.5"}}]},
+                "extensions": [{"name": "security-pack", "guid": extension_guid, "rules": [
+                    {"id": "shared", "properties": {"security-severity": "9.8"}}]}]}
+        cases = (
+            ({"guid": extension_guid}, {"total": 1, "critical": 1, "high": 0, "medium": 0, "low": 0, "unrated": 0}),
+            ({"guid": driver_guid}, {"total": 1, "critical": 0, "high": 0, "medium": 1, "low": 0, "unrated": 0}),
+            ({"guid": "33333333-3333-3333-8333-333333333333"},
+             {"total": 1, "critical": 0, "high": 0, "medium": 0, "low": 1, "unrated": 0}),
+            ({"index": 0, "guid": extension_guid},
+             {"total": 1, "critical": 1, "high": 0, "medium": 0, "low": 0, "unrated": 0}),
+        )
+        for component, expected in cases:
+            with self.subTest(component=component), tempfile.TemporaryDirectory() as directory:
+                report = {"version": "2.1.0", "runs": [{"tool": tool, "results": [{
+                    "rule": {"id": "shared", "index": 0, "toolComponent": component},
+                    "level": "note", "message": {"text": "example"},
+                }]}]}
+                path = self.write(Path(directory), "component.sarif", json.dumps(report))
+                self.assertEqual(MODULE.from_sarif([path])["findings"], expected)
+
     def test_gitleaks_findings_are_unrated(self) -> None:
         document = MODULE.from_gitleaks(REPORTS / "gitleaks.json")
         self.assertEqual(document["findings"], {"total": 3, "critical": 0, "high": 0, "medium": 0, "low": 0, "unrated": 3})
