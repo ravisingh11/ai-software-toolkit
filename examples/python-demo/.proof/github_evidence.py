@@ -782,10 +782,9 @@ def collect_checks(
     matching: dict[str, list[dict[str, Any]]] = {name: [] for name in check_names}
     wrong_app_only: dict[str, bool] = {name: False for name in check_names}
     enumeration_failures: set[str] = set()
-    attempts = 0
-    while True:
-        attempts += 1
-        for name in check_names - enumeration_failures:
+
+    def refresh(names: set[str]) -> None:
+        for name in names - enumeration_failures:
             try:
                 check_runs = enumerate_check_runs(repo, revision, token, name)
             except (HTTPError, URLError, OSError, ValueError, KeyError):
@@ -800,17 +799,25 @@ def collect_checks(
                     if check_matches_declared_app(check, contract)
                 ]
                 wrong_app_only[name] = bool(same_name and not matching[name])
-        complete = all(
-            name in enumeration_failures
-            or (
-                matching[name]
-                and (len(matching[name]) > 1 or matching[name][0].get("status") == "completed")
-            )
-            for name in check_names
-        )
-        if complete or time.monotonic() >= deadline or attempts >= maximum_attempts:
+
+    attempts = 0
+    pending = set(check_names)
+    while True:
+        attempts += 1
+        refresh(pending)
+        pending = {
+            name for name in check_names - enumeration_failures
+            if not matching[name]
+            or (len(matching[name]) == 1 and matching[name][0].get("status") != "completed")
+        }
+        if not pending or time.monotonic() >= deadline or attempts >= maximum_attempts:
             break
         time.sleep(10)
+    # Waiting can leave cached completed checks stale. Refresh every provable
+    # name once so late duplicates, reruns, disappearance and errors cannot pass
+    # using an earlier result. A single immediate snapshot needs no extra call.
+    if attempts > 1:
+        refresh(check_names)
 
     results: dict[str, dict[str, dict[str, Any]]] = {}
     for check_name, contract in expected.items():
