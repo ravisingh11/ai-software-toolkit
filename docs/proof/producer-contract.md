@@ -320,3 +320,18 @@ Controls marked `advisory-only` in the catalog, including every AI review
 control, cannot be promoted to `enforced`.
 
 See [control setup](control-setup.md) and [status](control-status.md).
+
+### Check polling budget
+
+While waiting for GitHub checks, the collector polls only missing or pending
+check names. After a wait loop, it refreshes every name whose enumeration has
+not failed once before evaluating provenance. The final responses replace the
+cached results: late duplicates, disappearance, pending reruns, and API errors
+cannot inherit an earlier passing result. An enumeration failure remains
+unverified for that collection. Immediate snapshots perform no redundant
+refresh. Polling uses the existing deadline and attempt limit; the final
+refresh does not start another wait period.
+
+For fifteen checks with fourteen initially complete and one completing on its
+fifth poll, this uses 34 check-list requests instead of 75 when each response
+fits on one page. Provenance and pagination requests are additional.

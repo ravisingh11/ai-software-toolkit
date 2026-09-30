@@ -316,6 +316,65 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
         self.assertEqual(result["status"], "not_run")
         self.assertIn("duplicate", result["reason"].lower())
 
+    def test_polling_refreshes_completed_checks_once_and_uses_final_snapshot(self) -> None:
+        names = [f"Check {index}" for index in range(15)]
+        expected = {name: {"provider_id": name, "control_ids": [name], "check_name": name,
+                           "app_slug": "github-actions"} for name in names}
+        for final_change in ("unchanged", "duplicate", "failed", "pending", "missing", "api-error"):
+            with self.subTest(final_change=final_change):
+                counts = dict.fromkeys(names, 0)
+
+                def enumerate_checks(repo, revision, token, name):
+                    counts[name] += 1
+                    check = {"name": name, "status": "completed", "conclusion": "success",
+                             "head_sha": "sha", "app": {"slug": "github-actions"}}
+                    if name == names[-1] and counts[name] < 5:
+                        check.update(status="in_progress", conclusion=None)
+                    if name == names[0] and counts[name] > 1:
+                        if final_change == "duplicate":
+                            return [check, dict(check)]
+                        if final_change == "api-error":
+                            error = HTTPError("https://api.github.com", 404, "missing", {}, None)
+                            self.addCleanup(error.close)
+                            raise error
+                        if final_change == "missing":
+                            return []
+                        if final_change == "pending":
+                            check.update(status="in_progress", conclusion=None)
+                        elif final_change == "failed":
+                            check["conclusion"] = "failure"
+                    return [check]
+
+                with patch.object(MODULE, "expected_checks", return_value=expected), \
+                        patch.object(MODULE, "expected_reviews", return_value=[]), \
+                        patch.object(MODULE, "enumerate_check_runs", side_effect=enumerate_checks), \
+                        patch.object(MODULE.time, "monotonic", return_value=0), patch.object(MODULE.time, "sleep"):
+                    result = MODULE.collect_checks("owner/repo", "sha", "token", {}, {}, {},
+                                                   {"providers": {name: {"display_name": name} for name in names}},
+                                                   "change", wait_seconds=50)
+                self.assertEqual([counts[name] for name in names[:-1]], [2] * 14)
+                self.assertEqual(counts[names[-1]], 6)
+                status = result["results"][names[0]][names[0]]["status"]
+                self.assertEqual(status, {"unchanged": "passed", "failed": "failed"}.get(final_change, "not_run"))
+
+    def test_final_refresh_does_not_restart_expired_wait(self) -> None:
+        policy, profiles, catalog, providers = contracts()
+
+        def pending(repo, revision, token, name):
+            return [check_run(name, 201, status="in_progress", conclusion=None,
+                              app_slug="external-build" if name == "External Build" else "github-actions")]
+
+        with patch.object(MODULE, "enumerate_check_runs", side_effect=pending) as enumerate_checks, \
+                patch.object(MODULE.time, "monotonic", side_effect=[0, 0, 30]), \
+                patch.object(MODULE.time, "sleep") as sleep:
+            evidence = MODULE.collect_checks(
+                "owner/repo", "abc123", "token", policy, profiles, catalog, providers, "change", wait_seconds=30
+            )
+        sleep.assert_called_once_with(10)
+        # Two polling snapshots plus one final refresh, with two selected names.
+        self.assertEqual(enumerate_checks.call_count, 6)
+        self.assertEqual(evidence["results"]["build"]["github-build"]["status"], "not_run")
+
     def test_duplicate_matching_check_name_is_not_run(self) -> None:
         payload = {"check_runs": [
             check_run("Build", 301, check_id=9, conclusion="failure", created_at="2026-08-28T13:00:00Z"),
