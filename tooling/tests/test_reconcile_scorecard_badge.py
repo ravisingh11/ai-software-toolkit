@@ -858,6 +858,34 @@ class ReconcilerTests(unittest.TestCase):
 
 
 class HttpDiagnosticsTests(unittest.TestCase):
+    def test_recursion_failure_preserves_original_http_error(self):
+        failure = HTTPError("https://api.github.com/repos/o/r", 404, "sensitive reason", {},
+                            io.BytesIO(b"[]"))
+        self.addCleanup(failure.close)
+        with (
+            mock.patch.object(MODULE, "urlopen", side_effect=failure),
+            mock.patch.object(MODULE.json, "loads", side_effect=RecursionError("sensitive parser context")),
+            self.assertRaises(HTTPError) as caught,
+        ):
+            MODULE.GitHubClient("token").json(failure.url)
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(failure.code, 404)
+        self.assertIn("not-found", str(failure))
+        self.assertNotIn("sensitive", str(failure))
+
+    def test_deep_error_json_preserves_original_http_error(self):
+        failure = HTTPError(
+            "https://api.github.com/repos/o/r", 404, "sensitive reason", {},
+            io.BytesIO(b"[" * 1200 + b"0" + b"]" * 1200),
+        )
+        self.addCleanup(failure.close)
+        with mock.patch.object(MODULE, "urlopen", side_effect=failure), self.assertRaises(HTTPError) as caught:
+            MODULE.GitHubClient("token").json(failure.url)
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(failure.code, 404)
+        self.assertIn("not-found", str(failure))
+        self.assertNotIn("sensitive", str(failure))
+
     def test_api_failure_reports_safe_rate_context_and_preserves_exception(self):
         failure = HTTPError("https://api.github.com/repos/owner/repo?token=secret", 403, "secret reason",
                             {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1234567890",

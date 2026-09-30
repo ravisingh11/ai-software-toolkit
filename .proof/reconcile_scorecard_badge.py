@@ -526,7 +526,7 @@ def describe_http_failure(error: HTTPError, context: str) -> None:
         body = json.loads(error.read(4096))
         if isinstance(body, dict) and isinstance(body.get("message"), str):
             message = body["message"].lower()
-    except (OSError, ValueError, TypeError, UnicodeError, HTTPException):
+    except (OSError, ValueError, TypeError, UnicodeError, HTTPException, RecursionError):
         pass
     classification = {401: "authentication-failed", 403: "forbidden-unknown", 404: "not-found",
                       429: "rate-limit-unspecified"}.get(error.code, "http-failure")
