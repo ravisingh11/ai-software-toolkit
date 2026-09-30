@@ -8,6 +8,14 @@ The installer deploys independent producer workflows and an aggregate
 scorecard. A workflow file is configuration; only exact-subject provider
 evidence can pass a capability.
 
+AI review consolidation uses pinned `actions/download-artifact` v8.0.1.
+Self-hosted runners need version 2.327.1 or later for its Node 24 runtime.
+The existing artifact pattern, destination, and merged download layout remain
+supported. Digest mismatches fail the download; retain that integrity check
+when upgrading. Reviewer uploads use the upload action's default archived
+format. A successful live AI consolidation run is still required to verify
+the provider integration.
+
 ## Install sets
 
 ```sh
