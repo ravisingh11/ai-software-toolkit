@@ -165,7 +165,9 @@ are labeled self-reported like the other measurements. The CodeQL workflow
 writes its SARIF to the runner (`analyze` `output`) and counts it with
 `.proof/measurements.py sarif`: a result takes its rule's `security-severity`,
 resolved in the result's own tool component (the driver or the query-pack
-extension it names), using GitHub code scanning's bands; a rule without a
+extension identified by index, or by GUID when the index is absent), using
+GitHub code scanning's bands. An unknown component GUID contributes no rule
+severity and falls back to the result level; a rule without a
 score falls back to the result level, then the rule's
 `defaultConfiguration.level`, then SARIF's `warning` default (`error` high,
 `warning` medium, `note` low). Results with a suppression in force (accepted,

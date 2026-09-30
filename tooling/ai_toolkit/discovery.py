@@ -7,6 +7,7 @@ request cannot change what CI executes.
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -71,6 +72,41 @@ def _command(value: str, source: str) -> dict[str, str]:
     return {"command": value, "source": source}
 
 
+def _has_unittest_cases(path: Path) -> bool:
+    """Recognize explicit test cases without importing candidate code or guessing."""
+    try:
+        tree = ast.parse(_read_text(path))
+    except SyntaxError:
+        return False
+    modules: set[str] = set()
+    classes: set[str] = set()
+    case_names = {"TestCase", "IsolatedAsyncioTestCase"}
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            modules.update(alias.asname or alias.name for alias in node.names if alias.name == "unittest")
+        elif isinstance(node, ast.ImportFrom) and node.module == "unittest":
+            classes.update(alias.asname or alias.name for alias in node.names if alias.name in case_names)
+    found = False
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test"):
+            return False
+        if not isinstance(node, ast.ClassDef):
+            continue
+        methods = [child for child in node.body if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and child.name.startswith("test")]
+        if not methods:
+            continue
+        is_case = any(
+            isinstance(base, ast.Name) and base.id in classes
+            or isinstance(base, ast.Attribute) and isinstance(base.value, ast.Name)
+            and base.value.id in modules and base.attr in case_names
+            for base in node.bases
+        )
+        if not is_case:
+            return False
+        found = True
+    return found
+
+
 def detect_python(target: Path) -> dict[str, Any] | None:
     pyproject = target / "pyproject.toml"
     markers = [name for name in ("pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "requirements-dev.txt", "Pipfile", "poetry.lock", "uv.lock")
@@ -84,7 +120,7 @@ def detect_python(target: Path) -> dict[str, Any] | None:
     project = data.get("project", {}) if isinstance(data.get("project"), dict) else {}
     dependency_text = " ".join(
         str(item) for item in project.get("dependencies", []) if isinstance(item, str)
-    ) + " " + json.dumps(project.get("optional-dependencies", {})) + " " + _read_text(target / "requirements-dev.txt") + " " + _read_text(target / "requirements.txt")
+    ) + " " + json.dumps(project.get("optional-dependencies", {})) + " " + json.dumps(data.get("dependency-groups", {})) + " " + _read_text(target / "requirements-dev.txt") + " " + _read_text(target / "requirements.txt")
     package_manager = "pip"
     if "poetry.lock" in markers or "poetry" in tool:
         package_manager = "poetry"
@@ -106,8 +142,15 @@ def detect_python(target: Path) -> dict[str, Any] | None:
     uses_pytest = "pytest" in tool or "pytest" in dependency_text or (target / "pytest.ini").is_file() or (target / "conftest.py").is_file()
     if uses_pytest:
         commands["unit-tests"] = _command("python3 -m pytest", "pytest configuration or dependency")
-    elif any(path.name.startswith("test_") for path in target.rglob("test_*.py") if ".git" not in path.parts):
-        commands["unit-tests"] = _command("python3 -m unittest discover", "test_*.py files")
+    else:
+        test_files = [path for path in target.rglob("test_*.py") if ".git" not in path.parts]
+        reachable = all(
+            (target / parent / "__init__.py").is_file()
+            for path in test_files for parent in path.relative_to(target).parents
+            if parent != Path(".")
+        )
+        if test_files and reachable and all(_has_unittest_cases(path) for path in test_files):
+            commands["unit-tests"] = _command("python3 -m unittest discover", "explicit unittest test cases in test files")
     if "build-system" in data:
         commands["build"] = _command("python3 -m build", "pyproject.toml [build-system]")
     else:
