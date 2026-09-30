@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+from http.client import HTTPException
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterable, Iterator
 from urllib.error import HTTPError, URLError
@@ -409,6 +410,7 @@ def download_artifact(
         redirect_opener.open(request, timeout=20)
     except HTTPError as error:
         if error.code != 302:
+            describe_http_failure(error, "artifact redirect")
             raise
         location = error.headers.get("Location")
     else:
@@ -424,8 +426,12 @@ def download_artifact(
             "artifact redirect must be an absolute credential-free HTTPS URL"
         )
     unsigned_request = Request(location, headers={"Accept": "application/octet-stream"})
-    with unsigned_open(unsigned_request, timeout=20) as response:
-        content = response.read(MAX_ARCHIVE_BYTES + 1)
+    try:
+        with unsigned_open(unsigned_request, timeout=20) as response:
+            content = response.read(MAX_ARCHIVE_BYTES + 1)
+    except HTTPError as error:
+        describe_http_failure(error, "artifact download")
+        raise
     if len(content) > MAX_ARCHIVE_BYTES:
         raise ArtifactRejected("artifact archive exceeds the compressed size limit")
     return content
@@ -490,6 +496,50 @@ def select_candidate(
     raise ValueError("no valid completed scorecard candidate was found")
 
 
+def github_request_context(url: str) -> str:
+    """Name known operations without exposing repository names, query strings or signed URLs."""
+    path = urlparse(url).path
+    routes = (
+        (r"/repos/[^/]+/[^/]+", "repository metadata"),
+        (r"/repos/[^/]+/[^/]+/pages", "Pages configuration"),
+        (r"/repos/[^/]+/[^/]+/actions/workflows/[^/]+/runs", "completed scorecard runs"),
+        (r"/repos/[^/]+/[^/]+/actions/runs/[^/]+/artifacts", "run artifact listing"),
+        (r"/repos/[^/]+/[^/]+/actions/artifacts/[^/]+/zip", "artifact redirect"),
+        (r"/repos/[^/]+/[^/]+/pulls/[^/]+", "pull request metadata"),
+    )
+    return next((label for pattern, label in routes if re.fullmatch(pattern, path)), "GitHub API request")
+
+
+def describe_http_failure(error: HTTPError, context: str) -> None:
+    """Replace unsafe server prose with bounded diagnostics, retaining the same HTTPError and status."""
+    headers = {name.lower(): str(value) for name, value in (error.headers or {}).items()}
+    details = []
+    for name in ("x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-used", "x-ratelimit-reset", "retry-after"):
+        value = headers.get(name, "")
+        if re.fullmatch(r"[0-9]{1,20}", value):
+            details.append(f"{name}={value}")
+    request_id = headers.get("x-github-request-id", "")
+    if re.fullmatch(r"[A-Za-z0-9:-]{1,128}", request_id):
+        details.append(f"request-id={request_id}")
+    message = ""
+    try:
+        body = json.loads(error.read(4096))
+        if isinstance(body, dict) and isinstance(body.get("message"), str):
+            message = body["message"].lower()
+    except (OSError, ValueError, TypeError, UnicodeError, HTTPException):
+        pass
+    classification = {401: "authentication-failed", 403: "forbidden-unknown", 404: "not-found",
+                      429: "rate-limit-unspecified"}.get(error.code, "http-failure")
+    if error.code in {403, 429}:
+        if headers.get("x-ratelimit-remaining") == "0":
+            classification = "primary-rate-limit"
+        elif "secondary rate limit" in message:
+            classification = "secondary-rate-limit"
+        elif message in {"resource not accessible by integration", "resource not accessible by personal access token"}:
+            classification = "permission-denied"
+    error.msg = "; ".join([context, classification, *details])
+
+
 class GitHubClient:
     def __init__(self, token: str) -> None:
         if not token:
@@ -508,8 +558,12 @@ class GitHubClient:
                 "X-GitHub-Api-Version": "2022-11-28",
             },
         )
-        with urlopen(request, timeout=20) as response:
-            return json.load(response)
+        try:
+            with urlopen(request, timeout=20) as response:
+                return json.load(response)
+        except HTTPError as error:
+            describe_http_failure(error, github_request_context(url))
+            raise
 
     def artifact(self, repository: str, artifact_id: int) -> bytes:
         return download_artifact(
@@ -547,6 +601,7 @@ def read_published_scorecard(url: str) -> dict[str, Any] | None:
     except HTTPError as error:
         if error.code == 404:
             return None
+        describe_http_failure(error, "published scorecard download")
         raise
     if not isinstance(value, dict):
         raise ValueError("published scorecard response must be an object")

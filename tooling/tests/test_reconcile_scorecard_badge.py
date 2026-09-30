@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+from http.client import IncompleteRead
 import io
 import json
 import os
@@ -854,6 +855,89 @@ class ReconcilerTests(unittest.TestCase):
             MODULE.exact_artifact({"total_count": 0, "artifacts": []}, run())
         with self.assertRaises(ValueError):
             MODULE.GitHubClient("")
+
+
+class HttpDiagnosticsTests(unittest.TestCase):
+    def test_api_failure_reports_safe_rate_context_and_preserves_exception(self):
+        failure = HTTPError("https://api.github.com/repos/owner/repo?token=secret", 403, "secret reason",
+                            {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1234567890",
+                             "X-GitHub-Request-Id": "ABCD:1234", "Authorization": "secret"},
+                            io.BytesIO(b'{"message":"API rate limit exceeded for secret"}'))
+        self.addCleanup(failure.close)
+        with mock.patch.object(MODULE, "urlopen", side_effect=failure) as request, self.assertRaises(HTTPError) as caught:
+            MODULE.GitHubClient("secret-token").json(failure.url)
+        request.assert_called_once()
+        self.assertIs(caught.exception, failure)
+        message = str(failure)
+        for expected in ("403", "repository metadata", "primary-rate-limit", "ABCD:1234", "1234567890"):
+            self.assertIn(expected, message)
+        self.assertNotIn("secret", message)
+
+    def test_known_messages_classify_without_logging_arbitrary_body(self):
+        cases = ((403, "You have exceeded a secondary rate limit.", "secondary-rate-limit"),
+                 (403, "Resource not accessible by integration", "permission-denied"),
+                 (401, "Bad credentials", "authentication-failed"),
+                 (403, "private candidate payload", "forbidden-unknown"),
+                 (404, "Not Found", "not-found"))
+        for code, body, classification in cases:
+            with self.subTest(code=code, classification=classification):
+                failure = HTTPError("https://api.github.com/repos/o/r/pages", code, body,
+                                    {"X-GitHub-Request-Id": "bad\nheader", "Retry-After": "20"},
+                                    io.BytesIO(json.dumps({"message": body}).encode()))
+                self.addCleanup(failure.close)
+                with mock.patch.object(MODULE, "urlopen", side_effect=failure), self.assertRaises(HTTPError) as caught:
+                    MODULE.GitHubClient("token").json(failure.url)
+                self.assertIs(caught.exception, failure)
+                self.assertIn(classification, str(failure))
+                self.assertIn("retry-after=20", str(failure))
+                self.assertNotIn(body, str(failure))
+                self.assertNotIn("bad", str(failure))
+
+    def test_incomplete_error_body_preserves_original_404(self):
+        body = mock.Mock()
+        body.read.side_effect = IncompleteRead(b"secret partial response", 100)
+        failure = HTTPError("https://api.github.com/repos/o/r/pulls/1?token=secret", 404,
+                            "secret server reason", {"X-GitHub-Request-Id": "ABCD:5678"}, body)
+        self.addCleanup(failure.close)
+        with mock.patch.object(MODULE, "urlopen", side_effect=failure), self.assertRaises(HTTPError) as caught:
+            MODULE.GitHubClient("secret").json(failure.url)
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(caught.exception.code, 404)
+        self.assertIn("pull request metadata; not-found; request-id=ABCD:5678", str(failure))
+        self.assertNotIn("secret", str(failure))
+
+    def test_operation_labels_and_malformed_response_are_safe(self):
+        paths = {"": "repository metadata", "/pages": "Pages configuration",
+                 "/actions/workflows/secret/runs": "completed scorecard runs",
+                 "/actions/runs/secret/artifacts": "run artifact listing",
+                 "/actions/artifacts/secret/zip": "artifact redirect", "/pulls/secret": "pull request metadata",
+                 "/unknown/secret": "GitHub API request"}
+        for suffix, expected in paths.items():
+            self.assertEqual(MODULE.github_request_context("https://api.github.com/repos/secret/private" + suffix
+                                                           + "?credential=secret"), expected)
+        failure = HTTPError("https://api.github.com/secret", 503, "sensitive reason",
+                            {"X-RateLimit-Remaining": "secret", "X-GitHub-Request-Id": "x" * 129},
+                            io.BytesIO(b"not json secret"))
+        self.addCleanup(failure.close)
+        MODULE.describe_http_failure(failure, "GitHub API request")
+        self.assertEqual(str(failure), "HTTP Error 503: GitHub API request; http-failure")
+
+    def test_signed_artifact_failure_hides_url_and_limits_body_read(self):
+        redirect = HTTPError("api", 302, "redirect", {"Location": "https://blob.example/a?sig=secret"}, None)
+        self.addCleanup(redirect.close)
+        opener = mock.Mock()
+        opener.open.side_effect = redirect
+        body = mock.Mock()
+        body.read.return_value = b'x' * 4096
+        failure = HTTPError("https://blob.example/a?sig=secret", 403, "secret", {}, body)
+        self.addCleanup(failure.close)
+        with self.assertRaises(HTTPError) as caught:
+            MODULE.download_artifact("https://api.github.com/repos/o/r/actions/artifacts/1/zip", "token",
+                                     opener=opener, unsigned_open=mock.Mock(side_effect=failure))
+        self.assertIs(caught.exception, failure)
+        self.assertIn("artifact download", str(failure))
+        self.assertNotIn("secret", str(failure))
+        body.read.assert_called_once_with(4096)
 
 
 if __name__ == "__main__":

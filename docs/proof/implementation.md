@@ -105,3 +105,20 @@ older strict evaluators reject results containing the new optional field.
 Per-control assessment descriptions come from a trusted built-in allowlist,
 not provider-supplied prose. Providers that do not emit execution facts continue
 to show unavailable timing.
+
+### Publisher HTTP diagnostics
+
+The publisher names the failed operation (repository metadata, Pages
+configuration, run listing, artifact listing/download, or PR metadata) when an
+HTTP request fails. Logs include the HTTP status, a bounded request ID, and
+numeric rate-limit or retry headers when available. A zero remaining quota
+identifies a primary rate limit; recognized GitHub messages identify secondary
+rate limits or permission denials. Other 403 responses remain
+`forbidden-unknown`, so a permission failure is not inferred from the status
+alone. Signed URLs, request credentials, and arbitrary response text are never
+included in these diagnostics. Response inspection is limited to 4 KiB.
+
+This adds diagnostics only: requests are not retried automatically, permissions
+are unchanged, and existing 404 candidate fallback and fail-closed publication
+behavior remain in effect. Logs can identify a future failure; they cannot
+recover missing response metadata from historical runs.
