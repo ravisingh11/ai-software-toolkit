@@ -43,7 +43,7 @@ class DiscoveryTests(unittest.TestCase):
 
     def test_python_unittest_flake8_and_alternative_managers(self):
         self.write("app.py", "x = 1\n")
-        self.write("test_app.py", "import unittest\n")
+        self.write("test_app.py", "import unittest\nclass Tests(unittest.TestCase):\n    def test_app(self):\n        self.assertTrue(True)\n")
         self.write(".flake8", "[flake8]\n")
         row = discovery.detect_python(self.target)
         self.assertEqual(row["commands"]["unit-tests"]["command"], "python3 -m unittest discover")
@@ -74,13 +74,54 @@ class DiscoveryTests(unittest.TestCase):
         self.write("test_app.py", "def test_app():\n    assert False\n")
         self.assertNotIn("unit-tests", discovery.detect_python(self.target)["commands"])
 
-    def test_unittest_imports_select_unittest(self):
-        self.write("app.py", "x = 1\n")
-        for content in ("import unittest as ut\n", "from unittest import TestCase\n"):
+    def test_unittest_cases_select_unittest(self):
+        self.write("pyproject.toml", "[project]\nname = 'x'\n")
+        for declaration, base in (("import unittest", "unittest.TestCase"),
+                                  ("import unittest as ut", "ut.TestCase"),
+                                  ("from unittest import TestCase", "TestCase"),
+                                  ("from unittest import TestCase as Case", "Case"),
+                                  ("import unittest as ut", "ut.IsolatedAsyncioTestCase"),
+                                  ("from unittest import IsolatedAsyncioTestCase as AsyncCase", "AsyncCase")):
+            with self.subTest(declaration=declaration):
+                method = "async def" if "Async" in base else "def"
+                self.write("test_app.py", f"{declaration}\nclass Tests({base}):\n    {method} test_app(self):\n        self.assertTrue(True)\n")
+                self.assertEqual(discovery.discover(self.target)["commands"]["unit-tests"]["command"],
+                                 "python3 -m unittest discover")
+
+    def test_unittest_helpers_and_pytest_shapes_do_not_select_unittest(self):
+        self.write("pyproject.toml", "[project]\nname = 'x'\n")
+        cases = (
+            "from unittest.mock import patch\ndef test_app():\n    assert False\n",
+            "import unittest.mock as mock\ndef test_app():\n    assert False\n",
+            "import unittest\nclass TestApp:\n    def test_app(self):\n        assert False\n",
+            "from unittest import TestCase\n",
+            "import unittest\nclass Empty(unittest.TestCase):\n    pass\n",
+            "import unittest\nclass Cases(unittest.TestCase):\n    def test_case(self):\n        pass\ndef test_pytest():\n    assert False\n",
+        )
+        for content in cases:
             with self.subTest(content=content):
                 self.write("test_app.py", content)
-                self.assertEqual(discovery.detect_python(self.target)["commands"]["unit-tests"]["command"],
-                                 "python3 -m unittest discover")
+                self.assertNotIn("unit-tests", discovery.discover(self.target)["commands"])
+
+    def test_nonpackage_test_directory_does_not_propose_root_discovery(self):
+        self.write("pyproject.toml", "[project]\nname = 'x'\n")
+        self.write("tests/test_app.py", "import unittest\nclass Cases(unittest.TestCase):\n    def test_app(self):\n        pass\n")
+        self.assertNotIn("unit-tests", discovery.discover(self.target)["commands"])
+
+    def test_packaged_test_directories_allow_root_discovery(self):
+        self.write("pyproject.toml", "[project]\nname = 'x'\n")
+        self.write("tests/__init__.py", "")
+        self.write("tests/unit/__init__.py", "")
+        self.write("tests/unit/test_app.py", "import unittest\nclass Cases(unittest.TestCase):\n    def test_app(self):\n        pass\n")
+        self.assertEqual(discovery.discover(self.target)["commands"]["unit-tests"]["command"],
+                         "python3 -m unittest discover")
+        (self.target / "tests/__init__.py").unlink()
+        self.assertNotIn("unit-tests", discovery.discover(self.target)["commands"])
+
+    def test_mixed_framework_files_do_not_propose_partial_unittest_suite(self):
+        self.write("test_cases.py", "import unittest\nclass Cases(unittest.TestCase):\n    def test_case(self):\n        pass\n")
+        self.write("test_functions.py", "def test_function():\n    assert False\n")
+        self.assertNotIn("unit-tests", discovery.discover(self.target)["commands"])
 
     def test_comments_and_invalid_test_files_do_not_select_unittest(self):
         self.write("app.py", "x = 1\n")

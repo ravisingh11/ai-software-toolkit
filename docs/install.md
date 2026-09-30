@@ -51,9 +51,17 @@ In a polyglot repository the commands for one capability are chained with
 `&&` so every detected suite must run and pass.
 Python discovery reads development dependencies from `[dependency-groups]`
 as well as project dependencies, extras, and requirements files. It proposes
-pytest when declared, and unittest when test files import unittest. A test
-filename alone does not identify a runner; review and set the command when
-discovery cannot identify the framework.
+pytest when declared. Without a pytest declaration, it proposes unittest only
+when every discovered test file contains explicit `unittest.TestCase` or
+`IsolatedAsyncioTestCase` classes with test methods, including normal import
+aliases. Imports of helpers such as `unittest.mock` do not establish a runner.
+Mixed suites containing standalone test functions or plain test classes, and
+unrecognized shapes such as custom base classes, need an explicitly configured
+test command; discovery does not guess a runner that would omit those tests.
+The default unittest command also requires `__init__.py` in every directory
+between nested test files and the repository root. Custom layouts without
+those package markers need an explicit command with the appropriate start
+directory.
 `init` previews the files it would write and applies them only after `--yes`
 or an interactive confirmation. Options:
 
