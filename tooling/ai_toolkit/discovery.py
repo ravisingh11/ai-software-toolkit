@@ -7,6 +7,7 @@ request cannot change what CI executes.
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -71,6 +72,18 @@ def _command(value: str, source: str) -> dict[str, str]:
     return {"command": value, "source": source}
 
 
+def _imports_unittest(path: Path) -> bool:
+    try:
+        tree = ast.parse(_read_text(path))
+    except SyntaxError:
+        return False
+    return any(
+        isinstance(node, ast.Import) and any(alias.name == "unittest" or alias.name.startswith("unittest.") for alias in node.names)
+        or isinstance(node, ast.ImportFrom) and (node.module == "unittest" or (node.module or "").startswith("unittest."))
+        for node in ast.walk(tree)
+    )
+
+
 def detect_python(target: Path) -> dict[str, Any] | None:
     pyproject = target / "pyproject.toml"
     markers = [name for name in ("pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "requirements-dev.txt", "Pipfile", "poetry.lock", "uv.lock")
@@ -84,7 +97,7 @@ def detect_python(target: Path) -> dict[str, Any] | None:
     project = data.get("project", {}) if isinstance(data.get("project"), dict) else {}
     dependency_text = " ".join(
         str(item) for item in project.get("dependencies", []) if isinstance(item, str)
-    ) + " " + json.dumps(project.get("optional-dependencies", {})) + " " + _read_text(target / "requirements-dev.txt") + " " + _read_text(target / "requirements.txt")
+    ) + " " + json.dumps(project.get("optional-dependencies", {})) + " " + json.dumps(data.get("dependency-groups", {})) + " " + _read_text(target / "requirements-dev.txt") + " " + _read_text(target / "requirements.txt")
     package_manager = "pip"
     if "poetry.lock" in markers or "poetry" in tool:
         package_manager = "poetry"
@@ -106,8 +119,8 @@ def detect_python(target: Path) -> dict[str, Any] | None:
     uses_pytest = "pytest" in tool or "pytest" in dependency_text or (target / "pytest.ini").is_file() or (target / "conftest.py").is_file()
     if uses_pytest:
         commands["unit-tests"] = _command("python3 -m pytest", "pytest configuration or dependency")
-    elif any(path.name.startswith("test_") for path in target.rglob("test_*.py") if ".git" not in path.parts):
-        commands["unit-tests"] = _command("python3 -m unittest discover", "test_*.py files")
+    elif any(_imports_unittest(path) for path in target.rglob("test_*.py") if ".git" not in path.parts):
+        commands["unit-tests"] = _command("python3 -m unittest discover", "unittest imports in test files")
     if "build-system" in data:
         commands["build"] = _command("python3 -m build", "pyproject.toml [build-system]")
     else:

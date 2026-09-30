@@ -180,6 +180,11 @@ def _sarif_rule(result: dict[str, Any], components: list[dict[str, Any]]) -> dic
         # SARIF toolComponent indexes point into tool.extensions; the driver is components[0].
         position = component_reference["index"] + 1
         candidates = [components[position]] if 0 < position < len(components) else []
+    elif isinstance(component_reference, dict) and "guid" in component_reference:
+        # A GUID can identify either the driver or an extension without an index.
+        guid = component_reference["guid"]
+        candidates = [component for component in components
+                      if isinstance(guid, str) and component.get("guid") == guid]
     else:
         candidates = components[:1]
     for component in candidates:

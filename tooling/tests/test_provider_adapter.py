@@ -13,6 +13,7 @@ import importlib.util
 import io
 import json
 import os
+import shlex
 import stat
 import subprocess
 import sys
@@ -42,6 +43,8 @@ esac
 FAKE_FOSSA = r'''#!/usr/bin/env bash
 sub="$1"
 mode="${FAKE_FOSSA_MODE:-clean}"
+printf '%q ' "$@" >> "${FAKE_FOSSA_COMMANDS:-/dev/null}"
+printf '\n' >> "${FAKE_FOSSA_COMMANDS:-/dev/null}"
 if [[ "$sub" == "analyze" ]]; then
   case "$mode" in
     analyze-auth) printf '\033[91mError: \033[0mA FOSSA API key is required to run this command\n' >&2; exit 1 ;;
@@ -241,6 +244,46 @@ class SnykContractTests(AdapterFixture):
 
 
 class FossaContractTests(AdapterFixture):
+    def test_project_identity_is_shared_by_analysis_and_policy_test(self):
+        log = self.root / "commands.log"
+        cases = (
+            ["--project", "custom-project"], ["--project=custom-project"],
+            ["-p", "custom-project"], ["-pcustom-project"],
+            ["--config", "fossa-custom.yml"], ["--endpoint=https://fossa.example.invalid"],
+        )
+        for arguments in cases:
+            with self.subTest(arguments=arguments):
+                log.unlink(missing_ok=True)
+                _, outcome = self.module.run_provider("fossa", self.target, revision=None,
+                    arguments=[*arguments, "--exclude-path", "vendor"], timeout=5,
+                    environment=self.environment(FAKE_FOSSA_COMMANDS=str(log)))
+                self.assertEqual(outcome.status, "passed")
+                analyze, policy_test = [shlex.split(row) for row in log.read_text().splitlines()]
+                self.assertEqual(analyze, ["analyze", "--revision", self.head, *arguments, "--exclude-path", "vendor"])
+                self.assertEqual(policy_test, ["test", "--revision", self.head, *arguments,
+                                              "--format", "json", "--timeout", "5"])
+
+    def test_options_that_skip_upload_or_override_revision_never_run(self):
+        log = self.root / "commands.log"
+        for arguments in (["--output"], ["-o"], ["--revision", "old"], ["--revision=old"],
+                          ["-r", "old"], ["-rold"], ["--fossa-api-key=other-key"]):
+            with self.subTest(arguments=arguments):
+                _, outcome = self.module.run_provider("fossa", self.target, revision=None,
+                    arguments=arguments, timeout=5,
+                    environment=self.environment(FAKE_FOSSA_COMMANDS=str(log)))
+                self.assertEqual((outcome.status, outcome.code), ("not_run", "configuration-missing"))
+                self.assertFalse(log.exists())
+
+    def test_missing_project_option_value_does_not_run(self):
+        log = self.root / "commands.log"
+        for arguments in (["--project"], ["--config", "--exclude-path", "vendor"], ["--endpoint="]):
+            with self.subTest(arguments=arguments):
+                _, outcome = self.module.run_provider("fossa", self.target, revision=None,
+                    arguments=arguments, timeout=5,
+                    environment=self.environment(FAKE_FOSSA_COMMANDS=str(log)))
+                self.assertEqual((outcome.status, outcome.code), ("not_run", "configuration-missing"))
+                self.assertFalse(log.exists())
+
     def test_analyze_then_test_success_and_issues(self):
         log = self.root / "fossa.log"
         _, outcome = self.run_provider("fossa", FAKE_FOSSA_MODE="clean", FAKE_FOSSA_LOG=str(log))

@@ -62,6 +62,33 @@ class DiscoveryTests(unittest.TestCase):
         row = discovery.detect_python(self.target)
         self.assertEqual(row["language"], "python")
 
+    def test_pytest_in_dependency_groups_selects_pytest(self):
+        self.write("pyproject.toml", '[dependency-groups]\ndev = ["pytest>=8", "ruff"]\n')
+        self.write("test_app.py", "def test_app():\n    assert False\n")
+        row = discovery.detect_python(self.target)
+        self.assertEqual(row["commands"]["unit-tests"]["command"], "python3 -m pytest")
+        self.assertEqual(row["commands"]["format-and-lint"]["command"], "ruff check .")
+
+    def test_test_filename_without_framework_does_not_propose_unittest(self):
+        self.write("app.py", "x = 1\n")
+        self.write("test_app.py", "def test_app():\n    assert False\n")
+        self.assertNotIn("unit-tests", discovery.detect_python(self.target)["commands"])
+
+    def test_unittest_imports_select_unittest(self):
+        self.write("app.py", "x = 1\n")
+        for content in ("import unittest as ut\n", "from unittest import TestCase\n"):
+            with self.subTest(content=content):
+                self.write("test_app.py", content)
+                self.assertEqual(discovery.detect_python(self.target)["commands"]["unit-tests"]["command"],
+                                 "python3 -m unittest discover")
+
+    def test_comments_and_invalid_test_files_do_not_select_unittest(self):
+        self.write("app.py", "x = 1\n")
+        for content in ("# import unittest\n", "import unittest\nthis isn't python\n"):
+            with self.subTest(content=content):
+                self.write("test_app.py", content)
+                self.assertNotIn("unit-tests", discovery.detect_python(self.target)["commands"])
+
     def test_node_package_managers_and_scripts(self):
         self.write("package.json", json.dumps({"scripts": {"test": "jest", "build": "tsc", "lint": "eslint ."}}))
         self.write("tsconfig.json", "{}")

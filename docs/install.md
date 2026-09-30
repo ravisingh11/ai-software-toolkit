@@ -49,6 +49,11 @@ commands, existing workflows and provider integrations (SonarQube, Snyk,
 FOSSA, CodeQL, Semgrep, Gitleaks), documentation, and installed agent clients.
 In a polyglot repository the commands for one capability are chained with
 `&&` so every detected suite must run and pass.
+Python discovery reads development dependencies from `[dependency-groups]`
+as well as project dependencies, extras, and requirements files. It proposes
+pytest when declared, and unittest when test files import unittest. A test
+filename alone does not identify a runner; review and set the command when
+discovery cannot identify the framework.
 `init` previews the files it would write and applies them only after `--yes`
 or an interactive confirmation. Options:
 
@@ -197,8 +202,14 @@ agent client: a detected client is left alone and a client named with
 `--clients` is refused, because adopting one means installing skills for it.
 A managed skill whose directory is missing at re-init time keeps its lock
 entries, so the next `update` restores it instead of forgetting it.
+A preserved conflict records the offered canonical version's hash in the
+lock, so successive upgrades continue to preserve local edits and report
+conflicts. Accepting the offered `.toolkit` copy resolves that conflict for
+the next upgrade. This also applies to installations without a prior lock;
+the baseline never comes from the preserved local bytes.
 A backup of every managed file
-is kept under `.artifacts/ai-toolkit/backup/<timestamp>/`; `--rollback`
+is kept under `.artifacts/ai-toolkit/backup/<timestamp>-<unique-id>/`; even
+updates within the same second have separate backups. `--rollback`
 restores it and the previous lock. `update`, a project `skills install`, and
 `qa bootstrap` refuse before touching any file when `toolkit.toml` or
 `toolkit.lock.json` cannot be rewritten (either is a symlink, a directory, or

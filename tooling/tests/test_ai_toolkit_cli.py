@@ -394,6 +394,88 @@ class UpdateTests(CliFixture):
         self.assertNotIn("previous", config.read_lock(self.target))
         self.assertIn(".proof/scan.py", config.read_lock(self.target)["managed"])
 
+    def test_successive_releases_preserve_unresolved_local_edits(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        relative_path = ".agents/skills/code-review/SKILL.md"
+        skill = self.target / relative_path
+        baseline = config.read_lock(self.target)["managed"][relative_path]
+        edited = skill.read_text(encoding="utf-8") + "\nConsumer review requirement.\n"
+        skill.write_text(edited, encoding="utf-8")
+
+        for release in ("next-release-one", "next-release-two"):
+            with self.subTest(release=release), patch.object(cli, "revision", return_value=release):
+                code, out, err = run_cli("update", "--target", str(self.target), "--json")
+                self.assertEqual(code, 0, err)
+                payload = json.loads(out)
+                self.assertTrue(payload["applied"])
+                self.assertIn(relative_path, [row["path"] for row in payload["conflicts"]])
+                self.assertEqual(skill.read_text(encoding="utf-8"), edited)
+        self.assertEqual(config.read_lock(self.target)["managed"][relative_path], baseline)
+
+    def test_accepting_offered_canonical_version_resumes_normal_upgrades(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        relative_path = ".agents/skills/code-review/SKILL.md"
+        skill = self.target / relative_path
+        original = skill.read_text(encoding="utf-8")
+        edited = original + "\nConsumer review requirement.\n"
+        skill.write_text(edited, encoding="utf-8")
+        distribution = self.root / "next-skills"
+        for name in ("code-review", cli.skills.SHARED_BUNDLE):
+            shutil.copytree(cli.skills.source_dir() / name, distribution / name)
+        canonical = distribution / "code-review/SKILL.md"
+
+        with patch.object(cli.skills, "source_dir", return_value=distribution):
+            for release in ("upstream-one", "upstream-two"):
+                canonical.write_text(original + f"\n{release} review guidance.\n", encoding="utf-8")
+                with patch.object(cli, "revision", return_value=release):
+                    code, out, err = run_cli("update", "--target", str(self.target), "--json")
+                self.assertEqual(code, 0, err)
+                self.assertEqual(skill.read_text(encoding="utf-8"), edited)
+                offered = next(row["canonical"] for row in json.loads(out)["conflicts"] if row["path"] == relative_path)
+                self.assertEqual((self.target / offered).read_bytes(), canonical.read_bytes())
+
+            # Resolving a conflict by accepting the offered file makes it eligible
+            # for the following release's ordinary refresh.
+            shutil.copy2(self.target / offered, skill)
+            newest = original + "\nupstream-three review guidance.\n"
+            canonical.write_text(newest, encoding="utf-8")
+            with patch.object(cli, "revision", return_value="upstream-three"):
+                code, out, err = run_cli("update", "--target", str(self.target), "--json")
+            self.assertEqual(code, 0, err)
+            self.assertEqual(json.loads(out)["conflicts"], [])
+            self.assertEqual(skill.read_text(encoding="utf-8"), newest)
+
+    def test_bootstrapped_conflicts_survive_a_later_release(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        (self.target / config.LOCK_NAME).unlink()
+        skill = self.target / ".agents/skills/code-review/SKILL.md"
+        skill.write_text("Consumer-owned review instructions.\n", encoding="utf-8")
+        code, _, err = run_cli("update", "--target", str(self.target))
+        self.assertEqual(code, 0, err)
+        with patch.object(cli, "revision", return_value="later-release"):
+            code, out, err = run_cli("update", "--target", str(self.target), "--json")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(skill.read_text(encoding="utf-8"), "Consumer-owned review instructions.\n")
+        self.assertIn(".agents/skills/code-review/SKILL.md", [row["path"] for row in json.loads(out)["conflicts"]])
+
+    def test_same_second_updates_keep_rollback_snapshots_separate(self):
+        self.assertEqual(self.init("--components", "skills", "--skills", "code-review")[0], 0)
+        skill = self.target / ".agents/skills/code-review/SKILL.md"
+        with patch.object(cli, "_timestamp", return_value="20260929-120000Z"):
+            code, out, err = run_cli("update", "--target", str(self.target), "--force", "--json")
+            self.assertEqual(code, 0, err)
+            first_backup = json.loads(out)["backup"]
+            skill.unlink()
+            code, out, err = run_cli("update", "--target", str(self.target), "--json")
+            self.assertEqual(code, 0, err)
+            second_backup = json.loads(out)["backup"]
+            self.assertTrue(skill.is_file())
+            code, _, err = run_cli("update", "--target", str(self.target), "--rollback")
+            self.assertEqual(code, 0, err)
+        self.assertFalse(skill.exists(), "rollback must restore the missing file state before the second update")
+        self.assertNotEqual(first_backup, second_backup)
+        self.assertTrue((self.target / first_backup / ".agents/skills/code-review/SKILL.md").is_file())
+
     def test_update_without_lock_bootstraps_from_ownership(self):
         self.assertEqual(self.init("--skills", "code-review")[0], 0)
         (self.target / config.LOCK_NAME).unlink()

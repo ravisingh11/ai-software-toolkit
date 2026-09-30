@@ -8,6 +8,18 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Preserve consumer edits across successive ordinary toolkit upgrades, including
+  installations first adopted without a lock. Unresolved conflicts keep their
+  offered canonical hash baseline; each update receives a unique rollback backup.
+- Recognize Python development dependency groups during command discovery and
+  require unittest imports before proposing unittest from test files.
+- Resolve SARIF tool components by GUID when no index is supplied, so extension
+  findings use their own rule severity. Unknown GUIDs use result-level severity
+  rather than inheriting an unrelated driver rule.
+- Bind FOSSA analysis and policy evaluation to the same project, configuration,
+  and endpoint. Refuse arguments that skip uploading, override the revision or
+  credential, or omit required project identity values.
+
 - Stop intermittent `Directory not empty` failures in the unit tests.
   `tooling/test.sh` sets `maintenance.auto`, `maintenance.autoDetach`,
   `gc.auto`, and `gc.autoDetach` off through git's environment configuration,
