@@ -529,6 +529,7 @@ class DataOnlyTests(AdapterFixture):
         for arguments in (["--endpoint=https://evil.example"], ["-e"], ["--fossa-api-key=x"], ["--config=.fossa.yml"]):
             _, outcome = self.data_only("fossa", arguments, FAKE_FOSSA_MODE="clean")
             self.assertEqual((outcome.status, outcome.code), ("not_run", "configuration-missing"), arguments)
+
         for text in ("version: 3\nserver: https://evil.example\n", "version: 3\napiKey: abc\n", "{version: 3, endpoint: x}"):
             with self.subTest(text=text):
                 self.setUp()
@@ -541,6 +542,14 @@ class DataOnlyTests(AdapterFixture):
         self.commit({".fossa.yml": "version: 3\nproject:\n  id: app\n"})
         _, outcome = self.data_only("fossa", FAKE_FOSSA_MODE="clean")
         self.assertEqual(outcome.status, "passed")
+
+    def test_fossa_refuses_joined_short_identity_overrides_before_execution(self):
+        log = self.root / "commands.log"
+        for arguments in (["-ehttps://alternate.example"], ["-cother.yml"]):
+            with self.subTest(arguments=arguments):
+                _, outcome = self.data_only("fossa", arguments, FAKE_FOSSA_COMMANDS=str(log))
+                self.assertEqual((outcome.status, outcome.code), ("not_run", "configuration-missing"))
+                self.assertFalse(log.exists())
 
     def test_cli_data_only_flag_reaches_the_provider(self):
         self.commit({"pom.xml": ""})

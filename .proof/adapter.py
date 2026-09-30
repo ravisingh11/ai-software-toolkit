@@ -357,7 +357,9 @@ FOSSA_OWNED_OPTIONS = {"--endpoint", "-e", "--fossa-api-key", "--config", "-c"}
 
 
 def fossa_data_only_refusal(target: Path, arguments: list[str]) -> Outcome | None:
-    owned = [argument for argument in arguments if argument.split("=", 1)[0] in FOSSA_OWNED_OPTIONS]
+    owned = [argument for argument in arguments
+             if argument.split("=", 1)[0] in FOSSA_OWNED_OPTIONS
+             or (argument.startswith(("-e", "-c")) and not argument.startswith("--"))]
     if owned:
         return Outcome("not_run", f"FOSSA_ARGS sets options the credentialed workflow owns: {' '.join(owned)}.",
                        code="configuration-missing")
