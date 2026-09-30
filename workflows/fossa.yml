@@ -18,8 +18,8 @@ name: FOSSA
 # reads the pull-request head as data only (`--data-only`): FOSSA runs with
 # `--static-only-analysis`, so it invokes no build tool, and with a fixed
 # endpoint; a candidate .fossa.yml that names a server, endpoint, or API key is
-# refused. Fork pull requests are not scanned unless the
-# PROOF_PROVIDERS_SCAN_FORKS repository variable is "true".
+# refused. Fork pull requests are not scanned: this path has not been
+# independently verified for outside contributors.
 #
 # The job posts the "FOSSA" check for the pull-request head, with the external
 # id proof:fossa:<run id>:<head sha>, and uploads the same result as the
@@ -60,7 +60,7 @@ jobs:
       FOSSA_ARGS: ${{ vars.FOSSA_ARGS }}
       FOSSA_ENDPOINT: ${{ vars.FOSSA_ENDPOINT }}
       PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY || '.' }}
-      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && vars.PROOF_PROVIDERS_SCAN_FORKS != 'true' && 'fork pull requests are not sent to FOSSA unless the PROOF_PROVIDERS_SCAN_FORKS repository variable is true.' || '' }}
+      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork pull requests are not sent to FOSSA because fork scanning has not been independently verified.' || '' }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
       BASE_REF: refs/heads/${{ github.event.pull_request.base.ref }}

@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import contextlib
 import importlib.util
+import hashlib
 import io
 import json
 import os
 import re
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -162,6 +165,61 @@ def jobs(text: str) -> dict[str, str]:
 class CredentialedWorkflowTests(unittest.TestCase):
     """No provider credential shares a job or a runner with pull-request code."""
 
+    def test_ai_review_summary_expression_executes_for_actual_findings(self):
+        text = (ROOT / "workflows" / "ai-pr-review.yml").read_text(encoding="utf-8")
+        expressions = re.findall(r"summary=\"\$\(jq -r '(.*?)' \"\$\{AI_REVIEW_RESULT\}\"\)", text, re.DOTALL)
+        self.assertEqual(len(expressions), 4)
+        cases = (([], "0 findings; 0 unresolved P0/P1"),
+                 ([{"severity": "P1", "status": "open"}, {"severity": "P0", "status": "resolved"},
+                   {"severity": "P2", "status": "open"}], "3 findings; 1 unresolved P0/P1"))
+        for expression in expressions:
+            for findings, expected in cases:
+                with self.subTest(expression=expression, findings=findings):
+                    result = subprocess.run(["jq", "-r", expression], input=json.dumps({"findings": findings}),
+                                            text=True, capture_output=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.strip(), expected)
+
+    def test_snyk_installer_preserves_shell_syntax_in_candidate_paths(self):
+        text = (ROOT / "workflows" / "snyk.yml").read_text(encoding="utf-8")
+        self.assertNotIn("snyk/actions/setup@", text)
+        scripts = re.findall(r"- name: Install the pinned Snyk CLI\n.*?        run: \|\n(.*?)(?=      - name:)",
+                             text, re.DOTALL)
+        self.assertEqual(len(scripts), 2)
+        # Exercise the shipped installer, substituting only the network download.
+        # The stand-in executable records argv exactly as a native CLI would.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            fixture = root / "native-fixture"
+            fixture.write_text(f"#!{sys.executable}\nimport json, sys\nprint(json.dumps(sys.argv[1:]))\n")
+            curl = fake_bin / "curl"
+            curl.write_text(f"#!{sys.executable}\nimport os, pathlib, sys\n"
+                            "pathlib.Path(sys.argv[sys.argv.index('--output') + 1]).write_bytes("
+                            "pathlib.Path(os.environ['FIXTURE']).read_bytes())\n")
+            curl.chmod(0o755)
+            # The workflow runs on Linux; emulate GNU's flags on macOS while
+            # still verifying the downloaded fixture's actual checksum.
+            checksum = fake_bin / "sha256sum"
+            checksum.write_text(f"#!{sys.executable}\nimport hashlib, pathlib, sys\n"
+                                "digest, path = sys.stdin.read().strip().split('  ', 1)\n"
+                                "sys.exit(0 if hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest() == digest else 1)\n")
+            checksum.chmod(0o755)
+            for script in scripts:
+                environment = {**os.environ, "PATH": str(fake_bin) + os.pathsep + os.environ["PATH"],
+                               "FIXTURE": str(fixture), "RUNNER_TEMP": str(root), "GITHUB_PATH": str(root / "github-path"),
+                               "SNYK_CLI_VERSION": "test", "SNYK_CLI_SHA256": hashlib.sha256(fixture.read_bytes()).hexdigest()}
+                installed = subprocess.run(["bash", "-euo", "pipefail", "-c", script],
+                                           env=environment, capture_output=True, text=True)
+                self.assertEqual(installed.returncode, 0, installed.stderr)
+                argument = "--file=$(touch review-marker)/package-lock.json"
+                result = subprocess.run([str(root / "snyk-cli" / "snyk"), "test", "--json", argument],
+                                        cwd=root, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout), ["test", "--json", argument])
+                self.assertFalse((root / "review-marker").exists())
+
     def test_installed_copies_match_the_templates(self):
         for name in WORKFLOWS:
             with self.subTest(workflow=name):
@@ -209,7 +267,9 @@ class CredentialedWorkflowTests(unittest.TestCase):
                     self.assertEqual(contract["check_name"], check_name)
                     self.assertIn(f"name: {contract['artifact_name_prefix']}${{{{ github.run_id }}}}", job)
                     self.assertIn('gh api --method POST "repos/${GITHUB_REPOSITORY}/check-runs"', job)
-                    self.assertIn("PROOF_PROVIDERS_SCAN_FORKS", job)
+                    self.assertNotIn("PROOF_PROVIDERS_SCAN_FORKS", job)
+                    self.assertNotIn("allow-unsafe-pr-checkout", job)
+                    self.assertIn("github.event.pull_request.head.repo.full_name != github.repository && ", job)
                     self.assertLess(job.index("- name: Upload run-bound evidence"), job.index("check-runs"))
         self.assertEqual(credentialed, 7)
 

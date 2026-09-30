@@ -80,7 +80,8 @@ truthful without granting it merge authority. The shared workflow
 `proof-providers` environment, so a pull request cannot change or run code
 next to the key. An optional `AI_REVIEW_SETUP_COMMAND` installs the default
 branch's dependencies first in a separate step without the key. Fork pull
-requests are not reviewed unless `PROOF_PROVIDERS_SCAN_FORKS` is `true`. The workflow gives the
+requests are withheld until the fork-scanning boundary is independently
+verified; there is currently no fork opt-in. The workflow gives the
 review command `AI_REVIEW_ROLE`, `AI_REVIEW_RESULT`,
 `AI_REVIEW_TARGET` (the head checkout), `AI_REVIEW_BASE_SHA`,
 `AI_REVIEW_HEAD_SHA`, and `AI_REVIEW_MODEL`. No pull-request code runs in the

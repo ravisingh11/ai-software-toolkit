@@ -8,6 +8,12 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Repair AI provider result summaries for valid findings, withhold fork scans
+  until independently verified, and replace the Snyk setup action's unsafe
+  shell wrapper with native CLI 1.1307.4 and a verified checksum. Preserve
+  FOSSA project identity across analysis and policy evaluation, and refuse
+  upload, revision, or credential overrides.
+
 - **Breaking (Snyk, FOSSA, and AI PR Review templates):** provider
   credentials no longer share a job or a runner with pull-request code.
   `snyk.yml`, `fossa.yml`, and `ai-pr-review.yml` run on
@@ -29,7 +35,7 @@ or evidence contracts require a major release and migration guidance.
   `blocked` run-bound results, keeps validated counts from the artifact, and
   refuses an artifact-backed check that has not completed. Fork pull requests
   get `action_required` / `credential-withheld` unless
-  `PROOF_PROVIDERS_SCAN_FORKS=true`. `PROOF_SETUP_COMMAND` no longer affects
+  independently verified. `PROOF_SETUP_COMMAND` no longer affects
   Snyk. `ai-pr-review.yml` drops `workflow_call`. `doctor.py --github` reports
   the environment's branch policy and flags repository or organization copies
   of provider secrets. **Migration:** see

@@ -401,8 +401,37 @@ def fossa_outcome(analyze: tuple[int | None, str], test: tuple[int | None, str] 
     return classify_failure(text, exit_code=test_code, tool="fossa test")
 
 
+def fossa_test_arguments(arguments: list[str]) -> list[str]:
+    """Share only project identity options; analysis filters do not apply to test."""
+    shared: list[str] = []
+    value_options = {"--project", "-p", "--config", "-c", "--endpoint", "-e"}
+    owned_options = {"--output", "-o", "--revision", "-r", "--fossa-api-key", "--"}
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        option, separator, value = argument.partition("=")
+        if option in owned_options or (argument.startswith(("-r", "-o")) and not argument.startswith("--")):
+            raise ValueError("FOSSA_ARGS cannot disable upload or override the adapter's revision or credential.")
+        if option in value_options:
+            shared.append(argument)
+            if not separator:
+                index += 1
+                value = arguments[index] if index < len(arguments) else ""
+                shared.append(value)
+            if not value or value.startswith("-"):
+                raise ValueError(f"FOSSA_ARGS requires a value for {option}.")
+        elif argument.startswith(("-p", "-c", "-e")) and not argument.startswith("--"):
+            shared.append(argument)
+        index += 1
+    return shared
+
+
 def run_fossa(target: Path, *, revision: str, arguments: list[str], timeout: int, environment: dict[str, str],
               data_only: bool = False) -> Outcome:
+    try:
+        shared = fossa_test_arguments(arguments)
+    except ValueError as error:
+        return Outcome("not_run", str(error), code="configuration-missing")
     analyze_options: list[str] = []
     common: list[str] = []
     if data_only:
@@ -416,7 +445,7 @@ def run_fossa(target: Path, *, revision: str, arguments: list[str], timeout: int
     if analyze[0] != 0:
         return fossa_outcome(analyze, None)
     test = run_command(
-        ["fossa", "test", "--revision", revision, *common, "--format", "json", "--timeout", str(timeout)],
+        ["fossa", "test", "--revision", revision, *common, *shared, "--format", "json", "--timeout", str(timeout)],
         cwd=target, timeout=timeout + 30, environment=environment,
     )
     return fossa_outcome(analyze, test)

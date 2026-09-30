@@ -7,7 +7,7 @@
 | Check name | `FOSSA` |
 | Workflow | `FOSSA` (`.github/workflows/fossa.yml`) |
 | Adapter commands | `fossa analyze --revision <sha>` then `fossa test --revision <sha> --format json --timeout <s>`; in the workflow both also get `--endpoint`, and `analyze` gets `--static-only-analysis` |
-| Arguments variable | `FOSSA_ARGS` (extra `fossa analyze` arguments); `FOSSA_ENDPOINT` for a server other than `https://app.fossa.com` |
+| Arguments variable | `FOSSA_ARGS` (analysis options; project identity is shared with `test`); `FOSSA_ENDPOINT` for a server other than `https://app.fossa.com` |
 | Credential | `FOSSA_API_KEY` (secret of the `proof-providers` environment) |
 | CLI pin | version and SHA-256 in the workflow `env:`; update both together |
 
@@ -19,6 +19,16 @@ asynchronously by FOSSA and returned only by `fossa test`
 A workflow that runs only `analyze` has produced no evidence. The adapter
 always runs both for the exact revision and reports `analysis-incomplete`
 when `test` does not finish.
+
+Project, configuration, and endpoint options (`--project`/`-p`,
+`--config`/`-c`, `--endpoint`/`-e`) are passed to both commands when running
+locally, so `test` evaluates the uploaded project. Analysis filters stay on
+`analyze`. Arguments that disable uploading (`--output`/`-o`), replace the
+adapter's revision (`--revision`/`-r`), or supply another API key are refused
+as `not_run` with `configuration-missing`; missing project identity values
+are refused before either command runs. In the workflow's `--data-only` mode,
+configuration and endpoint overrides remain refused; use `FOSSA_ENDPOINT`
+for a trusted server change.
 
 ## Prerequisites
 
@@ -64,7 +74,7 @@ In the workflow, the adapter runs with `--data-only`, which adds:
 | `.fossa.yml` or `.fossa.yaml` names `server`, `endpoint`, or `apiKey` | `not_run`, nothing sent | `configuration-missing` |
 | `FOSSA_ARGS` sets `--endpoint`, `--fossa-api-key`, or `--config` | `not_run` | `configuration-missing` |
 | `.fossa.yml` is a symlink | `not_run` | `revision-mismatch` |
-| fork pull request without `PROOF_PROVIDERS_SCAN_FORKS=true` | `not_run`, check concluded `action_required` | `credential-withheld` |
+| fork pull request (scanning withheld; no opt-in) | `not_run`, check concluded `action_required` | `credential-withheld` |
 
 The workflow posts the `FOSSA` check for the pull-request head and fails its
 own `FOSSA scan` job for every outcome except `passed`. Set the

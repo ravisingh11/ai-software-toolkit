@@ -74,6 +74,13 @@ of them shares a job or a runner with pull-request code:
    endpoint, and Snyk Open Source tests only lockfiles whose parsers run
    nothing (see [Snyk](snyk.md)).
 
+This boundary prevents invoking candidate commands; it is not an operating
+system sandbox around the provider binaries. FOSSA's static analysis may run
+its bundled helper tools. Pinned CLI versions, fixed endpoints, environment
+isolation, and real provider verification remain necessary. Generic CodeQL
+warnings about candidate checkout in a privileged workflow still require
+review; fixture tests alone do not clear them.
+
 Each job posts the check named in the provider contract for the pull-request
 head, with the external id `proof:<provider>:<run id>:<head sha>`, and uploads
 the same result as the run-bound artifact `proof-<provider>-<run id>`
@@ -86,14 +93,15 @@ has a different name (for example `Snyk Code scan`), so it can never stand in
 for the provider check. A missing runtime, a missing or unreadable adapter
 result, or a job that never finishes yields no pass.
 
-**Fork pull requests** are not scanned by default. The credential would be
-safe, because no pull-request code runs, but scanning sends an outside
-contributor's code to the provider and lets anyone spend the provider's
-quota; `pull_request_target` runs have no approval gate. Such a pull request
-gets the provider check with the conclusion `action_required` and `not_run`
-evidence (`credential-withheld`). Set the `PROOF_PROVIDERS_SCAN_FORKS`
-repository variable to `true` to scan forks. Dependabot pull requests receive
-no Actions or environment secrets and report `credential-missing`.
+**Fork pull requests** are withheld. The pinned checkout action refuses fork
+heads in privileged workflows, and this integration's fork-scanning boundary
+has not been independently verified. There is currently no fork opt-in; the
+workflows preserve the checkout action's default protection. A fork pull
+request gets the provider check with conclusion `action_required` and
+`not_run` evidence (`credential-withheld`), without checking out its head or
+sending its code to a provider. This applies to Snyk, FOSSA, and AI PR review.
+Dependabot pull requests receive no Actions or environment secrets and report
+`credential-missing`.
 
 `tooling/doctor.py --github <owner>/<repo>` reports whether `proof-providers`
 exists, whether only the default branch can use it, and whether any provider

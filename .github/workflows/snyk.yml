@@ -18,8 +18,8 @@ name: Snyk
 # command, no dependency installation, no build tool. Snyk Open Source
 # therefore tests only lockfiles whose parsers run nothing, and reports not_run
 # with `requires-dependency-resolution` when the checkout needs a build tool or
-# package manager to resolve. Fork pull requests are not scanned unless the
-# PROOF_PROVIDERS_SCAN_FORKS repository variable is "true".
+# package manager to resolve. Fork pull requests are withheld until the
+# fork-scanning boundary has been independently verified.
 #
 # Each job posts the check named in the provider contract ("Snyk Code",
 # "Snyk Open Source") for the pull-request head, with the external id
@@ -40,6 +40,10 @@ concurrency:
 
 permissions: {}
 
+env:
+  SNYK_CLI_VERSION: 1.1307.4
+  SNYK_CLI_SHA256: b0baee4fa4d7d11b7df927a1046cf8137a8a89fafac8101a45c3c0e0777ddc35
+
 jobs:
   snyk-code:
     name: Snyk Code scan
@@ -58,7 +62,7 @@ jobs:
       CONTROL_ID: deep-sast
       SNYK_CODE_ARGS: ${{ vars.SNYK_CODE_ARGS }}
       PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY || '.' }}
-      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && vars.PROOF_PROVIDERS_SCAN_FORKS != 'true' && 'fork pull requests are not sent to Snyk unless the PROOF_PROVIDERS_SCAN_FORKS repository variable is true.' || '' }}
+      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork pull requests are not sent to Snyk because fork scanning has not been independently verified.' || '' }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
       BASE_REF: refs/heads/${{ github.event.pull_request.base.ref }}
@@ -92,9 +96,20 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           path: candidate
           persist-credentials: false
-      - name: Install Snyk CLI
+      # Install the native executable directly: the setup action's eval wrapper
+      # would interpret shell syntax in candidate-controlled lockfile paths.
+      - name: Install the pinned Snyk CLI
         if: ${{ env.WITHHELD == '' }}
-        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/snyk-cli"
+          curl --fail --silent --show-error --location \
+            --output "${RUNNER_TEMP}/snyk-cli/snyk" \
+            "https://github.com/snyk/cli/releases/download/v${SNYK_CLI_VERSION}/snyk-linux"
+          echo "${SNYK_CLI_SHA256}  ${RUNNER_TEMP}/snyk-cli/snyk" | sha256sum --check --strict
+          chmod +x "${RUNNER_TEMP}/snyk-cli/snyk"
+          echo "${RUNNER_TEMP}/snyk-cli" >> "${GITHUB_PATH}"
       - name: Run Snyk Code through the trusted adapter
         if: ${{ env.WITHHELD == '' }}
         shell: bash
@@ -167,7 +182,7 @@ jobs:
       CONTROL_ID: dependency-vulnerability
       SNYK_OPEN_SOURCE_ARGS: ${{ vars.SNYK_OPEN_SOURCE_ARGS }}
       PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY || '.' }}
-      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && vars.PROOF_PROVIDERS_SCAN_FORKS != 'true' && 'fork pull requests are not sent to Snyk unless the PROOF_PROVIDERS_SCAN_FORKS repository variable is true.' || '' }}
+      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork pull requests are not sent to Snyk because fork scanning has not been independently verified.' || '' }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
       BASE_REF: refs/heads/${{ github.event.pull_request.base.ref }}
@@ -201,9 +216,20 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           path: candidate
           persist-credentials: false
-      - name: Install Snyk CLI
+      # Install the native executable directly: the setup action's eval wrapper
+      # would interpret shell syntax in candidate-controlled lockfile paths.
+      - name: Install the pinned Snyk CLI
         if: ${{ env.WITHHELD == '' }}
-        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/snyk-cli"
+          curl --fail --silent --show-error --location \
+            --output "${RUNNER_TEMP}/snyk-cli/snyk" \
+            "https://github.com/snyk/cli/releases/download/v${SNYK_CLI_VERSION}/snyk-linux"
+          echo "${SNYK_CLI_SHA256}  ${RUNNER_TEMP}/snyk-cli/snyk" | sha256sum --check --strict
+          chmod +x "${RUNNER_TEMP}/snyk-cli/snyk"
+          echo "${RUNNER_TEMP}/snyk-cli" >> "${GITHUB_PATH}"
       - name: Run Snyk Open Source through the trusted adapter
         if: ${{ env.WITHHELD == '' }}
         shell: bash

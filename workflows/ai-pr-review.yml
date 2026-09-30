@@ -13,8 +13,8 @@ name: AI PR Review
 # whose deployment branches must be limited to the default branch. The
 # optional AI_REVIEW_SETUP_COMMAND installs the reviewer's dependencies from
 # the default branch, in a step without the key. Fork pull requests are not
-# reviewed unless the PROOF_PROVIDERS_SCAN_FORKS repository variable is
-# "true": review sends the diff to the model provider and spends its quota.
+# reviewed: fork scanning has not been independently verified. Review sends
+# the diff to the model provider and spends its quota.
 #
 # The command receives AI_REVIEW_ROLE, AI_REVIEW_RESULT, AI_REVIEW_TARGET,
 # AI_REVIEW_BASE_SHA, AI_REVIEW_HEAD_SHA, and AI_REVIEW_MODEL, and exits
@@ -57,7 +57,7 @@ jobs:
       AI_REVIEW_COMMAND: ${{ vars.AI_REVIEW_COMMAND }}
       AI_REVIEW_SETUP_COMMAND: ${{ vars.AI_REVIEW_SETUP_COMMAND }}
       AI_REVIEW_WORKING_DIRECTORY: ${{ vars.AI_REVIEW_WORKING_DIRECTORY || '.' }}
-      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && vars.PROOF_PROVIDERS_SCAN_FORKS != 'true' && 'fork pull requests are not sent to the model provider unless the PROOF_PROVIDERS_SCAN_FORKS repository variable is true.' || '' }}
+      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork pull requests are not sent to the model provider because fork scanning has not been independently verified.' || '' }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
       BASE_REF: refs/heads/${{ github.event.pull_request.base.ref }}
@@ -116,8 +116,8 @@ jobs:
             exit $(( status == 0 ? 1 : status ))
           fi
           echo "written=true" >> "${GITHUB_OUTPUT}"
-          summary="$(jq -r '[.findings[] | select((.severity == "P0" or .severity == "P1") and ((.status // "open") != "resolved"))] | length as $b
-            | "\(.findings | length) findings; \($b) unresolved P0/P1"' "${AI_REVIEW_RESULT}")"
+          summary="$(jq -r '.findings as $f | [$f[] | select((.severity == "P0" or .severity == "P1") and ((.status // "open") != "resolved"))] | length as $b
+            | "\($f | length) findings; \($b) unresolved P0/P1"' "${AI_REVIEW_RESULT}")"
           echo "REVIEW_STATUS=$([[ ${status} -eq 0 ]] && echo passed || echo failed)" >> "${GITHUB_ENV}"
           echo "REVIEW_SUMMARY=${summary}" >> "${GITHUB_ENV}"
           # Self-reported counts for the scorecard; they never change the result.
@@ -188,7 +188,7 @@ jobs:
       AI_REVIEW_COMMAND: ${{ vars.AI_REVIEW_COMMAND }}
       AI_REVIEW_SETUP_COMMAND: ${{ vars.AI_REVIEW_SETUP_COMMAND }}
       AI_REVIEW_WORKING_DIRECTORY: ${{ vars.AI_REVIEW_WORKING_DIRECTORY || '.' }}
-      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && vars.PROOF_PROVIDERS_SCAN_FORKS != 'true' && 'fork pull requests are not sent to the model provider unless the PROOF_PROVIDERS_SCAN_FORKS repository variable is true.' || '' }}
+      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork pull requests are not sent to the model provider because fork scanning has not been independently verified.' || '' }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
       BASE_REF: refs/heads/${{ github.event.pull_request.base.ref }}
@@ -247,8 +247,8 @@ jobs:
             exit $(( status == 0 ? 1 : status ))
           fi
           echo "written=true" >> "${GITHUB_OUTPUT}"
-          summary="$(jq -r '[.findings[] | select((.severity == "P0" or .severity == "P1") and ((.status // "open") != "resolved"))] | length as $b
-            | "\(.findings | length) findings; \($b) unresolved P0/P1"' "${AI_REVIEW_RESULT}")"
+          summary="$(jq -r '.findings as $f | [$f[] | select((.severity == "P0" or .severity == "P1") and ((.status // "open") != "resolved"))] | length as $b
+            | "\($f | length) findings; \($b) unresolved P0/P1"' "${AI_REVIEW_RESULT}")"
           echo "REVIEW_STATUS=$([[ ${status} -eq 0 ]] && echo passed || echo failed)" >> "${GITHUB_ENV}"
           echo "REVIEW_SUMMARY=${summary}" >> "${GITHUB_ENV}"
           # Self-reported counts for the scorecard; they never change the result.
@@ -319,7 +319,7 @@ jobs:
       AI_REVIEW_COMMAND: ${{ vars.AI_REVIEW_COMMAND }}
       AI_REVIEW_SETUP_COMMAND: ${{ vars.AI_REVIEW_SETUP_COMMAND }}
       AI_REVIEW_WORKING_DIRECTORY: ${{ vars.AI_REVIEW_WORKING_DIRECTORY || '.' }}
-      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && vars.PROOF_PROVIDERS_SCAN_FORKS != 'true' && 'fork pull requests are not sent to the model provider unless the PROOF_PROVIDERS_SCAN_FORKS repository variable is true.' || '' }}
+      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork pull requests are not sent to the model provider because fork scanning has not been independently verified.' || '' }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
       BASE_REF: refs/heads/${{ github.event.pull_request.base.ref }}
@@ -378,8 +378,8 @@ jobs:
             exit $(( status == 0 ? 1 : status ))
           fi
           echo "written=true" >> "${GITHUB_OUTPUT}"
-          summary="$(jq -r '[.findings[] | select((.severity == "P0" or .severity == "P1") and ((.status // "open") != "resolved"))] | length as $b
-            | "\(.findings | length) findings; \($b) unresolved P0/P1"' "${AI_REVIEW_RESULT}")"
+          summary="$(jq -r '.findings as $f | [$f[] | select((.severity == "P0" or .severity == "P1") and ((.status // "open") != "resolved"))] | length as $b
+            | "\($f | length) findings; \($b) unresolved P0/P1"' "${AI_REVIEW_RESULT}")"
           echo "REVIEW_STATUS=$([[ ${status} -eq 0 ]] && echo passed || echo failed)" >> "${GITHUB_ENV}"
           echo "REVIEW_SUMMARY=${summary}" >> "${GITHUB_ENV}"
           # Self-reported counts for the scorecard; they never change the result.
@@ -450,7 +450,7 @@ jobs:
       AI_REVIEW_COMMAND: ${{ vars.AI_REVIEW_COMMAND }}
       AI_REVIEW_SETUP_COMMAND: ${{ vars.AI_REVIEW_SETUP_COMMAND }}
       AI_REVIEW_WORKING_DIRECTORY: ${{ vars.AI_REVIEW_WORKING_DIRECTORY || '.' }}
-      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && vars.PROOF_PROVIDERS_SCAN_FORKS != 'true' && 'fork pull requests are not sent to the model provider unless the PROOF_PROVIDERS_SCAN_FORKS repository variable is true.' || '' }}
+      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork pull requests are not sent to the model provider because fork scanning has not been independently verified.' || '' }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
       BASE_REF: refs/heads/${{ github.event.pull_request.base.ref }}
@@ -509,8 +509,8 @@ jobs:
             exit $(( status == 0 ? 1 : status ))
           fi
           echo "written=true" >> "${GITHUB_OUTPUT}"
-          summary="$(jq -r '[.findings[] | select((.severity == "P0" or .severity == "P1") and ((.status // "open") != "resolved"))] | length as $b
-            | "\(.findings | length) findings; \($b) unresolved P0/P1"' "${AI_REVIEW_RESULT}")"
+          summary="$(jq -r '.findings as $f | [$f[] | select((.severity == "P0" or .severity == "P1") and ((.status // "open") != "resolved"))] | length as $b
+            | "\($f | length) findings; \($b) unresolved P0/P1"' "${AI_REVIEW_RESULT}")"
           echo "REVIEW_STATUS=$([[ ${status} -eq 0 ]] && echo passed || echo failed)" >> "${GITHUB_ENV}"
           echo "REVIEW_SUMMARY=${summary}" >> "${GITHUB_ENV}"
           # Self-reported counts for the scorecard; they never change the result.

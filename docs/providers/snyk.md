@@ -64,7 +64,7 @@ In the workflow, the adapter runs with `--data-only`, which adds:
 | `SNYK_OPEN_SOURCE_ARGS` that choose targets (`--file`, `--package-manager`, `--command`, a positional path) | `not_run` | `configuration-missing` |
 | a symlinked manifest or lockfile | `not_run` | `revision-mismatch` |
 | no supported lockfile | `not_run` | `unsupported-project` |
-| fork pull request without `PROOF_PROVIDERS_SCAN_FORKS=true` | `not_run`, check concluded `action_required` | `credential-withheld` |
+| fork pull request (scanning withheld; no opt-in) | `not_run`, check concluded `action_required` | `credential-withheld` |
 
 Snyk Open Source runs `snyk test --file=<lockfile>` once per lockfile, and
 the worst result wins: any blocked or not-run lockfile makes the whole check
@@ -121,3 +121,17 @@ their evidence. Then confirm that a pull request which edits
 `.github/workflows/snyk.yml` still runs the default branch's version, and that
 a fork pull request shows `action_required`. Record the run in the
 [verification ledger](verification.md).
+
+## CLI execution boundary
+
+The workflow downloads the native Linux executable for Snyk CLI **1.1307.4**
+and checks its SHA-256 before execution. The version and digest are pinned
+in `workflows/snyk.yml` and must be updated together from the
+[official release](https://github.com/snyk/cli/releases/tag/v1.1307.4).
+It does not use the setup action's shell wrapper: that wrapper evaluates its
+arguments as shell code, including candidate-controlled lockfile paths.
+The adapter passes each argument directly to the verified executable.
+Regression coverage executes the workflow installer with a local download
+fixture and confirms shell syntax in a lockfile path remains literal data.
+This checks argument handling; it does not establish that every scanner
+parser is safe or replace a credential-free live provider verification.
