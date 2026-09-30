@@ -25,28 +25,11 @@ on:
         required: false
         type: string
         default: ''
-      fossa-command:
-        description: Optional organization-owned FOSSA command. Empty means not configured.
-        required: false
-        type: string
-        default: ''
-      snyk-open-source-command:
-        description: Optional Snyk Open Source command. Empty means not configured.
-        required: false
-        type: string
-        default: ''
       secret-scan-command:
         description: Optional organization-owned secret scanning command. GitHub platform scanning is configured separately.
         required: false
         type: string
         default: ''
-    secrets:
-      FOSSA_API_KEY:
-        description: Optional FOSSA API key consumed by the repository-owned adapter.
-        required: false
-      SNYK_TOKEN:
-        description: Snyk API token consumed by the repository-owned Snyk adapter.
-        required: false
 
 concurrency:
   group: security-scanning-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
@@ -129,55 +112,6 @@ jobs:
         shell: bash
         run: bash -euo pipefail -c "${SEMGREP_COMMAND}"
 
-  fossa:
-    name: FOSSA
-    if: ${{ inputs.fossa-command != '' || vars.FOSSA_COMMAND != '' }}
-    runs-on: ubuntu-latest
-    env:
-      FOSSA_COMMAND: ${{ inputs.fossa-command || vars.FOSSA_COMMAND }}
-      FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-
-      - name: Run organization FOSSA integration
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "${FOSSA_API_KEY}" ]]; then
-            echo "Configure FOSSA_API_KEY or use an organization-managed FOSSA integration." >&2
-            exit 1
-          fi
-          bash -euo pipefail -c "${FOSSA_COMMAND}"
-
-  snyk-open-source:
-    name: Snyk Open Source
-    if: ${{ inputs.snyk-open-source-command != '' || vars.SNYK_OPEN_SOURCE_COMMAND != '' }}
-    runs-on: ubuntu-latest
-    env:
-      SNYK_OPEN_SOURCE_COMMAND: ${{ inputs.snyk-open-source-command || vars.SNYK_OPEN_SOURCE_COMMAND }}
-      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-      - name: Install Snyk CLI
-        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
-      - name: Run Snyk Open Source scan
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "${SNYK_TOKEN}" ]]; then
-            echo "Configure SNYK_TOKEN or use an organization-managed Snyk integration." >&2
-            exit 1
-          fi
-          bash -euo pipefail -c "${SNYK_OPEN_SOURCE_COMMAND}"
-
   secret-scan:
     name: Secret Scan
     if: ${{ inputs.secret-scan-command != '' || vars.SECRET_SCAN_COMMAND != '' }}
@@ -195,6 +129,11 @@ jobs:
         shell: bash
         run: bash -euo pipefail -c "${SECRET_SCAN_COMMAND}"
 
+# FOSSA and Snyk Open Source are not part of this bundle. Its jobs check out
+# and run pull-request code on `pull_request`, so any provider credential here
+# would be readable by that code. Copy the adapter templates `fossa.yml` and
+# `snyk.yml` instead; see docs/providers/README.md.
+#
 # GitHub secret scanning and push protection are platform settings, not Actions
 # steps. Enable them at the organization/repository level; this workflow does
 # not pretend to configure them.
