@@ -86,39 +86,29 @@ class ProofContractValidationTests(unittest.TestCase):
                 self.assertEqual(providers[provider_id]["template"], template)
                 self.assertTrue(providers[provider_id]["template_available"])
                 text = (ROOT / template).read_text(encoding="utf-8")
-                self.assertIn(".proof/adapter.py", text)
-                self.assertIn(f"adapter.py {provider_id}", text)
-                # The adapter that receives the credential comes from the base revision,
-                # never from the pull request head, and runs against the head checkout.
-                self.assertIn("ref: ${{ github.event.pull_request.base.sha || github.sha }}", text)
-                self.assertIn("path: trusted", text)
+                # The adapter that receives the credential comes from the default branch, never
+                # from the pull request, and reads the head checkout as data only.
+                self.assertIn("pull_request_target:", text)
+                self.assertNotIn("\n  pull_request:", text)
+                self.assertIn("ref: ${{ github.sha }}\n          path: trusted", text)
                 self.assertIn("path: candidate", text)
-                self.assertIn(f'"${{TRUSTED_PYTHON}}" -I trusted/.proof/adapter.py {provider_id}', text)
+                self.assertIn(f"python3 -I trusted/.proof/adapter.py {provider_id} --data-only", text)
                 self.assertIn('--target "candidate/${PROOF_WORKING_DIRECTORY}"', text)
                 self.assertNotIn(f"python3 .proof/adapter.py {provider_id}", text)
-                self.assertNotIn(f"python3 trusted/.proof/adapter.py {provider_id}", text)
-                self.assertIn("-L trusted/.proof/adapter.py", text)
-                # The credential step runs in a reset environment with tool paths recorded
-                # before any candidate-influenced step, so setup cannot poison it.
+                self.assertIn('-L "trusted/.proof/${file}"', text)
                 self.assertIn("/usr/bin/env -i", text)
-                self.assertIn("TRUSTED_PATH: ${{ steps.tools.outputs.path }}", text)
-                self.assertLess(text.index("- name: Record trusted tool paths"), text.index("- name: Check out the trusted adapter"))
-                setup = text.find("- name: Install dependencies with the repository setup command")
-                if setup != -1:
-                    # Within the job that runs the setup command: candidate checkout, then the
-                    # recorded tool paths, then setup, then the trusted checkout and the run.
-                    candidate = text.rfind("- name: Check out the candidate revision", 0, setup)
-                    self.assertLess(candidate, text.rfind("- name: Record trusted tool paths", 0, setup))
-                    self.assertLess(setup, text.find("- name: Check out the trusted adapter", setup))
-                    self.assertLess(text.find("- name: Check out the trusted adapter", setup), text.find("- name: Run ", setup))
+                self.assertNotIn("PROOF_SETUP_COMMAND", text)
 
-    def test_adapter_backed_checks_declare_the_adapter_as_a_trusted_path(self) -> None:
+    def test_credentialed_checks_are_artifact_backed_not_path_trusted(self) -> None:
         providers = self.providers()
 
-        for provider_id in ("snyk-code", "snyk-open-source", "fossa"):
+        for provider_id in ("snyk-code", "snyk-open-source", "fossa", "ai-engineering-adapter", "ai-qa-adapter",
+                            "ai-security-adapter", "ai-repository-standards-adapter"):
             for capability, check in providers[provider_id]["checks"].items():
                 with self.subTest(provider_id=provider_id, capability=capability):
-                    self.assertIn(".proof/adapter.py", check.get("trusted_paths", []))
+                    self.assertEqual(check["external_id_prefix"], f"proof:{provider_id}:")
+                    self.assertEqual(check["artifact_name_prefix"], f"proof-{provider_id}-")
+                    self.assertNotIn("trusted_paths", check)
 
     def test_actions_backed_checks_declare_exact_installed_workflow_paths(self) -> None:
         providers = self.providers()

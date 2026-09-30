@@ -38,13 +38,15 @@ REVIEW_SKILLS = {
 # Standard reason codes emitted by adapters (see tooling/provider_adapter.py REASON_CODES).
 REASON_ACTIONS = {
     "configuration-missing": "Install the provider CLI or configuration named in the reason, then rerun.",
-    "credential-missing": "Add the provider credential as a GitHub secret (or export it locally), then rerun.",
+    "credential-missing": "Add the provider credential as a secret of the proof-providers environment (or export it locally), then rerun.",
+    "credential-withheld": "Fork pull requests are not sent to the provider; set PROOF_PROVIDERS_SCAN_FORKS=true to scan them.",
     "authentication-failed": "Rotate or fix the provider credential; the current one was rejected.",
     "execution-error": "Open the provider run log; the command failed before producing a result.",
     "analysis-incomplete": "The provider did not finish evaluating this revision; rerun once its analysis completes or raise the timeout.",
     "revision-mismatch": "The evidence is for a different revision; rerun the provider on the exact HEAD.",
     "unsupported-project": "The provider found nothing to analyze; confirm the working directory and manifests, or deselect the provider.",
     "timed-out": "The provider exceeded the adapter timeout; rerun or raise --timeout.",
+    "requires-dependency-resolution": "Resolving these dependencies needs a build tool; commit a supported lockfile, exclude the manifest, or select another provider.",
 }
 
 

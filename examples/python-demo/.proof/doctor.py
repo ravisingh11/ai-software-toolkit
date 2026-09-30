@@ -123,7 +123,12 @@ def github_setup(target: Path, repository: str, selected: dict, providers: dict,
             else "Repository-level variable is empty or not enabled." if status == "action_needed"
             else "Repository-level variable was not found or could not be read; inherited values were not queried.",
             f"Verify effective Actions variable {name}" + (f"={expected}" if expected else "") + "; run the corresponding workflow.")
-    for name in sorted({name for provider_id in selected_providers for name in providers[provider_id].get("secrets", [])}):
+    environment_names = {name for provider_id in selected_providers & set(ENVIRONMENT_PROVIDERS)
+                         for name in declared_names(providers[provider_id])}
+    if environment_names:
+        rows.extend(provider_environment_rows(api, collection, environment_names, secrets))
+    for name in sorted({name for provider_id in selected_providers for name in declared_names(providers[provider_id])}
+                       - environment_names):
         present = secrets is not None and name in secrets
         add(f"github.secret.{name}", "configured" if present else "unverified",
             "Repository-level secret name exists; its value, validity, permissions, and workflow availability are unverified." if present
@@ -145,7 +150,76 @@ def github_setup(target: Path, repository: str, selected: dict, providers: dict,
     return rows
 
 
+def declared_names(provider: dict) -> list[str]:
+    """Names of the GitHub secrets a provider declares; names only, never values."""
+    return [name for key, value in provider.items() if key == "secrets" and isinstance(value, list)
+            for name in value if isinstance(name, str)]
+
+
+def provider_environment_rows(api, collection, names: set[str], repository_secrets: dict | None) -> list[dict]:
+    """Where the credentialed provider workflows' secrets live, never their values.
+
+    A repository or organization secret is readable by a workflow pushed to any
+    branch, so the provider workflows read theirs from PROVIDER_ENVIRONMENT, whose
+    deployment branches must be limited to the default branch.
+    """
+    rows = []
+
+    def add(identifier, status, message, next_step):
+        rows.append({"id": identifier, "status": status, "message": message, "next_step": next_step})
+
+    environment = api(f"/environments/{PROVIDER_ENVIRONMENT}")
+    policy = environment.get("deployment_branch_policy") if isinstance(environment, dict) else None
+    repository = api()
+    default_branch = repository.get("default_branch") if isinstance(repository, dict) else None
+    if not isinstance(environment, dict) or environment.get("name") != PROVIDER_ENVIRONMENT:
+        status, message = "unverified", "The environment was not found or could not be read."
+    elif policy is None:
+        status, message = "action_needed", "The environment accepts every branch, so any pushed workflow can read its secrets."
+    elif not isinstance(policy, dict) or not isinstance(default_branch, str):
+        status, message = "unverified", "The deployment branch policy or default branch could not be read."
+    elif policy.get("protected_branches") is True:
+        status, message = "configured", "Only protected branches can use the environment; confirm none but the default branch is protected."
+    else:
+        pages = api(f"/environments/{PROVIDER_ENVIRONMENT}/deployment-branch-policies?per_page=100", True)
+        branch_policies = None
+        if isinstance(pages, list) and all(isinstance(page, dict) and isinstance(page.get("branch_policies"), list)
+                                           for page in pages):
+            branch_policies = [item for page in pages for item in page["branch_policies"]]
+        if branch_policies is None or any(not isinstance(item, dict) for item in branch_policies):
+            status, message = "unverified", "The environment's deployment branch policies could not be read."
+        elif branch_policies and all(item.get("name") == default_branch and item.get("type", "branch") == "branch"
+                                     for item in branch_policies):
+            status, message = "configured", f"Only {default_branch} can use the environment."
+        else:
+            status, message = "action_needed", f"The environment's deployment branches are not limited to {default_branch}."
+    add(f"github.environment.{PROVIDER_ENVIRONMENT}", status, message,
+        f"Create the {PROVIDER_ENVIRONMENT} environment with deployment branches limited to the default branch.")
+    stored = collection(f"/environments/{PROVIDER_ENVIRONMENT}/secrets", "secrets")
+    organization = collection("/actions/organization-secrets", "secrets")
+    for name in sorted(names):
+        shared = [scope for scope, found in (("repository", repository_secrets), ("organization", organization))
+                  if found is not None and name in found]
+        if shared:
+            add(f"github.secret.{name}", "action_needed",
+                f"A {' and '.join(shared)} secret {name} is readable by a workflow pushed to any branch.",
+                f"Store {name} only in the {PROVIDER_ENVIRONMENT} environment and delete the {' and '.join(shared)} copy.")
+        elif stored is not None and name in stored:
+            add(f"github.secret.{name}", "configured" if status == "configured" else "unverified",
+                f"{name} is an environment secret of {PROVIDER_ENVIRONMENT}; its value, validity, and permissions are unverified.",
+                f"Open a representative PR and confirm the provider check reports; never put {name} in policy, logs, or this report.")
+        else:
+            add(f"github.secret.{name}", "unverified" if stored is None else "action_needed",
+                f"{name} was not found in the {PROVIDER_ENVIRONMENT} environment" + ("." if stored is not None else ", or it could not be read."),
+                f"Add {name} as a secret of the {PROVIDER_ENVIRONMENT} environment.")
+    return rows
+
+
 ADAPTER_BACKED_PROVIDERS = ("snyk-code", "snyk-open-source", "fossa")
+PROVIDER_ENVIRONMENT = "proof-providers"
+# Providers whose credentialed workflows run on pull_request_target with secrets from PROVIDER_ENVIRONMENT.
+ENVIRONMENT_PROVIDERS = (*ADAPTER_BACKED_PROVIDERS, "ai-engineering-adapter", "ai-qa-adapter", "ai-security-adapter",
+                         "ai-repository-standards-adapter")
 
 
 def adapter_setup(target: Path, selected: dict, providers: dict, environment: dict) -> list[dict]:
@@ -168,7 +242,7 @@ def adapter_setup(target: Path, selected: dict, providers: dict, environment: di
     for provider_id in sorted(external_providers):
         provider = providers[provider_id]
         # Names of declared GitHub secrets; values are never read or printed.
-        credential_names = [name for key, value in provider.items() if key == "secrets" and isinstance(value, list) for name in value if isinstance(name, str)]
+        credential_names = declared_names(provider)
         if provider_id in ADAPTER_BACKED_PROVIDERS and (contracts is None or provider_id not in contracts):
             rows.append({"id": f"provider.{provider_id}.adapter", "status": "action_needed",
                          "message": "The installed runtime has no adapter contract for this provider; adapter-owned commands cannot run.",

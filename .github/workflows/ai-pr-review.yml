@@ -2,86 +2,100 @@ name: AI PR Review
 
 # Four advisory AI reviewers (engineering, QA, security, repository standards)
 # and a report-only consolidation job. Each role job runs the repository-owned
-# AI_REVIEW_COMMAND from the pull request's base revision (`trusted/`) against
-# the head revision (`candidate/`), so a pull request cannot change the code
-# that receives ANTHROPIC_API_KEY. Dependencies install first, in a separate
-# step without the key, through the optional AI_REVIEW_SETUP_COMMAND. No pull-request code runs in these jobs; the
-# reviewer only reads the diff. The command receives AI_REVIEW_ROLE,
-# AI_REVIEW_RESULT, AI_REVIEW_TARGET, AI_REVIEW_BASE_SHA, AI_REVIEW_HEAD_SHA,
-# and AI_REVIEW_MODEL, and exits non-zero when it cannot complete the review or
-# when unresolved P0/P1 findings remain. Every job is skipped until
-# AI_REVIEW_COMMAND (or the workflow_call input review-command) is configured;
-# a skipped check is never a pass. AI review is advisory-only and must not be a
-# required status check.
+# AI_REVIEW_COMMAND from the default branch (`trusted/`) against the
+# pull-request head (`candidate/`), which it reads as data only: no
+# pull-request code runs in these jobs, and the reviewer only reads the diff.
+#
+# ANTHROPIC_API_KEY never shares a job or a runner with pull-request code. The
+# workflow runs on pull_request_target, so GitHub takes this file and the
+# reviewer from the default branch, and a pull request cannot edit what
+# receives the key. The key is a secret of the `proof-providers` environment,
+# whose deployment branches must be limited to the default branch. The
+# optional AI_REVIEW_SETUP_COMMAND installs the reviewer's dependencies from
+# the default branch, in a step without the key. Fork pull requests are not
+# reviewed: fork scanning has not been independently verified. Review sends
+# the diff to the model provider and spends its quota.
+#
+# The command receives AI_REVIEW_ROLE, AI_REVIEW_RESULT, AI_REVIEW_TARGET,
+# AI_REVIEW_BASE_SHA, AI_REVIEW_HEAD_SHA, and AI_REVIEW_MODEL, and exits
+# non-zero when it cannot complete the review or when unresolved P0/P1
+# findings remain. Each role job posts the check named in the provider
+# contract ("AI Engineering Review", ...) for the pull-request head, with the
+# external id proof:<provider>:<run id>:<head sha>, and uploads the same result
+# as the run-bound artifact proof-<provider>-<run id>, with the finding counts
+# the reviewer reported. Every job is skipped until AI_REVIEW_COMMAND is
+# configured; a skipped check is never a pass. AI review is advisory-only and
+# must not be a required status check.
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
-  workflow_call:
-    inputs:
-      review-command:
-        description: Trusted repository-owned AI review adapter command, run from the base revision.
-        required: false
-        type: string
-        default: ''
-      review-setup-command:
-        description: Optional dependency setup, run from the base revision before the review step and without the provider key.
-        required: false
-        type: string
-        default: ''
-      review-working-directory:
-        description: Directory inside the head revision whose changes are reviewed.
-        required: false
-        type: string
-        default: '.'
-    secrets:
-      ANTHROPIC_API_KEY:
-        required: false
 
 concurrency:
   group: ai-pr-review-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  pull-requests: read
+permissions: {}
 
 jobs:
   engineering:
-    name: AI Engineering Review
-    if: ${{ (inputs.review-command || vars.AI_REVIEW_COMMAND) != '' }}
+    name: AI Engineering Reviewer
+    if: ${{ vars.AI_REVIEW_COMMAND != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment:
+      name: proof-providers
+      deployment: false
+    permissions:
+      contents: read
+      checks: write
     env:
       AI_REVIEW_ROLE: engineering
-      AI_REVIEW_COMMAND: ${{ inputs.review-command || vars.AI_REVIEW_COMMAND }}
-      AI_REVIEW_SETUP_COMMAND: ${{ inputs.review-setup-command || vars.AI_REVIEW_SETUP_COMMAND }}
-      AI_REVIEW_WORKING_DIRECTORY: ${{ inputs.review-working-directory || vars.AI_REVIEW_WORKING_DIRECTORY || '.' }}
+      PROVIDER_ID: ai-engineering-adapter
+      CHECK_NAME: AI Engineering Review
+      CONTROL_ID: ai-engineering-review
+      AI_REVIEW_COMMAND: ${{ vars.AI_REVIEW_COMMAND }}
+      AI_REVIEW_SETUP_COMMAND: ${{ vars.AI_REVIEW_SETUP_COMMAND }}
+      AI_REVIEW_WORKING_DIRECTORY: ${{ vars.AI_REVIEW_WORKING_DIRECTORY || '.' }}
+      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork pull requests are not sent to the model provider because fork scanning has not been independently verified.' || '' }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
-      HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      BASE_REF: refs/heads/${{ github.event.pull_request.base.ref }}
     steps:
-      - name: Check out the candidate revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check out the trusted runtime from the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          path: candidate
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Check out the trusted reviewer from the base revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          ref: ${{ github.sha }}
           path: trusted
           fetch-depth: 1
           persist-credentials: false
+      - name: Require the trusted runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in provider_check.py evaluate.py; do
+            if [[ -L trusted/.proof || -L "trusted/.proof/${file}" || ! -f "trusted/.proof/${file}" ]]; then
+              echo "::error::The default branch has no regular .proof/${file}; refresh the Proof runtime (tooling/install.py --refresh-existing) and merge it before this check can produce evidence." >&2
+              exit 1
+            fi
+          done
+      - name: Check out the pull request head as data
+        if: ${{ env.WITHHELD == '' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
       # Installs dependencies without the provider key, so nothing an installer runs can read it.
       - name: Prepare engineering reviewer
-        if: ${{ env.AI_REVIEW_SETUP_COMMAND != '' }}
+        if: ${{ env.WITHHELD == '' && env.AI_REVIEW_SETUP_COMMAND != '' }}
         working-directory: trusted
         shell: bash
         run: bash -euo pipefail -c "${AI_REVIEW_SETUP_COMMAND}"
       - name: Run engineering reviewer
         id: review
+        if: ${{ env.WITHHELD == '' }}
         working-directory: trusted
         shell: bash
         env:
@@ -95,44 +109,57 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/ai-review"
           status=0
           bash -euo pipefail -c "${AI_REVIEW_COMMAND}" || status=$?
-          if [[ ! -s "${AI_REVIEW_RESULT}" ]]; then
-            echo "::error::The reviewer wrote no result file (exit ${status})." >&2
+          if [[ ! -s "${AI_REVIEW_RESULT}" ]] \
+              || ! jq -e 'type == "object" and (.findings | type == "array" and all(.[]; type == "object"))' "${AI_REVIEW_RESULT}" > /dev/null; then
+            echo "REVIEW_STATUS=blocked" >> "${GITHUB_ENV}"
+            echo "REVIEW_SUMMARY=execution-error: the reviewer wrote no valid result file (exit ${status})." >> "${GITHUB_ENV}"
             exit $(( status == 0 ? 1 : status ))
           fi
-          jq -e 'type == "object" and (.findings | type == "array" and all(.[]; type == "object"))' "${AI_REVIEW_RESULT}" > /dev/null
           echo "written=true" >> "${GITHUB_OUTPUT}"
-          exit "${status}"
-      # Optional, self-reported finding counts for the Proof scorecard: never changes this check's result.
-      - name: Package self-reported finding counts
-        id: measurements
-        if: ${{ always() && (steps.review.outcome == 'success' || steps.review.outcome == 'failure') }}
+          summary="$(jq -r '.findings as $f | [$f[] | select((.severity == "P0" or .severity == "P1") and ((.status // "open") != "resolved"))] | length as $b
+            | "\($f | length) findings; \($b) unresolved P0/P1"' "${AI_REVIEW_RESULT}")"
+          echo "REVIEW_STATUS=$([[ ${status} -eq 0 ]] && echo passed || echo failed)" >> "${GITHUB_ENV}"
+          echo "REVIEW_SUMMARY=${summary}" >> "${GITHUB_ENV}"
+          # Self-reported counts for the scorecard; they never change the result.
+          python3 -I "${GITHUB_WORKSPACE}/trusted/.proof/measurements.py" review-findings "${AI_REVIEW_RESULT}" \
+            --output "${RUNNER_TEMP}/measurements.json" \
+            || echo "::warning::Finding counts were not recorded; the result is unaffected."
+      - name: Record the result
+        id: evidence
+        if: ${{ !cancelled() }}
         shell: bash
-        env:
-          OUTCOME: ${{ steps.review.outcome }}
         run: |
-          result="${RUNNER_TEMP}/ai-review/${AI_REVIEW_ROLE}.json"
-          if [[ ! -f trusted/.proof/measurements.py || ! -s "${result}" ]]; then
-            echo "No Proof runtime or reviewer result file; the scorecard will show finding counts as not collected."
-            exit 0
-          fi
-          input="${RUNNER_TEMP}/proof-measurements-input.json"
-          if python3 trusted/.proof/measurements.py review-findings "${result}" --output "${input}" \
-              && python3 trusted/.proof/measurements.py package --control ai-engineering-review --input "${input}" \
-                --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
-            echo "present=true" >> "${GITHUB_OUTPUT}"
+          set -euo pipefail
+          if [[ -n "${WITHHELD}" ]]; then
+            source_args=(--withheld "${WITHHELD}")
           else
-            echo "::warning::Finding counts were not packaged; the check result is unaffected."
+            source_args=(--status "${REVIEW_STATUS:-blocked}" --summary "${REVIEW_SUMMARY:-execution-error: the reviewer did not run.}")
           fi
-      - name: Upload self-reported finding counts
-        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
-        # Optional display metadata: an upload failure must not change the check result.
-        continue-on-error: true
+          python3 -I trusted/.proof/provider_check.py evidence \
+            --provider-id "${PROVIDER_ID}" --check-name "${CHECK_NAME}" "${source_args[@]}" \
+            --control "${CONTROL_ID}" --measurements "${RUNNER_TEMP}/measurements.json" \
+            --output "${RUNNER_TEMP}/proof-evidence/proof-evidence.json"
+          python3 -I trusted/.proof/provider_check.py check \
+            --evidence "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" --output "${RUNNER_TEMP}/check-run.json"
+          jq -r '"\(.check_name): \(.status) — \(.summary)"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" >> "${GITHUB_STEP_SUMMARY}"
+      - name: Upload run-bound evidence
+        if: ${{ !cancelled() && steps.evidence.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: proof-measurements-ai-engineering-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          name: proof-ai-engineering-adapter-${{ github.run_id }}
+          path: ${{ runner.temp }}/proof-evidence/proof-evidence.json
           if-no-files-found: error
           retention-days: 7
+      - name: Publish the AI Engineering Review check
+        if: ${{ !cancelled() && steps.evidence.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/check-runs" --input "${RUNNER_TEMP}/check-run.json" > /dev/null
+          # The provider check carries the verdict; this job fails too, so it never reads as a pass.
+          jq -e '.status == "passed"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" > /dev/null
       - name: Upload engineering findings
         if: ${{ always() && steps.review.outputs.written == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -143,40 +170,63 @@ jobs:
           retention-days: 14
 
   qa:
-    name: AI QA Review
-    if: ${{ (inputs.review-command || vars.AI_REVIEW_COMMAND) != '' }}
+    name: AI QA Reviewer
+    if: ${{ vars.AI_REVIEW_COMMAND != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment:
+      name: proof-providers
+      deployment: false
+    permissions:
+      contents: read
+      checks: write
     env:
       AI_REVIEW_ROLE: qa
-      AI_REVIEW_COMMAND: ${{ inputs.review-command || vars.AI_REVIEW_COMMAND }}
-      AI_REVIEW_SETUP_COMMAND: ${{ inputs.review-setup-command || vars.AI_REVIEW_SETUP_COMMAND }}
-      AI_REVIEW_WORKING_DIRECTORY: ${{ inputs.review-working-directory || vars.AI_REVIEW_WORKING_DIRECTORY || '.' }}
+      PROVIDER_ID: ai-qa-adapter
+      CHECK_NAME: AI QA Review
+      CONTROL_ID: ai-qa-review
+      AI_REVIEW_COMMAND: ${{ vars.AI_REVIEW_COMMAND }}
+      AI_REVIEW_SETUP_COMMAND: ${{ vars.AI_REVIEW_SETUP_COMMAND }}
+      AI_REVIEW_WORKING_DIRECTORY: ${{ vars.AI_REVIEW_WORKING_DIRECTORY || '.' }}
+      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork pull requests are not sent to the model provider because fork scanning has not been independently verified.' || '' }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
-      HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      BASE_REF: refs/heads/${{ github.event.pull_request.base.ref }}
     steps:
-      - name: Check out the candidate revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check out the trusted runtime from the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          path: candidate
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Check out the trusted reviewer from the base revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          ref: ${{ github.sha }}
           path: trusted
           fetch-depth: 1
           persist-credentials: false
+      - name: Require the trusted runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in provider_check.py evaluate.py; do
+            if [[ -L trusted/.proof || -L "trusted/.proof/${file}" || ! -f "trusted/.proof/${file}" ]]; then
+              echo "::error::The default branch has no regular .proof/${file}; refresh the Proof runtime (tooling/install.py --refresh-existing) and merge it before this check can produce evidence." >&2
+              exit 1
+            fi
+          done
+      - name: Check out the pull request head as data
+        if: ${{ env.WITHHELD == '' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
       # Installs dependencies without the provider key, so nothing an installer runs can read it.
-      - name: Prepare QA reviewer
-        if: ${{ env.AI_REVIEW_SETUP_COMMAND != '' }}
+      - name: Prepare qa reviewer
+        if: ${{ env.WITHHELD == '' && env.AI_REVIEW_SETUP_COMMAND != '' }}
         working-directory: trusted
         shell: bash
         run: bash -euo pipefail -c "${AI_REVIEW_SETUP_COMMAND}"
-      - name: Run QA reviewer
+      - name: Run qa reviewer
         id: review
+        if: ${{ env.WITHHELD == '' }}
         working-directory: trusted
         shell: bash
         env:
@@ -190,45 +240,58 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/ai-review"
           status=0
           bash -euo pipefail -c "${AI_REVIEW_COMMAND}" || status=$?
-          if [[ ! -s "${AI_REVIEW_RESULT}" ]]; then
-            echo "::error::The reviewer wrote no result file (exit ${status})." >&2
+          if [[ ! -s "${AI_REVIEW_RESULT}" ]] \
+              || ! jq -e 'type == "object" and (.findings | type == "array" and all(.[]; type == "object"))' "${AI_REVIEW_RESULT}" > /dev/null; then
+            echo "REVIEW_STATUS=blocked" >> "${GITHUB_ENV}"
+            echo "REVIEW_SUMMARY=execution-error: the reviewer wrote no valid result file (exit ${status})." >> "${GITHUB_ENV}"
             exit $(( status == 0 ? 1 : status ))
           fi
-          jq -e 'type == "object" and (.findings | type == "array" and all(.[]; type == "object"))' "${AI_REVIEW_RESULT}" > /dev/null
           echo "written=true" >> "${GITHUB_OUTPUT}"
-          exit "${status}"
-      # Optional, self-reported finding counts for the Proof scorecard: never changes this check's result.
-      - name: Package self-reported finding counts
-        id: measurements
-        if: ${{ always() && (steps.review.outcome == 'success' || steps.review.outcome == 'failure') }}
+          summary="$(jq -r '.findings as $f | [$f[] | select((.severity == "P0" or .severity == "P1") and ((.status // "open") != "resolved"))] | length as $b
+            | "\($f | length) findings; \($b) unresolved P0/P1"' "${AI_REVIEW_RESULT}")"
+          echo "REVIEW_STATUS=$([[ ${status} -eq 0 ]] && echo passed || echo failed)" >> "${GITHUB_ENV}"
+          echo "REVIEW_SUMMARY=${summary}" >> "${GITHUB_ENV}"
+          # Self-reported counts for the scorecard; they never change the result.
+          python3 -I "${GITHUB_WORKSPACE}/trusted/.proof/measurements.py" review-findings "${AI_REVIEW_RESULT}" \
+            --output "${RUNNER_TEMP}/measurements.json" \
+            || echo "::warning::Finding counts were not recorded; the result is unaffected."
+      - name: Record the result
+        id: evidence
+        if: ${{ !cancelled() }}
         shell: bash
-        env:
-          OUTCOME: ${{ steps.review.outcome }}
         run: |
-          result="${RUNNER_TEMP}/ai-review/${AI_REVIEW_ROLE}.json"
-          if [[ ! -f trusted/.proof/measurements.py || ! -s "${result}" ]]; then
-            echo "No Proof runtime or reviewer result file; the scorecard will show finding counts as not collected."
-            exit 0
-          fi
-          input="${RUNNER_TEMP}/proof-measurements-input.json"
-          if python3 trusted/.proof/measurements.py review-findings "${result}" --output "${input}" \
-              && python3 trusted/.proof/measurements.py package --control ai-qa-review --input "${input}" \
-                --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
-            echo "present=true" >> "${GITHUB_OUTPUT}"
+          set -euo pipefail
+          if [[ -n "${WITHHELD}" ]]; then
+            source_args=(--withheld "${WITHHELD}")
           else
-            echo "::warning::Finding counts were not packaged; the check result is unaffected."
+            source_args=(--status "${REVIEW_STATUS:-blocked}" --summary "${REVIEW_SUMMARY:-execution-error: the reviewer did not run.}")
           fi
-      - name: Upload self-reported finding counts
-        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
-        # Optional display metadata: an upload failure must not change the check result.
-        continue-on-error: true
+          python3 -I trusted/.proof/provider_check.py evidence \
+            --provider-id "${PROVIDER_ID}" --check-name "${CHECK_NAME}" "${source_args[@]}" \
+            --control "${CONTROL_ID}" --measurements "${RUNNER_TEMP}/measurements.json" \
+            --output "${RUNNER_TEMP}/proof-evidence/proof-evidence.json"
+          python3 -I trusted/.proof/provider_check.py check \
+            --evidence "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" --output "${RUNNER_TEMP}/check-run.json"
+          jq -r '"\(.check_name): \(.status) — \(.summary)"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" >> "${GITHUB_STEP_SUMMARY}"
+      - name: Upload run-bound evidence
+        if: ${{ !cancelled() && steps.evidence.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: proof-measurements-ai-qa-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          name: proof-ai-qa-adapter-${{ github.run_id }}
+          path: ${{ runner.temp }}/proof-evidence/proof-evidence.json
           if-no-files-found: error
           retention-days: 7
-      - name: Upload QA findings
+      - name: Publish the AI QA Review check
+        if: ${{ !cancelled() && steps.evidence.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/check-runs" --input "${RUNNER_TEMP}/check-run.json" > /dev/null
+          # The provider check carries the verdict; this job fails too, so it never reads as a pass.
+          jq -e '.status == "passed"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" > /dev/null
+      - name: Upload qa findings
         if: ${{ always() && steps.review.outputs.written == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -238,40 +301,63 @@ jobs:
           retention-days: 14
 
   security:
-    name: AI Security Review
-    if: ${{ (inputs.review-command || vars.AI_REVIEW_COMMAND) != '' }}
+    name: AI Security Reviewer
+    if: ${{ vars.AI_REVIEW_COMMAND != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment:
+      name: proof-providers
+      deployment: false
+    permissions:
+      contents: read
+      checks: write
     env:
       AI_REVIEW_ROLE: security
-      AI_REVIEW_COMMAND: ${{ inputs.review-command || vars.AI_REVIEW_COMMAND }}
-      AI_REVIEW_SETUP_COMMAND: ${{ inputs.review-setup-command || vars.AI_REVIEW_SETUP_COMMAND }}
-      AI_REVIEW_WORKING_DIRECTORY: ${{ inputs.review-working-directory || vars.AI_REVIEW_WORKING_DIRECTORY || '.' }}
+      PROVIDER_ID: ai-security-adapter
+      CHECK_NAME: AI Security Review
+      CONTROL_ID: ai-security-review
+      AI_REVIEW_COMMAND: ${{ vars.AI_REVIEW_COMMAND }}
+      AI_REVIEW_SETUP_COMMAND: ${{ vars.AI_REVIEW_SETUP_COMMAND }}
+      AI_REVIEW_WORKING_DIRECTORY: ${{ vars.AI_REVIEW_WORKING_DIRECTORY || '.' }}
+      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork pull requests are not sent to the model provider because fork scanning has not been independently verified.' || '' }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
-      HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      BASE_REF: refs/heads/${{ github.event.pull_request.base.ref }}
     steps:
-      - name: Check out the candidate revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check out the trusted runtime from the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          path: candidate
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Check out the trusted reviewer from the base revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          ref: ${{ github.sha }}
           path: trusted
           fetch-depth: 1
           persist-credentials: false
+      - name: Require the trusted runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in provider_check.py evaluate.py; do
+            if [[ -L trusted/.proof || -L "trusted/.proof/${file}" || ! -f "trusted/.proof/${file}" ]]; then
+              echo "::error::The default branch has no regular .proof/${file}; refresh the Proof runtime (tooling/install.py --refresh-existing) and merge it before this check can produce evidence." >&2
+              exit 1
+            fi
+          done
+      - name: Check out the pull request head as data
+        if: ${{ env.WITHHELD == '' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
       # Installs dependencies without the provider key, so nothing an installer runs can read it.
       - name: Prepare security reviewer
-        if: ${{ env.AI_REVIEW_SETUP_COMMAND != '' }}
+        if: ${{ env.WITHHELD == '' && env.AI_REVIEW_SETUP_COMMAND != '' }}
         working-directory: trusted
         shell: bash
         run: bash -euo pipefail -c "${AI_REVIEW_SETUP_COMMAND}"
       - name: Run security reviewer
         id: review
+        if: ${{ env.WITHHELD == '' }}
         working-directory: trusted
         shell: bash
         env:
@@ -285,44 +371,57 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/ai-review"
           status=0
           bash -euo pipefail -c "${AI_REVIEW_COMMAND}" || status=$?
-          if [[ ! -s "${AI_REVIEW_RESULT}" ]]; then
-            echo "::error::The reviewer wrote no result file (exit ${status})." >&2
+          if [[ ! -s "${AI_REVIEW_RESULT}" ]] \
+              || ! jq -e 'type == "object" and (.findings | type == "array" and all(.[]; type == "object"))' "${AI_REVIEW_RESULT}" > /dev/null; then
+            echo "REVIEW_STATUS=blocked" >> "${GITHUB_ENV}"
+            echo "REVIEW_SUMMARY=execution-error: the reviewer wrote no valid result file (exit ${status})." >> "${GITHUB_ENV}"
             exit $(( status == 0 ? 1 : status ))
           fi
-          jq -e 'type == "object" and (.findings | type == "array" and all(.[]; type == "object"))' "${AI_REVIEW_RESULT}" > /dev/null
           echo "written=true" >> "${GITHUB_OUTPUT}"
-          exit "${status}"
-      # Optional, self-reported finding counts for the Proof scorecard: never changes this check's result.
-      - name: Package self-reported finding counts
-        id: measurements
-        if: ${{ always() && (steps.review.outcome == 'success' || steps.review.outcome == 'failure') }}
+          summary="$(jq -r '.findings as $f | [$f[] | select((.severity == "P0" or .severity == "P1") and ((.status // "open") != "resolved"))] | length as $b
+            | "\($f | length) findings; \($b) unresolved P0/P1"' "${AI_REVIEW_RESULT}")"
+          echo "REVIEW_STATUS=$([[ ${status} -eq 0 ]] && echo passed || echo failed)" >> "${GITHUB_ENV}"
+          echo "REVIEW_SUMMARY=${summary}" >> "${GITHUB_ENV}"
+          # Self-reported counts for the scorecard; they never change the result.
+          python3 -I "${GITHUB_WORKSPACE}/trusted/.proof/measurements.py" review-findings "${AI_REVIEW_RESULT}" \
+            --output "${RUNNER_TEMP}/measurements.json" \
+            || echo "::warning::Finding counts were not recorded; the result is unaffected."
+      - name: Record the result
+        id: evidence
+        if: ${{ !cancelled() }}
         shell: bash
-        env:
-          OUTCOME: ${{ steps.review.outcome }}
         run: |
-          result="${RUNNER_TEMP}/ai-review/${AI_REVIEW_ROLE}.json"
-          if [[ ! -f trusted/.proof/measurements.py || ! -s "${result}" ]]; then
-            echo "No Proof runtime or reviewer result file; the scorecard will show finding counts as not collected."
-            exit 0
-          fi
-          input="${RUNNER_TEMP}/proof-measurements-input.json"
-          if python3 trusted/.proof/measurements.py review-findings "${result}" --output "${input}" \
-              && python3 trusted/.proof/measurements.py package --control ai-security-review --input "${input}" \
-                --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
-            echo "present=true" >> "${GITHUB_OUTPUT}"
+          set -euo pipefail
+          if [[ -n "${WITHHELD}" ]]; then
+            source_args=(--withheld "${WITHHELD}")
           else
-            echo "::warning::Finding counts were not packaged; the check result is unaffected."
+            source_args=(--status "${REVIEW_STATUS:-blocked}" --summary "${REVIEW_SUMMARY:-execution-error: the reviewer did not run.}")
           fi
-      - name: Upload self-reported finding counts
-        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
-        # Optional display metadata: an upload failure must not change the check result.
-        continue-on-error: true
+          python3 -I trusted/.proof/provider_check.py evidence \
+            --provider-id "${PROVIDER_ID}" --check-name "${CHECK_NAME}" "${source_args[@]}" \
+            --control "${CONTROL_ID}" --measurements "${RUNNER_TEMP}/measurements.json" \
+            --output "${RUNNER_TEMP}/proof-evidence/proof-evidence.json"
+          python3 -I trusted/.proof/provider_check.py check \
+            --evidence "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" --output "${RUNNER_TEMP}/check-run.json"
+          jq -r '"\(.check_name): \(.status) — \(.summary)"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" >> "${GITHUB_STEP_SUMMARY}"
+      - name: Upload run-bound evidence
+        if: ${{ !cancelled() && steps.evidence.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: proof-measurements-ai-security-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          name: proof-ai-security-adapter-${{ github.run_id }}
+          path: ${{ runner.temp }}/proof-evidence/proof-evidence.json
           if-no-files-found: error
           retention-days: 7
+      - name: Publish the AI Security Review check
+        if: ${{ !cancelled() && steps.evidence.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/check-runs" --input "${RUNNER_TEMP}/check-run.json" > /dev/null
+          # The provider check carries the verdict; this job fails too, so it never reads as a pass.
+          jq -e '.status == "passed"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" > /dev/null
       - name: Upload security findings
         if: ${{ always() && steps.review.outputs.written == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -333,40 +432,63 @@ jobs:
           retention-days: 14
 
   repo-standards:
-    name: AI Repo Standards Review
-    if: ${{ (inputs.review-command || vars.AI_REVIEW_COMMAND) != '' }}
+    name: AI Repo Standards Reviewer
+    if: ${{ vars.AI_REVIEW_COMMAND != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment:
+      name: proof-providers
+      deployment: false
+    permissions:
+      contents: read
+      checks: write
     env:
       AI_REVIEW_ROLE: repo-standards
-      AI_REVIEW_COMMAND: ${{ inputs.review-command || vars.AI_REVIEW_COMMAND }}
-      AI_REVIEW_SETUP_COMMAND: ${{ inputs.review-setup-command || vars.AI_REVIEW_SETUP_COMMAND }}
-      AI_REVIEW_WORKING_DIRECTORY: ${{ inputs.review-working-directory || vars.AI_REVIEW_WORKING_DIRECTORY || '.' }}
+      PROVIDER_ID: ai-repository-standards-adapter
+      CHECK_NAME: AI Repo Standards Review
+      CONTROL_ID: ai-repository-standards-review
+      AI_REVIEW_COMMAND: ${{ vars.AI_REVIEW_COMMAND }}
+      AI_REVIEW_SETUP_COMMAND: ${{ vars.AI_REVIEW_SETUP_COMMAND }}
+      AI_REVIEW_WORKING_DIRECTORY: ${{ vars.AI_REVIEW_WORKING_DIRECTORY || '.' }}
+      WITHHELD: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork pull requests are not sent to the model provider because fork scanning has not been independently verified.' || '' }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
-      HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      BASE_REF: refs/heads/${{ github.event.pull_request.base.ref }}
     steps:
-      - name: Check out the candidate revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check out the trusted runtime from the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          path: candidate
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Check out the trusted reviewer from the base revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          ref: ${{ github.sha }}
           path: trusted
           fetch-depth: 1
           persist-credentials: false
+      - name: Require the trusted runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in provider_check.py evaluate.py; do
+            if [[ -L trusted/.proof || -L "trusted/.proof/${file}" || ! -f "trusted/.proof/${file}" ]]; then
+              echo "::error::The default branch has no regular .proof/${file}; refresh the Proof runtime (tooling/install.py --refresh-existing) and merge it before this check can produce evidence." >&2
+              exit 1
+            fi
+          done
+      - name: Check out the pull request head as data
+        if: ${{ env.WITHHELD == '' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
       # Installs dependencies without the provider key, so nothing an installer runs can read it.
       - name: Prepare repository standards reviewer
-        if: ${{ env.AI_REVIEW_SETUP_COMMAND != '' }}
+        if: ${{ env.WITHHELD == '' && env.AI_REVIEW_SETUP_COMMAND != '' }}
         working-directory: trusted
         shell: bash
         run: bash -euo pipefail -c "${AI_REVIEW_SETUP_COMMAND}"
       - name: Run repository standards reviewer
         id: review
+        if: ${{ env.WITHHELD == '' }}
         working-directory: trusted
         shell: bash
         env:
@@ -380,44 +502,57 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/ai-review"
           status=0
           bash -euo pipefail -c "${AI_REVIEW_COMMAND}" || status=$?
-          if [[ ! -s "${AI_REVIEW_RESULT}" ]]; then
-            echo "::error::The reviewer wrote no result file (exit ${status})." >&2
+          if [[ ! -s "${AI_REVIEW_RESULT}" ]] \
+              || ! jq -e 'type == "object" and (.findings | type == "array" and all(.[]; type == "object"))' "${AI_REVIEW_RESULT}" > /dev/null; then
+            echo "REVIEW_STATUS=blocked" >> "${GITHUB_ENV}"
+            echo "REVIEW_SUMMARY=execution-error: the reviewer wrote no valid result file (exit ${status})." >> "${GITHUB_ENV}"
             exit $(( status == 0 ? 1 : status ))
           fi
-          jq -e 'type == "object" and (.findings | type == "array" and all(.[]; type == "object"))' "${AI_REVIEW_RESULT}" > /dev/null
           echo "written=true" >> "${GITHUB_OUTPUT}"
-          exit "${status}"
-      # Optional, self-reported finding counts for the Proof scorecard: never changes this check's result.
-      - name: Package self-reported finding counts
-        id: measurements
-        if: ${{ always() && (steps.review.outcome == 'success' || steps.review.outcome == 'failure') }}
+          summary="$(jq -r '.findings as $f | [$f[] | select((.severity == "P0" or .severity == "P1") and ((.status // "open") != "resolved"))] | length as $b
+            | "\($f | length) findings; \($b) unresolved P0/P1"' "${AI_REVIEW_RESULT}")"
+          echo "REVIEW_STATUS=$([[ ${status} -eq 0 ]] && echo passed || echo failed)" >> "${GITHUB_ENV}"
+          echo "REVIEW_SUMMARY=${summary}" >> "${GITHUB_ENV}"
+          # Self-reported counts for the scorecard; they never change the result.
+          python3 -I "${GITHUB_WORKSPACE}/trusted/.proof/measurements.py" review-findings "${AI_REVIEW_RESULT}" \
+            --output "${RUNNER_TEMP}/measurements.json" \
+            || echo "::warning::Finding counts were not recorded; the result is unaffected."
+      - name: Record the result
+        id: evidence
+        if: ${{ !cancelled() }}
         shell: bash
-        env:
-          OUTCOME: ${{ steps.review.outcome }}
         run: |
-          result="${RUNNER_TEMP}/ai-review/${AI_REVIEW_ROLE}.json"
-          if [[ ! -f trusted/.proof/measurements.py || ! -s "${result}" ]]; then
-            echo "No Proof runtime or reviewer result file; the scorecard will show finding counts as not collected."
-            exit 0
-          fi
-          input="${RUNNER_TEMP}/proof-measurements-input.json"
-          if python3 trusted/.proof/measurements.py review-findings "${result}" --output "${input}" \
-              && python3 trusted/.proof/measurements.py package --control ai-repository-standards-review --input "${input}" \
-                --outcome "${OUTCOME}" --head-sha "${HEAD_SHA}" --output "${RUNNER_TEMP}/proof-measurements/proof-measurements.json"; then
-            echo "present=true" >> "${GITHUB_OUTPUT}"
+          set -euo pipefail
+          if [[ -n "${WITHHELD}" ]]; then
+            source_args=(--withheld "${WITHHELD}")
           else
-            echo "::warning::Finding counts were not packaged; the check result is unaffected."
+            source_args=(--status "${REVIEW_STATUS:-blocked}" --summary "${REVIEW_SUMMARY:-execution-error: the reviewer did not run.}")
           fi
-      - name: Upload self-reported finding counts
-        if: ${{ always() && steps.measurements.outputs.present == 'true' }}
-        # Optional display metadata: an upload failure must not change the check result.
-        continue-on-error: true
+          python3 -I trusted/.proof/provider_check.py evidence \
+            --provider-id "${PROVIDER_ID}" --check-name "${CHECK_NAME}" "${source_args[@]}" \
+            --control "${CONTROL_ID}" --measurements "${RUNNER_TEMP}/measurements.json" \
+            --output "${RUNNER_TEMP}/proof-evidence/proof-evidence.json"
+          python3 -I trusted/.proof/provider_check.py check \
+            --evidence "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" --output "${RUNNER_TEMP}/check-run.json"
+          jq -r '"\(.check_name): \(.status) — \(.summary)"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" >> "${GITHUB_STEP_SUMMARY}"
+      - name: Upload run-bound evidence
+        if: ${{ !cancelled() && steps.evidence.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: proof-measurements-ai-repo-standards-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/proof-measurements/proof-measurements.json
+          name: proof-ai-repository-standards-adapter-${{ github.run_id }}
+          path: ${{ runner.temp }}/proof-evidence/proof-evidence.json
           if-no-files-found: error
           retention-days: 7
+      - name: Publish the AI Repo Standards Review check
+        if: ${{ !cancelled() && steps.evidence.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/check-runs" --input "${RUNNER_TEMP}/check-run.json" > /dev/null
+          # The provider check carries the verdict; this job fails too, so it never reads as a pass.
+          jq -e '.status == "passed"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" > /dev/null
       - name: Upload repository standards findings
         if: ${{ always() && steps.review.outputs.written == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -429,7 +564,7 @@ jobs:
 
   consolidate:
     name: AI PR Review Consolidation
-    if: ${{ always() && (inputs.review-command || vars.AI_REVIEW_COMMAND) != '' }}
+    if: ${{ always() && vars.AI_REVIEW_COMMAND != '' }}
     needs: [engineering, qa, security, repo-standards]
     runs-on: ubuntu-latest
     steps:
