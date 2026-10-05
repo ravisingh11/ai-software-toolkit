@@ -1692,7 +1692,7 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
             ("member", artifact_document(909), "forged.json"),
             ("head", artifact_document(909, revision="other"), "proof-evidence.json"),
             ("provider", artifact_document(909, provider_id="forged"), "proof-evidence.json"),
-            ("status", artifact_document(909, status="blocked"), "proof-evidence.json"),
+            ("status", artifact_document(909, status="unknown"), "proof-evidence.json"),
         )
         for label, document, member in cases:
             with self.subTest(label=label):
@@ -1718,6 +1718,7 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
         for artifact_status, expected in (
             ("passed", "passed"),
             ("failed", "failed"),
+            ("blocked", "blocked"),
             ("not_run", "not_run"),
         ):
             with self.subTest(status=artifact_status):
@@ -1904,38 +1905,63 @@ class SelfReportedMeasurementsTests(unittest.TestCase):
             self.assertIsNone(MODULE.self_reported_measurements(
                 "owner/repo", "abc123", "token", 55, self.CONTRACT, "unit-tests", "passed"))
 
-    def test_ai_review_adapters_bind_distinct_per_role_finding_count_artifacts(self) -> None:
+    def test_credentialed_provider_checks_are_artifact_backed_with_per_provider_names(self) -> None:
         policy, profiles, catalog, providers = contracts()
-        roles = {"ai-engineering-review": "engineering", "ai-qa-review": "qa",
-                 "ai-security-review": "security", "ai-repository-standards-review": "repo-standards"}
-        for control_id in roles:
+        controls = {"ai-engineering-review": "ai-engineering-adapter", "ai-qa-review": "ai-qa-adapter",
+                    "ai-security-review": "ai-security-adapter",
+                    "ai-repository-standards-review": "ai-repository-standards-adapter",
+                    "deep-sast": "snyk-code", "dependency-vulnerability": "snyk-open-source",
+                    "license-compliance": "fossa"}
+        for control_id in controls:
             policy["overrides"]["change"][control_id] = "advisory"
         providers["selections"]["ai-engineering-review"] = {"authoritative": "ai-engineering-adapter", "supplemental": []}
+        providers["selections"]["deep-sast"] = {"authoritative": "snyk-code", "supplemental": []}
         expected = MODULE.expected_checks(policy, profiles, catalog, providers, "change")
-        contracts_by_control = {contract["control_ids"][0]: contract for contract in expected.values()
-                                if contract["control_ids"][0] in roles}
-        self.assertEqual({control_id: contract["measurements_artifact_prefix"]
-                          for control_id, contract in contracts_by_control.items()},
-                         {control_id: f"proof-measurements-ai-{role}-" for control_id, role in roles.items()})
-        workflow = (ROOT / "workflows" / "ai-pr-review.yml").read_text(encoding="utf-8")
-        for control_id, role in roles.items():
+        workflows = {path: (ROOT / "workflows" / path).read_text(encoding="utf-8")
+                     for path in ("ai-pr-review.yml", "snyk.yml", "fossa.yml")}
+        for control_id, provider_id in controls.items():
             with self.subTest(control_id=control_id):
-                self.assertIn(f"--control {control_id} ", workflow)
-                self.assertIn(f"name: proof-measurements-ai-{role}-${{{{ github.run_id }}}}-${{{{ github.run_attempt }}}}",
-                              workflow)
+                contract = next(contract for contract in expected.values() if control_id in contract["control_ids"])
+                self.assertEqual(contract["provider_id"], provider_id)
+                self.assertEqual(contract["external_id_prefix"], f"proof:{provider_id}:")
+                self.assertEqual(contract["artifact_name_prefix"], f"proof-{provider_id}-")
+                self.assertNotIn("measurements_artifact_prefix", contract)
+                workflow = workflows[contract["workflow_path"].rsplit("/", 1)[1]]
+                self.assertIn(f"name: proof-{provider_id}-${{{{ github.run_id }}}}", workflow)
+                self.assertIn(f"PROVIDER_ID: {provider_id}\n", workflow)
+
+    def test_run_bound_artifact_attaches_counts_for_its_single_control(self) -> None:
         counts = {"version": 1, "source": "pull-request-workflow",
                   "review_findings": {"total": 2, "p0": 0, "p1": 1, "p2": 1, "p3": 0, "unresolved_blocking": 1}}
-        contract = contracts_by_control["ai-qa-review"]
-        listing = {"total_count": 1, "artifacts": [
-            {"id": 9, "name": "proof-measurements-ai-qa-55-2", "expired": False, "workflow_run": {"id": 55}}]}
-        with mock.patch.object(MODULE, "_request", side_effect=lambda url, token: (
-                {"run_id": 55, "run_attempt": 2, "head_sha": "abc123"} if "/actions/jobs/" in url else listing)), \
-                mock.patch.object(MODULE, "_request_bytes", return_value=artifact_archive(
-                    {**self.document(control="ai-qa-review"), "measurements": counts}, "proof-measurements.json")):
-            for status in ("passed", "failed"):
-                self.assertEqual(MODULE.self_reported_measurements(
-                    "owner/repo", "abc123", "token", 55, contract, "ai-qa-review", status,
-                    check_run("AI QA Review", 55)), counts)
+        contract = {**artifact_contract(provider_id="ai-qa-adapter"), "control_ids": ["ai-qa-review"]}
+        prover = GitHubEvidenceV2Tests.prove_artifact
+        cases = (
+            ("matching", {"control": "ai-qa-review", "measurements": counts}, "failed", counts),
+            ("other control", {"control": "ai-security-review", "measurements": counts}, "failed", None),
+            ("invalid counts", {"control": "ai-qa-review", "measurements": {**counts, "source": "x"}}, "failed", None),
+            ("not a result", {"control": "ai-qa-review", "measurements": counts}, "blocked", None),
+        )
+        for label, extra, status, expected in cases:
+            with self.subTest(label=label):
+                document = {**artifact_document(909, provider_id="ai-qa-adapter", status=status), **extra}
+                result = prover(self, document=document, contract=contract)
+                self.assertEqual(result["status"], status)
+                self.assertEqual(result.get("measurements"), expected)
+        two_controls = {**contract, "control_ids": ["ai-qa-review", "ai-security-review"]}
+        result = prover(self, document={**artifact_document(909, provider_id="ai-qa-adapter"),
+                                        "control": "ai-qa-review", "measurements": {**counts, "review_findings": {
+                                            **counts["review_findings"], "p1": 0, "unresolved_blocking": 0}}},
+                        contract=two_controls)
+        self.assertNotIn("measurements", result)
+
+    def test_artifact_backed_check_must_be_completed(self) -> None:
+        result = MODULE.proven_check_evidence(
+            "owner/repo", "abc123", "token", artifact_contract(),
+            {**check_run("Probe", 909, status="in_progress", conclusion=None), "external_id": "custom:909:abc123"},
+            "Custom Probe", trusted_base_revision="base456", trusted_workflow_ref="refs/heads/main",
+        )
+        self.assertEqual(result["status"], "not_run")
+        self.assertIn("not completed", result["reason"])
 
     def test_proven_check_attaches_measurements_without_changing_status(self) -> None:
         check = check_run("Unit Tests", 55)

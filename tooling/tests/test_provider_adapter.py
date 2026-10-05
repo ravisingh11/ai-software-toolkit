@@ -27,6 +27,7 @@ SCRIPT = ROOT / "tooling" / "provider_adapter.py"
 
 FAKE_SNYK = r'''#!/usr/bin/env bash
 mode="${FAKE_SNYK_MODE:-clean}"
+[[ -n "${FAKE_SNYK_LOG:-}" ]] && echo "$@" >> "${FAKE_SNYK_LOG}"
 case "$mode" in
   clean) echo '{"ok": true}'; exit 0 ;;
   findings-code) echo '{"runs": [{"results": [{"ruleId": "a"}, {"ruleId": "b"}]}]}'; exit 1 ;;
@@ -54,6 +55,7 @@ if [[ "$sub" == "analyze" ]]; then
     *) echo "Uploaded revision $3"; echo "$@" > "${FAKE_FOSSA_LOG:-/dev/null}"; exit 0 ;;
   esac
 fi
+[[ -n "${FAKE_FOSSA_TEST_LOG:-}" ]] && echo "$@" > "${FAKE_FOSSA_TEST_LOG}"
 case "$mode" in
   clean) echo '{"issues": [], "count": 0}'; exit 0 ;;
   issues) echo '{"issues": [{"id": 1, "type": "policy_flag"}], "count": 1}'; exit 1 ;;
@@ -402,14 +404,11 @@ class FragmentAndCliTests(AdapterFixture):
         self.assertEqual(code, 1)
         self.assertIn("finding counts were not recorded", stderr.getvalue())
 
-    def test_snyk_workflow_passes_measurements_only_to_adapters_that_support_it(self):
-        workflow = (ROOT / "workflows" / "snyk.yml").read_text(encoding="utf-8")
-        self.assertEqual(workflow.count("adapter.py --help 2>/dev/null"), 2)
-        self.assertEqual(workflow.count('${measurement_args[@]+"${measurement_args[@]}"}'), 2)
-        self.assertNotIn('--measurements "${RUNNER_TEMP}/proof-measurements-input.json" |', workflow)
+    def test_help_lists_measurements_and_data_only(self):
         with contextlib.redirect_stdout(io.StringIO()) as stdout, self.assertRaises(SystemExit):
             self.module.main(["--help"])
         self.assertIn("--measurements", stdout.getvalue())
+        self.assertIn("--data-only", stdout.getvalue())
 
     def test_fragment_merges_into_local_scan(self):
         """The scanner accepts adapter fragments for the exact subject and rejects stale ones."""
@@ -431,6 +430,135 @@ class FragmentAndCliTests(AdapterFixture):
                                    text=True, capture_output=True, env=self.environment(FAKE_SNYK_MODE="unsupported"))
         self.assertEqual(completed.returncode, 1, completed.stderr)
         self.assertIn("[unsupported-project]", completed.stdout)
+
+
+class DataOnlyTests(AdapterFixture):
+    """The credentialed workflows scan an unexecuted pull-request checkout."""
+
+    def commit(self, files: dict[str, str]) -> None:
+        for relative, text in files.items():
+            path = self.target / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        self.git("add", ".")
+        self.git("commit", "-qm", "manifests")
+
+    def data_only(self, provider: str, arguments: list[str] | None = None, **extra: str):
+        return self.module.run_provider(provider, self.target, revision=None, arguments=arguments or [], timeout=10,
+                                        environment=self.environment(**extra), data_only=True)
+
+    def test_snyk_open_source_tests_each_static_lockfile_and_nothing_else(self):
+        self.commit({"package.json": "{}", "package-lock.json": "{}", "packages/web/package.json": "{}",
+                     "ruby/Gemfile": "", "ruby/Gemfile.lock": "", "node_modules/x/pom.xml": "",
+                     "vendor/build.gradle": ""})
+        log = self.root / "snyk.log"
+        _, outcome = self.data_only("snyk-open-source", ["--all-projects", "--detection-depth=6", "--exclude=vendor",
+                                                         "--severity-threshold=high"],
+                                    FAKE_SNYK_MODE="findings-oss", FAKE_SNYK_LOG=str(log))
+        self.assertEqual(outcome.status, "failed", outcome.message)
+        self.assertEqual(outcome.message, "snyk test: findings in 2 of 2 lockfiles")
+        self.assertEqual(outcome.findings["total"], 6)
+        self.assertEqual(log.read_text(encoding="utf-8").splitlines(), [
+            "test --json --file=package-lock.json --severity-threshold=high",
+            "test --json --file=ruby/Gemfile.lock --severity-threshold=high",
+        ])
+        _, outcome = self.data_only("snyk-open-source", ["--exclude=vendor"], FAKE_SNYK_MODE="clean")
+        self.assertEqual(outcome.status, "passed")
+        self.assertIsNone(outcome.findings)
+        # Without the consumer's exclusion, the Gradle build under vendor/ would go unscanned.
+        _, outcome = self.data_only("snyk-open-source", FAKE_SNYK_MODE="clean")
+        self.assertEqual((outcome.status, outcome.code), ("not_run", "requires-dependency-resolution"))
+        _, outcome = self.data_only("snyk-open-source", ["--exclude=vendor"], FAKE_SNYK_MODE="auth")
+        self.assertEqual((outcome.status, outcome.code), ("blocked", "authentication-failed"))
+        self.assertTrue(outcome.message.startswith("package-lock.json: "))
+
+    def test_manifests_that_need_a_build_tool_are_never_scanned_or_passed(self):
+        for files in ({"pom.xml": ""}, {"gradlew": "#!/bin/sh\n"}, {"requirements.txt": "x\n"},
+                      {"svc/app.csproj": ""}, {"lib/package.json": "{}"}, {"Gemfile": ""}):
+            with self.subTest(files=files):
+                self.setUp()
+                self.commit({"package.json": "{}", "yarn.lock": "", **files} if "lib/package.json" not in files
+                            else {"yarn.lock": "", "sub/package.json": "{}", **files})
+                if "lib/package.json" in files:
+                    (self.target / "yarn.lock").unlink()
+                    (self.target / "sub" / "yarn.lock").write_text("", encoding="utf-8")
+                    self.git("add", "-A")
+                    self.git("commit", "-qm", "move lock")
+                log = self.root / "snyk.log"
+                _, outcome = self.data_only("snyk-open-source", FAKE_SNYK_MODE="clean", FAKE_SNYK_LOG=str(log))
+                self.assertEqual((outcome.status, outcome.code), ("not_run", "requires-dependency-resolution"))
+                self.assertIn(next(iter(files)), outcome.message)
+                self.assertFalse(log.exists())
+
+    def test_targets_symlinks_and_empty_checkouts_are_not_run(self):
+        self.commit({"package.json": "{}", "package-lock.json": "{}"})
+        for arguments in (["--file=package.json"], ["--package-manager=npm"], ["."]):
+            _, outcome = self.data_only("snyk-open-source", arguments, FAKE_SNYK_MODE="clean")
+            self.assertEqual((outcome.status, outcome.code), ("not_run", "configuration-missing"), arguments)
+        (self.target / "linked").mkdir()
+        (self.target / "linked" / "yarn.lock").symlink_to(self.target / "package-lock.json")
+        self.git("add", ".")
+        self.git("commit", "-qm", "symlink")
+        _, outcome = self.data_only("snyk-open-source", FAKE_SNYK_MODE="clean")
+        self.assertEqual((outcome.status, outcome.code), ("not_run", "revision-mismatch"))
+        self.setUp()
+        _, outcome = self.data_only("snyk-open-source", FAKE_SNYK_MODE="clean")
+        self.assertEqual((outcome.status, outcome.code), ("not_run", "unsupported-project"))
+
+    def test_snyk_code_is_unchanged_by_data_only(self):
+        _, outcome = self.data_only("snyk-code", FAKE_SNYK_MODE="findings-code")
+        self.assertEqual((outcome.status, outcome.message), ("failed", "snyk code test: 2 findings"))
+
+    def test_fossa_runs_static_only_against_a_fixed_endpoint(self):
+        analyze_log, test_log = self.root / "analyze.log", self.root / "test.log"
+        _, outcome = self.data_only("fossa", FAKE_FOSSA_MODE="clean", FAKE_FOSSA_LOG=str(analyze_log),
+                                    FAKE_FOSSA_TEST_LOG=str(test_log))
+        self.assertEqual(outcome.status, "passed")
+        analyze = analyze_log.read_text(encoding="utf-8").split()
+        self.assertIn("--static-only-analysis", analyze)
+        self.assertEqual(analyze[analyze.index("--endpoint") + 1], "https://app.fossa.com")
+        tested = test_log.read_text(encoding="utf-8").split()
+        self.assertEqual(tested[tested.index("--endpoint") + 1], "https://app.fossa.com")
+        self.data_only("fossa", FAKE_FOSSA_MODE="clean", FAKE_FOSSA_LOG=str(analyze_log), FOSSA_ENDPOINT="https://fossa.example")
+        self.assertIn("--endpoint https://fossa.example", analyze_log.read_text(encoding="utf-8"))
+        # Outside data-only mode the adapter keeps the full analysis for local use.
+        self.run_provider("fossa", FAKE_FOSSA_MODE="clean", FAKE_FOSSA_LOG=str(analyze_log))
+        self.assertNotIn("--static-only-analysis", analyze_log.read_text(encoding="utf-8"))
+
+    def test_fossa_refuses_candidate_config_or_arguments_that_redirect_the_key(self):
+        for arguments in (["--endpoint=https://evil.example"], ["-e"], ["--fossa-api-key=x"], ["--config=.fossa.yml"]):
+            _, outcome = self.data_only("fossa", arguments, FAKE_FOSSA_MODE="clean")
+            self.assertEqual((outcome.status, outcome.code), ("not_run", "configuration-missing"), arguments)
+
+        for text in ("version: 3\nserver: https://evil.example\n", "version: 3\napiKey: abc\n", "{version: 3, endpoint: x}"):
+            with self.subTest(text=text):
+                self.setUp()
+                self.commit({".fossa.yml": text})
+                log = self.root / "fossa.log"
+                _, outcome = self.data_only("fossa", FAKE_FOSSA_MODE="clean", FAKE_FOSSA_LOG=str(log))
+                self.assertEqual((outcome.status, outcome.code), ("not_run", "configuration-missing"))
+                self.assertFalse(log.exists())
+        self.setUp()
+        self.commit({".fossa.yml": "version: 3\nproject:\n  id: app\n"})
+        _, outcome = self.data_only("fossa", FAKE_FOSSA_MODE="clean")
+        self.assertEqual(outcome.status, "passed")
+
+    def test_fossa_refuses_joined_short_identity_overrides_before_execution(self):
+        log = self.root / "commands.log"
+        for arguments in (["-ehttps://alternate.example"], ["-cother.yml"]):
+            with self.subTest(arguments=arguments):
+                _, outcome = self.data_only("fossa", arguments, FAKE_FOSSA_COMMANDS=str(log))
+                self.assertEqual((outcome.status, outcome.code), ("not_run", "configuration-missing"))
+                self.assertFalse(log.exists())
+
+    def test_cli_data_only_flag_reaches_the_provider(self):
+        self.commit({"pom.xml": ""})
+        with patch.dict(os.environ, self.environment(FAKE_SNYK_MODE="clean")):
+            with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                code = self.module.main(["snyk-open-source", "--target", str(self.target), "--data-only", "--evidence-dir",
+                                         str(self.root / "ev")])
+        self.assertEqual(code, 1)
+        self.assertIn("[requires-dependency-resolution]", stdout.getvalue())
 
 
 if __name__ == "__main__":

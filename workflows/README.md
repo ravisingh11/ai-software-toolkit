@@ -72,19 +72,16 @@ same with their own validator counts, uploaded as
 Migration Validation workflow also sets `PROOF_MEASUREMENTS_FILE`; a migration
 command that writes `{"version": 1, "source": "pull-request-workflow",
 "migrations": {"checked": N, "failed": M}}` gets those counts shown. Each job of the `ai-pr-review.yml` template counts
-its reviewer's result file with the base revision's `.proof/measurements.py review-findings`
-(findings by severity and unresolved `P0`/`P1`) and uploads
-`proof-measurements-ai-engineering-`, `proof-measurements-ai-qa-`,
-`proof-measurements-ai-security-`, or `proof-measurements-ai-repo-standards-`
-artifacts for that run and attempt; it skips this when the repository has no
-installed Proof runtime. The Semgrep CE and Gitleaks workflows count their own JSON reports with
+its reviewer's result file with the default branch's `.proof/measurements.py review-findings`
+(findings by severity and unresolved `P0`/`P1`) and puts the counts in its
+run-bound `proof-<provider>-<run_id>` evidence artifact. The Semgrep CE and Gitleaks workflows count their own JSON reports with
 `.proof/measurements.py semgrep` or `gitleaks` and upload only the finding
 counts (`findings`: total, critical, high, medium, low, unrated). The CodeQL
 workflow counts its SARIF output with `.proof/measurements.py sarif` and
 uploads `proof-measurements-codeql-`. The Snyk
 workflow's trusted adapter writes the same counts for Snyk Code and Snyk Open
-Source, packaged with the base revision's runtime. The scorecard dashboard shows these as self-reported, because the
-numbers come from the pull request's own code; they never change a check's
+Source into its run-bound evidence artifact. The scorecard dashboard shows these as self-reported, because the
+numbers describe the pull request's own code or come from its own commands; they never change a check's
 result. Packaging and upload failures only warn, and commands that do not
 write the file are unaffected.
 
@@ -204,14 +201,20 @@ Shipped vendor templates (copy into `.github/workflows/`; see
 | Template | Workflow / check names | Command ownership |
 | --- | --- | --- |
 | `sonar.yml` | `SonarQube` / `SonarQube Quality Gate` | Scanner action, then the quality-gate wait action; `SONAR_TOKEN` |
-| `snyk.yml` | `Snyk` / `Snyk Code`, `Snyk Open Source` | `.proof/adapter.py` from the base revision runs `snyk code test` and `snyk test` against the head checkout; consumers set `SNYK_CODE_ARGS` / `SNYK_OPEN_SOURCE_ARGS`; `SNYK_TOKEN` |
-| `fossa.yml` | `FOSSA` / `FOSSA` | `.proof/adapter.py` from the base revision runs `fossa analyze` then `fossa test` against the head checkout for the exact revision; consumers set `FOSSA_ARGS`; `FOSSA_API_KEY`; CLI pinned by version and SHA-256 |
+| `snyk.yml` | `Snyk` / `Snyk Code`, `Snyk Open Source` | `pull_request_target`: `.proof/adapter.py --data-only` from the default branch runs `snyk code test`, and `snyk test` per static lockfile, against the head checkout read as data; consumers set `SNYK_CODE_ARGS` / `SNYK_OPEN_SOURCE_ARGS`; `SNYK_TOKEN` from the `proof-providers` environment |
+| `fossa.yml` | `FOSSA` / `FOSSA` | `pull_request_target`: `.proof/adapter.py --data-only` from the default branch runs `fossa analyze --static-only-analysis` then `fossa test` against the head checkout read as data, for the exact revision; consumers set `FOSSA_ARGS` and optionally `FOSSA_ENDPOINT`; `FOSSA_API_KEY` from the `proof-providers` environment; CLI pinned by version and SHA-256 |
 
-The adapter templates fail the job for every non-passing outcome and put the
-standard reason code (`credential-missing`, `authentication-failed`,
-`analysis-incomplete`, `execution-error`, `unsupported-project`, `timed-out`,
-`revision-mismatch`, `configuration-missing`) in the job summary and an
-uploaded evidence fragment.
+The Snyk, FOSSA, and AI PR Review templates never run pull-request code in a
+job that holds a provider credential; see
+[credential isolation](../docs/providers/README.md#credential-isolation). Each
+job posts the provider check for the pull-request head and uploads the same
+result as the run-bound `proof-<provider>-<run_id>` artifact with
+`.proof/provider_check.py`. It fails its own, differently named job for every
+non-passing outcome and puts the standard reason code (`credential-missing`,
+`credential-withheld`, `authentication-failed`, `analysis-incomplete`,
+`execution-error`, `unsupported-project`, `requires-dependency-resolution`,
+`timed-out`, `revision-mismatch`, `configuration-missing`) in the job summary
+and the check output.
 
 This repository runs the templates it ships from `.github/workflows/` with
 identical content, except those listed in `NOT_INSTALLED` in
@@ -229,8 +232,8 @@ Other templates that are shipped but not installed by any profile:
 
 | Template | Workflow / check names | Activation |
 | --- | --- | --- |
-| `ai-pr-review.yml` | `AI PR Review` / `AI Engineering Review`, `AI QA Review`, `AI Security Review`, `AI Repo Standards Review` | The `ai-engineering-adapter`, `ai-qa-adapter`, `ai-security-adapter`, and `ai-repository-standards-adapter` providers; a repository-owned `AI_REVIEW_COMMAND`, run from the base revision against the head revision with only `ANTHROPIC_API_KEY`, writes each role's result (reference adapter: `tooling/ai_review_claude.py`); jobs are skipped until `AI_REVIEW_COMMAND` is set; each job uploads self-reported finding counts for the scorecard; the consolidation job summarizes and never fails; advisory-only and never promotable |
-| `security-scanning.yml` | `Security Scanning` / `CodeQL`, `Dependency Review`, `Semgrep`, `FOSSA`, `Snyk Open Source`, `Secret Scan` | Requires `CODEQL_LANGUAGES` (or reusable input `codeql-languages`); organization-style bundle that runs consumer-supplied `FOSSA_COMMAND` / `SNYK_OPEN_SOURCE_COMMAND` strings; prefer the adapter templates above, which own the command shape |
+| `ai-pr-review.yml` | `AI PR Review` / `AI Engineering Review`, `AI QA Review`, `AI Security Review`, `AI Repo Standards Review` | The `ai-engineering-adapter`, `ai-qa-adapter`, `ai-security-adapter`, and `ai-repository-standards-adapter` providers; `pull_request_target`: a repository-owned `AI_REVIEW_COMMAND`, run from the default branch against the head revision read as data, with only `ANTHROPIC_API_KEY` from the `proof-providers` environment, writes each role's result (reference adapter: `tooling/ai_review_claude.py`); jobs are skipped until `AI_REVIEW_COMMAND` is set; each job posts its role's check and puts self-reported finding counts in its run-bound evidence artifact; the consolidation job summarizes and never fails; advisory-only and never promotable |
+| `security-scanning.yml` | `Security Scanning` / `CodeQL`, `Dependency Review`, `Semgrep`, `FOSSA`, `Snyk Open Source`, `Secret Scan` | Requires `CODEQL_LANGUAGES` (or reusable input `codeql-languages`); organization-style bundle that runs consumer-supplied `FOSSA_COMMAND` / `SNYK_OPEN_SOURCE_COMMAND` strings on `pull_request`, in jobs that hold `FOSSA_API_KEY` or `SNYK_TOKEN` next to pull-request code; prefer the adapter templates above, which own the command shape and isolate the credential |
 | `soak.yml` | `Soak Check` / `Soak Check` | The `repository-soak` provider for the `runtime-soak` capability; runs `SOAK_COMMAND` on a schedule or dispatch; awaiting an environment-evidence producer and collection path; scheduled checks alone do not activate the control |
 
 Codex Code Review is a native GitHub review provider rather than a check-run

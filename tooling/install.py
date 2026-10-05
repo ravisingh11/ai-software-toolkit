@@ -113,6 +113,7 @@ def runtime_sources(target: Path) -> list[InstallItem]:
         "github_evidence.py": ROOT / "tooling/github_evidence.py",
         "produce.py": PRODUCER,
         "adapter.py": ROOT / "tooling/provider_adapter.py",
+        "provider_check.py": ROOT / "tooling/provider_check.py",
         "measurements.py": ROOT / "tooling/proof_measurements.py",
         "validate_ground_truth.py": ROOT / "tooling/validators/validate_ground_truth.py",
         "semgrep-rules.yml": ROOT / "security/semgrep/proof.yml",

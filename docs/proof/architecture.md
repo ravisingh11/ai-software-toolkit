@@ -71,6 +71,10 @@ repository activates them with a mode override and provider selection. SonarQube
 Snyk, and FOSSA ship workflow templates; Snyk and FOSSA run through the installed
 `.proof/adapter.py`, which owns the command shape and the mapping from exit
 codes to evidence with a reason code (see [providers](../providers/README.md)).
+Those two workflows and the AI PR Review template hold a provider credential,
+so they run on `pull_request_target` from the default branch, read the
+pull-request head as data only, and publish run-bound custom checks
+([credential isolation](../providers/README.md#credential-isolation)).
 Semgrep AppSec Platform and Codex Code Review rely on their platform
 integrations and produce no toolkit-owned workflow.
 

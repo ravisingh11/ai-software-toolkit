@@ -20,6 +20,41 @@ or evidence contracts require a major release and migration guidance.
   and endpoint. Refuse arguments that skip uploading, override the revision or
   credential, or omit required project identity values.
 
+- Repair AI provider result summaries for valid findings, withhold fork scans
+  until independently verified, and replace the Snyk setup action's unsafe
+  shell wrapper with native CLI 1.1307.4 and a verified checksum. Preserve
+  FOSSA project identity across analysis and policy evaluation, and refuse
+  upload, revision, or credential overrides.
+
+- **Breaking (Snyk, FOSSA, and AI PR Review templates):** provider
+  credentials no longer share a job or a runner with pull-request code.
+  `snyk.yml`, `fossa.yml`, and `ai-pr-review.yml` run on
+  `pull_request_target`, so GitHub takes them and the `.proof` runtime from
+  the default branch. They read `SNYK_TOKEN`, `FOSSA_API_KEY`, and
+  `ANTHROPIC_API_KEY` from a `proof-providers` environment, which must be
+  limited to the default branch, and they check the pull-request head out as
+  data only. `.proof/adapter.py --data-only` runs FOSSA with
+  `--static-only-analysis` and a fixed endpoint, and refuses a `.fossa.yml`
+  that names a server or key. It runs Snyk Open Source once per static
+  lockfile and reports `requires-dependency-resolution` when a manifest needs
+  a build tool. Each job posts the unchanged provider check for the head, with
+  the external id `proof:<provider>:<run id>:<head sha>`, and uploads the
+  result, with its finding counts, as the run-bound artifact
+  `proof-<provider>-<run id>` through the new `.proof/provider_check.py`. The
+  job's own check is renamed, for example `Snyk Code scan`. The provider
+  contracts for these seven checks move from `trusted_paths` and separate
+  measurement artifacts to that artifact contract. The collector now accepts
+  `blocked` run-bound results, keeps validated counts from the artifact, and
+  refuses an artifact-backed check that has not completed. Fork pull requests
+  get `action_required` / `credential-withheld` unless
+  independently verified. `PROOF_SETUP_COMMAND` no longer affects
+  Snyk. `ai-pr-review.yml` drops `workflow_call`. `doctor.py --github` reports
+  the environment's branch policy and flags repository or organization copies
+  of provider secrets. **Migration:** see
+  [credential isolation](docs/providers/README.md#migrating-from-the-pull_request-templates).
+  Until the new templates reach the default branch, the pull request that adds
+  them shows these checks as not run.
+
 - Stop intermittent `Directory not empty` failures in the unit tests.
   `tooling/test.sh` sets `maintenance.auto`, `maintenance.autoDetach`,
   `gc.auto`, and `gc.autoDetach` off through git's environment configuration,

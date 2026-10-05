@@ -210,20 +210,21 @@ class AiPrReviewWorkflowTests(unittest.TestCase):
         for legacy in ("ai-engineering-review", "ai-qa-review", "ai-security-review", "ai-repo-standards-review"):
             self.assertFalse((ROOT / ".github" / "workflows" / f"{legacy}.yml").exists())
 
-    def test_reviewers_run_from_the_trusted_base_and_skip_when_unconfigured(self) -> None:
+    def test_reviewers_run_from_the_default_branch_and_skip_when_unconfigured(self) -> None:
         template = (ROOT / "workflows" / "ai-pr-review.yml").read_text(encoding="utf-8")
         jobs = template.split("\njobs:\n", 1)[1].split("\n  consolidate:\n")
         roles = jobs[0].split("\n\n  ")
         self.assertEqual(len(roles), 4)
         for job in roles:
             with self.subTest(job=job.splitlines()[0]):
-                self.assertIn("if: ${{ (inputs.review-command || vars.AI_REVIEW_COMMAND) != '' }}", job)
-                self.assertIn("ref: ${{ github.event.pull_request.base.sha || github.sha }}\n          path: trusted", job)
+                self.assertIn("if: ${{ vars.AI_REVIEW_COMMAND != '' }}", job)
+                self.assertIn("ref: ${{ github.sha }}\n          path: trusted", job)
                 review_step = job.split("id: review\n", 1)[1].split("\n      - name:", 1)[0]
                 self.assertIn("working-directory: trusted", review_step)
                 self.assertIn("ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}", review_step)
                 self.assertEqual(job.count("secrets."), 1)
-                self.assertIn("trusted/.proof/measurements.py", job)
+                self.assertIn("trusted/.proof/measurements.py\" review-findings", job)
+                self.assertIn("trusted/.proof/provider_check.py evidence", job)
                 setup_step = job.split("- name: Prepare ", 1)[1].split("\n      - name:", 1)[0]
                 self.assertIn("working-directory: trusted", setup_step)
                 self.assertNotIn("secrets.", setup_step)
@@ -235,7 +236,6 @@ class AiPrReviewWorkflowTests(unittest.TestCase):
         self.assertIn("advisory-only", consolidate)
         self.assertIn("all(.[]; type == \"object\")", template)
         self.assertIn("[.findings[]? | objects]", consolidate)
-
 
 if __name__ == "__main__":
     unittest.main()
