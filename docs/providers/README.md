@@ -182,3 +182,36 @@ Doctor checks both authoritative and supplemental providers, including GitHub
 secret-name metadata when `--github` is requested. A missing or stale adapter
 contract is reported as action needed; refresh the installed runtime before
 running that provider. Secret presence never proves credential validity.
+
+## Migrate callers of the reusable security bundle
+
+The reusable `workflows/security-scanning.yml` no longer accepts the
+`fossa-command` or `snyk-open-source-command` inputs, or the `FOSSA_API_KEY`
+and `SNYK_TOKEN` secrets. Remove those entries from the caller's `with:` and
+`secrets:` mappings before upgrading its pinned toolkit revision. Keep the
+bundle for its remaining scanners; credentialed FOSSA and Snyk scans now use
+the standalone adapter workflows.
+
+1. Refresh the installed `.proof/` runtime and copy the hardened
+   `workflows/fossa.yml` and/or `workflows/snyk.yml` into the consuming
+   repository's `.github/workflows/` directory. Merge the runtime and templates
+   into the default branch before expecting provider results. These templates
+   use `pull_request_target`; the workflow must already exist on the default
+   branch. Keep provider controls advisory while verifying the new producer.
+2. Create the `proof-providers` GitHub environment restricted to the default branch
+   and store `FOSSA_API_KEY` and/or `SNYK_TOKEN` as environment secrets. Remove
+   duplicate repository secrets and exclude this repository from any
+   organization secrets with those names, so credentials cannot bypass the
+   environment's branch restriction. Verify the pinned scanner's execution
+   boundary; static analysis is not an operating system sandbox. Credentials
+   remain withheld for fork pull requests.
+3. Configure the adapter argument variables (`FOSSA_ARGS`, `SNYK_CODE_ARGS`,
+   `SNYK_OPEN_SOURCE_ARGS`) and provider selection using the
+   [FOSSA](fossa.md) and [Snyk](snyk.md) guides. The removed command inputs are
+   not copied into these variables: adapters own the commands. Retain the
+   templates' native CLI version and checksum pins, updating each pair
+   together; do not replace the Snyk binary with an npm wrapper.
+4. Run a new pull request after installation and verify the standalone
+   `FOSSA`, `Snyk Code`, or `Snyk Open Source` checks and their exact-revision
+   evidence before changing required checks. Missing credentials, withheld
+   fork credentials, and incomplete scans do not establish a passing result.
