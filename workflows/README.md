@@ -16,6 +16,12 @@ when upgrading. Reviewer uploads use the upload action's default archived
 format. A successful live AI consolidation run is still required to verify
 the provider integration.
 
+SonarQube analysis uses pinned `SonarSource/sonarqube-scan-action` v8.3.0,
+which fixes GPG key retrieval through HTTPS proxies and updates its bundled
+`actions/cache` to v5.1.0. Inputs and `SONAR_TOKEN` handling are unchanged.
+A successful live SonarQube run is still required to verify the provider
+integration.
+
 ## Install sets
 
 ```sh
