@@ -111,7 +111,7 @@ jobs:
       - name: Upload run-bound PR metadata evidence
         id: proof-upload
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: proof-pr-metadata-${{ github.run_id }}
           path: ${{ runner.temp }}/proof-evidence.json
@@ -147,7 +147,7 @@ jobs:
           printf '### PR Metadata\n\n%s\n\nPolicy mode: `%s`; check conclusion: `%s`.\n' "${summary}" "${mode}" "${conclusion}" >> "${GITHUB_STEP_SUMMARY}"
       - name: Upload PR metadata report
         if: always() && steps.evaluate.outputs.revision != ''
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: pr-metadata-report-${{ github.run_id }}
           path: .artifacts/proof
