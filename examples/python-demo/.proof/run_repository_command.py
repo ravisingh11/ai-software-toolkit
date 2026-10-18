@@ -73,9 +73,14 @@ def main() -> int:
             return 0
         if not command.strip():
             raise ValueError("producer command is not configured")
-        for value in (setup, command):
+        for is_setup, value in ((True, setup), (False, command)):
             if value.strip():
-                result = subprocess.run(["bash", "-euo", "pipefail", "-c", value], cwd=directory)
+                environment = os.environ.copy()
+                if not is_setup:
+                    # Match the former separate Actions steps: nested producers
+                    # must not inherit this repository's setup configuration.
+                    environment.pop("PROOF_SETUP_COMMAND", None)
+                result = subprocess.run(["bash", "-euo", "pipefail", "-c", value], cwd=directory, env=environment)
                 if result.returncode:
                     return result.returncode if result.returncode > 0 else 1
         return 0

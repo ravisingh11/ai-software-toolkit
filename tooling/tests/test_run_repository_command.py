@@ -125,3 +125,9 @@ class CommandRunnerTests(unittest.TestCase):
         with patch.object(MODULE.os, "fstat", return_value=small):
             with self.assertRaisesRegex(ValueError, "grew beyond"):
                 MODULE.configuration(self.root)
+
+    def test_setup_configuration_is_not_inherited_by_producer(self):
+        self.write(commands={"build": 'test -z "${PROOF_SETUP_COMMAND+x}" && test -f setup-ran'})
+        with patch.dict(os.environ, PROOF_SETUP_COMMAND="touch setup-ran"):
+            self.assertEqual(self.invoke(), 0)
+        self.assertTrue((self.root / "setup-ran").is_file())

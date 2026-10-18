@@ -63,7 +63,10 @@ overwrite this file. The [command configuration guide](../docs/quickstart.md#che
 shows the versioned JSON format and validation rules.
 
 Commands execute only in ordinary `pull_request` jobs with a read-only token.
-Setup failures and producer failures retain their nonzero exit status. Build, unit tests, format/lint,
+Setup failures and producer failures retain their nonzero exit status.
+`PROOF_SETUP_COMMAND` is scoped to the setup subprocess and removed from the
+producer environment, so nested fixture or consumer checks do not repeat the
+outer repository's setup. Build, unit tests, format/lint,
 and migration validation always create their named job; an absent command
 fails the job so a promoted required context cannot be satisfied by a skipped
 producer. Changed-code coverage uses a separate configuration-discovery job;
