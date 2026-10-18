@@ -26,6 +26,7 @@ Pages updates; the repository rename did not change the runtime contract.
 | Standards | Define expectations for quality, security, and accountable AI use | [AI development policy](policies/ai-development.md) |
 | Skills | Guide agents through repeatable development, QA, security, and release work | [Install shared skills](skills/README.md#install-locally) |
 | Verification | Produce evidence from tests, functional QA, and scanners | [Set up functional QA](skills/qa-bootstrap/SKILL.md) |
+| Quality recipes | Select real linting, test integrity, defensive tests, changed-code coverage, and architecture checks | [Optional quality checks](#optional-quality-checks) |
 | Proof | Evaluate evidence against policy and expose missing results | [Install and configure Proof](docs/quickstart.md) |
 | Providers | Use SonarQube scanner and quality-gate actions; use adapter-owned commands and reason codes for Snyk and FOSSA | [Providers](docs/providers/README.md) |
 | Reference app | Exercise installation and runtime behavior; inspect separate deployment evidence | [Reference app](docs/reference-app.md) |
@@ -180,16 +181,50 @@ is a published PR snapshot; its timestamp does not prove it matches the current
 PR head or main. **ALLOW** means enforced controls were satisfied for that
 snapshot, not that the change is ready to merge or release.
 
-## Profiles
+## Optional quality checks
 
-For opt-in real linting, fresh test reports, defensive test scenarios,
-changed-code coverage, and architecture boundaries, use the
-[optional quality recipes](docs/standards/optional-quality-checks.md).
-Each repository chooses adoption, thresholds, and mode; these recipes add no
-default required checks or branch-protection changes.
-The supplied lint and architecture configurations are **TypeScript examples**.
-Java and other languages need their own tools and repository-owned commands;
-see [language-specific choices](docs/standards/optional-quality-checks.md#choose-tools-for-your-language).
+Choose the checks that fit your repository. The
+[quality recipes](docs/standards/optional-quality-checks.md) provide runnable
+building blocks; repository owners choose tools, source scope, thresholds,
+CI triggers, and whether results are advisory or enforced. These recipes add
+no default required checks or branch-protection changes.
+
+| Check | What it exercises |
+| --- | --- |
+| Real linting | Language-aware rules, with formatting and type checking kept as separate commands |
+| Test integrity | Fresh JUnit results, actual test cases, and repository-selected skipped-test budgets |
+| Defensive tests | Authorization, tenant/resource access, invalid inputs, and other selected failure paths |
+| Changed-code coverage | Fresh Cobertura reports compared with an explicit Git base and selected source paths |
+| Architecture boundaries | Allowed dependency directions, cycles, and imports across selected boundaries |
+
+The lint and architecture configurations in
+[`examples/typescript-quality/`](examples/typescript-quality/README.md) are
+**TypeScript examples**. Java, Python, PHP, Scala, and other languages need
+their own tools and commands. Extend or replace the relevant recipe for your
+language, framework, and source layout; an ESLint configuration cannot analyze
+Java classes. See [language-specific choices](docs/standards/optional-quality-checks.md#choose-tools-for-your-language).
+
+The separate reference app has
+[runnable examples for all five languages](https://github.com/ravisingh11/ai-software-toolkit-reference-app/tree/main/examples/polyglot),
+using native tools against a shared defensive issue-transition contract:
+
+| Language | Lint/static analysis | Coverage | Architecture check |
+| --- | --- | --- | --- |
+| Java | Checkstyle | JaCoCo | Compiled dependencies via `jdeps` |
+| TypeScript | Type-aware ESLint | c8/V8 | dependency-cruiser |
+| Python | Ruff | coverage.py | Conservative AST purity rules |
+| PHP | PHPStan | Xdebug | Conservative token-based purity rules |
+| Scala | WartRemover | JaCoCo | Compiled dependencies via `jdeps` |
+
+Follow the [polyglot guide](https://github.com/ravisingh11/ai-software-toolkit-reference-app/blob/main/examples/polyglot/README.md)
+for runtime requirements, explicit setup, local commands, and coverage scopes.
+Its [Optional polyglot examples workflow](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/workflows/polyglot-examples.yml)
+runs **manually**, for one language or all five, with an explicit comparison
+base and chosen threshold. It adds no required checks or branch rules.
+Evidence covers the selected domain examples; the deployed reference app
+remains TypeScript. Each consuming repository owns adoption and enforcement.
+
+## Profiles
 
 Core is the default advisory profile: repository/documentation/ground-truth
 validation, scope, PR metadata, lint, migration validation, build, unit tests,
