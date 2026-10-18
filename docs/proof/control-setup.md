@@ -103,7 +103,11 @@ this also works where coverage.py cannot write into the Python installation's
 site-packages directory, then combines parent and child data before evaluating
 changed lines. Both test entry points disable automatic Git maintenance for
 their child processes so background Git writes cannot race temporary-repository
-cleanup. This does not change repository or user Git configuration.
+cleanup. This does not change repository or user Git configuration. CLI unit
+fixtures additionally isolate host Git configuration, hooks, and templates, and
+use a failing `gh` stub by default; provider-specific tests supply their own
+explicit fake responses. Cleanup errors remain failures with a bounded list
+of remaining top-level entries for diagnosis.
 
 In Actions, the coverage command also writes a job summary with the outcome,
 configured target, and diff-cover's measured results. If no measured changed
