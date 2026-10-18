@@ -3,6 +3,9 @@
 Repositories choose which automated checks to adopt and how to treat their
 results. The [optional quality recipes](../docs/standards/optional-quality-checks.md)
 provide linting and architecture examples without activating or requiring them.
+The supplied configurations demonstrate TypeScript. Each repository selects
+language-appropriate tools; Java and other languages need their own configured
+commands or separately tested adapters.
 
 ## Requirements
 

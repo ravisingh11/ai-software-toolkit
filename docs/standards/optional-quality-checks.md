@@ -6,6 +6,44 @@ checks, edit branch protection, or activate a provider. A diagnostic command
 returns a nonzero exit status when its selected criteria are unmet; whether
 that result blocks delivery belongs to the repository's policy and CI.
 
+## Choose tools for your language
+
+**The supplied lint and architecture configurations are TypeScript examples,
+not a universal or multi-language lint pack.** Quality goals are shared;
+linters, formatters, compiler checks, and architecture rules depend on the
+language and build system. Use another language's native tools and configure
+its repository commands, or add a separately tested toolkit adapter/recipe.
+Do not extend the example's ESLint rules expecting them to analyze Java.
+Some analysis platforms support multiple languages, but their language-specific
+rules, build requirements, and configuration still need to be selected.
+
+| Language | Example lint/static-analysis tools | What this change supplies |
+| --- | --- | --- |
+| TypeScript | ESLint with typescript-eslint | Example configuration and engine verification; tools remain consumer-installed |
+| Java | [Checkstyle](https://checkstyle.org/checks/), [PMD](https://pmd.github.io/pmd/pmd_languages_java.html), [SpotBugs](https://spotbugs.github.io/spotbugs-maven-plugin/index.html) | Tool-selection guidance; no Java configuration or tested adapter |
+| Python | [Ruff](https://docs.astral.sh/ruff/) | Command guidance; the toolkit's own Python lint configuration is not an application-wide preset |
+| Swift | [SwiftLint](https://github.com/realm/SwiftLint) | Tool-selection guidance; no Swift configuration or tested adapter |
+| Kotlin | [detekt](https://detekt.dev/) | Tool-selection guidance; no Kotlin configuration or tested adapter |
+
+These are choices, not a required combined stack. For Java, a repository might
+select [google-java-format](https://github.com/google/google-java-format) for
+formatting and [ArchUnit](https://www.archunit.org/userguide/html/000_Index.html)
+for architecture tests, then connect its configured Maven or Gradle tasks to
+Proof. The TypeScript dependency-cruiser rules do not analyze Java classes.
+Automatic command discovery currently recognizes Python and Node projects;
+Java and other languages need manually supplied commands or a new tested
+discovery adapter. Naming tools here does not install or activate them.
+
+The two Python report helpers are reusable across application languages, but
+their input contracts still apply. The test helper needs a fresh compatible
+JUnit XML report; a build emitting multiple reports needs a repository-owned
+aggregation step or a different test command/provider. The coverage helper
+accepts Cobertura XML, not arbitrary XML. Java's native
+[JaCoCo XML](https://www.jacoco.org/jacoco/trunk/doc/report-mojo.html) needs a
+compatible conversion step, or the repository can use its own changed-coverage
+command/provider. These integrations are not implemented or verified here.
+The helpers need a Python interpreter even when testing another language.
+
 ## Included building blocks
 
 | Area | Building block | Repository-owned decision |
@@ -118,7 +156,7 @@ repository-specific check; its selected target is not changed by this recipe.
 
 ## Check architecture boundaries
 
-The optional dependency-cruiser example checks cycles, unresolved imports,
+The optional TypeScript dependency-cruiser example checks cycles, unresolved imports,
 client-to-server imports, and contracts importing application code. A consumer
 can adapt its paths and run:
 

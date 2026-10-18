@@ -1,5 +1,12 @@
 # Optional TypeScript quality recipes
 
+**This is a TypeScript example, not a universal or multi-language lint pack.**
+Its ESLint/typescript-eslint and dependency-cruiser configurations apply to
+the demonstrated TypeScript project. A Java repository should supply Java
+tools and configuration instead of extending these ESLint rules. Other
+languages likewise need their own toolchain and tested repository commands.
+See [language-specific choices](../../docs/standards/optional-quality-checks.md#choose-tools-for-your-language).
+
 This example demonstrates separate formatting, real type-aware linting, type
 checking, defensive tests, and import boundaries. It does not install tools,
 activate Proof controls, or choose enforcement for any repository.
