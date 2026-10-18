@@ -101,7 +101,9 @@ excluded. `tooling/coverage.ini` enables subprocess collection and parallel
 data files. The script exposes a repository-owned `sitecustomize` bootstrap so
 this also works where coverage.py cannot write into the Python installation's
 site-packages directory, then combines parent and child data before evaluating
-changed lines.
+changed lines. Both test entry points disable automatic Git maintenance for
+their child processes so background Git writes cannot race temporary-repository
+cleanup. This does not change repository or user Git configuration.
 
 In Actions, the coverage command also writes a job summary with the outcome,
 configured target, and diff-cover's measured results. If no measured changed

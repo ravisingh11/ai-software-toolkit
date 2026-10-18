@@ -182,6 +182,15 @@ snapshot, not that the change is ready to merge or release.
 
 ## Profiles
 
+For opt-in real linting, fresh test reports, defensive test scenarios,
+changed-code coverage, and architecture boundaries, use the
+[optional quality recipes](docs/standards/optional-quality-checks.md).
+Each repository chooses adoption, thresholds, and mode; these recipes add no
+default required checks or branch-protection changes.
+The supplied lint and architecture configurations are **TypeScript examples**.
+Java and other languages need their own tools and repository-owned commands;
+see [language-specific choices](docs/standards/optional-quality-checks.md#choose-tools-for-your-language).
+
 Core is the default advisory profile: repository/documentation/ground-truth
 validation, scope, PR metadata, lint, migration validation, build, unit tests,
 changed-code coverage, Semgrep CE, and Gitleaks CLI. The optional additive

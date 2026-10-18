@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class CoverageSummaryTests(unittest.TestCase):
     def run_coverage(self, report: str, status: int, *, summary_enabled: bool = True,
-                     measurements: bool = False):
+                     measurements: bool = False, probe_git: bool = False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "tooling").mkdir()
@@ -24,6 +24,11 @@ class CoverageSummaryTests(unittest.TestCase):
             coverage = binaries / "coverage"
             coverage.write_text(
                 '#!/bin/bash\nset -eu\n'
+                'if [[ "$1" == "run" && "${TEST_PROBE_GIT:-}" == 1 ]]; then\n'
+                '  for key in maintenance.auto maintenance.autoDetach gc.auto gc.autoDetach; do\n'
+                '    printf \'%s=%s\\n\' "$key" "$(git config --get "$key")"\n'
+                '  done\n'
+                'fi\n'
                 'if [[ "$1" == "xml" ]]; then\n'
                 '  printf \'%s\\n\' \'<class filename="full-test-suite/scripts/full_test_suite_runner.py"/>\' '
                 '\'<class filename="full-test-suite/scripts/full_test_suite_executor.py"/>\' '
@@ -59,6 +64,19 @@ class CoverageSummaryTests(unittest.TestCase):
                 "TEST_STATUS": str(status),
                 "TEST_JSON": '{"total_num_lines": 20, "total_num_violations": 1}',
             }
+            if probe_git:
+                # Override inherited test.sh safeguards so the wrapper itself must
+                # protect every coverage child, including on an enabled host.
+                environment["TEST_PROBE_GIT"] = "1"
+                environment["GIT_CONFIG_COUNT"] = "4"
+                for index, (key, value) in enumerate((
+                    ("maintenance.auto", "true"),
+                    ("maintenance.autoDetach", "true"),
+                    ("gc.auto", "1"),
+                    ("gc.autoDetach", "true"),
+                )):
+                    environment[f"GIT_CONFIG_KEY_{index}"] = key
+                    environment[f"GIT_CONFIG_VALUE_{index}"] = value
             environment.pop("PROOF_MEASUREMENTS_FILE", None)
             measurements_file = root / "measurements.json"
             if measurements:
@@ -115,3 +133,11 @@ class CoverageSummaryTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIsNotNone(measurements)
         self.assertIn('"coverage": {"covered_lines": 19, "measured_lines": 20, "threshold_percent": 90}', measurements)
+
+    def test_coverage_children_disable_automatic_git_maintenance(self):
+        completed, _ = self.run_coverage("# Diff Coverage", 0, probe_git=True)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(completed.stdout.splitlines(), [
+            "maintenance.auto=false", "maintenance.autoDetach=false",
+            "gc.auto=0", "gc.autoDetach=false",
+        ] * 8)

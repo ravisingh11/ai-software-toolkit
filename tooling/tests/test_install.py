@@ -61,6 +61,8 @@ CANONICAL_DISTRIBUTION = {
     ".proof/doctor.py": "tooling/doctor.py",
     ".proof/github_evidence.py": "tooling/github_evidence.py",
     ".proof/produce.py": "tooling/produce_proof_evidence.py",
+    ".proof/check_test_integrity.py": "tooling/check_test_integrity.py",
+    ".proof/check_changed_coverage.py": "tooling/check_changed_coverage.py",
     ".proof/validate_ground_truth.py": "tooling/validators/validate_ground_truth.py",
     ".proof/semgrep-rules.yml": "security/semgrep/proof.yml",
     ".proof/validators/validate_repository.py": "proof/validate_repository.py",

@@ -313,3 +313,11 @@ and any autobuild action updates together. Template regeneration is still
 needed because Dependabot updates installed GitHub Actions workflows only.
 The group controls update packaging, not approval, automatic merging or
 required-check policy.
+
+## Artifact upload action maintenance
+
+The installed workflows and reusable templates use the pinned
+`actions/upload-artifact` v7.0.2 patch release. Regenerate templates with
+`python3 tooling/sync_workflow_templates.py --write` after changing an installed
+action pin so consumers receive the same release. Permissions and enforcement
+choices remain owned by each repository.
