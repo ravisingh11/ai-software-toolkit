@@ -185,16 +185,36 @@ def detect_node(target: Path) -> dict[str, Any] | None:
     run = {"npm": "npm run", "pnpm": "pnpm run", "yarn": "yarn", "bun": "bun run"}.get(package_manager, "npm run")
     install = {"npm": "npm ci", "pnpm": "pnpm install --frozen-lockfile", "yarn": "yarn install --frozen-lockfile", "bun": "bun install --frozen-lockfile"}.get(package_manager, "npm ci")
     commands = {"setup": _command(install, source)}
+    notes = []
     for capability, names in (("unit-tests", ("test",)), ("build", ("build",)), ("format-and-lint", ("lint", "check"))):
         for name in names:
             script = scripts.get(name)
             if isinstance(script, str) and script.strip() and "no test specified" not in script:
+                if capability == "format-and-lint" and _compiler_only(script, scripts):
+                    notes.append(f"scripts.{name} is compiler-only; configure a real linter separately from type checking.")
+                    continue
                 commands[capability] = _command(f"{run} {name}", f"package.json scripts.{name}")
                 break
     typescript = (target / "tsconfig.json").is_file()
     return {"language": "node", "package_manager": package_manager,
             "markers": ["package.json", *(name for name in ("package-lock.json", "pnpm-lock.yaml", "yarn.lock", "tsconfig.json") if (target / name).is_file())],
-            "codeql_language": "javascript-typescript" if typescript else "javascript", "commands": commands}
+            "codeql_language": "javascript-typescript" if typescript else "javascript", "commands": commands, "notes": notes}
+
+
+def _compiler_only(script: str, scripts: dict, seen: frozenset[str] = frozenset()) -> bool:
+    """Withhold recognizable compiler-only candidates, without guessing at wrappers."""
+    if script in seen or len(seen) >= 20:
+        return False
+    for part in re.split(r"\s*(?:&&|;)\s*", script.strip()):
+        if re.fullmatch(r"(?:(?:npx|pnpm exec|yarn exec|bunx)\s+)?(?:tsc|vue-tsc)(?:\s+[^;&|<>]*)?", part):
+            continue
+        if re.fullmatch(r"next typegen(?:\s+[^;&|<>]*)?", part):
+            continue
+        alias = re.fullmatch(r"(?:npm run|pnpm(?: run)?|yarn(?: run)?|bun run)\s+([\w:-]+)", part)
+        candidate = scripts.get(alias[1]) if alias else None
+        if not isinstance(candidate, str) or not _compiler_only(candidate, scripts, seen | {script}):
+            return False
+    return True
 
 
 def detect_workflows(target: Path) -> list[dict[str, Any]]:
@@ -314,6 +334,9 @@ def render(discovery: dict[str, Any]) -> str:
         lines.append("Proposed repository variables (never committed; set with gh or in repository settings):")
         for capability, row in sorted(discovery["commands"].items()):
             lines.append(f"  {COMMAND_VARIABLES[capability]}={row['command']!r}  # from {row['source']}")
+    for language in discovery["languages"]:
+        for note in language.get("notes", []):
+            lines.append(f"Note: {note}")
     integrations = existing_integrations(discovery)
     if integrations:
         lines.append("Existing integrations (will not be duplicated):")

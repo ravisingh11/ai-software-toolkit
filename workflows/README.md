@@ -299,10 +299,10 @@ commits the installation to an `ai-toolkit/setup-<tag>` branch and opens a
 pull request with `gh`. Discovered repository commands appear in the preview
 as `gh variable set` lines; the workflow never writes them into the tree.
 
-## Artifact download action maintenance
+## Artifact action maintenance
 
-The installed workflows and reusable templates use the pinned
-\`actions/download-artifact\` v8.0.2 patch release. Regenerate templates with
-\`python3 tooling/sync_workflow_templates.py --write\` after changing an installed
+The installed workflows and reusable templates pin `actions/download-artifact`
+to v8.0.2 and `actions/upload-artifact` to v7.0.2. Regenerate templates with
+`python3 tooling/sync_workflow_templates.py --write` after changing an installed
 action pin so consumers receive the same release. Permissions and enforcement
 choices remain owned by each repository.

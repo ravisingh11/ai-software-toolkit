@@ -144,7 +144,7 @@ jobs:
           jq -r '"\(.check_name): \(.status) — \(.summary)"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" >> "${GITHUB_STEP_SUMMARY}"
       - name: Upload run-bound evidence
         if: ${{ !cancelled() && steps.evidence.outcome == 'success' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: proof-ai-engineering-adapter-${{ github.run_id }}
           path: ${{ runner.temp }}/proof-evidence/proof-evidence.json
@@ -162,7 +162,7 @@ jobs:
           jq -e '.status == "passed"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" > /dev/null
       - name: Upload engineering findings
         if: ${{ always() && steps.review.outputs.written == 'true' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: ai-review-engineering
           path: ${{ runner.temp }}/ai-review/engineering.json
@@ -275,7 +275,7 @@ jobs:
           jq -r '"\(.check_name): \(.status) — \(.summary)"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" >> "${GITHUB_STEP_SUMMARY}"
       - name: Upload run-bound evidence
         if: ${{ !cancelled() && steps.evidence.outcome == 'success' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: proof-ai-qa-adapter-${{ github.run_id }}
           path: ${{ runner.temp }}/proof-evidence/proof-evidence.json
@@ -293,7 +293,7 @@ jobs:
           jq -e '.status == "passed"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" > /dev/null
       - name: Upload qa findings
         if: ${{ always() && steps.review.outputs.written == 'true' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: ai-review-qa
           path: ${{ runner.temp }}/ai-review/qa.json
@@ -406,7 +406,7 @@ jobs:
           jq -r '"\(.check_name): \(.status) — \(.summary)"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" >> "${GITHUB_STEP_SUMMARY}"
       - name: Upload run-bound evidence
         if: ${{ !cancelled() && steps.evidence.outcome == 'success' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: proof-ai-security-adapter-${{ github.run_id }}
           path: ${{ runner.temp }}/proof-evidence/proof-evidence.json
@@ -424,7 +424,7 @@ jobs:
           jq -e '.status == "passed"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" > /dev/null
       - name: Upload security findings
         if: ${{ always() && steps.review.outputs.written == 'true' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: ai-review-security
           path: ${{ runner.temp }}/ai-review/security.json
@@ -537,7 +537,7 @@ jobs:
           jq -r '"\(.check_name): \(.status) — \(.summary)"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" >> "${GITHUB_STEP_SUMMARY}"
       - name: Upload run-bound evidence
         if: ${{ !cancelled() && steps.evidence.outcome == 'success' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: proof-ai-repository-standards-adapter-${{ github.run_id }}
           path: ${{ runner.temp }}/proof-evidence/proof-evidence.json
@@ -555,7 +555,7 @@ jobs:
           jq -e '.status == "passed"' "${RUNNER_TEMP}/proof-evidence/proof-evidence.json" > /dev/null
       - name: Upload repository standards findings
         if: ${{ always() && steps.review.outputs.written == 'true' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: ai-review-repo-standards
           path: ${{ runner.temp }}/ai-review/repo-standards.json
@@ -609,7 +609,7 @@ jobs:
           fi
       - name: Upload consolidated findings
         if: ${{ always() && hashFiles('ai-review/consolidated-findings.json') != '' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: ai-review-consolidated
           path: ai-review/consolidated-findings.json
