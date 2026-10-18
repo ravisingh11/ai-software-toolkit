@@ -314,10 +314,18 @@ needed because Dependabot updates installed GitHub Actions workflows only.
 The group controls update packaging, not approval, automatic merging or
 required-check policy.
 
-## Artifact action maintenance
+## Artifact upload action maintenance
 
-The installed workflows and reusable templates pin `actions/download-artifact`
-to v8.0.2 and `actions/upload-artifact` to v7.0.2. Regenerate templates with
+The installed workflows and reusable templates use the pinned
+`actions/upload-artifact` v7.0.2 patch release. Regenerate templates with
+`python3 tooling/sync_workflow_templates.py --write` after changing an installed
+action pin so consumers receive the same release. Permissions and enforcement
+choices remain owned by each repository.
+
+## Artifact download action maintenance
+
+The installed workflows and reusable templates use the pinned
+`actions/download-artifact` v8.0.2 patch release. Regenerate templates with
 `python3 tooling/sync_workflow_templates.py --write` after changing an installed
 action pin so consumers receive the same release. Permissions and enforcement
 choices remain owned by each repository.
