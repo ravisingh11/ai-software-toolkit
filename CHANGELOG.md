@@ -8,6 +8,12 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Add optional fresh-JUnit test-integrity and changed-code coverage helpers,
+  TypeScript lint/architecture configurations, and executable defensive-test
+  recipes. Each consumer chooses its commands, scope, targets, and mode;
+  shared profiles, rulesets, and required checks are unchanged. Discovery no
+  longer proposes recognizable compiler-only scripts as real linting.
+
 - Preserve consumer edits across successive ordinary toolkit upgrades, including
   installations first adopted without a lock. Unresolved conflicts keep their
   offered canonical hash baseline; each update receives a unique rollback backup.

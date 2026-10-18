@@ -1,5 +1,9 @@
 # Code Quality Policy
 
+Repositories choose which automated checks to adopt and how to treat their
+results. The [optional quality recipes](../docs/standards/optional-quality-checks.md)
+provide linting and architecture examples without activating or requiring them.
+
 ## Requirements
 
 - New code should improve the codebase rather than add avoidable technical

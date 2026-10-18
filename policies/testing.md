@@ -2,6 +2,11 @@
 
 ## Status
 
+Repositories choose their test commands, coverage targets, and Proof modes.
+The [optional quality recipes](../docs/standards/optional-quality-checks.md)
+and [defensive scenarios](defensive-testing.md) do not activate checks or
+change enforcement. The coverage target below is a recommended starting point.
+
 This is an initial, evolving standard. The requirements below are the default
 direction; language-specific test commands, report formats, and exceptions
 remain repository-specific.
