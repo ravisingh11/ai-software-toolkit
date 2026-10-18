@@ -158,7 +158,7 @@ class ActionDistributionTests(unittest.TestCase):
                     self.assertIn("persist-credentials: false", text)
                 if filename == "change-scope.yml":
                     self.assertIn("pull_request_target:", text)
-                    self.assertIn("ref: ${{ github.event.pull_request.base.sha || github.sha }}", text)
+                    self.assertIn("ref: ${{ github.workflow_sha }}", text)
                     self.assertIn("trusted/.proof/fetch_pr_metadata.py", text)
                     self.assertNotIn("path: candidate", text)
                     self.assertNotIn("allow-unsafe-pr-checkout", text)
@@ -265,7 +265,7 @@ class ActionDistributionTests(unittest.TestCase):
                 self.assertIn("pull_request_target:", text)
                 self.assertIn("actions: read", text)
                 self.assertIn("path: .proof-trusted", text)
-                self.assertIn("ref: ${{ github.event.pull_request.base.sha || github.sha }}", text)
+                self.assertIn("ref: ${{ github.event_name == 'pull_request_review' && github.event.pull_request.base.sha || github.workflow_sha }}", text)
                 self.assertIn("--policy-output .proof-candidate/.proof/policy.yaml", text)
                 self.assertIn("HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}", text)
                 self.assertIn(".proof-trusted/.proof/fetch_pr_metadata.py", text)

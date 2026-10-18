@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import yaml
 from pathlib import Path
 import subprocess
 import tempfile
@@ -113,9 +114,33 @@ class MetadataTests(unittest.TestCase):
         for name in ("change-scope.yml", "proof-scorecard.yml"):
             text = (root / "workflows" / name).read_text()
             self.assertEqual(text.count("uses: actions/checkout@"), 1)
-            self.assertIn("ref: ${{ github.event.pull_request.base.sha || github.sha }}", text)
+            self.assertIn("github.workflow_sha", text)
             self.assertNotIn("allow-unsafe-pr-checkout", text)
             self.assertIn("fetch_pr_metadata.py", text)
+
+
+    def test_stale_pr_base_does_not_select_target_runtime(self):
+        root = Path(__file__).resolve().parents[2]
+        stale_base = self.head
+        (self.repo / ".proof/fetch_pr_metadata.py").write_text("# newly installed helper\n")
+        self.commit()
+        workflow_sha = self.head
+        self.assertNotEqual(stale_base, workflow_sha)
+        for name in ("change-scope.yml", "proof-scorecard.yml"):
+            workflow = yaml.safe_load((root / "workflows" / name).read_text())
+            job = next(iter(workflow["jobs"].values()))
+            checkout = next(step for step in job["steps"] if "uses" in step and "actions/checkout@" in step["uses"])
+            expected = "${{ github.workflow_sha }}" if name == "change-scope.yml" else "${{ github.event_name == 'pull_request_review' && github.event.pull_request.base.sha || github.workflow_sha }}"
+            self.assertEqual(checkout["with"]["ref"], expected)
+            # For target events both expressions select the workflow commit,
+            # even when the payload base predates the installed helper.
+            self.assertIn("newly installed helper", self.git("show", f"{workflow_sha}:.proof/fetch_pr_metadata.py"))
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.git("show", f"{stale_base}:.proof/fetch_pr_metadata.py")
+            fetch = next(step for step in job["steps"] if step.get("name") == "Fetch candidate metadata without checkout")
+            self.assertEqual(fetch["env"]["BASE_SHA"], "${{ github.event.pull_request.base.sha || github.sha }}")
+            triggers = workflow.get("on", workflow.get(True))
+            self.assertIn("edited", triggers["pull_request_target"]["types"])
 
     def test_main_success_and_failure(self):
         env = dict(GITHUB_REPOSITORY="owner/repo", GITHUB_SERVER_URL="https://github.com",

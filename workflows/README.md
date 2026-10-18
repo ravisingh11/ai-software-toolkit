@@ -156,7 +156,20 @@ artifact-provenance path.
 
 ## Scorecard flow
 
-PR scope and scorecard metadata jobs check out only the trusted base runtime.
+PR scope and scorecard metadata jobs use the workflow-file commit
+(`github.workflow_sha`) for their trusted runtime and policy on
+`pull_request_target` and manual runs. This keeps newly installed helpers
+available even when a PR event still reports an older base commit. Both jobs
+accept PR `edited` events so metadata can be refreshed after a runtime update.
+The scorecard's `pull_request_review` trigger retains the event base commit:
+review workflows run on a PR merge ref, which is not a trusted runtime source.
+See GitHub's [workflow context](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context)
+and [event semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request_target).
+
+Each job records the actual checked-out runtime/policy SHA in its summary.
+Event base/head SHAs remain comparison inputs; source-binding `base_sha` and
+the evidence collector's `--trusted-base-revision` retain their existing PR
+comparison and provider-verification meaning, independently of runtime checkout.
 The trusted metadata helper fetches full Git ancestry into a fresh bare
 repository through the base repository's PR ref and verifies the exact event
 base/head commits. It uses ephemeral authentication for private repositories

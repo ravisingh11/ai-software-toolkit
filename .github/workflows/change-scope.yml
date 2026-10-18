@@ -3,7 +3,7 @@ name: PR Size / Files & LOC
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    types: [opened, edited, synchronize, reopened]
   workflow_dispatch:
 
 concurrency:
@@ -25,13 +25,17 @@ jobs:
       BASE_REF: ${{ github.event.pull_request.base.ref && format('refs/heads/{0}', github.event.pull_request.base.ref) || github.ref }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - name: Check out trusted base runtime
+      - name: Check out trusted workflow runtime
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          ref: ${{ github.workflow_sha }}
           path: trusted
           fetch-depth: 1
           persist-credentials: false
+      - name: Record trusted runtime revision
+        run: |
+          runtime_sha="$(git -C trusted rev-parse HEAD)"
+          printf 'Trusted runtime and policy revision: `%s`\n' "${runtime_sha}" >> "${GITHUB_STEP_SUMMARY}"
       - name: Fetch candidate metadata without checkout
         env:
           GH_TOKEN: ${{ github.token }}
