@@ -155,6 +155,29 @@ class DiscoveryTests(unittest.TestCase):
         self.write("package.json", "not json")
         self.assertEqual(discovery.detect_node(self.target)["commands"]["setup"]["command"], "npm ci")
 
+    def test_compiler_only_lint_is_not_proposed_as_lint(self):
+        for script in ("tsc --noEmit", "next typegen && tsc --noEmit", "pnpm exec tsc --noEmit", "npm run typecheck"):
+            with self.subTest(script=script):
+                self.write("package.json", json.dumps({"scripts": {"lint": script, "typecheck": "tsc --noEmit"}}))
+                found = discovery.discover(self.target, environment={"HOME": str(self.target)})
+                self.assertNotIn("PROOF_FORMAT_LINT_COMMAND", found["variables"])
+                self.assertIn("compiler-only", discovery.render(found))
+
+    def test_real_lint_and_unknown_wrappers_remain_candidates(self):
+        for script in ("eslint . && tsc --noEmit", "node scripts/lint.mjs", "pnpm run lint:code"):
+            with self.subTest(script=script):
+                self.write("package.json", json.dumps({"scripts": {"lint": script, "lint:code": "eslint ."}}))
+                self.assertIn("format-and-lint", discovery.detect_node(self.target)["commands"])
+
+    def test_compiler_only_lint_can_fall_back_to_real_check(self):
+        self.write("package.json", json.dumps({"scripts": {"lint": "tsc --noEmit", "check": "biome check ."}}))
+        row = discovery.detect_node(self.target)
+        self.assertEqual(row["commands"]["format-and-lint"]["command"], "npm run check")
+
+    def test_recursive_script_aliases_do_not_hang_discovery(self):
+        self.write("package.json", json.dumps({"scripts": {"lint": "npm run check", "check": "npm run lint"}}))
+        self.assertIn("format-and-lint", discovery.detect_node(self.target)["commands"])
+
     def test_workflows_provider_configuration_and_integrations(self):
         self.write(".github/workflows/sonar.yml", "name: 'SonarQube'\njobs:\n  a:\n    steps:\n      - uses: SonarSource/sonarqube-scan-action@sha\n")
         self.write(".github/workflows/build.yml", "# Proof installer-owned workflow.\nname: Build\n")

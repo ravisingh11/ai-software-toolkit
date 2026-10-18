@@ -1,0 +1,12 @@
+{
+  "name": "optional-typescript-quality-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "format:check": "prettier --check .",
+    "lint": "eslint src --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test:defensive": "node --test tests/defensive.test.mjs",
+    "architecture": "depcruise --config dependency-cruiser.cjs src"
+  }
+}

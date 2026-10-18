@@ -112,6 +112,8 @@ def runtime_sources(target: Path) -> list[InstallItem]:
         "doctor.py": ROOT / "tooling/doctor.py",
         "github_evidence.py": ROOT / "tooling/github_evidence.py",
         "produce.py": PRODUCER,
+        "check_test_integrity.py": ROOT / "tooling/check_test_integrity.py",
+        "check_changed_coverage.py": ROOT / "tooling/check_changed_coverage.py",
         "adapter.py": ROOT / "tooling/provider_adapter.py",
         "provider_check.py": ROOT / "tooling/provider_check.py",
         "measurements.py": ROOT / "tooling/proof_measurements.py",

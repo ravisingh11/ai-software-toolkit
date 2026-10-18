@@ -306,3 +306,11 @@ The installed workflow and reusable template both use CodeQL v4.38.3;
 regenerate templates with `python3 tooling/sync_workflow_templates.py --write`
 when changing installed action pins. This maintenance does not change workflow
 permissions or a consuming repository's enforcement choices.
+
+## Artifact upload action maintenance
+
+The installed workflows and reusable templates use the pinned
+`actions/upload-artifact` v7.0.2 patch release. Regenerate templates with
+`python3 tooling/sync_workflow_templates.py --write` after changing an installed
+action pin so consumers receive the same release. Permissions and enforcement
+choices remain owned by each repository.

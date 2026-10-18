@@ -6,6 +6,7 @@ owns its commands, architecture, acceptance criteria, and release process.
 - [AI agent standards](ai-agent-standards.md)
 - [Commit messages](commit-message-standard.md)
 - [Error handling](error-handling-standard.md)
+- [Optional quality checks](optional-quality-checks.md)
 - [Release evidence](release-evidence-standard.md)
 - [Specification-driven development](spec-driven-development-standard.md)
 
