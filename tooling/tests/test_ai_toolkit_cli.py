@@ -6,6 +6,7 @@ import json
 import os
 import stat
 import shutil
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -45,13 +46,35 @@ def run_cli(*arguments: str) -> tuple[int, str, str]:
 class CliFixture(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
+        self.addCleanup(self.cleanup_workspace)
         self.root = Path(self.temp.name).resolve()
         self.target = self.root / "repo"
         self.target.mkdir()
         self.home = self.root / "home"
         (self.home / ".codex").mkdir(parents=True)
-        self.environment = patch.dict(os.environ, {"HOME": str(self.home), "CODEX_HOME": str(self.home / ".codex"),
+        # Unit fixtures must not invoke installed gh, Git hooks, or templates.
+        # Explicit provider tests can still prepend their own fake binaries.
+        binaries = self.root / "fixture-bin"
+        binaries.mkdir()
+        gh = binaries / "gh"
+        gh.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        gh.chmod(0o755)
+        templates = self.root / "empty-templates"
+        templates.mkdir()
+        git_environment = {
+            "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_TEMPLATE_DIR": str(templates), "GIT_CONFIG_COUNT": "6",
+        }
+        for index, (key, value) in enumerate((
+            ("maintenance.auto", "false"), ("maintenance.autoDetach", "false"),
+            ("gc.auto", "0"), ("gc.autoDetach", "false"),
+            ("core.hooksPath", os.devnull), ("core.fsmonitor", "false"),
+        )):
+            git_environment[f"GIT_CONFIG_KEY_{index}"] = key
+            git_environment[f"GIT_CONFIG_VALUE_{index}"] = value
+        self.environment = patch.dict(os.environ, {**git_environment,
+                                                   "PATH": str(binaries) + os.pathsep + os.environ["PATH"],
+                                                   "HOME": str(self.home), "CODEX_HOME": str(self.home / ".codex"),
                                                    "CLAUDE_CONFIG_DIR": str(self.home / ".claude"), "AI_TOOLKIT_TEST": "1"})
         self.environment.start()
         self.addCleanup(self.environment.stop)
@@ -66,6 +89,16 @@ class CliFixture(unittest.TestCase):
         self.git("config", "user.name", "Test")
         self.git("add", ".")
         self.git("commit", "-qm", "initial")
+
+    def cleanup_workspace(self):
+        try:
+            self.temp.cleanup()
+        except OSError as error:
+            # Preserve the failure and identify remaining entries without reading
+            # contents or exposing environment values. Never retry or ignore it.
+            entries = sorted(path.name for path in self.root.iterdir())[:20] if self.root.exists() else []
+            error.add_note(f"Fixture cleanup remaining top-level entries: {entries!r}")
+            raise
 
     def git(self, *arguments: str) -> str:
         return subprocess.run(["git", *arguments], cwd=self.target, text=True, capture_output=True, check=True).stdout.strip()
@@ -1143,3 +1176,46 @@ class ReviewRegressionTests(CliFixture):
         self.assertEqual(code, 2)
         self.assertFalse((self.target / ".proof" / "scan.py").exists())
         self.assertIn("previous files were restored", err)
+
+
+class FixtureIsolationTests(unittest.TestCase):
+    def test_cli_fixture_does_not_execute_host_gh_or_git_hooks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            host = Path(directory)
+            binaries = host / "bin"
+            binaries.mkdir()
+            gh_marker = host / "gh-called"
+            hook_marker = host / "hook-called"
+            gh = binaries / "gh"
+            gh.write_text("#!/bin/sh\ntouch " + shlex.quote(str(gh_marker)) + "\nexit 1\n")
+            gh.chmod(0o755)
+            hooks = host / "hooks"
+            hooks.mkdir()
+            hook = hooks / "post-commit"
+            hook.write_text("#!/bin/sh\ntouch " + shlex.quote(str(hook_marker)) + "\n")
+            hook.chmod(0o755)
+            templates = host / "templates"
+            templates.mkdir()
+            (templates / "host-template").write_text("host template marker\n")
+            global_config = host / "gitconfig"
+            global_config.write_text('[core]\n hooksPath = "' + str(hooks) + '"\n')
+            with patch.dict(os.environ, {
+                "PATH": str(binaries) + os.pathsep + os.environ["PATH"],
+                "GIT_CONFIG_GLOBAL": str(global_config),
+                "GIT_TEMPLATE_DIR": str(templates),
+                "GIT_CONFIG_COUNT": "1",
+                "GIT_CONFIG_KEY_0": "core.hooksPath",
+                "GIT_CONFIG_VALUE_0": str(hooks),
+            }):
+                fixture = CliFixture()
+                try:
+                    fixture.setUp()
+                    code, out, err = fixture.init("--components", "proof")
+                    self.assertEqual(code, 0, err)
+                    for marker in (gh_marker, hook_marker):
+                        with self.subTest(host_tool=marker.name):
+                            self.assertFalse(marker.exists(), "fixture invoked host tool")
+                    self.assertFalse((fixture.target / ".git" / "host-template").exists())
+                    self.assertEqual(fixture.git("config", "--get", "core.hooksPath"), os.devnull)
+                finally:
+                    fixture.doCleanups()

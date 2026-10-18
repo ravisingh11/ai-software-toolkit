@@ -23,6 +23,14 @@ command -v diff-cover >/dev/null 2>&1 || {
   exit 2
 }
 
+# Coverage runs the same throwaway-repository tests as tooling/test.sh.
+# Prevent detached Git maintenance from racing temporary-directory cleanup.
+export GIT_CONFIG_COUNT=4
+export GIT_CONFIG_KEY_0=maintenance.auto GIT_CONFIG_VALUE_0=false
+export GIT_CONFIG_KEY_1=maintenance.autoDetach GIT_CONFIG_VALUE_1=false
+export GIT_CONFIG_KEY_2=gc.auto GIT_CONFIG_VALUE_2=0
+export GIT_CONFIG_KEY_3=gc.autoDetach GIT_CONFIG_VALUE_3=false
+
 cd "${repo_root}"
 mkdir -p "$(dirname "${coverage_file}")"
 coverage erase
