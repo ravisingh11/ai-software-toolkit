@@ -334,7 +334,7 @@ as `gh variable set` lines; the workflow never writes them into the tree.
 ## CodeQL action maintenance
 
 Keep the CodeQL initialization and analysis steps on the same pinned release.
-The installed workflow and reusable template both use CodeQL v4.38.3;
+The installed workflow and reusable template both use CodeQL v4.39.0;
 regenerate templates with `python3 tooling/sync_workflow_templates.py --write`
 when changing installed action pins. This maintenance does not change workflow
 permissions or a consuming repository's enforcement choices.
