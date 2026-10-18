@@ -23,9 +23,14 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Setup repository
+        run: python3 .proof/run_repository_command.py --command build --phase setup
+        env:
+          PROOF_SETUP_COMMAND: ${{ vars.PROOF_SETUP_COMMAND }}
+          PROOF_BUILD_COMMAND: ${{ vars.PROOF_BUILD_COMMAND }}
+          PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY }}
       - name: Build
-        run: python3 .proof/run_repository_command.py --command build
+        run: python3 .proof/run_repository_command.py --command build --phase producer
         env:
           PROOF_BUILD_COMMAND: ${{ vars.PROOF_BUILD_COMMAND }}
-          PROOF_SETUP_COMMAND: ${{ vars.PROOF_SETUP_COMMAND }}
           PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY }}

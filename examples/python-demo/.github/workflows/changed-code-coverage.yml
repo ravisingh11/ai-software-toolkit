@@ -47,12 +47,17 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Setup repository
+        run: python3 .proof/run_repository_command.py --command changed-code-coverage --phase setup
+        env:
+          PROOF_SETUP_COMMAND: ${{ vars.PROOF_SETUP_COMMAND }}
+          PROOF_CHANGED_COVERAGE_COMMAND: ${{ vars.PROOF_CHANGED_COVERAGE_COMMAND }}
+          PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY }}
       - name: Run tests and check changed-code coverage
         id: coverage
-        run: python3 .proof/run_repository_command.py --command changed-code-coverage
+        run: python3 .proof/run_repository_command.py --command changed-code-coverage --phase producer
         env:
           PROOF_CHANGED_COVERAGE_COMMAND: ${{ vars.PROOF_CHANGED_COVERAGE_COMMAND }}
-          PROOF_SETUP_COMMAND: ${{ vars.PROOF_SETUP_COMMAND }}
           PROOF_COVERAGE_BASE_REF: ${{ github.event.pull_request.base.sha || 'HEAD~1' }}
           PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY }}
           PROOF_MEASUREMENTS_FILE: ${{ runner.temp }}/proof-measurements-input.json

@@ -131,3 +131,31 @@ class CommandRunnerTests(unittest.TestCase):
         with patch.dict(os.environ, PROOF_SETUP_COMMAND="touch setup-ran"):
             self.assertEqual(self.invoke(), 0)
         self.assertTrue((self.root / "setup-ran").is_file())
+
+    def test_separate_phases_do_not_repeat_setup(self):
+        self.write(setup="printf setup >> sequence", commands={"build": "printf producer >> sequence"})
+        self.assertEqual(self.invoke("--phase", "setup"), 0)
+        self.assertEqual((self.root / "sequence").read_text(), "setup")
+        self.assertEqual(self.invoke("--phase", "producer"), 0)
+        self.assertEqual((self.root / "sequence").read_text(), "setupproducer")
+
+    def test_setup_phase_propagates_failure_without_running_producer(self):
+        self.write(setup="exit 9", commands={"build": "touch unexpected"})
+        self.assertEqual(self.invoke("--phase", "setup"), 9)
+        self.assertFalse((self.root / "unexpected").exists())
+
+    def test_producer_phase_uses_updated_environment_without_rerunning_setup(self):
+        self.write(setup="exit 9", commands={"build": 'test "$SETUP_RESULT" = ready && test -z "${PROOF_SETUP_COMMAND+x}"'})
+        with patch.dict(os.environ, SETUP_RESULT="ready", PROOF_SETUP_COMMAND="exit 10"):
+            self.assertEqual(self.invoke("--phase", "producer"), 0)
+
+    def test_workflows_keep_setup_environment_updates_in_separate_steps(self):
+        root = Path(__file__).resolve().parents[2]
+        for name in MODULE.VARIABLES:
+            text = (root / "workflows" / f"{name}.yml").read_text()
+            steps = text.split("      - name:")
+            setup = next(step for step in steps if " --phase setup" in step)
+            producer = next(step for step in steps if " --phase producer" in step)
+            self.assertLess(steps.index(setup), steps.index(producer))
+            self.assertIn("PROOF_SETUP_COMMAND:", setup)
+            self.assertNotIn("PROOF_SETUP_COMMAND:", producer)

@@ -64,6 +64,7 @@ def selected(root: Path, name: str) -> tuple[str, str, Path]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--command", choices=VARIABLES, required=True)
+    parser.add_argument("--phase", choices=("all", "setup", "producer"), default="all")
     parser.add_argument("--configured", action="store_true", help="Print selection only; do not execute setup or producer")
     args = parser.parse_args()
     try:
@@ -73,7 +74,12 @@ def main() -> int:
             return 0
         if not command.strip():
             raise ValueError("producer command is not configured")
-        for is_setup, value in ((True, setup), (False, command)):
+        phases = {
+            "all": ((True, setup), (False, command)),
+            "setup": ((True, setup),),
+            "producer": ((False, command),),
+        }
+        for is_setup, value in phases[args.phase]:
             if value.strip():
                 environment = os.environ.copy()
                 if not is_setup:

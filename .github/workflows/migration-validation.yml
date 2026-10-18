@@ -23,13 +23,18 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Setup repository
+        run: python3 .proof/run_repository_command.py --command migration-validation --phase setup
+        env:
+          PROOF_SETUP_COMMAND: ${{ vars.PROOF_SETUP_COMMAND }}
+          PROOF_MIGRATION_VALIDATION_COMMAND: ${{ vars.PROOF_MIGRATION_VALIDATION_COMMAND }}
+          PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY }}
       - name: Validate migrations
         id: validate
-        run: python3 .proof/run_repository_command.py --command migration-validation
+        run: python3 .proof/run_repository_command.py --command migration-validation --phase producer
         env:
           PROOF_MIGRATION_VALIDATION_COMMAND: ${{ vars.PROOF_MIGRATION_VALIDATION_COMMAND }}
           PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY }}
-          PROOF_SETUP_COMMAND: ${{ vars.PROOF_SETUP_COMMAND }}
           PROOF_MEASUREMENTS_FILE: ${{ runner.temp }}/proof-measurements-input.json
       # Optional, self-reported display counts: never changes this check's result.
       - name: Package self-reported measurements

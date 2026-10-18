@@ -23,12 +23,17 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Setup repository
+        run: python3 .proof/run_repository_command.py --command unit-tests --phase setup
+        env:
+          PROOF_SETUP_COMMAND: ${{ vars.PROOF_SETUP_COMMAND }}
+          PROOF_UNIT_TEST_COMMAND: ${{ vars.PROOF_UNIT_TEST_COMMAND }}
+          PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY }}
       - name: Unit tests
         id: tests
-        run: python3 .proof/run_repository_command.py --command unit-tests
+        run: python3 .proof/run_repository_command.py --command unit-tests --phase producer
         env:
           PROOF_UNIT_TEST_COMMAND: ${{ vars.PROOF_UNIT_TEST_COMMAND }}
-          PROOF_SETUP_COMMAND: ${{ vars.PROOF_SETUP_COMMAND }}
           PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY }}
           PROOF_MEASUREMENTS_FILE: ${{ runner.temp }}/proof-measurements-input.json
       # Optional, self-reported display metrics: never changes this check's result.

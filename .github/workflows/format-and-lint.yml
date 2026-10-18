@@ -23,9 +23,14 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Setup repository
+        run: python3 .proof/run_repository_command.py --command format-and-lint --phase setup
+        env:
+          PROOF_SETUP_COMMAND: ${{ vars.PROOF_SETUP_COMMAND }}
+          PROOF_FORMAT_LINT_COMMAND: ${{ vars.PROOF_FORMAT_LINT_COMMAND }}
+          PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY }}
       - name: Verify formatting and lint
-        run: python3 .proof/run_repository_command.py --command format-and-lint
+        run: python3 .proof/run_repository_command.py --command format-and-lint --phase producer
         env:
           PROOF_FORMAT_LINT_COMMAND: ${{ vars.PROOF_FORMAT_LINT_COMMAND }}
           PROOF_WORKING_DIRECTORY: ${{ vars.PROOF_WORKING_DIRECTORY }}
-          PROOF_SETUP_COMMAND: ${{ vars.PROOF_SETUP_COMMAND }}

@@ -64,7 +64,10 @@ shows the versioned JSON format and validation rules.
 
 Commands execute only in ordinary `pull_request` jobs with a read-only token.
 Setup failures and producer failures retain their nonzero exit status.
-`PROOF_SETUP_COMMAND` is scoped to the setup subprocess and removed from the
+Setup and producer run as separate Actions steps using the runner's
+`--phase setup` and `--phase producer`, so setup writes to `GITHUB_PATH` and
+`GITHUB_ENV` take effect before the producer. Local invocations default to both
+phases in order. `PROOF_SETUP_COMMAND` is scoped to the setup subprocess and removed from the
 producer environment, so nested fixture or consumer checks do not repeat the
 outer repository's setup. Build, unit tests, format/lint,
 and migration validation always create their named job; an absent command
