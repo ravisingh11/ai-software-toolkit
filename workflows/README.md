@@ -299,6 +299,21 @@ commits the installation to an `ai-toolkit/setup-<tag>` branch and opens a
 pull request with `gh`. Discovered repository commands appear in the preview
 as `gh variable set` lines; the workflow never writes them into the tree.
 
+## CodeQL action maintenance
+
+Keep the CodeQL initialization and analysis steps on the same pinned release.
+The installed workflow and reusable template both use CodeQL v4.38.3;
+regenerate templates with `python3 tooling/sync_workflow_templates.py --write`
+when changing installed action pins. This maintenance does not change workflow
+permissions or a consuming repository's enforcement choices.
+
+Dependabot groups CodeQL action version updates in one pull request using the
+`github/codeql-action/*` dependency pattern. This keeps initialization, analysis
+and any autobuild action updates together. Template regeneration is still
+needed because Dependabot updates installed GitHub Actions workflows only.
+The group controls update packaging, not approval, automatic merging or
+required-check policy.
+
 ## Artifact action maintenance
 
 The installed workflows and reusable templates pin `actions/download-artifact`
