@@ -99,12 +99,16 @@ class ChangedCoverageTests(unittest.TestCase):
             'def excluded():  # pragma: no cover\n    return 99\n'
             'assert value == 3\n')
         self.commit()
-        code = ("import coverage, runpy, sys; "
-                "cov = coverage.Coverage(data_file=None, config_file=False); "
-                "cov.start(); runpy.run_path('src/code.py'); cov.stop(); "
-                "cov.xml_report(outfile=sys.argv[1])")
-        result = self.run_check(code=code, real=True)
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        with tempfile.TemporaryDirectory() as external_directory:
+            external = Path(external_directory) / "interpreter_hook.py"
+            external.write_text("external_hook_ran = True\n")
+            code = ("import coverage, runpy, sys; "
+                    "cov = coverage.Coverage(data_file=None, config_file=False, source=['src']); "
+                    "cov.start(); runpy.run_path(" + repr(str(external)) + "); "
+                    "runpy.run_path('src/code.py'); cov.stop(); "
+                    "cov.xml_report(outfile=sys.argv[1])")
+            result = self.run_check(code=code, real=True)
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
 
     def test_nested_source_mapping(self):
         self.assertEqual(self.run_check(report=self.report("code.py", source=str(self.root / "src"))).returncode, 0)
