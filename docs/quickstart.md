@@ -445,7 +445,14 @@ no numerical result is inferred from a passing check. See the
 
 ### Fork pull-request metadata safety
 
-The PR scope and scorecard workflows check out only the trusted base runtime.
+The PR scope and scorecard workflows check out the trusted workflow-file
+revision for target and manual events. A stale event base therefore cannot
+select a runtime that predates the helper. Review events retain the trusted PR
+base runtime because their workflow revision may include candidate changes.
+Regression tests cover the stale-base/helper case and preserve the separate
+PR comparison inputs. Each job summary records its resolved runtime/policy SHA;
+editing a PR refreshes both target metadata reports. See the
+[workflow contract](../workflows/README.md#scorecard-flow).
 The trusted helper (`tooling/fetch_pr_metadata.py`) fetches candidate Git objects into a fresh bare repository through the base
 repository's `refs/pull/<number>/head`, with ephemeral authentication for private
 repositories. Both resolved commits must match the event's exact base and head;
