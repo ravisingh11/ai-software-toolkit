@@ -9,6 +9,11 @@ and Proof connects verification results to policy through revision-bound
 checks and readable scorecards. Your repository owns its architecture,
 acceptance criteria, and commands.
 
+**All toolkit checks are optional to adopt.** Your repository chooses which
+checks run, their tools and thresholds, and whether to enforce them. Examples
+demonstrate language-specific implementations; they do not impose required
+checks or branch rules on consuming repositories.
+
 I built this because AI lets me create more code and ship changes faster than
 ever. I wanted that speed without losing confidence in what I ship: lightweight
 skills and checks that run with the work, with quality considered from the
@@ -204,7 +209,7 @@ their own tools and commands. Extend or replace the relevant recipe for your
 language, framework, and source layout; an ESLint configuration cannot analyze
 Java classes. See [language-specific choices](docs/standards/optional-quality-checks.md#choose-tools-for-your-language).
 
-The separate reference app has
+The separate [Fieldnotes reference app](https://github.com/ravisingh11/ai-software-toolkit-reference-app) has
 [runnable examples for all five languages](https://github.com/ravisingh11/ai-software-toolkit-reference-app/tree/main/examples/polyglot),
 using native tools against a shared defensive issue-transition contract:
 
@@ -219,10 +224,36 @@ using native tools against a shared defensive issue-transition contract:
 Follow the [polyglot guide](https://github.com/ravisingh11/ai-software-toolkit-reference-app/blob/main/examples/polyglot/README.md)
 for runtime requirements, explicit setup, local commands, and coverage scopes.
 Its [Optional polyglot examples workflow](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/workflows/polyglot-examples.yml)
-runs **manually**, for one language or all five, with an explicit comparison
-base and chosen threshold. It adds no required checks or branch rules.
+runs **only by manual dispatch (`workflow_dispatch`)**, for one language or
+all five, with an explicit comparison base and chosen threshold. It does not
+run on pushes or PRs and is not a required merge check. All these checks remain
+optional; repositories choose their own CI triggers and enforcement.
 Evidence covers the selected domain examples; the deployed reference app
 remains TypeScript. Each consuming repository owns adoption and enforcement.
+
+### Recorded five-language verification
+
+The [2026-10-18 manual run](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39168166046)
+passed all **30 stages** (versions, build, lint, tests, architecture, coverage)
+and **115 conformance cases** (23 per language) on reference-app revision
+[`2383bcf`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/2383bcfc9b46ad890f46bd6f4593d52c32772e49),
+using toolkit revision [`e5d3074`](https://github.com/ravisingh11/ai-software-toolkit/commit/e5d307429831220209a6455f931471310c0726e5).
+
+| Language-specific example | Changed-line coverage in example scope |
+| --- | --- |
+| Java | 100% |
+| TypeScript | 93% |
+| Python | 100% |
+| PHP | 100% |
+| Scala | 92% |
+
+This recorded run used comparison base
+[`2932827`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/2932827657d4758cdf030ab693239cfb2a23e258)
+and a repository-selected 90% threshold. These are results for the selected
+example scopes, not full-application coverage or a deployment attestation.
+See the [reference app's verification summary](https://github.com/ravisingh11/ai-software-toolkit-reference-app#merged-maintenance-and-recorded-verification-2026-10-18)
+for acceptance, advisory Snyk results, and remaining evidence limits. The
+examples use each language's own tools; adapt or replace them for your stack.
 
 ## Profiles
 
