@@ -52,6 +52,18 @@ publishing.
 | `semgrep-ce.yml` | `Semgrep CE` | Installed tested rules; no secret |
 | `gitleaks.yml` | `Gitleaks` | Full Git history; no secret |
 
+The scorecard normally waits for selected providers to report the exact head.
+For Snyk jobs disabled by `SNYK_CODE_ENABLED=false` or
+`SNYK_OPEN_SOURCE_ENABLED=false` (case-insensitive, matching the producer job
+conditions), its trusted workflow supplies `--no-wait-provider` polling hints.
+Absent checks still produce visible `not_run` evidence; selected controls keep
+their modes, so an advisory gap stays ORANGE and an enforced gap still blocks.
+Already queued/running checks and other selected providers retain normal
+waiting and provenance validation. No secret is read for this decision.
+Refresh the runtime and workflow together. The scorecard executes the trusted
+default-branch runtime, so a fix PR can still show the old wait until merged.
+See [Snyk polling and evidence](../docs/providers/snyk.md#outcomes) for details.
+
 Repository command workflows accept nonempty `PROOF_*` environment variables
 first, then optional repository-owned `.proof/commands.json`. The checked-in
 file supports fork PR runs where repository variables are unavailable. Its
