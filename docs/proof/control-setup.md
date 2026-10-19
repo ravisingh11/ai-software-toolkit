@@ -494,6 +494,22 @@ checks ran. The dashboard does not assert that the snapshot is the current PR
 head. The public revision digest identifies the snapshot without exposing a raw
 commit SHA; open the source run to inspect its PR and commit.
 
+The HTML scorecard checks its own site's `scorecard.json` without using the browser
+cache on load, when returning to the tab, and every 60 seconds while visible.
+A **Matches the latest published snapshot** message compares the source run,
+attempt, subject digest, and publication timestamp; it does not establish current
+main, the latest PR head, successful CI, or passing controls. A newer validated
+publication shows an older-results notice and **Refresh latest** link. Refresh is
+manual, preserves the current section, and requests the published page again; it
+does not start CI or enable checks. Results and missing evidence remain visible.
+
+Offline, malformed, older, or inconsistent metadata leaves freshness unknown;
+a previously confirmed newer-publication notice survives a failed recheck. With
+JavaScript disabled, freshness is explicitly not checked and the refresh link
+remains available. Tabs opened before this feature shipped need one manual page
+reload to acquire it. Snapshot age alone does not mark results stale. These display
+checks do not alter evidence provenance, optional activation, or enforcement.
+
 Test totals, changed-line coverage, and repository validator counts can
 appear on the dashboard as **self-reported** measurements. The Validate
 workflow's validators write their counts (contract groups passed, failed, and

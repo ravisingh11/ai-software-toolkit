@@ -52,6 +52,21 @@ def scorecard(
 
 
 class RendererTests(unittest.TestCase):
+    def test_freshness_runtime_behavior(self) -> None:
+        baseline = {
+            "version": 1, "operation": "change", "repository": "owner/repo",
+            "source_run_id": 12345, "source_run_attempt": 1,
+            "source_run_created_at": "2026-10-18T12:00:00Z",
+            "published_at": "2026-10-19T12:00:00Z",
+            "subject_digest": "sha256:" + "a" * 64,
+        }
+        result = subprocess.run(
+            ["node", str(ROOT / "tooling/tests/scorecard_freshness_harness.cjs")],
+            input=json.dumps({"baseline": baseline, "script": MODULE._FRESHNESS_SCRIPT}),
+            text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def write_source(self, root: Path, card: dict[str, Any] | None = None) -> Path:
         source = root / "source"
         source.mkdir()
@@ -124,6 +139,15 @@ class RendererTests(unittest.TestCase):
                 ):
                     self.assertNotIn(private, text, path.name)
             page = (output / "index.html").read_text(encoding="utf-8")
+            self.assertIn('.freshness{position:sticky;top:12px;z-index:10;', page)
+            self.assertIn(':root{--snapshot-anchor-offset:120px}', page)
+            self.assertIn('@media(max-width:800px){:root{--snapshot-anchor-offset:240px}}', page)
+            self.assertIn('scroll-margin-top:var(--snapshot-anchor-offset)', page)
+            self.assertIn('padding:12px;z-index:20}', page)
+            self.assertIn('id="snapshot-freshness-status" role="status" aria-live="polite"', page)
+            self.assertIn('id="snapshot-refresh" href="?snapshot-refresh=12345-2"', page)
+            self.assertIn('<noscript><p>JavaScript is off.', page)
+            self.assertIn('Freshness not checked.', page)
             self.assertIn('<span class="brand-name">AI Software Toolkit</span>', page)
             self.assertNotIn('<span class="brand-name">Proof</span>', page)
 

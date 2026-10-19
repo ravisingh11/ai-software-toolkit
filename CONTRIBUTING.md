@@ -63,6 +63,9 @@ retain only useful design decisions in the [archive](docs/archive/README.md).
 Use [the repository self-check](docs/self-check.md) to produce a local Proof
 scorecard from a clean commit. The complete validation commands below also work
 while editing; their output alone is not revision-bound scan evidence.
+The toolkit test suite also requires Node.js 18+ on `PATH` for the scorecard's
+browser-behavior regression harness. It uses built-in Node modules and needs no
+npm packages; the installed Proof Python runtime does not require Node.js.
 
 ```sh
 python3 -m pip install --disable-pip-version-check -r tooling/requirements-ci.txt

@@ -8,6 +8,11 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Detect newer published scorecard snapshots with same-site metadata checks and
+  offer a manual refresh that preserves the current section. Keep offline or
+  inconsistent freshness unknown, preserve missing evidence and existing results,
+  and leave all check activation and enforcement unchanged.
+
 - Resolve repeated built-in PR-size reports only when every distinct run passes
   full provenance and agrees on validated metrics, thresholds, and status.
   Keep conflicts, missing evidence, run-attempt ambiguity, and other duplicate

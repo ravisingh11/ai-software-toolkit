@@ -1245,7 +1245,8 @@ body{margin:0;background:var(--canvas);color:var(--ink);font-size:15px;line-heig
 a{color:var(--accent);text-underline-offset:4px}
 a:hover{text-decoration-thickness:2px}
 a:focus-visible,summary:focus-visible{outline:3px solid #227b92;outline-offset:5px;border-radius:3px}
-.skip-link{position:absolute;left:16px;top:-80px;background:var(--paper);padding:12px;z-index:1}
+:root{--snapshot-anchor-offset:120px}
+.skip-link{position:absolute;left:16px;top:-80px;background:var(--paper);padding:12px;z-index:20}
 .skip-link:focus{top:12px}
 .shell{width:min(1080px,100% - 64px);margin-inline:auto}
 .topbar{background:var(--paper);border-bottom:1px solid var(--line)}
@@ -1313,7 +1314,7 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .check-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;font-weight:400;color:var(--muted);margin-left:6px}
 .checks-table .size-result{font-size:11px;padding:2px 7px}.checks-table tbody tr:not(.check-category):hover{background:#f5f9f9}
 .assessment-table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px}.assessment-table caption{text-align:left;color:var(--muted);font-size:12px;padding-bottom:8px}.assessment-table th,.assessment-table td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:10px 8px}.assessment-table th{width:180px;font-weight:600}.assessment-table td{overflow-wrap:anywhere}
-.check-detail,#checks-title,#size-title{scroll-margin-top:24px}#size-title:focus{outline:2px solid var(--accent);outline-offset:4px}.check-detail:focus,#checks-title:focus{outline:2px solid var(--accent);outline-offset:4px}
+.check-detail,#checks-title,#size-title{scroll-margin-top:var(--snapshot-anchor-offset)}#size-title:focus{outline:2px solid var(--accent);outline-offset:4px}.check-detail:focus,#checks-title:focus{outline:2px solid var(--accent);outline-offset:4px}
 .check-detail{margin-top:16px;padding:22px;border:1px solid var(--line);border-top:3px solid var(--tone);border-radius:10px;background:var(--paper);display:flex;flex-direction:column}
 .check-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.check-top h3{font-size:16px;line-height:1.4;margin:0}.check-top .size-result{font-size:11px}
 .check-detail p{font-size:13px;color:var(--muted);margin:12px 0 0}.check-detail .check-mode{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.6px;color:var(--ink)}
@@ -1329,6 +1330,12 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .evidence p{color:var(--muted);font-size:13px;margin:0 0 20px;max-width:420px}
 .button{display:inline-flex;align-items:center;gap:20px;background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:7px;text-decoration:none;font-size:13px;font-weight:650;padding:10px 16px}
 .button:hover{background:#104b50}
+.button:focus-visible{outline:3px solid #227b92;outline-offset:3px}
+.freshness{position:sticky;top:12px;z-index:10;display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;padding:18px 22px;margin:0 0 22px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.freshness p{flex:1 1 420px;margin:0;font-size:13px;color:var(--muted)}
+.freshness[data-freshness="stale"]{border-color:#b88120;background:#fff7e8}
+.freshness[data-freshness="stale"] p{color:#815407}
+.freshness .button{flex-shrink:0}.freshness noscript{flex-basis:100%}
 .source-facts{margin:0;display:grid;gap:15px;align-content:start}
 .source-facts div{display:grid;grid-template-columns:110px minmax(0,1fr);gap:16px}
 .source-facts dt{color:var(--muted);font-size:12px}
@@ -1344,6 +1351,7 @@ summary{cursor:pointer;width:fit-content;font-weight:600}
 footer{display:flex;align-items:center;justify-content:space-between;gap:20px;border-top:1px solid var(--line);padding:22px 0 12px;color:var(--muted);font-size:11px}
 footer img{display:block;max-width:100%;height:auto}
 .formats{display:flex;gap:20px;flex-wrap:wrap;font-size:12px}
+@media(max-width:800px){:root{--snapshot-anchor-offset:240px}}
 @media(max-width:680px){
   .shell{width:calc(100% - 36px)}
   .topbar .shell{gap:12px}.repo-link{font-size:12px}
@@ -1364,6 +1372,116 @@ footer img{display:block;max-width:100%;height:auto}
 }
 @media(max-width:380px){.status-panel{flex-direction:column}.decision{text-align:left;margin:0}}
 @media(prefers-reduced-motion:no-preference){a{transition:background-color .15s ease}}
+"""
+
+
+_FRESHNESS_SCRIPT = r"""
+(() => {
+  "use strict";
+  const panel = document.getElementById("snapshot-freshness");
+  const status = document.getElementById("snapshot-freshness-status");
+  const refresh = document.getElementById("snapshot-refresh");
+  const baseline = JSON.parse(panel.dataset.snapshot);
+  let pending = null;
+  let poll = null;
+  let generation = 0;
+  let stale = false;
+  const positive = value => Number.isSafeInteger(value) && value > 0;
+  const timestamp = value => typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/.test(value) &&
+    Number.isFinite(Date.parse(value)) &&
+    new Date(value).toISOString().slice(0, 19) === value.slice(0, 19);
+  function valid(value) {
+    return value && !Array.isArray(value) && value.version === 1 &&
+      value.operation === "change" && value.repository === baseline.repository &&
+      positive(value.source_run_id) && positive(value.source_run_attempt) &&
+      typeof value.subject_digest === "string" && /^sha256:[a-f0-9]{64}$/.test(value.subject_digest) &&
+      timestamp(value.source_run_created_at) && timestamp(value.published_at) &&
+      Date.parse(value.source_run_created_at) <= Date.parse(value.published_at);
+  }
+  function message(kind, text) {
+    panel.dataset.freshness = kind;
+    status.textContent = text;
+  }
+  function unavailable() {
+    message(stale ? "stale" : "unknown", stale ?
+      "A newer published snapshot is available. The latest recheck failed; refresh to load it." :
+      "Freshness unknown: could not check the latest published snapshot. The displayed results are unchanged.");
+  }
+  function compare(latest) {
+    if (!valid(latest) || !valid(baseline)) throw new Error("Invalid snapshot metadata");
+    const sameRun = latest.source_run_id === baseline.source_run_id;
+    const sameCreated = latest.source_run_created_at === baseline.source_run_created_at;
+    const sameDigest = latest.subject_digest === baseline.subject_digest;
+    const publication = Date.parse(latest.published_at) - Date.parse(baseline.published_at);
+    const created = Date.parse(latest.source_run_created_at) - Date.parse(baseline.source_run_created_at);
+    const attempt = latest.source_run_attempt - baseline.source_run_attempt;
+    if (publication === 0 && sameRun && sameCreated && sameDigest && attempt === 0) {
+      if (stale) throw new Error("Previously observed newer snapshot");
+      message("current", "Matches the latest published snapshot. This does not verify current main or newer CI results.");
+    } else if (publication > 0 && ((sameRun && sameCreated && sameDigest && attempt >= 0) ||
+        (!sameRun && (created > 0 || (created === 0 && latest.source_run_id > baseline.source_run_id))))) {
+      stale = true;
+      message("stale", "A newer published snapshot is available. You are viewing older results; refresh to load the latest publication.");
+    } else {
+      throw new Error("Older or inconsistent snapshot metadata");
+    }
+  }
+  async function check() {
+    if (document.hidden || pending) return;
+    const token = ++generation;
+    const controller = new AbortController();
+    pending = controller;
+    // Bound both headers and JSON-body retrieval, even if a transport ignores abort.
+    let timeout;
+    const expired = new Promise((_, reject) => {
+      timeout = setTimeout(() => { controller.abort(); reject(new Error("Timed out")); }, 10000);
+    });
+    try {
+      const url = new URL("scorecard.json", window.location.href);
+      url.searchParams.set("_snapshot_check", String(Date.now()));
+      const request = (async () => {
+        const response = await fetch(url.href, {cache: "no-store", credentials: "omit",
+          mode: "same-origin", redirect: "error", signal: controller.signal});
+        if (response.status !== 200 ||
+            !/^application\/json(?:\s*;|$)/i.test(response.headers.get("content-type") || "")) {
+          throw new Error("Invalid snapshot response");
+        }
+        return response.json();
+      })();
+      const latest = await Promise.race([request, expired]);
+      if (token === generation) compare(latest);
+    } catch (_) {
+      if (token === generation) unavailable();
+    } finally {
+      clearTimeout(timeout);
+      if (token === generation) pending = null;
+    }
+  }
+  function pause() {
+    clearInterval(poll);
+    poll = null;
+    generation++;
+    if (pending) pending.abort();
+    pending = null;
+  }
+  function resume() {
+    if (document.hidden) return;
+    void check();
+    if (poll === null) poll = setInterval(check, 60000);
+  }
+  refresh.addEventListener("click", event => {
+    event.preventDefault();
+    const url = new URL(window.location.href);
+    url.searchParams.set("_snapshot_refresh", String(Date.now()));
+    window.location.assign(url.href);
+  });
+  window.addEventListener("pagehide", pause);
+  window.addEventListener("pageshow", resume);
+  window.addEventListener("focus", resume);
+  document.addEventListener("visibilitychange", () => document.hidden ? pause() : resume());
+  resume();
+})();
 """
 
 
@@ -1401,6 +1519,10 @@ def _html(metadata: dict[str, Any]) -> str:
         .strftime("%d %b %Y · %H:%M:%S UTC")
         for key in ("source_run_created_at", "published_at")
     }
+    snapshot = html.escape(json.dumps({key: metadata[key] for key in (
+        "version", "operation", "repository", "source_run_id", "source_run_attempt",
+        "subject_digest", "source_run_created_at", "published_at",
+    )}), quote=True)
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -1421,6 +1543,11 @@ def _html(metadata: dict[str, Any]) -> str:
   <p class="eyebrow">CI evidence / change assessment</p>
   <h1>Latest PR Scorecard</h1>
   <p class="intro">A clear view of the latest published pull-request evaluation.</p>
+  <aside class="freshness" id="snapshot-freshness" data-snapshot="{snapshot}" data-freshness="unknown" aria-label="Snapshot freshness">
+    <p id="snapshot-freshness-status" role="status" aria-live="polite">Freshness not checked. These are published snapshot results; refresh to request the latest publication.</p>
+    <a class="button" id="snapshot-refresh" href="?snapshot-refresh={safe['source_run_id']}-{safe['source_run_attempt']}">Refresh latest</a>
+    <noscript><p>JavaScript is off. Automatic freshness checks are unavailable; use Refresh latest or reload the page.</p></noscript>
+  </aside>
   <section class="status-panel {tone}" aria-label="Scorecard status">
     <div><div class="status-label"><span class="status-dot" aria-hidden="true"></span>{safe['status']}</div>
       <h2>{headline}</h2><p>{_decision_meaning(metadata)}</p></div>
@@ -1455,6 +1582,7 @@ def _html(metadata: dict[str, Any]) -> str:
     <nav class="formats" aria-label="Report formats"><a href="scorecard.json">Summary JSON</a><a href="scorecard.md">Summary Markdown</a></nav>
   </footer>
 </main>
+<script type="text/javascript">{_FRESHNESS_SCRIPT}</script>
 </body></html>
 """
 
