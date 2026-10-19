@@ -157,7 +157,7 @@ class RendererTests(unittest.TestCase):
                 text = (output / filename).read_text()
                 for label in ("Provider", "GitHub CodeQL", "SonarQube", "Not configured"):
                     self.assertIn(label, text)
-            self.assertIn("Provider: GitHub CodeQL", (output / "index.html").read_text())
+            self.assertIn('>GitHub CodeQL</a>', (output / "index.html").read_text())
             for path in output.iterdir():
                 self.assertNotIn("PRIVATE", path.read_text())
 
@@ -202,6 +202,95 @@ class RendererTests(unittest.TestCase):
                 self.assertNotIn("private-provider", text)
                 self.assertNotIn("private secret", text)
                 self.assertNotIn("<script>", text)
+
+    def test_provider_links_bind_configuration_and_reported_run_to_snapshot(self) -> None:
+        urls = ["https://github.com/owner/repo/actions/runs/42",
+                "https://github.com/owner/repo/actions/runs/42/attempts/2",
+                "https://github.com/owner/repo/actions/runs/42/job/3",
+                "https://github.com/owner/repo/actions/runs/42/attempts/2/job/3",
+                "https://github.com/owner/repo/runs/91"]
+        config_url = f"https://github.com/owner/repo/blob/{REVISION}/.proof/providers.yaml"
+        for url in urls:
+            for status, result_status in (("passed", "passed"), ("failed", "failed"),
+                                          ("blocked", "blocked"), ("no_result", "not_run")):
+                with self.subTest(url=url, status=status), tempfile.TemporaryDirectory() as directory:
+                    card = self.provider_card()
+                    card["repository"] = "private/forged"
+                    card["controls"][0].update(evidence_status=status, authoritative_result={
+                        "status": result_status, "producer": "GitHub Check: PRIVATE",
+                        "evidence": [f"PRIVATE check: run-bound artifact; {url}"]})
+                    if status != "passed":
+                        card.update(status="ORANGE", advisory={"passed": 0, "total": 1})
+                    root = Path(directory); output = root / "published"
+                    source = self.write_source(root, card)
+                    metadata = self.render(source, output)
+                    rows = {row["id"]: row for row in metadata["controls"]}
+                    self.assertEqual(rows["deep-sast"]["provider_config_url"], config_url)
+                    self.assertEqual(rows["deep-sast"]["provider_run_url"], url)
+                    self.assertEqual(rows["deep-sast"]["status"], status)
+                    self.assertEqual(rows["static-quality"]["provider_config_url"], config_url)
+                    self.assertIsNone(rows["static-quality"]["provider_run_url"])
+                    self.assertEqual(rows["artifact-sbom"]["provider_config_url"], config_url)
+                    self.assertIsNone(rows["runtime-assurance"]["provider_config_url"])
+                    for filename in ("index.html", "scorecard.md", "scorecard.json"):
+                        text = (output / filename).read_text()
+                        self.assertIn(url, text)
+                        self.assertIn(config_url, text)
+                        self.assertNotIn("PRIVATE", text)
+                        self.assertNotIn("private/forged", text)
+                    page = (output / "index.html").read_text()
+                    self.assertEqual(page.count(f'href="{url}"'), 2)
+                    self.assertIn(f"[GitHub CodeQL]({config_url})", (output / "scorecard.md").read_text())
+                    self.assertTrue(all(row["provider_config_url"] is None
+                                        for row in MODULE.inspect_scorecard(source)["controls"]))
+
+    def test_collector_evidence_formats_publish_only_run_location(self) -> None:
+        url = "https://github.com/owner/repo/actions/runs/42/job/7"
+        for text in (f"CodeQL: {url}", f"CodeQL: success; {url}",
+                     f"CodeQL: run-bound artifact; {url}",
+                     f"Meaningful: 5 files, 97 changed lines. Total: 8 files.; {url}",
+                     f"Secret Scanning and push protection are enabled with no open alerts.; {url}"):
+            with self.subTest(text=text):
+                row = self.provider_card()["controls"][0]
+                row["authoritative_result"] = {"status": "passed", "evidence": [text]}
+                self.assertEqual(MODULE._provider_links(row, "GitHub CodeQL", "owner/repo", REVISION)["provider_run_url"], url)
+        row["evidence_status"] = "no_result"
+        row["authoritative_result"] = {"status": "not_run", "evidence": [f"CodeQL: skipped; {url}"]}
+        self.assertEqual(MODULE._provider_links(row, "GitHub CodeQL", "owner/repo", REVISION)["provider_run_url"], url)
+
+    def test_provider_run_links_reject_unsafe_or_unbound_evidence(self) -> None:
+        url = "https://github.com/owner/repo/actions/runs/42"
+        unsafe = [url + suffix for suffix in ("?token=secret", "#private", "/extra", "/", "/job/0", "/attempts/0", "\n")]
+        unsafe += [url.replace("42", value) for value in ("0", "-1", "01", "%34%32", "４２", "1" * 21)]
+        unsafe += [url.replace("github.com", host) for host in
+                   ("github.com.evil.example", "user:secret@github.com", "github.com:443", "GITHUB.COM")]
+        unsafe += [url.replace("owner/repo", "other/repo"), url.replace("https:", "http:"),
+                   "javascript:alert(1)", url.replace("/actions/", "/%61ctions/"), url + "\x7f"]
+        values = [[f"CodeQL: {value}"] for value in unsafe]
+        values += [None, {}, "CodeQL: " + url, [None, {}, 4], ["x" * 2001],
+                   [f"CodeQL: {url}"] * 101, [f"CodeQL: {url} trailing"]]
+        for evidence in values:
+            with self.subTest(evidence=evidence):
+                row = self.provider_card()["controls"][0]
+                row["authoritative_result"] = {"status": "passed", "evidence": evidence}
+                links = MODULE._provider_links(row, "GitHub CodeQL", "owner/repo", REVISION)
+                self.assertIsNone(links["provider_run_url"])
+                self.assertIsNotNone(links["provider_config_url"])
+        valid_row = self.provider_card()["controls"][0]
+        valid_row["authoritative_result"] = {"status": "passed", "evidence": [f"CodeQL: {url}"]}
+        mutations = [{"effective_mode": "not_activated"}, {"authoritative_provider": None},
+                     {"authoritative_provider": {"id": "gitleaks"}},
+                     {"authoritative_result": {"status": "failed", "evidence": [f"CodeQL: {url}"]}},
+                     {"configured_provider": {"id": "custom", "display_name": "Private"}},
+                     {"authoritative_result": {"status": "passed"}, "supplemental_results": [valid_row["authoritative_result"]]}]
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                row = {**valid_row, **mutation}
+                self.assertIsNone(MODULE._provider_links(row, MODULE._provider_label("deep-sast", row),
+                                                        "owner/repo", REVISION)["provider_run_url"])
+        # Skipped and malformed rows never acquire links or become passing evidence.
+        card = self.provider_card(); card["controls"][0]["evidence_status"] = "skipped"
+        self.assertTrue(all(row["provider_run_url"] is None for row in MODULE._control_details(card, "owner/repo")))
 
     def test_public_provider_labels_match_builtin_catalog_capabilities(self) -> None:
         config = json.loads((ROOT / "policies/provider-config.yaml").read_text())

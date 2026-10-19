@@ -181,7 +181,10 @@ name, purpose, and validated effective mode and evidence status when available.
 Absent rows show **Not reported**, separately from explicit `not_activated`
 modes; neither means a pass. An unverified result means usable evidence is
 missing, not that the check failed. The source CI run links to detailed
-evidence without publishing private provider details or check URLs. The dashboard
+evidence. Provider names link to their configuration at the evaluated revision;
+**Latest reported run** links to validated same-repository GitHub check evidence
+when present in that snapshot. Private provider details remain in the source
+report. The dashboard
 is a published PR snapshot; its timestamp does not prove it matches the current
 PR head or main. **ALLOW** means enforced controls were satisfied for that
 snapshot, not that the change is ready to merge or release.
@@ -284,6 +287,9 @@ Each check names its selected provider (for example, **GitHub CodeQL** for
 Deep SAST). **Not configured** means no provider is selected; **Not reported**
 means selection is unavailable in the snapshot. Provider selection is separate
 from activation and evidence: a missing scan still names its selected provider.
+Configuration links do not imply activation. A run link identifies the latest
+reported check in this snapshot, including failed or skipped checks; it does not
+claim a newer run exists or turn missing evidence into a pass.
 All checks remain optional to adopt, and this display does not change enforcement.
 The default report omits inactive catalog rows; use `--all-catalog-controls`
 to include them. See the [status guide](docs/proof/control-status.md).

@@ -420,9 +420,17 @@ provider names remain in the source report and appear as "Configured provider
 "Not reported" means selection cannot be established from this snapshot. Older
 active rows can supply their authoritative provider; older inactive rows do not
 prove that no provider was configured. Selection does not prove credentials,
-activation, or a successful scan. Private or arbitrary control IDs, findings,
-detailed evidence, reasons, other provider data, check URLs, raw revisions, and source
-Markdown are excluded from Pages and remain in the source Actions artifact
+activation, or a successful scan. Provider names link to `.proof/providers.yaml`
+at the evaluated revision. **Latest reported run** links are published only for
+validated same-repository GitHub check/run URLs in the selected provider's
+authoritative evidence. These links may identify failed or skipped checks; they
+refer to the latest reported check in this snapshot, not a live lookup of all
+workflow runs. Inactive checks have configuration links without a run link.
+Missing or rejected run URLs leave the evidence status visible without inventing
+a run. These links intentionally expose the public evaluated revision and
+allowlisted GitHub check identities. Private or arbitrary control IDs, findings,
+detailed evidence, reasons, other provider data, arbitrary URLs, and source
+Markdown remain excluded from Pages and stay in the source Actions artifact
 under normal repository access.
 Publishing is optional reporting and never influences the
 scorecard decision or branch rules.

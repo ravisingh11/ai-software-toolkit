@@ -611,7 +611,40 @@ def _provider_label(control_id: str, row: dict[str, Any]) -> str:
     return name if control_id in capabilities else "Not reported"
 
 
-def _control_details(document: dict[str, Any]) -> list[dict[str, Any]]:
+def _provider_links(row: dict[str, Any], label: str, repository: str | None,
+                    revision: str) -> dict[str, str | None]:
+    """Publish only repository-bound configuration and authoritative run locations."""
+    links: dict[str, str | None] = {"provider_config_url": None, "provider_run_url": None}
+    if repository is None or label == "Not reported":
+        return links
+    links["provider_config_url"] = f"https://github.com/{repository}/blob/{revision}/.proof/providers.yaml"
+    selected = row.get("configured_provider", row.get("authoritative_provider"))
+    authority, result = row.get("authoritative_provider"), row.get("authoritative_result")
+    if (row.get("effective_mode") not in {"advisory", "enforced"}
+            or not isinstance(selected, dict) or selected.get("id") not in PUBLIC_PROVIDERS
+            or not isinstance(authority, dict) or authority.get("id") != selected["id"]
+            or not isinstance(result, dict)
+            or ("no_result" if result.get("status") == "not_run" else result.get("status")) != row.get("evidence_status")):
+        return links
+    evidence = result.get("evidence")
+    if not isinstance(evidence, list) or len(evidence) > 100:
+        return links
+    # Match the entire URL, never URL-decode or strip characters from untrusted evidence.
+    url_pattern = (rf"https://github\.com/{re.escape(repository)}/"
+                   r"(?:actions/runs/[1-9][0-9]{0,19}(?:/attempts/[1-9][0-9]{0,19})?(?:/job/[1-9][0-9]{0,19})?|runs/[1-9][0-9]{0,19})")
+    for item in evidence:
+        if not isinstance(item, str) or len(item) > 2000 or not item.isascii() or any(ord(c) < 32 or ord(c) == 127 for c in item):
+            continue
+        # Check conclusions, artifact markers and synthesized summaries precede the URL.
+        # Only the final canonical URL is projected; the prefix is never public.
+        match = re.fullmatch(r".{1,1900}(?:: |; )(" + url_pattern + r")", item)
+        if match:
+            links["provider_run_url"] = match.group(1)
+            break
+    return links
+
+
+def _control_details(document: dict[str, Any], repository: str | None = None) -> list[dict[str, Any]]:
     """Project bounded results for known controls; fail closed on bad totals."""
     consistent = _result_breakdown(document)["availability"] == "available"
     rows = {row["id"]: row for row in document["controls"]} if consistent else {}
@@ -623,11 +656,13 @@ def _control_details(document: dict[str, Any]) -> list[dict[str, Any]]:
         # Only the allowlisted pull-request subject is published; anything else stays plain not activated.
         separate = (valid and mode == "not_activated" and row.get("inactive_reason") == "other_subject"
                     and row.get("evidence_subject") == "pull-request")
+        provider = _provider_label(control_id, row) if valid else "Not reported"
         details.append({"id": control_id, "name": name, "purpose": purpose, "group": group,
                         "mode": mode if valid else "not_reported",
                         "status": status if valid else "not_reported",
                         "separate_subject": "pull-request" if separate else None,
-                        "provider": _provider_label(control_id, row) if valid else "Not reported",
+                        "provider": provider,
+                        **_provider_links(row, provider, repository, document.get("subject", {}).get("revision", "")),
                         "execution": _execution_details(row) if valid else {"availability": "unavailable"},
                         "measurements": _measurements(control_id, row) if valid else {"availability": "unavailable"},
                         "detail": _pr_metadata_detail(control_id, row) if valid else {"availability": "unavailable"}})
@@ -645,10 +680,15 @@ def _result_label(row: dict[str, Any]) -> tuple[str, str]:
 
 
 def _controls_markdown(controls: list[dict[str, Any]]) -> str:
-    lines = ["## Individual checks", "", "Every built-in catalog check is listed. Not reported means this snapshot has no validated row; it does not imply disabled or passed.", "",
+    lines = ["## Individual checks", "", "Every built-in catalog check is listed. Provider links open configuration at the evaluated revision; Latest reported run links open available evidence for this snapshot. Not reported means this snapshot has no validated row; it does not imply disabled or passed.", "",
              "| Check | ID | Provider | Mode | Result | Purpose |", "| --- | --- | --- | --- | --- | --- |"]
     for row in controls:
-        lines.append(f"| {row['name']} | `{row['id']}` | {row['provider']} | {_CONTROL_MODES[row['mode']]} | {_result_label(row)[0]} | {row['purpose']} |")
+        provider = row["provider"]
+        if row.get("provider_config_url"):
+            provider = f"[{provider}]({row['provider_config_url']})"
+        if row.get("provider_run_url"):
+            provider += f" · [Latest reported run]({row['provider_run_url']})"
+        lines.append(f"| {row['name']} | `{row['id']}` | {provider} | {_CONTROL_MODES[row['mode']]} | {_result_label(row)[0]} | {row['purpose']} |")
     measured = [(row["name"], _measurement_summary(row["measurements"]), row["measurements"]) for row in controls]
     measured = [(name, summary, values) for name, summary, values in measured if summary]
     if measured:
@@ -816,10 +856,15 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
             if row.get("separate_subject"):
                 note = _SEPARATE_NOTE
             evidence = '' if row["status"] in _INACTIVE_STATUSES else f'<a href="{html.escape(run_url, quote=True)}" aria-label="Source report for {safe["name"]}">Source report ↗</a>'
+            provider_html = safe["provider"]
+            if row.get("provider_config_url"):
+                provider_html = f'<a href="{safe["provider_config_url"]}" aria-label="Provider configuration for {safe["name"]}">{provider_html}</a>'
+            if row.get("provider_run_url"):
+                provider_html += f' · <a href="{safe["provider_run_url"]}" aria-label="Latest reported run for {safe["name"]}">Latest reported run ↗</a>'
             target = _check_target(row["id"])
             # A dash means no active mode: unknown (not reported) or excluded (not activated).
             mode = "—" if row["mode"] in _INACTIVE_STATUSES else _CONTROL_MODES[row["mode"]]
-            rows.append(f'<tr><th scope="row"><a href="#{target}">{safe["name"]}</a> <code class="check-id">{safe["id"]}</code></th><td><span class="size-result {tone}">{label}</span></td><td class="mode-cell">{mode}</td><td>{safe["provider"]}</td></tr>')
+            rows.append(f'<tr><th scope="row"><a href="#{target}">{safe["name"]}</a> <code class="check-id">{safe["id"]}</code></th><td><span class="size-result {tone}">{label}</span></td><td class="mode-cell">{mode}</td><td>{provider_html}</td></tr>')
             assessment, inputs, condition, metrics = _CHECK_ASSESSMENTS[row["id"]]
             criteria = [("Assessment", assessment), ("Evaluates", inputs), ("Expected result", condition)]
             execution = row["execution"]
@@ -850,11 +895,11 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
                 measurements += _scope_html(scope)
             note_html = f'<p class="check-note">{note}</p>' if note else ''
             mode_html = '' if row["mode"] in _INACTIVE_STATUSES else f'<p class="check-mode">{_CONTROL_MODES[row["mode"]]}</p>'
-            card = f'<article class="check-detail {tone}" id="check-{safe["id"]}" tabindex="-1"><div class="check-top"><h3>{safe["name"]} <code class="check-id">{safe["id"]}</code></h3><span class="size-result">{label}</span></div><p>{safe["purpose"]}</p><p class="check-provider">Provider: {safe["provider"]}</p>{mode_html}{note_html}{run_facts}{measurements}<div class="check-links">{evidence}<a href="#checks-title">Back to checks ↑</a></div></article>'
+            card = f'<article class="check-detail {tone}" id="check-{safe["id"]}" tabindex="-1"><div class="check-top"><h3>{safe["name"]} <code class="check-id">{safe["id"]}</code></h3><span class="size-result">{label}</span></div><p>{safe["purpose"]}</p><p class="check-provider">Provider: {provider_html}</p>{mode_html}{note_html}{run_facts}{measurements}<div class="check-links">{evidence}<a href="#checks-title">Back to checks ↑</a></div></article>'
             detail_status = "separate" if row.get("separate_subject") else row["status"]
             (inactive_details if row["status"] in _INACTIVE_STATUSES else active_details).append((detail_status, card))
         groups.append(f'<tbody><tr class="check-category"><th colspan="4" scope="rowgroup">{html.escape(group)}</th></tr>{"".join(rows)}</tbody>')
-    overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title" tabindex="-1">Individual checks</h2><p class="checks-intro">All built-in catalog checks. Select a check to see its purpose and evidence below. Provider names describe selection, not credential readiness or a passing scan. Not configured means no provider was selected. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the check has no active mode in this snapshot. Custom controls may contribute to totals without publishing their private names.</p><div class="checks-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results, policy modes, and selected providers for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col" class="mode-cell">Mode</th><th scope="col">Provider</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
+    overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title" tabindex="-1">Individual checks</h2><p class="checks-intro">All built-in catalog checks. Select a check to see its purpose and evidence below. Provider names link to configuration at the evaluated revision. Latest reported run links open available evidence for this snapshot, not a newer scan. Provider names describe selection, not credential readiness or a passing scan. Not configured means no provider was selected. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the check has no active mode in this snapshot. Custom controls may contribute to totals without publishing their private names.</p><div class="checks-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results, policy modes, and selected providers for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col" class="mode-cell">Mode</th><th scope="col">Provider</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
     # Stable sort: checks needing attention first, then passes, each in catalog order.
     order = (*_ATTENTION_STATUSES, "passed")
     active = ''.join(card for _, card in sorted(active_details, key=lambda item: order.index(item[0])))
@@ -1004,7 +1049,9 @@ def _scope_html(scope: dict[str, Any]) -> str:
 <p class="size-footnote">Counted changes exclude the configured path patterns. Binary files: {metrics['binary_files']:,} counted; {metrics['excluded_binary_files']:,} excluded. Binary contents have no line count. File paths are not published.</p></section>'''
 
 
-def _validated_scorecard(source_dir: Path) -> dict[str, Any]:
+def _validated_scorecard(source_dir: Path, repository: str | None = None) -> dict[str, Any]:
+    if repository is not None:
+        _repository(repository)
     json_path, _ = _bounded_source(source_dir)
     try:
         document = json.loads(json_path.read_text(encoding="utf-8"))
@@ -1054,7 +1101,7 @@ def _validated_scorecard(source_dir: Path) -> dict[str, Any]:
         "subject_revision": revision,
         "change_scope": _change_scope(document),
         "result_breakdown": _result_breakdown(document),
-        "controls": _control_details(document),
+        "controls": _control_details(document, repository),
     }
 
 
@@ -1450,7 +1497,7 @@ def render_badge(
     expected_revision: str,
 ) -> dict[str, object]:
     """Render a validated scorecard into a bounded, static public projection."""
-    inspected = _validated_scorecard(Path(source_dir))
+    inspected = _validated_scorecard(Path(source_dir), repository)
     _repository(repository)
     run_id = _integer(run_id, "run_id", positive=True)
     run_attempt = _integer(run_attempt, "run_attempt", positive=True)

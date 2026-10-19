@@ -8,6 +8,11 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Link scorecard provider labels to revision-specific repository configuration
+  and show a latest-reported-run link when bounded same-repository GitHub
+  evidence is available. Preserve inactive and missing results, public-label
+  privacy, optional adoption, and existing enforcement.
+
 - Display the selected provider for every scorecard check, preserving inactive
   selections and distinguishing "Not configured" from "Not reported". Public
   Pages show built-in provider labels while custom identities stay in the
