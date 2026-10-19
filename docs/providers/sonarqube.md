@@ -34,6 +34,14 @@ Selecting SonarQube for `changed-code-coverage` replaces the repository
 coverage command as the authoritative provider; keep the command provider if
 you want a local result and add SonarQube as supplemental instead.
 
+The template does not generate a coverage report or configure the server's
+quality-gate conditions. Before using it for `changed-code-coverage`, supply
+the appropriate language-specific coverage report and verify that the project's
+new-code definition and quality gate actually evaluate that coverage. A green
+gate without a coverage condition is not proof of changed-code coverage. The
+collector reports the gate conclusion; it does not independently inspect the
+server's gate conditions or coverage measurements.
+
 ## Verify
 
 Open a pull request, confirm `SonarQube Quality Gate` appears for the head

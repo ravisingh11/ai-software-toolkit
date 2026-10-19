@@ -344,6 +344,12 @@ Its release-attestation workflow is not PR scorecard evidence.
 
 ## Modes and providers
 
+Provider names identify selected evidence contracts, not operational services.
+The [complete provider implementation inventory](docs/providers/availability.md)
+lists shipped producers, consumer-owned integrations, and collection gaps.
+Check a repository's actual activation and exact-revision evidence before
+describing any provider as working there.
+
 Keep capabilities advisory until their producer, stable check name,
 exact-subject evidence, and remediation owner are verified.
 [Promote one proven capability](docs/quickstart.md#8-promote-one-proven-capability);

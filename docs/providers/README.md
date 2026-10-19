@@ -1,10 +1,14 @@
 # Providers
 
-A provider produces evidence for one or more capabilities. Repository and
-GitHub providers are installed by the Proof installer; external providers
-are opt-in and need a credential the consumer owns. This section documents
-each external provider's prerequisites, credential, check identity, outcomes,
-and the diagnostics that tell you where setup stands.
+A provider definition declares how evidence for a capability is recognized.
+It does not prove that the integration is installed, activated, authenticated,
+or verified in a consuming repository. The installer copies only the files
+included in the selected installation profile. Some providers require a
+separately configured GitHub integration, consumer-generated workflow, or
+repository-owned command; artifact and environment subjects have additional
+collection gaps. See the complete [provider implementation inventory](availability.md).
+This section documents provider prerequisites, credentials, check identities,
+outcomes, and the diagnostics that tell you where setup stands.
 
 | Provider | Capabilities | Credential | Template | Command ownership | Guide |
 | --- | --- | --- | --- | --- | --- |
@@ -148,17 +152,19 @@ code; the evidence schema is unchanged (the code is the prefix of `reason`).
 
 ## What GitHub check runs can and cannot express
 
-On a pull request, the evaluator reads the job's check run: `success` is
-`passed`, `failure` is `failed`, `timed_out` is `blocked`, and `neutral` or
-`skipped` is `not_run`. A job cannot conclude `neutral` from a step, so the
-adapter workflows fail the job for every non-passing outcome. The distinct
-reason code is visible in the job summary and the uploaded fragment, and in
-local scans that merge fragments, but the check-run surface collapses
-non-passing outcomes to `failed`. Run-bound artifact evidence (used by
-`PR Change Scope` and `PR Metadata`) would lift that limitation but requires a
-`pull_request_target` workflow that never checks out untrusted code with the
-provider credential, which these scanners cannot satisfy; that is why it is
-not used here.
+Ordinary workflow checks map `success` to `passed`, `failure` to `failed`,
+`timed_out` to `blocked`, and `neutral` or `skipped` to `not_run`, after their
+provenance has been validated. A job cannot conclude `neutral` from a step.
+
+The adapter-backed Snyk, FOSSA, and AI review providers use a different path:
+their trusted workflow posts a separate check and uploads a run-bound evidence
+artifact. The collector validates both identities and takes the detailed
+outcome from that artifact, preserving `blocked` and `not_run` reasons rather
+than treating the workflow job's conclusion as the provider result. Missing,
+inconsistent, or inaccessible artifacts cannot pass. An Actions job succeeding
+therefore does not by itself verify a provider. See [credential isolation](#credential-isolation)
+for the execution boundary and [the verification ledger](verification.md) for
+the separately recorded live evidence.
 
 ## Diagnostics
 
