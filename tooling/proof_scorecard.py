@@ -75,6 +75,13 @@ def scorecard(
     readiness = {color: 0 for color in ("GREEN", "ORANGE", "GRAY", "RED")}
     for row in result["controls"]:
         public = dict(row)
+        # Evaluation validates provider selections, including inactive controls.
+        selection = providers["selections"].get(row["id"])
+        provider_id = selection["authoritative"] if selection else None
+        public["configured_provider"] = (
+            {"id": provider_id, "display_name": providers["providers"][provider_id]["display_name"]}
+            if provider_id is not None else None
+        )
         public["evidence_status"] = (
             "not_activated"
             if row["effective_mode"] == "not_activated"
@@ -122,11 +129,14 @@ def render(card: dict[str, Any]) -> str:
         f"Advisory: {card['advisory']['passed']}/{card['advisory']['total']} passed",
     ]
     for control in card["controls"]:
-        provider = control["authoritative_provider"]
-        provider_name = provider["display_name"] if provider else "Not activated"
-        if control.get("inactive_reason") == "other_subject":
-            provider_name = f"Checked separately on the {control['evidence_subject']} subject"
+        provider = control.get("configured_provider", control.get("authoritative_provider"))
+        provider_name = (
+            provider["display_name"] if provider
+            else "Not configured" if "configured_provider" in control else "Not reported"
+        )
         line = f"  {control['readiness']} {control['name']} — {provider_name}: {control['evidence_status']}"
+        if control.get("inactive_reason") == "other_subject":
+            line += f" (Checked separately on the {control['evidence_subject']} subject)"
         if control["supplemental"]:
             details = ", ".join(f"{item['display_name']}={item['status']}" for item in control["supplemental"])
             line += f" (supplemental: {details})"

@@ -206,6 +206,38 @@ PUBLIC_CONTROLS = (
     ('dynamic-application-security', 'Dynamic Application Security', 'Detect vulnerabilities in a running application', 'Release & runtime'),
     ('runtime-assurance', 'Runtime Assurance', 'Verify runtime security and operational safeguards', 'Release & runtime'),
  )
+# Publish built-in identities only; custom configuration labels stay in the source report.
+PUBLIC_PROVIDERS = {'repository-validator': ('Repository Validators',
+                          ('repository-validation', 'documentation-validation', 'repository-ground-truth')),
+ 'repository-change-scope': ('PR Size / Files & LOC', ('change-scope',)),
+ 'repository-pr-metadata': ('Repository PR Metadata', ('pr-metadata',)),
+ 'repository-format-and-lint': ('Repository Format and Lint Command', ('format-and-lint',)),
+ 'repository-migration-validation': ('Repository Migration Validation Command', ('migration-validation',)),
+ 'repository-build': ('Repository Build Command', ('build',)),
+ 'repository-unit-tests': ('Repository Unit Test Command', ('unit-tests',)),
+ 'repository-changed-code-coverage': ('Repository Changed Code Coverage Command', ('changed-code-coverage',)),
+ 'semgrep-ce': ('Semgrep Community Edition', ('custom-static-analysis',)),
+ 'gitleaks': ('Gitleaks CLI', ('secret-detection',)),
+ 'github-codeql': ('GitHub CodeQL', ('deep-sast',)),
+ 'github-dependency-review': ('GitHub Dependency Review', ('dependency-change-review',)),
+ 'github-secret-protection': ('GitHub Secret Protection', ('platform-secret-protection',)),
+ 'github-dependabot': ('GitHub Dependabot', ('dependency-remediation',)),
+ 'github-artifact-attestations': ('GitHub Artifact Attestations', ('artifact-provenance',)),
+ 'sonarqube': ('SonarQube', ('static-quality', 'changed-code-coverage')),
+ 'qa-bootstrap-workflow': ('QA Bootstrap Workflow', ('functional-qa',)),
+ 'snyk-code': ('Snyk Code', ('deep-sast',)),
+ 'snyk-open-source': ('Snyk Open Source', ('dependency-vulnerability',)),
+ 'semgrep-app': ('Semgrep App', ('custom-static-analysis', 'deep-sast')),
+ 'fossa': ('FOSSA', ('dependency-vulnerability', 'license-compliance')),
+ 'ai-engineering-adapter': ('AI Engineering Review Adapter', ('ai-engineering-review',)),
+ 'codex-github-review': ('Codex Code Review', ('ai-engineering-review',)),
+ 'ai-qa-adapter': ('AI QA Review Adapter', ('ai-qa-review',)),
+ 'ai-security-adapter': ('AI Security Review Adapter', ('ai-security-review',)),
+ 'ai-repository-standards-adapter': ('AI Repository Standards Review Adapter',
+                                     ('ai-repository-standards-review',)),
+ 'repository-soak': ('Repository Soak Command', ('runtime-soak',))}
+
+
 _CONTROL_RESULTS = {
     "passed": ("Passed", "good"), "failed": ("Failed", "danger"),
     "blocked": ("Blocked", "caution"), "no_result": ("Unverified", "neutral"),
@@ -553,8 +585,34 @@ def _pr_metadata_summary(detail: dict[str, Any]) -> str | None:
     return f"{title} the required format · {required - detail['missing_sections']:,} of {required:,} required {noun} present"
 
 
+def _provider_label(control_id: str, row: dict[str, Any]) -> str:
+    """Project selection without publishing arbitrary provider configuration."""
+    explicit = "configured_provider" in row
+    provider = row.get("configured_provider", row.get("authoritative_provider"))
+    if provider is None:
+        # Legacy inactive rows omitted selection; absence is not proof of no configuration.
+        if explicit and row.get("effective_mode") == "not_activated" and row.get("authoritative_provider") is None:
+            return "Not configured"
+        return "Not reported"
+    if (not isinstance(provider, dict) or set(provider) != {"id", "display_name"}
+            or not isinstance(provider["id"], str) or len(provider["id"]) > 100
+            or re.fullmatch(r"[a-z][a-z0-9-]*", provider["id"]) is None
+            or not isinstance(provider["display_name"], str)
+            or not provider["display_name"].strip() or len(provider["display_name"]) > 200):
+        return "Not reported"
+    authority = row.get("authoritative_provider")
+    if explicit and authority is not None and (
+            not isinstance(authority, dict) or authority.get("id") != provider["id"]):
+        return "Not reported"
+    builtin = PUBLIC_PROVIDERS.get(provider["id"])
+    if builtin is None:
+        return "Configured provider (see source report)"
+    name, capabilities = builtin
+    return name if control_id in capabilities else "Not reported"
+
+
 def _control_details(document: dict[str, Any]) -> list[dict[str, Any]]:
-    """Project enum-only results for known controls; fail closed on bad totals."""
+    """Project bounded results for known controls; fail closed on bad totals."""
     consistent = _result_breakdown(document)["availability"] == "available"
     rows = {row["id"]: row for row in document["controls"]} if consistent else {}
     details = []
@@ -569,6 +627,7 @@ def _control_details(document: dict[str, Any]) -> list[dict[str, Any]]:
                         "mode": mode if valid else "not_reported",
                         "status": status if valid else "not_reported",
                         "separate_subject": "pull-request" if separate else None,
+                        "provider": _provider_label(control_id, row) if valid else "Not reported",
                         "execution": _execution_details(row) if valid else {"availability": "unavailable"},
                         "measurements": _measurements(control_id, row) if valid else {"availability": "unavailable"},
                         "detail": _pr_metadata_detail(control_id, row) if valid else {"availability": "unavailable"}})
@@ -587,9 +646,9 @@ def _result_label(row: dict[str, Any]) -> tuple[str, str]:
 
 def _controls_markdown(controls: list[dict[str, Any]]) -> str:
     lines = ["## Individual checks", "", "Every built-in catalog check is listed. Not reported means this snapshot has no validated row; it does not imply disabled or passed.", "",
-             "| Check | ID | Mode | Result | Purpose |", "| --- | --- | --- | --- | --- |"]
+             "| Check | ID | Provider | Mode | Result | Purpose |", "| --- | --- | --- | --- | --- | --- |"]
     for row in controls:
-        lines.append(f"| {row['name']} | `{row['id']}` | {_CONTROL_MODES[row['mode']]} | {_result_label(row)[0]} | {row['purpose']} |")
+        lines.append(f"| {row['name']} | `{row['id']}` | {row['provider']} | {_CONTROL_MODES[row['mode']]} | {_result_label(row)[0]} | {row['purpose']} |")
     measured = [(row["name"], _measurement_summary(row["measurements"]), row["measurements"]) for row in controls]
     measured = [(name, summary, values) for name, summary, values in measured if summary]
     if measured:
@@ -760,7 +819,7 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
             target = _check_target(row["id"])
             # A dash means no active mode: unknown (not reported) or excluded (not activated).
             mode = "—" if row["mode"] in _INACTIVE_STATUSES else _CONTROL_MODES[row["mode"]]
-            rows.append(f'<tr><th scope="row"><a href="#{target}">{safe["name"]}</a> <code class="check-id">{safe["id"]}</code></th><td><span class="size-result {tone}">{label}</span></td><td class="mode-cell">{mode}</td></tr>')
+            rows.append(f'<tr><th scope="row"><a href="#{target}">{safe["name"]}</a> <code class="check-id">{safe["id"]}</code></th><td><span class="size-result {tone}">{label}</span></td><td class="mode-cell">{mode}</td><td>{safe["provider"]}</td></tr>')
             assessment, inputs, condition, metrics = _CHECK_ASSESSMENTS[row["id"]]
             criteria = [("Assessment", assessment), ("Evaluates", inputs), ("Expected result", condition)]
             execution = row["execution"]
@@ -791,11 +850,11 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
                 measurements += _scope_html(scope)
             note_html = f'<p class="check-note">{note}</p>' if note else ''
             mode_html = '' if row["mode"] in _INACTIVE_STATUSES else f'<p class="check-mode">{_CONTROL_MODES[row["mode"]]}</p>'
-            card = f'<article class="check-detail {tone}" id="check-{safe["id"]}" tabindex="-1"><div class="check-top"><h3>{safe["name"]} <code class="check-id">{safe["id"]}</code></h3><span class="size-result">{label}</span></div><p>{safe["purpose"]}</p>{mode_html}{note_html}{run_facts}{measurements}<div class="check-links">{evidence}<a href="#checks-title">Back to checks ↑</a></div></article>'
+            card = f'<article class="check-detail {tone}" id="check-{safe["id"]}" tabindex="-1"><div class="check-top"><h3>{safe["name"]} <code class="check-id">{safe["id"]}</code></h3><span class="size-result">{label}</span></div><p>{safe["purpose"]}</p><p class="check-provider">Provider: {safe["provider"]}</p>{mode_html}{note_html}{run_facts}{measurements}<div class="check-links">{evidence}<a href="#checks-title">Back to checks ↑</a></div></article>'
             detail_status = "separate" if row.get("separate_subject") else row["status"]
             (inactive_details if row["status"] in _INACTIVE_STATUSES else active_details).append((detail_status, card))
-        groups.append(f'<tbody><tr class="check-category"><th colspan="3" scope="rowgroup">{html.escape(group)}</th></tr>{"".join(rows)}</tbody>')
-    overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title" tabindex="-1">Individual checks</h2><p class="checks-intro">All built-in catalog checks. Select a check to see its purpose and evidence below. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the check has no active mode in this snapshot. Custom controls may contribute to totals without publishing their private names.</p><div class="checks-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results and policy modes for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col" class="mode-cell">Mode</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
+        groups.append(f'<tbody><tr class="check-category"><th colspan="4" scope="rowgroup">{html.escape(group)}</th></tr>{"".join(rows)}</tbody>')
+    overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title" tabindex="-1">Individual checks</h2><p class="checks-intro">All built-in catalog checks. Select a check to see its purpose and evidence below. Provider names describe selection, not credential readiness or a passing scan. Not configured means no provider was selected. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the check has no active mode in this snapshot. Custom controls may contribute to totals without publishing their private names.</p><div class="checks-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results, policy modes, and selected providers for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col" class="mode-cell">Mode</th><th scope="col">Provider</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
     # Stable sort: checks needing attention first, then passes, each in catalog order.
     order = (*_ATTENTION_STATUSES, "passed")
     active = ''.join(card for _, card in sorted(active_details, key=lambda item: order.index(item[0])))

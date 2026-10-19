@@ -413,8 +413,15 @@ site URL for private Pages. The bounded projection contains aggregate
 status/counts, PR-size measurements and thresholds, source-run metadata, a
 revision digest, and every trusted built-in catalog control. IDs, names, and
 purposes come from the trusted catalog; effective modes and evidence statuses
-come from validated scorecard rows. Private or arbitrary control IDs, findings,
-detailed evidence, reasons, provider data, check URLs, raw revisions, and source
+come from validated scorecard rows. Each check shows its selected provider,
+including inactive checks. Built-in provider labels are allowlisted; custom
+provider names remain in the source report and appear as "Configured provider
+(see source report)" on Pages. "Not configured" means no provider is selected;
+"Not reported" means selection cannot be established from this snapshot. Older
+active rows can supply their authoritative provider; older inactive rows do not
+prove that no provider was configured. Selection does not prove credentials,
+activation, or a successful scan. Private or arbitrary control IDs, findings,
+detailed evidence, reasons, other provider data, check URLs, raw revisions, and source
 Markdown are excluded from Pages and remain in the source Actions artifact
 under normal repository access.
 Publishing is optional reporting and never influences the

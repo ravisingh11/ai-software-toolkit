@@ -118,6 +118,72 @@ class ScorecardV2Tests(unittest.TestCase):
         output = MODULE.render(self.card("not_run", None))
         self.assertIn("reason: no result", output)
 
+    def test_configured_provider_preserves_evaluation_outcomes(self) -> None:
+        for status in ("passed", "failed", None):
+            for mode in ("advisory", "enforced", "not_activated"):
+                with self.subTest(status=status, mode=mode):
+                    args = fixture(status, None, mode)
+                    if status is None:
+                        args[4]["results"] = {}
+                    result = MODULE.evaluator_module().evaluate(
+                        *args, "change", "abc123", "git-commit", all_catalog_controls=True,
+                    )
+                    card = MODULE.scorecard(
+                        *args, "change", "abc123", subject_type="git-commit", all_catalog_controls=True,
+                    )
+                    row = next(row for row in card["controls"] if row["id"] == "deep-sast")
+                    self.assertEqual(row["configured_provider"], {
+                        "id": "github-codeql", "display_name": "GitHub CodeQL",
+                    })
+                    # The additive presentation field must not alter any evaluator row or outcome.
+                    for actual, expected in zip(card["controls"], result["controls"], strict=True):
+                        self.assertEqual(
+                            {key: actual[key] for key in expected}, MODULE.normalize_public(expected),
+                        )
+                    for key in ("status", "decision", "findings"):
+                        self.assertEqual(card[key], MODULE.normalize_public(result[key]))
+                    for mode_key in ("advisory", "enforced"):
+                        self.assertEqual(
+                            {key: card[mode_key][key] for key in ("passed", "total")},
+                            result["summary"][mode_key],
+                        )
+                    self.assertIn("Deep SAST — GitHub CodeQL:", MODULE.render(card))
+
+    def test_configured_provider_tracks_repository_selection(self) -> None:
+        args = fixture("passed", "failed")
+        args[3]["selections"]["deep-sast"] = {
+            "authoritative": "snyk-code", "supplemental": ["github-codeql"],
+        }
+        card = MODULE.scorecard(*args, "change", "abc123", subject_type="git-commit")
+        self.assertEqual(card["controls"][0]["configured_provider"], {
+            "id": "snyk-code", "display_name": "Snyk Code",
+        })
+        self.assertIn("Deep SAST — Snyk Code: failed", MODULE.render(card))
+        self.assertEqual((card["status"], card["decision"]), ("ORANGE", "allow"))
+
+    def test_evidence_only_control_has_no_configured_provider(self) -> None:
+        card = self.card(all_controls=True)
+        row = next(row for row in card["controls"] if row["id"] == "artifact-sbom")
+        self.assertIsNone(row["configured_provider"])
+        self.assertIn(f"{row['name']} — Not configured: not_activated", MODULE.render(card))
+        inactive = next(row for row in card["controls"] if row["id"] == "static-quality")
+        self.assertEqual(inactive["configured_provider"]["display_name"], "SonarQube")
+        self.assertIsNone(inactive["authoritative_provider"])
+
+    def test_legacy_rows_fall_back_only_when_configured_provider_is_absent(self) -> None:
+        card = self.card()
+        del card["controls"][0]["configured_provider"]
+        self.assertIn("Deep SAST — GitHub CodeQL:", MODULE.render(card))
+        card["controls"][0]["configured_provider"] = None
+        self.assertIn("Deep SAST — Not configured:", MODULE.render(card))
+
+    def test_legacy_inactive_row_does_not_claim_configuration_is_missing(self) -> None:
+        card = self.card(mode="not_activated", all_controls=True)
+        row = next(row for row in card["controls"] if row["id"] == "deep-sast")
+        del row["configured_provider"]
+        self.assertIsNone(row["authoritative_provider"])
+        self.assertIn("Deep SAST — Not reported: not_activated", MODULE.render(card))
+
     def test_public_json_recursively_excludes_raw_producer_statuses(self) -> None:
         card = self.card("not_run", None)
 
@@ -172,7 +238,12 @@ class PullRequestCompanionTests(unittest.TestCase):
         self.assertEqual(row["evidence_status"], "not_activated")
         self.assertEqual(row["inactive_reason"], "other_subject")
         self.assertNotIn("companion_subjects", card)
-        self.assertIn("PR Metadata — Checked separately on the pull-request subject", MODULE.render(card))
+        self.assertEqual(row["configured_provider"], {
+            "id": "repository-pr-metadata", "display_name": "Repository PR Metadata",
+        })
+        self.assertIsNone(row["authoritative_provider"])
+        self.assertIn("PR Metadata — Repository PR Metadata: not_activated", MODULE.render(card))
+        self.assertIn("Checked separately on the pull-request subject", MODULE.render(card))
 
     def test_cli_reports_missing_pull_request_result_as_unverified(self) -> None:
         import subprocess

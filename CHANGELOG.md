@@ -8,6 +8,11 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Display the selected provider for every scorecard check, preserving inactive
+  selections and distinguishing "Not configured" from "Not reported". Public
+  Pages show built-in provider labels while custom identities stay in the
+  source report. Evidence, activation, and enforcement are unchanged.
+
 - Stop waiting for absent Snyk checks when their repository enablement variable
   is `false` (case-insensitive). Keep selected controls and missing evidence
   visible; queued/running checks still wait, provenance validation is unchanged,

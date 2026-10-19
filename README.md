@@ -280,6 +280,11 @@ workflow the [`qa-bootstrap` skill](skills/qa-bootstrap/SKILL.md) generates. See
 🔴 **RED**: enforced gap or wrong-subject evidence; blocked.
 ⚪ **GRAY**: inactive for this operation/subject.
 Raw `not_run` or absent evidence is displayed as `no_result`, never a pass.
+Each check names its selected provider (for example, **GitHub CodeQL** for
+Deep SAST). **Not configured** means no provider is selected; **Not reported**
+means selection is unavailable in the snapshot. Provider selection is separate
+from activation and evidence: a missing scan still names its selected provider.
+All checks remain optional to adopt, and this display does not change enforcement.
 The default report omits inactive catalog rows; use `--all-catalog-controls`
 to include them. See the [status guide](docs/proof/control-status.md).
 

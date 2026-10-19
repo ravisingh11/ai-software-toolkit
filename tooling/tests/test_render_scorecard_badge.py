@@ -127,6 +127,93 @@ class RendererTests(unittest.TestCase):
             self.assertIn('<span class="brand-name">AI Software Toolkit</span>', page)
             self.assertNotIn('<span class="brand-name">Proof</span>', page)
 
+    def provider_card(self) -> dict[str, Any]:
+        card = scorecard(enforced=(0, 0), advisory=(1, 1))
+        provider = {"id": "github-codeql", "display_name": "PRIVATE untrusted label"}
+        card["controls"] = [
+            {"id": "deep-sast", "effective_mode": "advisory", "evidence_status": "passed",
+             "authoritative_provider": dict(provider), "configured_provider": dict(provider)},
+            {"id": "static-quality", "effective_mode": "not_activated", "evidence_status": "not_activated",
+             "authoritative_provider": None,
+             "configured_provider": {"id": "sonarqube", "display_name": "SonarQube"}},
+            {"id": "artifact-sbom", "effective_mode": "not_activated", "evidence_status": "not_activated",
+             "authoritative_provider": None, "configured_provider": None},
+        ]
+        return card
+
+    def test_provider_selection_is_visible_without_changing_activation_or_results(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); output = root / "published"
+            metadata = self.render(self.write_source(root, self.provider_card()), output)
+            rows = {row["id"]: row for row in metadata["controls"]}
+            self.assertEqual(rows["deep-sast"]["provider"], "GitHub CodeQL")
+            self.assertEqual(rows["static-quality"]["provider"], "SonarQube")
+            self.assertEqual(rows["static-quality"]["status"], "not_activated")
+            self.assertEqual(rows["artifact-sbom"]["provider"], "Not configured")
+            self.assertEqual(rows["runtime-assurance"]["provider"], "Not reported")
+            self.assertEqual((metadata["status"], metadata["decision"], metadata["passed"], metadata["total"]),
+                             ("GREEN", "allow", 1, 1))
+            for filename in ("index.html", "scorecard.md"):
+                text = (output / filename).read_text()
+                for label in ("Provider", "GitHub CodeQL", "SonarQube", "Not configured"):
+                    self.assertIn(label, text)
+            self.assertIn("Provider: GitHub CodeQL", (output / "index.html").read_text())
+            for path in output.iterdir():
+                self.assertNotIn("PRIVATE", path.read_text())
+
+    def test_missing_evidence_still_names_selected_provider_and_legacy_rows_are_honest(self) -> None:
+        card = self.provider_card()
+        card.update(status="ORANGE", advisory={"passed": 0, "total": 1})
+        card["controls"][0]["evidence_status"] = "no_result"
+        del card["controls"][0]["configured_provider"]
+        del card["controls"][1]["configured_provider"]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = self.render(self.write_source(root, card), root / "published")
+            rows = {row["id"]: row for row in metadata["controls"]}
+            self.assertEqual(rows["deep-sast"]["provider"], "GitHub CodeQL")
+            self.assertEqual(rows["deep-sast"]["status"], "no_result")
+            self.assertEqual(rows["static-quality"]["provider"], "Not reported")
+
+    def test_malformed_conflicting_or_wrong_capability_providers_are_not_published(self) -> None:
+        for value in ([], "private", {}, {"id": []}, {"id": "github-codeql"},
+                      {"id": "github-codeql", "display_name": ""},
+                      {"id": "gitleaks", "display_name": "Private mismatch"}, None):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as directory:
+                card = self.provider_card(); card["controls"][0]["configured_provider"] = value
+                root = Path(directory)
+                metadata = self.render(self.write_source(root, card), root / "published")
+                row = next(row for row in metadata["controls"] if row["id"] == "deep-sast")
+                self.assertEqual(row["provider"], "Not reported")
+        row = {"configured_provider": {"id": "github-codeql", "display_name": "CodeQL"}}
+        self.assertEqual(MODULE._provider_label("build", row), "Not reported")
+
+    def test_custom_provider_identity_is_withheld_from_public_outputs(self) -> None:
+        card = self.provider_card()
+        provider = {"id": "private-provider", "display_name": "<script>private secret</script>"}
+        card["controls"][0].update(configured_provider=provider, authoritative_provider=provider)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); output = root / "published"
+            metadata = self.render(self.write_source(root, card), output)
+            row = next(row for row in metadata["controls"] if row["id"] == "deep-sast")
+            self.assertEqual(row["provider"], "Configured provider (see source report)")
+            for path in output.iterdir():
+                text = path.read_text()
+                self.assertNotIn("private-provider", text)
+                self.assertNotIn("private secret", text)
+                self.assertNotIn("<script>", text)
+
+    def test_public_provider_labels_match_builtin_catalog_capabilities(self) -> None:
+        config = json.loads((ROOT / "policies/provider-config.yaml").read_text())
+        for provider_id, (name, capabilities) in MODULE.PUBLIC_PROVIDERS.items():
+            provider = config["providers"][provider_id]
+            self.assertEqual(name, provider["display_name"])
+            self.assertEqual(set(capabilities), set(provider["capabilities"]))
+            for control_id in capabilities:
+                value = {"id": provider_id, "display_name": "Not published"}
+                self.assertEqual(MODULE._provider_label(control_id, {"configured_provider": value}), name)
+        self.assertEqual(set(MODULE.PUBLIC_PROVIDERS), set(config["providers"]))
+
     def breakdown_card(self) -> dict[str, Any]:
         card = scorecard(status="ORANGE", enforced=(1, 1), advisory=(1, 4))
         card["controls"] = [
@@ -473,7 +560,7 @@ class RendererTests(unittest.TestCase):
             self.assertIn("1 is checked on the pull request", page)
             self.assertIn("Checks marked Checked on the PR run against the pull request", page)
             markdown = (root / "output/scorecard.md").read_text()
-            self.assertIn("| PR Metadata | `pr-metadata` | Not activated | Checked on the PR |", markdown)
+            self.assertIn("| PR Metadata | `pr-metadata` | Not reported | Not activated | Checked on the PR |", markdown)
 
     def test_reconciliation_mentions_custom_and_unmatched_rows(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -893,7 +980,7 @@ class RendererTests(unittest.TestCase):
             self.assertIn('<a href="#check-build">Build</a> <code class="check-id">build</code>', page)
             self.assertIn('<h3>Build <code class="check-id">build</code></h3>', page)
             markdown = (root / "output/scorecard.md").read_text()
-            self.assertIn("| Check | ID | Mode | Result | Purpose |", markdown)
+            self.assertIn("| Check | ID | Provider | Mode | Result | Purpose |", markdown)
             self.assertIn("| Build | `build` |", markdown)
             self.assertIn('aria-label="Source report for Build"', page)
             self.assertNotIn('aria-label="Source report for Artifact SBOM"', page)
