@@ -189,6 +189,34 @@ is a published PR snapshot; its timestamp does not prove it matches the current
 PR head or main. **ALLOW** means enforced controls were satisfied for that
 snapshot, not that the change is ready to merge or release.
 
+### Scorecard freshness
+
+The live scorecard checks for a newer publication on load, when returning to the
+tab, and every 60 seconds while visible. **Matches the latest published snapshot**
+means the displayed results match the site's published snapshot; it does not
+verify current `main`, the latest PR head, CI success, or passing controls.
+
+When a newer validated snapshot is published, an older-results notice offers
+**Refresh latest**. Refresh is manual and preserves the selected check or section.
+It reloads the published page without starting CI or enabling checks. Existing
+results, including missing evidence, remain visible until refresh.
+
+If the freshness check fails or metadata cannot be validated, freshness remains
+**unknown**. A previously confirmed newer-publication notice stays visible after
+a failed recheck. With JavaScript disabled, freshness is explicitly not checked
+and a refresh link remains available. Tabs opened before this feature shipped
+need one initial reload. Snapshot age alone does not establish staleness.
+See the [freshness contract](docs/proof/control-setup.md#reading-scorecard-evidence).
+All checks remain optional; freshness does not change activation or enforcement.
+
+The [verified scorecard run, attempt 2](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39288247675/attempts/2)
+evaluated PR #112 at [`d0e6753`](https://github.com/ravisingh11/ai-software-toolkit/commit/d0e6753a1085d8bfbf66aecfebea22dd5fbfbd98).
+Its [successful publication](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39288744600)
+used merged toolkit revision [`9ef9297`](https://github.com/ravisingh11/ai-software-toolkit/commit/9ef929780eaff0f863e9c44c5dbca8911f9f21b0).
+Recorded on 2026-10-19, it retained an advisory PR-size failure and missing Snyk
+evidence: **ORANGE / ALLOW**, with zero enforced controls. A successful workflow
+or publication does not turn those results into passes.
+
 ## Optional quality checks
 
 Choose the checks that fit your repository. The
@@ -236,11 +264,11 @@ remains TypeScript. Each consuming repository owns adoption and enforcement.
 
 ### Recorded five-language verification
 
-The [2026-10-18 manual run](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39185524558)
+The latest recorded [2026-10-19 manual run](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39289785991)
 passed all **30 stages** (versions, build, lint, tests, architecture, coverage)
 and **115 conformance cases** (23 per language) on reference-app revision
-[`2f9ac1f`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/2f9ac1fcce571ed54d51b7fdf2aa50a8aadbe3b9),
-using toolkit revision [`c46a7c2`](https://github.com/ravisingh11/ai-software-toolkit/commit/c46a7c263ea7667ea9c0fe061b628afd51ed6507).
+[`e34993a`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/e34993afee31f40492dcacafcb93c5ab8e5782cb),
+using toolkit revision [`9ef9297`](https://github.com/ravisingh11/ai-software-toolkit/commit/9ef929780eaff0f863e9c44c5dbca8911f9f21b0).
 
 | Language-specific example | Changed-line coverage in example scope |
 | --- | --- |
@@ -254,8 +282,14 @@ This recorded run used comparison base
 [`2932827`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/2932827657d4758cdf030ab693239cfb2a23e258)
 and a repository-selected 90% threshold. These are results for the selected
 example scopes, not full-application coverage or a deployment attestation.
-See the [reference app's verification summary](https://github.com/ravisingh11/ai-software-toolkit-reference-app#merged-maintenance-and-recorded-verification-2026-10-18)
-for acceptance, advisory Snyk results, and remaining evidence limits. The
+The same revision passed [Application acceptance](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39289758236)
+and the [configured Snyk workflow](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39289758563).
+The reference app's [PR #33 scorecard](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39289788846)
+is separate PR-head evidence: it retained three missing advisory results
+(changed-code coverage, platform secret protection, and dependency remediation).
+The manual example coverage does not fill that PR coverage gap.
+See the [reference app's latest verification summary](https://github.com/ravisingh11/ai-software-toolkit-reference-app#latest-recorded-verification-2026-10-19)
+for source revisions and remaining evidence limits. The
 examples use each language's own tools; adapt or replace them for your stack.
 
 ## Profiles
