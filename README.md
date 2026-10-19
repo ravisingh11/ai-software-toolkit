@@ -217,6 +217,47 @@ Recorded on 2026-10-19, it retained an advisory PR-size failure and missing Snyk
 evidence: **ORANGE / ALLOW**, with zero enforced controls. A successful workflow
 or publication does not turn those results into passes.
 
+### Recorded live verification and cleanup (2026-10-19)
+
+The live verification after the README updates
+([toolkit #113](https://github.com/ravisingh11/ai-software-toolkit/pull/113),
+[reference app #34](https://github.com/ravisingh11/ai-software-toolkit-reference-app/pull/34))
+confirmed that both public pages matched the HTML and JSON artifacts from their
+latest successful publications at the time:
+
+| Scorecard | Evaluated PR run | Pages publication | Recorded advisory result |
+| --- | --- | --- | --- |
+| Toolkit | [39295749865, attempt 1](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39295749865/attempts/1) | [39297574622](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39297574622) | 14/16 passed; PR metadata failed and dependency vulnerability had no result. |
+| Reference app | [39295060071, attempt 1](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39295060071/attempts/1) | [39296050722](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39296050722) | 13/16 passed; changed-code coverage, platform secret protection, and dependency remediation had no result. |
+
+Both snapshots were **ORANGE / ALLOW**, with **zero enforced controls**.
+Missing evidence remained **Unverified**, never passed. Already-open older tabs
+showed the newer-publication notice; mouse and keyboard **Refresh latest** loaded
+the publications above and preserved `#size-title`. Neither page reported browser
+errors. All **59 toolkit renderer tests** passed, including freshness failure
+regressions. This records publication freshness, not current `main`, newer CI,
+or the deployed reference Worker. Later publications may supersede these runs.
+
+The local cleanup record covers **two merged local branches and two temporary
+worktrees**, preserved in recoverable Git bundles and checkout archives, followed
+by **310 ignored cache/junk files** removed (304 toolkit, six reference app).
+All **8,589 inventoried evidence/state files** in the latter cleanup remained
+unchanged by hash comparison. **183 tracked YAML files** were reviewed; none was
+proven obsolete and none was deleted. Optional workflows, templates, historical
+docs, QA reports, coverage, and Worker databases were retained. Cleanup manifests,
+archives, screenshots, and logs remain in the local verification archive; these
+local observations are separate from the linked CI artifacts.
+
+The reference app also reconciled a duplicate CodeQL activation after this live
+verification: GitHub default setup stays active, while the optional advanced
+workflow opt-in was removed. Its selected advanced-workflow evidence contract
+remains unchanged, so default-setup scans do not turn missing Deep SAST evidence
+into a pass. See the [reference app configuration note](https://github.com/ravisingh11/ai-software-toolkit-reference-app#recorded-live-verification-and-cleanup-2026-10-19).
+
+All checks remain optional to adopt. The five-language workflow remains **manual
+(`workflow_dispatch`) and optional**; this verification did not rerun it or fill
+missing PR coverage with the separately recorded example results.
+
 ## Optional quality checks
 
 Choose the checks that fit your repository. The
