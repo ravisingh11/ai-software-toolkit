@@ -18,6 +18,11 @@ import subprocess
 import time
 from datetime import datetime, timezone
 
+try:
+    from lifecycle_contract import strict_json
+except ImportError:
+    from tooling.lifecycle_contract import strict_json
+
 ZAP_IMAGE = 'ghcr.io/zaproxy/zaproxy@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6'
 MAX_OUTPUT_BYTES = 8 * 1024 * 1024
 TRIVY_VERSION = '0.76.0'
@@ -366,10 +371,13 @@ def produce(args):
             run.run(['docker', 'pull', ZAP_IMAGE])
             zap_name = network + '-zap'
             try:
-                completed = run.run(['docker', 'run', '--name', zap_name, '--network', network, '--user', '1000:1000', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--pids-limit', '512', '--memory', '2g', '--cpus', '2', ZAP_IMAGE, 'zap-baseline.py', '-t', target + '/', '-m', '1', '-T', '5', '-J', '/zap/wrk/zap.json'], timeout=600, allowed=(0, 1, 2, 3))
+                # Keep the bounded private report mount alive until extraction.
+                # A foreground baseline exits before its tmpfs can be copied.
+                run.run(['docker', 'run', '-d', '--name', zap_name, '--network', network, '--user', '1000:1000', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--pids-limit', '512', '--memory', '2g', '--cpus', '2', '--tmpfs', '/zap/wrk:rw,noexec,nosuid,size=64m,uid=1000,gid=1000,mode=0770', '--entrypoint', '/bin/sleep', ZAP_IMAGE, '660'])
+                completed = run.run(['docker', 'exec', zap_name, 'zap-baseline.py', '-t', target + '/', '-m', '1', '-T', '5', '-J', 'zap.json'], timeout=600, allowed=(0, 1, 2, 3))
                 report = output / 'zap.json'
-                run.run(['docker', 'cp', zap_name + ':/zap/wrk/zap.json', str(report)])
-                record('dynamic-application-security', zap_status(json.loads(report.read_text()), completed.returncode, target), 'Pinned ZAP passive baseline against isolated first-party verification target; all noninformational alerts fail', report)
+                report.write_text(run.run(['docker', 'exec', zap_name, 'cat', '/zap/wrk/zap.json']).stdout, encoding='utf-8')
+                record('dynamic-application-security', zap_status(strict_json(report.read_bytes()), completed.returncode, target), 'Pinned ZAP passive baseline against isolated first-party verification target; all noninformational alerts fail', report)
             finally:
                 run.run(['docker', 'rm', '-f', zap_name], allowed=(0, 1))
         except (ValueError, KeyError, OSError, subprocess.SubprocessError) as error:

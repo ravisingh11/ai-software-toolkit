@@ -3,10 +3,13 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 import unittest
 from unittest.mock import patch
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 SPEC = importlib.util.spec_from_file_location("default_setup_collector", Path(__file__).parents[1] / "github_evidence.py")
 assert SPEC and SPEC.loader
@@ -16,6 +19,9 @@ SPEC.loader.exec_module(MODULE)
 
 class CodeQLDefaultSetupTests(unittest.TestCase):
     def setUp(self) -> None:
+        environment = patch.dict(os.environ, {"PROOF_CODEQL_CONFIGURATION_TOKEN": ""})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.repo = "owner/repo"
         self.api = f"https://api.github.com/repos/{self.repo}"
         self.contract = {"check_name": "CodeQL", "workflow": "CodeQL",
@@ -53,7 +59,7 @@ class CodeQLDefaultSetupTests(unittest.TestCase):
         self.properties = []
         self.refresh_checks = [self.check]
 
-    def request(self, url: str, token: str):
+    def request(self, url: str, token: str, **kwargs):
         suffix = url.removeprefix(self.api)
         if suffix == "/pulls/35":
             return copy.deepcopy(self.pr)
@@ -212,7 +218,7 @@ class CodeQLDefaultSetupTests(unittest.TestCase):
             with self.subTest(target=target):
                 calls = 0
 
-                def changing_request(url, token):
+                def changing_request(url, token, **kwargs):
                     nonlocal calls
                     value = self.request(url, token)
                     if url == self.api + target:
@@ -284,7 +290,7 @@ class CodeQLDefaultSetupTests(unittest.TestCase):
                 self.pr["base"]["repo"]["owner"]["type"] = "Organization"
                 calls = 0
 
-                def changing_request(url, token):
+                def changing_request(url, token, **kwargs):
                     nonlocal calls
                     value = self.request(url, token)
                     if ((target == "runs" and "/actions/runs?" in url)
@@ -305,6 +311,117 @@ class CodeQLDefaultSetupTests(unittest.TestCase):
                                                            self.check, "Default", "base", 35)
                 self.assertEqual(result["status"], "not_run")
                 self.assertIn("changed during", result["reason"])
+
+    def test_configuration_credential_is_used_only_for_exact_settings_reads(self):
+        for secret in ("", "settings-secret"):
+            with self.subTest(configured=bool(secret)), patch.dict(
+                os.environ, {"PROOF_CODEQL_CONFIGURATION_TOKEN": secret}
+            ), patch.object(MODULE, "_request", side_effect=self.request) as request, patch.object(
+                MODULE, "enumerate_check_runs", return_value=[self.check]
+            ) as checks:
+                result = MODULE.codeql_default_evidence(self.repo, "head", "token", self.contract,
+                                                       self.check, "Default", "base", 35)
+                self.assertEqual(result["status"], "passed")
+                settings = 0
+                for call in request.call_args_list:
+                    url, credential = call.args
+                    if url == self.api + "/code-scanning/default-setup":
+                        settings += 1
+                        self.assertEqual(credential, secret or "token")
+                        self.assertEqual(call.kwargs, {"follow_redirects": False})
+                    else:
+                        self.assertEqual(credential, "token")
+                self.assertEqual(settings, 2)
+                self.assertEqual(checks.call_args.args[2], "token")
+                self.assertNotIn("settings-secret", json.dumps(result))
+
+    def test_denied_settings_reads_are_actionable_and_sanitized(self):
+        for secret in ("", "settings-secret"):
+            for status in (401, 403):
+                for denied_read in (1, 2):
+                    with self.subTest(secret=bool(secret), status=status, denied_read=denied_read):
+                        reads = 0
+
+                        def denied_request(url, token, **kwargs):
+                            nonlocal reads
+                            if url == self.api + "/code-scanning/default-setup":
+                                reads += 1
+                                if reads == denied_read:
+                                    raise HTTPError(url + "?settings-secret", status, "settings-secret", {}, None)
+                            return self.request(url, token)
+
+                        with patch.dict(os.environ, {"PROOF_CODEQL_CONFIGURATION_TOKEN": secret}), patch.object(
+                            MODULE, "_request", side_effect=denied_request
+                        ), patch.object(MODULE, "enumerate_check_runs", return_value=[self.check]):
+                            result = MODULE.codeql_default_evidence(self.repo, "head", "token", self.contract,
+                                                                   self.check, "Default", "base", 35)
+                        self.assertEqual(result["status"], "not_run")
+                        self.assertIn("Administration: read", result["reason"])
+                        self.assertIn("PROOF_CODEQL_CONFIGURATION_TOKEN", result["reason"])
+                        self.assertNotIn("settings-secret", json.dumps(result))
+
+    def test_other_settings_errors_never_include_secret_details(self):
+        for error in (ValueError("invalid header settings-secret"),
+                      HTTPError(self.api + "?settings-secret", 404, "settings-secret", {}, None)):
+            with self.subTest(error=type(error).__name__):
+                def invalid_request(url, token, **kwargs):
+                    if url == self.api + "/code-scanning/default-setup":
+                        raise error
+                    return self.request(url, token)
+
+                with patch.dict(os.environ, {"PROOF_CODEQL_CONFIGURATION_TOKEN": "settings-secret"}), patch.object(
+                    MODULE, "_request", side_effect=invalid_request
+                ):
+                    result = MODULE.codeql_default_evidence(self.repo, "head", "token", self.contract,
+                                                           self.check, "Default", "base", 35)
+                self.assertEqual(result["status"], "not_run")
+                self.assertNotIn("settings-secret", json.dumps(result))
+
+    def test_dedicated_credential_does_not_accept_configuration_drift(self):
+        with patch.dict(os.environ, {"PROOF_CODEQL_CONFIGURATION_TOKEN": "settings-secret"}):
+            self.test_late_run_or_configuration_change_is_unverified()
+
+    def test_configuration_request_rejects_redirects_and_wrong_endpoints(self):
+        with patch.dict(os.environ, {"PROOF_CODEQL_CONFIGURATION_TOKEN": "settings-secret"}), patch.object(
+            MODULE, "build_opener"
+        ) as opener, patch.object(MODULE, "urlopen") as redirecting_open:
+            opener.return_value.open.side_effect = HTTPError(self.api, 302, "settings-secret", {}, None)
+            with self.assertRaises(HTTPError):
+                MODULE.codeql_default_configuration(self.api, "token")
+            self.assertIsInstance(opener.call_args.args[0], MODULE.NoRedirectHandler)
+            self.assertIsNone(opener.call_args.args[0].redirect_request(None, None, 302, "", {}, "https://evil.invalid"))
+            request = opener.return_value.open.call_args.args[0]
+            self.assertEqual(request.full_url, self.api + "/code-scanning/default-setup")
+            self.assertEqual(request.get_method(), "GET")
+            redirecting_open.assert_not_called()
+            for endpoint in ("https://evil.invalid/repos/owner/repo", self.api + "/../other", self.api + "?x=1"):
+                with self.assertRaisesRegex(ValueError, "endpoint is invalid"):
+                    MODULE.codeql_default_configuration(endpoint, "token")
+            self.assertEqual(opener.return_value.open.call_count, 1)
+
+    def test_configuration_secret_has_no_cli_argument_or_workflow_wide_scope(self):
+        import yaml
+
+        root = Path(__file__).parents[2]
+        workflow = yaml.safe_load((root / "workflows/proof-scorecard.yml").read_text())
+        secret_name = "PROOF_CODEQL_CONFIGURATION_TOKEN"
+        self.assertNotIn(secret_name, workflow.get("env", {}))
+        collector_steps = []
+        for job in workflow["jobs"].values():
+            self.assertNotIn(secret_name, job.get("env", {}))
+            for step in job["steps"]:
+                if secret_name in step.get("env", {}):
+                    collector_steps.append(step)
+        self.assertEqual(len(collector_steps), 1)
+        self.assertEqual(collector_steps[0]["name"], "Collect selected provider checks")
+        self.assertEqual(collector_steps[0]["env"][secret_name], "${{ secrets.PROOF_CODEQL_CONFIGURATION_TOKEN }}")
+        self.assertNotIn(secret_name, collector_steps[0]["run"])
+        self.assertIn("python3 .proof-trusted/.proof/github_evidence.py", collector_steps[0]["run"])
+        result = subprocess.run([sys.executable, str(root / "tooling/github_evidence.py"), "--help"],
+                                env={**os.environ, secret_name: "settings-secret"}, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertNotIn("configuration-token", result.stdout)
+        self.assertNotIn("settings-secret", result.stdout + result.stderr)
 
     def test_same_name_actions_advanced_check_not_selected(self):
         self.assertTrue(MODULE.check_matches_declared_app(self.check, self.contract))

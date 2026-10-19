@@ -13,6 +13,15 @@ SPEC.loader.exec_module(producer)
 
 
 class ProducerTests(unittest.TestCase):
+    def test_package_import_retains_strict_report_validation(self):
+        # Source-package imports lack the installed flat-runtime module name.
+        # They must retain duplicate-key rejection through the package fallback.
+        with mock.patch.dict('sys.modules', {'lifecycle_contract': None}):
+            module = importlib.util.module_from_spec(SPEC)
+            SPEC.loader.exec_module(module)
+        with self.assertRaises(ValueError):
+            module.strict_json(b'{"site":[],"site":[]}')
+
     def test_runner_bounds_output_time_and_does_not_forward_secrets(self):
         import sys
         with tempfile.TemporaryDirectory() as directory:
@@ -215,6 +224,7 @@ class ProducerTests(unittest.TestCase):
         args = SimpleNamespace(source=str(root), output=str(output), config=str(root / 'config.json'), head='a'*40, base='b'*40, workflow_sha='c'*40, repository='owner/repo', pr=1, run_id=2, run_attempt=1)
         image_id = 'sha256:' + 'd'*64
         report = {'Results': [{'Target': 'image', 'Class': 'os-pkgs', 'Type': 'alpine'}]}
+        zap = {'alive': False, 'report': False, 'cleaned': False}
         def command(self, argv, **kwargs):
             text, code = '', 0
             if argv[0] == 'git' and 'rev-parse' in argv:
@@ -251,10 +261,38 @@ class ProducerTests(unittest.TestCase):
                 text = json.dumps({'duration_seconds': 10.1, 'rows': [{'ok': failure != 'probe', 'path': '/health', 'revision': args.head, 'latency_ms': 1.0} for _ in range(10)]})
             if argv[:2] == ['docker', 'stats']:
                 text = json.dumps({'CPUPerc': '0.0%', 'MemUsage': '1MiB / 512MiB', 'PIDs': '1'})
+            if argv[:2] == ['docker', 'run'] and producer.ZAP_IMAGE in argv:
+                # tmpfs reports disappear when PID 1 exits. The scanner must
+                # run inside a live dedicated container until copying finishes.
+                if '-d' not in argv or '--tmpfs' not in argv or '/bin/sleep' not in argv:
+                    raise ValueError('ZAP requires a live container with a report mount')
+                mount = argv[argv.index('--tmpfs') + 1]
+                if mount != '/zap/wrk:rw,noexec,nosuid,size=64m,uid=1000,gid=1000,mode=0770':
+                    raise ValueError('Unexpected ZAP report mount isolation')
+                if failure == 'zap-start':
+                    raise ValueError('ZAP container startup failed')
+                zap['alive'] = True
+            if argv[:2] == ['docker', 'exec'] and 'zap-baseline.py' in argv:
+                if not zap['alive'] or failure == 'zap-exec':
+                    raise ValueError('ZAP cannot execute')
+                if argv[argv.index('-J') + 1] != 'zap.json':
+                    raise ValueError('ZAP report filename must be relative to its mount')
+                zap['report'] = True
+            if argv[:3] == ['docker', 'rm', '-f'] and argv[-1].endswith('-zap'):
+                zap['alive'] = False
+                zap['cleaned'] = True
             if argv[:2] == ['docker', 'cp']:
+                raise ValueError('Docker archive copying cannot read tmpfs')
+            if argv[:2] == ['docker', 'exec'] and 'cat' in argv:
+                if not zap['alive'] or not zap['report']:
+                    raise ValueError('ZAP tmpfs report unavailable after container exit')
                 if failure == 'zap':
                     raise ValueError('ZAP report missing')
-                producer.write(pathlib.Path(argv[-1]), {'site': [{'@name': 'http://proof-target:8080', 'alerts': []}]})
+                text = json.dumps({'site': [{'@name': 'http://proof-target:8080', 'alerts': []}]})
+                if failure == 'zap-empty':
+                    text = ''
+                if failure == 'zap-duplicate':
+                    text = '{"site":[],"site":[{"@name":"http://proof-target:8080","alerts":[]}]}'
             return SimpleNamespace(stdout=text, returncode=code)
         with mock.patch.object(producer.Runner, 'run', command), mock.patch.object(producer.time, 'sleep'), mock.patch.object(producer.shutil, 'which', return_value=str(root / 'config.json')):
             if failure in ('build', 'probe-execution'):
@@ -262,6 +300,8 @@ class ProducerTests(unittest.TestCase):
                     producer.produce(args)
                 return json.loads((output / 'blocked-documents.json').read_text())
             producer.produce(args)
+        self.assertFalse(zap['alive'])
+        self.assertTrue(zap['cleaned'])
         receipt = json.loads((output / 'unsigned-receipt.json').read_text())
         self.assertEqual(receipt['artifact']['digest'], producer.digest(output / 'image.tar'))
         self.assertEqual(receipt['environment']['snapshot_digest'], producer.canonical_digest(receipt['environment']['snapshot']))
@@ -299,6 +339,11 @@ class ProducerTests(unittest.TestCase):
         docs = self.exercise('zap')
         self.assertEqual(docs['environment']['results']['dynamic-application-security']['zap-baseline-local']['status'], 'blocked')
         self.assertEqual(docs['artifact']['results']['artifact-sbom']['trivy-artifact-sbom']['status'], 'passed')
+
+    def test_zap_start_and_exec_failures_cleanup_and_remain_blocked(self):
+        for failure in ('zap-start', 'zap-exec', 'zap-empty', 'zap-duplicate'):
+            docs = self.exercise(failure)
+            self.assertEqual(docs['environment']['results']['dynamic-application-security']['zap-baseline-local']['status'], 'blocked')
 
     def test_build_failure_is_explicit_not_pass(self):
         docs = self.exercise('build')

@@ -127,6 +127,7 @@ jobs:
       - name: Collect selected provider checks
         env:
           GH_TOKEN: ${{ github.token }}
+          PROOF_CODEQL_CONFIGURATION_TOKEN: ${{ secrets.PROOF_CODEQL_CONFIGURATION_TOKEN }}
           REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
           TRUSTED_BASE_REVISION: ${{ github.event.pull_request.base.sha || github.sha }}
           TRUSTED_WORKFLOW_REF: ${{ github.event.pull_request.base.ref && format('refs/heads/{0}', github.event.pull_request.base.ref) || github.ref }}

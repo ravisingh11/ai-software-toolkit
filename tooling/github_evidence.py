@@ -131,13 +131,14 @@ def check_execution(check: dict[str, Any], status: str) -> dict[str, Any] | None
     return execution
 
 
-def _request(url: str, token: str) -> Any:
+def _request(url: str, token: str, *, follow_redirects: bool = True) -> Any:
     request = Request(url, headers={
         "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {token}",
         "X-GitHub-Api-Version": "2022-11-28",
     })
-    with urlopen(request, timeout=20) as response:
+    open_request = urlopen if follow_redirects else build_opener(NoRedirectHandler()).open
+    with open_request(request, timeout=20) as response:
         return json.load(response)
 
 
@@ -715,6 +716,26 @@ def codeql_configuration_tree(api: str, revision: str, token: str) -> list[tuple
     return sorted(entries)
 
 
+def codeql_default_configuration(api: str, token: str) -> Any:
+    """Keep the optional settings credential confined to this exact GET endpoint."""
+    codeql_require(re.fullmatch(r"https://api\.github\.com/repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", api) is not None,
+                   "CodeQL default setup repository endpoint is invalid.")
+    configuration_token = os.environ.get("PROOF_CODEQL_CONFIGURATION_TOKEN") or token
+    try:
+        return _request(f"{api}/code-scanning/default-setup", configuration_token, follow_redirects=False)
+    except HTTPError as error:
+        if error.code in {401, 403}:
+            raise ValueError(
+                "CodeQL default setup configuration could not be read (HTTP 401/403). "
+                "Optionally configure the PROOF_CODEQL_CONFIGURATION_TOKEN repository secret with "
+                "Administration: read permission scoped to this repository, and verify default setup is enabled. "
+                "The workflow GITHUB_TOKEN cannot grant Administration: read; evidence remains unverified."
+            ) from None
+        raise
+    except ValueError:
+        raise ValueError("CodeQL default setup configuration response or credential could not be validated.") from None
+
+
 def codeql_default_evidence(
     repo: str, revision: str, token: str, contract: dict[str, Any],
     check: dict[str, Any], provider_name: str,
@@ -755,7 +776,7 @@ def codeql_default_evidence(
             codeql_require(not any(item.get("property_name", "").startswith("github-codeql-")
                                    and item.get("value") not in (None, "", []) for item in properties),
                            "Custom CodeQL repository properties are unsupported for default setup evidence.")
-        setup = _request(f"{api}/code-scanning/default-setup", token)
+        setup = codeql_default_configuration(api, token)
         codeql_require(isinstance(setup, dict) and setup.get("state") == "configured",
                        "CodeQL default setup is not configured or could not be verified.")
         codeql_require(not (set(setup) - {
@@ -851,7 +872,7 @@ def codeql_default_evidence(
                        for field in ("id", "name", "head_sha", "status", "conclusion", "check_suite", "app")),
                        "CodeQL aggregate check changed or became ambiguous during collection.")
         codeql_require(_request(f"{api}/actions/runs/{run['id']}", token) == run
-                       and _request(f"{api}/code-scanning/default-setup", token) == setup,
+                       and codeql_default_configuration(api, token) == setup,
                        "CodeQL managed run or configuration changed during collection.")
         final_runs = codeql_pages(f"{api}/actions/runs?head_sha={quote(revision, safe='')}&event=dynamic", token,
                                   "workflow_runs")

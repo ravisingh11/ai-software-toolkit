@@ -75,7 +75,17 @@ class ScorecardWaitConfigurationTests(unittest.TestCase):
         for name in ("SNYK_CODE_ENABLED", "SNYK_OPEN_SOURCE_ENABLED"):
             self.assertEqual(step["env"][name], "${{ vars." + name + " }}")
         self.assertNotIn("${{", step["run"])
+        # The settings-only credential is intentionally available to this
+        # trusted collector; it must not become a wait hint or shell argument.
+        self.assertEqual(step["env"].pop("PROOF_CODEQL_CONFIGURATION_TOKEN"),
+                         "${{ secrets.PROOF_CODEQL_CONFIGURATION_TOKEN }}")
         self.assertNotIn("secrets.", json.dumps(step))
+        self.assertNotIn("PROOF_CODEQL_CONFIGURATION_TOKEN", step["run"])
+        workflow = yaml.safe_load((ROOT / "workflows/proof-scorecard.yml").read_text())
+        self.assertNotIn("secrets.", json.dumps(workflow.get("env", {})))
+        for job in workflow["jobs"].values():
+            self.assertNotIn("secrets.", json.dumps(job.get("env", {})))
+
 
 
 if __name__ == "__main__":

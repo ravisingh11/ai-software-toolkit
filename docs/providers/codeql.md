@@ -24,8 +24,26 @@ Enable GitHub default setup in the repository's code-scanning settings separatel
 Keep the duplicate advanced workflow inactive by leaving
 `PROOF_CODEQL_LANGUAGES` unset. The scorecard collector requires read access to
 Actions, checks, PRs, contents, and security events; the installed scorecard
-workflow includes `security-events: read`. No additional secret or write access
-is needed. Missing permissions produce missing evidence, never a pass.
+workflow includes `security-events: read`. Reading GitHub's default-setup
+configuration additionally requires repository **Administration: read**, which
+`GITHUB_TOKEN` cannot grant. To opt in, supply a repository secret named
+`PROOF_CODEQL_CONFIGURATION_TOKEN` containing a fine-grained token scoped only to
+this repository with **Administration: read**, or an equivalently scoped GitHub
+App token. No write permission is needed. The secret is exposed only to the
+trusted provider-collection step and used only for the exact repository's
+`GET /code-scanning/default-setup`, before and after collection; redirects are
+rejected. All other API calls keep the workflow token. The credential is read
+from the environment, never passed as a command-line argument.
+
+Without that secret, the collector tries its existing token (so a local collector
+with appropriate read access still works). A hosted workflow's ordinary token
+cannot verify this configuration. HTTP 401/403 returns explicit **Unverified**
+(`not_run`) evidence with setup guidance, even when the CodeQL check succeeds.
+Supplying a credential does not bypass configuration, language, revision, run,
+analysis or timing validation. Do not copy a broad personal CLI token into CI;
+repository owners can leave this optional integration unconfigured. Hosted
+acceptance remains unverified until a real run can read both configuration
+snapshots successfully. See GitHub's [default-setup API permissions](https://docs.github.com/en/rest/code-scanning/code-scanning#get-a-code-scanning-default-setup-configuration).
 
 This GitHub.com provider requires independent API proof, rather than accepting a
 check merely named **CodeQL**:
