@@ -643,7 +643,11 @@ def proven_check_evidence(
     *,
     trusted_base_revision: str | None = None,
     trusted_workflow_ref: str | None = None,
+    _run_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    # Output only: never trust caller-provided workflow metadata.
+    if _run_provenance is not None:
+        _run_provenance.clear()
     check_name = contract["check_name"]
     if check.get("name") != check_name:
         return not_run(check_name, "The GitHub check name does not match the declared provider contract.")
@@ -761,10 +765,15 @@ def proven_check_evidence(
                 "A trusted path, including the workflow definition, differs from the trusted base.",
             )
     else:
-        return run_artifact_evidence(
+        result = run_artifact_evidence(
             repo, revision, token, run_id, contract, check, provider_name,
             trusted_base_revision, trusted_workflow_ref,
         )
+        if _run_provenance is not None and result["status"] in {"passed", "failed"}:
+            _run_provenance.update({key: workflow_run.get(key) for key in (
+                "id", "workflow_id", "run_number", "run_attempt", "status",
+            )})
+        return result
     result = check_run_evidence(check_name, provider_name, check)
     control_ids = contract.get("control_ids") or []
     if len(control_ids) == 1:
@@ -775,6 +784,79 @@ def proven_check_evidence(
             result["measurements"] = measurements
     return result
 
+
+
+def scope_consensus_evidence(
+    repo: str, revision: str, token: str, contract: dict[str, Any],
+    checks: list[dict[str, Any]], provider_name: str,
+    trusted_base_revision: str | None, trusted_workflow_ref: str | None,
+) -> dict[str, Any]:
+    """Resolve repeated scope checks only when every fully proven run agrees."""
+    check_name = contract["check_name"]
+    ambiguous = "Duplicate matching GitHub check names make provider provenance ambiguous."
+    if (
+        contract.get("provider_id") != "repository-change-scope"
+        or contract.get("control_ids") != ["change-scope"]
+        or contract.get("app_slug")
+        or not all(isinstance(contract.get(key), str) and contract[key] for key in (
+            "external_id_prefix", "artifact_name_prefix", "artifact_member", "workflow", "workflow_path",
+        ))
+    ):
+        return not_run(check_name, ambiguous)
+    # Bound per-candidate API work and public provenance records. Never truncate
+    # the candidate set and claim agreement over only a subset.
+    if len(checks) > 100:
+        return not_run(check_name, "Too many duplicate scope checks to verify complete consensus.")
+    verified = []
+    check_ids: set[int] = set()
+    run_ids: set[int] = set()
+    run_numbers: set[int] = set()
+    workflow_id = None
+    consensus = None
+    for check in checks:
+        check_id = check.get("id")
+        if type(check_id) is not int or check_id <= 0 or check_id in check_ids:
+            return not_run(check_name, "Duplicate scope checks lack distinct positive check identities.")
+        check_ids.add(check_id)
+        provenance: dict[str, Any] = {}
+        try:
+            result = proven_check_evidence(
+                repo, revision, token, contract, check, provider_name,
+                trusted_base_revision=trusted_base_revision,
+                trusted_workflow_ref=trusted_workflow_ref,
+                _run_provenance=provenance,
+            )
+            evaluator_module().validate_change_scope(result.get("change_scope"), result["status"])
+        except (HTTPError, URLError, OSError, ValueError, KeyError, TypeError, AttributeError):
+            return not_run(check_name, "Every duplicate scope check requires verified run-bound scope measurements.")
+        if (
+            any(type(provenance.get(key)) is not int or provenance[key] <= 0
+                for key in ("id", "workflow_id", "run_number"))
+            or type(provenance.get("run_attempt")) is not int
+            or provenance["run_attempt"] != 1
+            or provenance.get("status") != "completed"
+            or provenance["id"] in run_ids
+            or provenance["run_number"] in run_numbers
+            or (workflow_id is not None and workflow_id != provenance["workflow_id"])
+        ):
+            return not_run(check_name, "Duplicate scope checks lack distinct completed first-attempt runs of one workflow.")
+        identity = (result["status"], result["change_scope"])
+        if consensus is not None and identity != consensus:
+            return not_run(check_name, "Verified duplicate scope checks disagree on status, metrics or thresholds.")
+        consensus = identity
+        workflow_id = provenance["workflow_id"]
+        run_ids.add(provenance["id"])
+        run_numbers.add(provenance["run_number"])
+        verified.append((provenance["run_number"], provenance["id"], check_id, result))
+    verified.sort(reverse=True)
+    selected = copy.deepcopy(verified[0][3])
+    selected["evidence"] = [
+        f"All {len(verified)} verified scope runs agree; "
+        f"verified run {run_id}, check {check_id}, run number {number}; "
+        f"https://github.com/{repo}/actions/runs/{run_id}"
+        for number, run_id, check_id, _ in verified
+    ]
+    return bounded_result(selected)
 
 def collect_checks(
     repo: str,
@@ -869,7 +951,10 @@ def collect_checks(
             else:
                 result = not_run(check_name, "The selected provider check did not report this revision.")
         elif len(matches) > 1:
-            result = not_run(check_name, "Duplicate matching GitHub check names make provider provenance ambiguous.")
+            result = scope_consensus_evidence(
+                repo, revision, token, contract, matches, providers[provider_id]["display_name"],
+                trusted_base_revision, trusted_workflow_ref,
+            )
         else:
             check = matches[0]
             result = proven_check_evidence(

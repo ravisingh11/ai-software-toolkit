@@ -300,6 +300,27 @@ paths. A non-empty association that names a different head is rejected.
 
 Unverifiable provenance is `not_run`. A check name alone is insufficient.
 
+### Repeated PR-size reports
+
+PR title/body edits can publish several `PR Change Scope` checks for one commit.
+Ordinary duplicate check names still remain unverified. The built-in
+`repository-change-scope` provider has a narrower rule: every candidate must
+independently pass the existing exact run, app, workflow path/ref, event,
+repository, provider, base/head, and single run-bound artifact checks. Every
+candidate must also contain valid, identical scope metrics, thresholds, and
+status. Agreement on `failed` stays failed; a later pass cannot hide a failure.
+
+The collector requires distinct check/run identities and distinct positive run
+numbers from one verified workflow. Version-1 scope artifacts do not bind a
+run attempt, so repeated reports with a rerun attempt beyond one remain
+unverified. Incomplete, conflicting, malformed, expired, or unverifiable
+candidates are never ignored to find a passing alternative. After agreement,
+the greatest verified workflow run number supplies the representative result
+and canonical run link; evidence retains the contributing run identities. At most 100 candidates are verified per
+collection; a larger set remains unverified rather than dropping reports.
+Missing evidence stays `not_run` / Unverified. This rule changes reporting only,
+not policy modes, thresholds, optional adoption, or GitHub branch requirements.
+
 GitHub review providers use a separate review contract. Proof accepts a
 completed review only when its `commit_id` equals the evaluated head SHA, its
 `user.login` exactly matches configured `review_author`, and GitHub identifies
@@ -326,7 +347,8 @@ See [control setup](control-setup.md) and [status](control-status.md).
 While waiting for GitHub checks, the collector polls only missing or pending
 check names. After a wait loop, it refreshes every name whose enumeration has
 not failed once before evaluating provenance. The final responses replace the
-cached results: late duplicates, disappearance, pending reruns, and API errors
+cached results: late duplicates are re-evaluated under the same provenance
+and PR-size agreement rules; disappearance, pending reruns, and API errors
 cannot inherit an earlier passing result. An enumeration failure remains
 unverified for that collection. Immediate snapshots perform no redundant
 refresh. Polling uses the existing deadline and attempt limit; the final

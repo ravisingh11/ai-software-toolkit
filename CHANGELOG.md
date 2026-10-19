@@ -8,6 +8,12 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Resolve repeated built-in PR-size reports only when every distinct run passes
+  full provenance and agrees on validated metrics, thresholds, and status.
+  Keep conflicts, missing evidence, run-attempt ambiguity, and other duplicate
+  providers unverified. Retain all run identities and select the representative
+  run only after agreement; optionality and policy limits are unchanged.
+
 - Link scorecard provider labels to revision-specific repository configuration
   and show a latest-reported-run link when bounded same-repository GitHub
   evidence is available. Preserve inactive and missing results, public-label

@@ -2166,5 +2166,172 @@ class SelfReportedMeasurementsTests(unittest.TestCase):
                 self.assertEqual(result, expected)
 
 
+
+
+class ScopeConsensusTests(unittest.TestCase):
+    def setUp(self):
+        self.contract = {**artifact_contract(provider_id="repository-change-scope"),
+                         "control_ids": ["change-scope"]}
+        self.checks = []
+        self.runs = {}
+        self.documents = {}
+        self.listings = {}
+        for number, run_id in enumerate((101, 205, 309), 1):
+            self.checks.append({**check_run("Probe", run_id, check_id=run_id + 1000),
+                                "external_id": f"custom:{run_id}:abc123",
+                                "details_url": f"https://github.com/owner/repo/runs/{run_id + 1000}"})
+            self.runs[run_id] = {**workflow_run(run_id), "workflow_id": 10,
+                                 "run_number": number, "run_attempt": 1, "status": "completed"}
+            self.documents[run_id] = {**artifact_document(run_id, provider_id="repository-change-scope"),
+                "metrics": {"files": 1, "added_lines": 84, "changed_lines": 84,
+                    "max_added_lines_per_file": 84, "binary_files": 0,
+                    "total_files": 2, "total_added_lines": 92, "total_changed_lines": 92,
+                    "excluded_files": 1, "excluded_added_lines": 8,
+                    "excluded_changed_lines": 8, "excluded_binary_files": 0},
+                "thresholds": {"max_files": 12, "max_added_lines": 300,
+                    "max_changed_lines": 500, "max_added_lines_per_file": 150}}
+            self.listings[run_id] = {"total_count": 1, "artifacts": [run_artifact(run_id, artifact_id=run_id)]}
+
+    def collect(self, checks=None, snapshots=None):
+        def request(url, token):
+            if "artifacts?" in url:
+                return self.listings[int(url.split("/runs/")[1].split("/")[0])]
+            return self.runs[int(url.rsplit("/", 1)[1])]
+        with mock.patch.object(MODULE, "expected_checks", return_value={"Probe": self.contract}), \
+             mock.patch.object(MODULE, "expected_reviews", return_value=[]), \
+             mock.patch.object(MODULE, "enumerate_check_runs", return_value=self.checks if checks is None else checks, side_effect=snapshots), \
+             mock.patch.object(MODULE.time, "monotonic", return_value=0), \
+             mock.patch.object(MODULE.time, "sleep"), \
+             mock.patch.object(MODULE, "_request", side_effect=request) as requests, \
+             mock.patch.object(MODULE, "_request_bytes", side_effect=lambda url, token: artifact_archive(
+                 self.documents[int(url.split("/artifacts/")[1].split("/")[0])])) as downloads:
+            result = MODULE.collect_checks("owner/repo", "abc123", "token", {}, {}, {},
+                {"providers": {"repository-change-scope": {"display_name": "PR size"}}}, "change",
+                trusted_base_revision="base456", trusted_workflow_ref="refs/heads/main",
+                wait_seconds=10 if snapshots else 0)
+        return result["results"]["change-scope"]["repository-change-scope"], requests.call_count, downloads.call_count
+
+    def test_unanimous_passes_prove_all_runs_and_select_latest_independent_of_order(self):
+        for checks in (self.checks, list(reversed(self.checks))):
+            result, requests, downloads = self.collect(checks)
+            self.assertEqual(result["status"], "passed")
+            self.assertEqual((requests, downloads), (6, 3))
+            self.assertTrue(result["evidence"][0].endswith("; https://github.com/owner/repo/actions/runs/309"))
+            for run_id in self.runs:
+                self.assertIn(f"https://github.com/owner/repo/actions/runs/{run_id}", " ".join(result["evidence"]))
+            self.assertEqual(result["change_scope"]["metrics"], self.documents[309]["metrics"])
+
+    def test_public_link_uses_verified_representative_not_rewritten_details_url(self):
+        self.checks[-1]["details_url"] = "https://github.com/owner/repo/actions/runs/999999"
+        result, _, _ = self.collect()
+        spec = importlib.util.spec_from_file_location("scope_renderer", ROOT / "tooling/render_scorecard_badge.py")
+        renderer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(renderer)
+        provider = {"id": "repository-change-scope"}
+        links = renderer._provider_links({"configured_provider": provider, "authoritative_provider": provider,
+            "effective_mode": "advisory", "evidence_status": "passed", "authoritative_result": result},
+            "PR size", "owner/repo", "abc123")
+        self.assertEqual(links["provider_run_url"], "https://github.com/owner/repo/actions/runs/309")
+
+    def test_unanimous_failures_remain_failed(self):
+        for document in self.documents.values():
+            document["status"] = "failed"
+            document["thresholds"]["max_added_lines"] = 50
+        self.assertEqual(self.collect()[0]["status"], "failed")
+
+    def test_conflicts_and_unverifiable_candidates_stay_missing(self):
+        cases = [
+            ("run", "id", True), ("run", "id", None), ("run", "workflow_id", True),
+            ("run", "workflow_id", 99), ("run", "run_number", True), ("run", "run_number", 1),
+            ("run", "run_number", None), ("run", "run_attempt", 2), ("run", "run_attempt", True),
+            ("run", "status", "in_progress"), ("run", "path", ".github/workflows/evil.yml"),
+            ("doc", "head_sha", "wrong"), ("doc", "base_sha", "wrong"),
+            ("doc", "provider_id", "wrong"), ("doc", "repository", "other/repo"),
+            ("doc", "metrics", None), ("doc", "thresholds", None),
+            ("doc", "status", "not_run"), ("check", "id", True),
+            ("check", "status", "in_progress"), ("check", "head_sha", "wrong"),
+            ("check", "external_id", "custom:205:wrong"),
+        ]
+        for kind, key, value in cases:
+            with self.subTest(kind=kind, key=key, value=value):
+                self.setUp()
+                target = {"run": self.runs[205], "doc": self.documents[205], "check": self.checks[1]}[kind]
+                target[key] = value
+                self.assertEqual(self.collect()[0]["status"], "not_run")
+
+    def test_valid_but_differing_metrics_thresholds_or_status_are_ambiguous(self):
+        for change in ("metrics", "thresholds", "status"):
+            with self.subTest(change=change):
+                self.setUp()
+                document = self.documents[309]
+                if change == "metrics":
+                    document["metrics"]["excluded_added_lines"] += 1
+                    document["metrics"]["total_added_lines"] += 1
+                    document["metrics"]["excluded_changed_lines"] += 1
+                    document["metrics"]["total_changed_lines"] += 1
+                else:
+                    document["thresholds"]["max_added_lines"] = 50 if change == "status" else 301
+                    if change == "status":
+                        document["status"] = "failed"
+                self.assertEqual(self.collect()[0]["status"], "not_run")
+
+    def test_duplicate_run_or_check_identity_is_ambiguous(self):
+        for key, value in (("id", 1101), ("external_id", "custom:101:abc123")):
+            self.setUp()
+            self.checks[1][key] = value
+            self.assertEqual(self.collect()[0]["status"], "not_run")
+
+    def test_incomplete_or_app_shortcut_contract_does_not_enable_consensus(self):
+        for key, value in (("app_slug", "github-actions"), ("control_ids", ["change-scope", "build"]),
+                           ("external_id_prefix", None), ("artifact_member", None)):
+            self.setUp()
+            self.contract[key] = value
+            self.assertEqual(self.collect()[0]["status"], "not_run")
+
+    def test_artifact_and_api_failures_do_not_fall_back_to_success(self):
+        for mode in ("missing", "expired", "duplicate", "api"):
+            self.setUp()
+            if mode == "missing":
+                self.listings[205] = {"total_count": 0, "artifacts": []}
+            elif mode == "expired":
+                self.listings[205]["artifacts"][0]["expired"] = True
+            elif mode == "duplicate":
+                self.listings[205]["total_count"] = 2
+                self.listings[205]["artifacts"] *= 2
+            else:
+                with mock.patch.object(MODULE, "run_artifact_evidence", side_effect=URLError("unavailable")):
+                    self.assertEqual(self.collect()[0]["status"], "not_run")
+                continue
+            self.assertEqual(self.collect()[0]["status"], "not_run")
+
+    def test_final_refresh_rejects_late_conflict_or_enumeration_failure(self):
+        for final in (self.checks + [{**self.checks[0], "id": 999}], URLError("unavailable")):
+            result, _, _ = self.collect(snapshots=[[], self.checks, final])
+            self.assertEqual(result["status"], "not_run")
+
+    def test_candidate_limit_never_truncates_into_a_pass(self):
+        result, requests, downloads = self.collect(checks=self.checks * 34)
+        self.assertEqual(result["status"], "not_run")
+        self.assertIn("Too many", result["reason"])
+        self.assertEqual((requests, downloads), (0, 0))
+
+    def test_output_provenance_is_cleared_on_invalid_proof(self):
+        output = {"id": 101, "workflow_id": 10, "run_number": 1, "run_attempt": 1, "status": "completed"}
+        result = MODULE.proven_check_evidence(
+            "owner/repo", "abc123", "token", self.contract, {**self.checks[0], "head_sha": "wrong"},
+            "PR size", trusted_base_revision="base456", trusted_workflow_ref="refs/heads/main",
+            _run_provenance=output)
+        self.assertEqual(result["status"], "not_run")
+        self.assertEqual(output, {})
+
+    def test_generic_duplicates_remain_ambiguous_without_api_calls(self):
+        self.contract["provider_id"] = "other"
+        result = MODULE.scope_consensus_evidence(
+            "owner/repo", "abc123", "token", self.contract, self.checks, "Other",
+            "base456", "refs/heads/main")
+        self.assertEqual(result["status"], "not_run")
+        self.assertIn("ambiguous", result["reason"])
+
+
 if __name__ == "__main__":
     unittest.main()

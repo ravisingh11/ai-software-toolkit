@@ -420,6 +420,16 @@ measurements from another repository or revision. Older or invalid optional
 measurements display **unavailable**, never zero or passed. Public output
 contains no per-file paths or raw scope findings.
 
+Repeated PR-size checks from title/body edits may agree on the same exact
+subject. Proof accepts them only after independently verifying every run and
+artifact and finding identical validated measurements, thresholds, and status.
+It links the newest verified run only after that agreement. A conflicting,
+incomplete, or unverifiable report stays **Unverified**, rather than falling
+back to an older pass. Other duplicate check names remain ambiguous. See the
+[repeated-report provenance contract](producer-contract.md#repeated-pr-size-reports).
+Checks remain optional; advisory limits and missing-evidence behavior do not
+change.
+
 ## Reading scorecard evidence
 
 A sentence under the totals reconciles them with the table: how many
