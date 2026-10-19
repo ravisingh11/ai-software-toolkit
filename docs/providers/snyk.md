@@ -80,6 +80,25 @@ and reason code. Set the `SNYK_CODE_ENABLED` or `SNYK_OPEN_SOURCE_ENABLED`
 repository variable to `false` to skip a job for a provider you have not
 selected.
 
+The scorecard uses these same repository variables as polling hints. A value
+of `false` (case-insensitive, matching the Snyk jobs' [GitHub expression
+comparison](https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators))
+stops waiting for that provider's **absent** check. Unset, empty, or other
+values keep normal waiting. A check that already queued or started still waits
+and undergoes the usual provenance validation. This does not deactivate a
+selected control or change its mode: absent evidence stays `not_run` and visible
+as an advisory gap; an enforced control still blocks. No credential is read to
+decide whether to wait.
+
+The collector's repeatable `--no-wait-provider <provider-id>` option changes
+polling only. It rejects unknown provider IDs, retains all expected evidence
+rows, and does not bypass validation of a check that actually reported. After
+waiting for other checks, the final snapshot refresh can also capture a late
+result from a hinted provider. It does not restart the wait budget for a check
+first seen in that final snapshot. Refresh both the installed runtime and
+scorecard workflow together to use this option; default-branch trusted runs
+pick up the change after the refresh is merged.
+
 ## How the token is protected
 
 `SNYK_TOKEN` never shares a job or a runner with pull-request code:

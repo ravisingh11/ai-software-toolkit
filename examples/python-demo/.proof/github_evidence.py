@@ -790,12 +790,17 @@ def collect_checks(
     trusted_base_revision: str | None = None,
     trusted_workflow_ref: str | None = None,
     pull_request_number: int | None = None,
+    no_wait_providers: set[str] | None = None,
 ) -> dict[str, Any]:
     if subject_type != "git-commit":
         raise ValueError("GitHub check collection is git-commit only")
     expected = expected_checks(policy, profiles, catalog, provider_config, operation)
     reviews = expected_reviews(policy, profiles, catalog, provider_config, operation)
     providers = provider_config["providers"]
+    no_wait_providers = set(no_wait_providers or ())
+    unknown = no_wait_providers - providers.keys()
+    if unknown:
+        raise ValueError(f"Unknown no-wait provider(s): {', '.join(sorted(unknown))}")
     check_names = set(expected)
     deadline = time.monotonic() + max(0, wait_seconds)
     maximum_attempts = 1 + (max(0, wait_seconds) + 9) // 10
@@ -827,7 +832,7 @@ def collect_checks(
         refresh(pending)
         pending = {
             name for name in check_names - enumeration_failures
-            if not matching[name]
+            if (not matching[name] and expected[name]["provider_id"] not in no_wait_providers)
             or (len(matching[name]) == 1 and matching[name][0].get("status") != "completed")
         }
         if not pending or time.monotonic() >= deadline or attempts >= maximum_attempts:
@@ -855,6 +860,11 @@ def collect_checks(
                     check_name,
                     "The selected provider check was reported only by applications "
                     f"that do not match the declared app {declared_app!r}.",
+                )
+            elif provider_id in no_wait_providers:
+                result = not_run(
+                    check_name,
+                    "Waiting is disabled for this provider; its check did not report this revision.",
                 )
             else:
                 result = not_run(check_name, "The selected provider check did not report this revision.")
@@ -923,6 +933,10 @@ def main() -> int:
     parser.add_argument("--operation", choices=("change", "release"), default="change")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--wait-seconds", type=int, default=0)
+    parser.add_argument(
+        "--no-wait-provider", action="append", default=[], dest="no_wait_providers",
+        metavar="PROVIDER", help="Do not wait for this provider's absent check; keep missing evidence visible.",
+    )
     parser.add_argument("--pull-request-number", type=int)
     args = parser.parse_args()
     if not args.repo or not args.token:
@@ -936,6 +950,7 @@ def main() -> int:
             trusted_base_revision=args.trusted_base_revision,
             trusted_workflow_ref=args.trusted_workflow_ref,
             pull_request_number=args.pull_request_number,
+            no_wait_providers=set(args.no_wait_providers),
         )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")

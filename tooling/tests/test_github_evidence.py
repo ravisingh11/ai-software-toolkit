@@ -4,6 +4,7 @@ import importlib.util
 import copy
 import io
 import json
+import tempfile
 import unittest
 import zipfile
 from pathlib import Path
@@ -356,6 +357,190 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
                 self.assertEqual(counts[names[-1]], 6)
                 status = result["results"][names[0]][names[0]]["status"]
                 self.assertEqual(status, {"unchanged": "passed", "failed": "failed"}.get(final_change, "not_run"))
+
+    def test_absent_selected_no_wait_providers_remain_visible_without_sleep(self) -> None:
+        policy, profiles, catalog, providers = contracts()
+        with patch.object(MODULE, "enumerate_check_runs", return_value=[]) as enumerate_checks, \
+                patch.object(MODULE.time, "sleep") as sleep:
+            evidence = MODULE.collect_checks(
+                "owner/repo", "abc123", "token", policy, profiles, catalog, providers,
+                "change", wait_seconds=1800,
+                no_wait_providers={"github-build", "external-build"},
+            )
+        sleep.assert_not_called()
+        self.assertEqual(enumerate_checks.call_count, 2)
+        for provider_id in ("github-build", "external-build"):
+            result = evidence["results"]["build"][provider_id]
+            self.assertEqual(result["status"], "not_run")
+            self.assertIn("Waiting is disabled", result["reason"])
+
+    def test_snyk_no_wait_keeps_missing_evidence_and_policy_decision(self) -> None:
+        for mode, status, decision in (("advisory", "ORANGE", "allow"), ("enforced", "RED", "block")):
+            with self.subTest(mode=mode):
+                policy, profiles, catalog, providers = contracts()
+                policy["overrides"]["change"].update({
+                    "build": "not_activated", "deep-sast": mode,
+                    "dependency-vulnerability": mode,
+                })
+                providers["selections"]["deep-sast"] = {"authoritative": "snyk-code", "supplemental": []}
+                original = copy.deepcopy((policy, profiles, catalog, providers))
+                expected = MODULE.expected_checks(policy, profiles, catalog, providers, "change")
+                self.assertEqual(set(expected), {"Snyk Code", "Snyk Open Source"})
+                with patch.object(MODULE, "enumerate_check_runs", return_value=[]), \
+                        patch.object(MODULE.time, "sleep") as sleep:
+                    evidence = MODULE.collect_checks(
+                        "owner/repo", "abc123", "token", policy, profiles, catalog, providers,
+                        "change", wait_seconds=1800,
+                        no_wait_providers={"snyk-code", "snyk-open-source"},
+                    )
+                sleep.assert_not_called()
+                self.assertEqual((policy, profiles, catalog, providers), original)
+                self.assertEqual(MODULE.expected_checks(policy, profiles, catalog, providers, "change"), expected)
+                for control, provider in (("deep-sast", "snyk-code"), ("dependency-vulnerability", "snyk-open-source")):
+                    self.assertEqual(evidence["results"][control][provider]["status"], "not_run")
+                    self.assertIn("Waiting is disabled", evidence["results"][control][provider]["reason"])
+                result = MODULE.evaluator_module().evaluate(
+                    policy, profiles, catalog, providers, evidence, "change", "abc123", "git-commit"
+                )
+                self.assertEqual((result["status"], result["decision"]), (status, decision))
+
+    def test_no_wait_validates_provider_ids_but_allows_unselected_declared_provider(self) -> None:
+        policy, profiles, catalog, providers = contracts()
+        with patch.object(MODULE, "enumerate_check_runs", return_value=[]) as enumerate_checks:
+            with self.assertRaises(ValueError):
+                MODULE.collect_checks(
+                    "owner/repo", "abc123", "token", policy, profiles, catalog, providers,
+                    "change", no_wait_providers={"typo-snyk-code"},
+                )
+            enumerate_checks.assert_not_called()
+            evidence = MODULE.collect_checks(
+                "owner/repo", "abc123", "token", policy, profiles, catalog, providers,
+                "change", no_wait_providers={"snyk-code"},
+            )
+        self.assertNotIn("deep-sast", evidence["results"])
+        self.assertNotIn("Waiting is disabled", evidence["results"]["build"]["github-build"]["reason"])
+
+    def test_no_wait_still_waits_for_existing_queued_or_running_check(self) -> None:
+        policy, profiles, catalog, providers = contracts()
+        for status in ("queued", "in_progress"):
+            with self.subTest(status=status):
+                counts = {}
+
+                def enumerate_checks(repo, revision, token, name):
+                    counts[name] = counts.get(name, 0) + 1
+                    if name == "External Build":
+                        return []
+                    if counts[name] == 1:
+                        return [check_run(name, 101, status=status, conclusion=None)]
+                    return [check_run(name, 101)]
+
+                with patch.object(MODULE, "enumerate_check_runs", side_effect=enumerate_checks), \
+                        patch.object(MODULE, "_request", side_effect=request_for({}, {101: "Build"})), \
+                        patch.object(MODULE.time, "monotonic", return_value=0), \
+                        patch.object(MODULE.time, "sleep") as sleep:
+                    evidence = MODULE.collect_checks(
+                        "owner/repo", "abc123", "token", policy, profiles, catalog, providers,
+                        "change", wait_seconds=30, trusted_base_revision="base456",
+                        no_wait_providers={"github-build", "external-build"},
+                    )
+                sleep.assert_called_once_with(10)
+                self.assertEqual(evidence["results"]["build"]["github-build"]["status"], "passed")
+
+    def test_no_wait_absence_is_refreshed_after_another_provider_finishes(self) -> None:
+        policy, profiles, catalog, providers = contracts()
+        counts = {}
+
+        def enumerate_checks(repo, revision, token, name):
+            counts[name] = counts.get(name, 0) + 1
+            if name == "Build":
+                return [] if counts[name] == 1 else [check_run(name, 101)]
+            return [check_run(name, 102, app_slug="external-build",
+                              status="in_progress" if counts[name] == 1 else "completed",
+                              conclusion=None if counts[name] == 1 else "success")]
+
+        with patch.object(MODULE, "enumerate_check_runs", side_effect=enumerate_checks), \
+                patch.object(MODULE, "_request", side_effect=request_for({}, {101: "Build"})), \
+                patch.object(MODULE.time, "monotonic", return_value=0), \
+                patch.object(MODULE.time, "sleep") as sleep:
+            evidence = MODULE.collect_checks(
+                "owner/repo", "abc123", "token", policy, profiles, catalog, providers,
+                "change", wait_seconds=30, trusted_base_revision="base456",
+                no_wait_providers={"github-build"},
+            )
+        sleep.assert_called_once_with(10)
+        self.assertEqual(counts, {"Build": 2, "External Build": 3})
+        self.assertEqual(evidence["results"]["build"]["github-build"]["status"], "passed")
+        self.assertEqual(evidence["results"]["build"]["external-build"]["status"], "passed")
+
+    def test_no_wait_does_not_skip_wait_for_other_absent_provider(self) -> None:
+        policy, profiles, catalog, providers = contracts()
+        with patch.object(MODULE, "enumerate_check_runs", return_value=[]), \
+                patch.object(MODULE.time, "monotonic", return_value=0), \
+                patch.object(MODULE.time, "sleep") as sleep:
+            evidence = MODULE.collect_checks(
+                "owner/repo", "abc123", "token", policy, profiles, catalog, providers,
+                "change", wait_seconds=20, no_wait_providers={"github-build"},
+            )
+        self.assertEqual(sleep.call_args_list, [mock.call(10), mock.call(10)])
+        missing = evidence["results"]["build"]["external-build"]
+        self.assertEqual(missing["status"], "not_run")
+        self.assertNotIn("Waiting is disabled", missing["reason"])
+
+    def test_no_wait_does_not_replace_provenance_or_api_failure_diagnostics(self) -> None:
+        policy, profiles, catalog, providers = contracts()
+        for failure, expected_reason in (("wrong-app", "declared app"), ("duplicate", "Duplicate"), ("api", "enumeration")):
+            with self.subTest(failure=failure):
+                def enumerate_checks(repo, revision, token, name):
+                    if failure == "api":
+                        raise URLError("offline")
+                    if failure == "wrong-app":
+                        return [check_run(name, 101, app_slug="untrusted")]
+                    app = "external-build" if name == "External Build" else "github-actions"
+                    return [check_run(name, 101, app_slug=app), check_run(name, 102, app_slug=app)]
+
+                with patch.object(MODULE, "enumerate_check_runs", side_effect=enumerate_checks), \
+                        patch.object(MODULE.time, "sleep") as sleep:
+                    evidence = MODULE.collect_checks(
+                        "owner/repo", "abc123", "token", policy, profiles, catalog, providers,
+                        "change", wait_seconds=1800,
+                        no_wait_providers={"github-build", "external-build"},
+                    )
+                sleep.assert_not_called()
+                result = evidence["results"]["build"]["github-build"]
+                self.assertEqual(result["status"], "not_run")
+                self.assertIn(expected_reason, result["reason"])
+                self.assertNotIn("Waiting is disabled", result["reason"])
+
+    def test_cli_accepts_repeatable_no_wait_provider_without_changing_wait_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "evidence.json"
+            evidence = {"version": 2, "subject": {"type": "git-commit", "revision": "abc123"}, "results": {}}
+            args = ["github_evidence.py", "--repo", "owner/repo", "--revision", "abc123", "--token", "test",
+                    "--trusted-base-revision", "base456", "--trusted-workflow-ref", "refs/heads/main",
+                    "--output", str(output), "--wait-seconds", "1800",
+                    "--no-wait-provider", "snyk-code", "--no-wait-provider", "snyk-open-source"]
+            with patch.object(MODULE.sys, "argv", args), patch.object(MODULE, "load", return_value={}), \
+                    patch.object(MODULE, "collect_checks", return_value=evidence) as collect, \
+                    patch("sys.stdout", new_callable=io.StringIO):
+                self.assertEqual(MODULE.main(), 0)
+            self.assertEqual(collect.call_args.kwargs["no_wait_providers"], {"snyk-code", "snyk-open-source"})
+            self.assertEqual(collect.call_args.kwargs["wait_seconds"], 1800)
+            self.assertEqual(json.loads(output.read_text()), evidence)
+
+    def test_cli_rejects_unknown_no_wait_provider_without_writing_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "evidence.json"
+            args = ["github_evidence.py", "--repo", "owner/repo", "--revision", "abc123", "--token", "test",
+                    "--trusted-base-revision", "base456", "--trusted-workflow-ref", "refs/heads/main",
+                    "--output", str(output), "--no-wait-provider", "typo-snyk-code"]
+            with patch.object(MODULE.sys, "argv", args), \
+                    patch.object(MODULE, "load", side_effect=contracts()), \
+                    patch.object(MODULE, "enumerate_check_runs") as enumerate_checks, \
+                    patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                self.assertEqual(MODULE.main(), 2)
+            enumerate_checks.assert_not_called()
+            self.assertIn("typo-snyk-code", stderr.getvalue())
+            self.assertFalse(output.exists())
 
     def test_final_refresh_does_not_restart_expired_wait(self) -> None:
         policy, profiles, catalog, providers = contracts()

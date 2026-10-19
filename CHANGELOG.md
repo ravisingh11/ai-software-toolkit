@@ -8,6 +8,11 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Stop waiting for absent Snyk checks when their repository enablement variable
+  is `false` (case-insensitive). Keep selected controls and missing evidence
+  visible; queued/running checks still wait, provenance validation is unchanged,
+  and enforced missing results still block. No policy or required checks change.
+
 - The Python demo's `ai_review_evidence.py` follows GitHub's review pagination,
   so a configured review of the current head on page two or later is no longer
   reported as `not_run`, and its API requests now time out after 20 seconds.

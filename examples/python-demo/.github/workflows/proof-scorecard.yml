@@ -129,18 +129,29 @@ jobs:
           TRUSTED_BASE_REVISION: ${{ github.event.pull_request.base.sha || github.sha }}
           TRUSTED_WORKFLOW_REF: ${{ github.event.pull_request.base.ref && format('refs/heads/{0}', github.event.pull_request.base.ref) || github.ref }}
           PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number || '' }}
+          SNYK_CODE_ENABLED: ${{ vars.SNYK_CODE_ENABLED }}
+          SNYK_OPEN_SOURCE_ENABLED: ${{ vars.SNYK_OPEN_SOURCE_ENABLED }}
         run: |
           set -euo pipefail
           mkdir -p .artifacts/proof
           PROOF_TIMESTAMP="$(date -u +%Y%m%d-%H%M%SZ)"
           echo "PROOF_TIMESTAMP=${PROOF_TIMESTAMP}" >> "${GITHUB_ENV}"
           EVIDENCE_JSON=".artifacts/proof/evidence-${PROOF_TIMESTAMP}.json"
-          review_args=()
+          # Disabled optional jobs will not publish checks. Keep their missing
+          # evidence, but do not spend the collection budget waiting for absence.
+          collector_args=(--wait-seconds 1800)
+          # Match the Snyk jobs' case-insensitive GitHub string comparison.
+          case "${SNYK_CODE_ENABLED:-}" in
+            [Ff][Aa][Ll][Ss][Ee]) collector_args+=(--no-wait-provider snyk-code) ;;
+          esac
+          case "${SNYK_OPEN_SOURCE_ENABLED:-}" in
+            [Ff][Aa][Ll][Ss][Ee]) collector_args+=(--no-wait-provider snyk-open-source) ;;
+          esac
           if [ -n "${PULL_REQUEST_NUMBER}" ] && \
             python3 .proof-trusted/.proof/github_evidence.py --help 2>&1 | \
               grep -q -- "--pull-request-number"
           then
-            review_args+=(--pull-request-number "${PULL_REQUEST_NUMBER}")
+            collector_args+=(--pull-request-number "${PULL_REQUEST_NUMBER}")
           fi
           python3 .proof-trusted/.proof/github_evidence.py \
             --revision "${REVISION}" \
@@ -150,9 +161,8 @@ jobs:
             --providers .proof-trusted/.proof/providers.yaml \
             --trusted-base-revision "${TRUSTED_BASE_REVISION}" \
             --trusted-workflow-ref "${TRUSTED_WORKFLOW_REF}" \
-            "${review_args[@]}" \
-            --output "${EVIDENCE_JSON}" \
-            --wait-seconds 1800
+            "${collector_args[@]}" \
+            --output "${EVIDENCE_JSON}"
           cp "${EVIDENCE_JSON}" .artifacts/proof/evidence.json
       - name: Evaluate pull-request metadata
         if: ${{ github.event.pull_request != null }}
