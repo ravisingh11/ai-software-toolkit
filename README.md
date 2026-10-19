@@ -24,6 +24,8 @@ The repository is **`ravisingh11/ai-software-toolkit`**, formerly
 [rename migration guide](docs/repository-rename.md) for remote, workflow, and
 Pages updates; the repository rename did not change the runtime contract.
 
+This repository opts into the lifecycle providers as advisory checks. Run **Lifecycle Verification** manually against an exact open PR head; missing, blocked, and failed results remain visible. This repository choice does not change installer profile defaults or require checks in consuming repositories. The polyglot workflow remains manual and optional.
+
 ## What the toolkit brings together
 
 | Component | Purpose | Start here |

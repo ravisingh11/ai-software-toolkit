@@ -14,8 +14,18 @@
       "build": "advisory",
       "unit-tests": "advisory",
       "dependency-vulnerability": "advisory",
-      "dependency-remediation": "not_activated"
+      "dependency-remediation": "not_activated",
+      "iac-misconfiguration": "advisory"
     },
-    "release": {}
+    "release": {
+      "container-vulnerability": "advisory",
+      "artifact-sbom": "advisory",
+      "artifact-vulnerability": "advisory",
+      "artifact-provenance": "advisory",
+      "deployment-policy": "advisory",
+      "dynamic-application-security": "advisory",
+      "runtime-assurance": "advisory",
+      "runtime-soak": "advisory"
+    }
   }
 }
