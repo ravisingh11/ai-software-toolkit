@@ -143,6 +143,14 @@ def validate_provider_config(config: dict[str, Any], controls: dict[str, dict[st
         checks = provider.get("checks")
         if not isinstance(checks, dict) or any(capability not in capabilities for capability in checks):
             raise ValueError(f"provider {provider_id} checks are invalid")
+        if provider_id == "github-codeql-default-setup" and (
+            capabilities != ["deep-sast"]
+            or checks != {"deep-sast": {
+                "check_name": "CodeQL", "workflow": "CodeQL",
+                "workflow_path": "dynamic/github-code-scanning/codeql",
+            }}
+        ):
+            raise ValueError("GitHub CodeQL default setup requires its exact managed-workflow contract")
         for capability, check in checks.items():
             if (
                 not isinstance(check, dict)

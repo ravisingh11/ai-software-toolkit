@@ -352,6 +352,12 @@ advisory-only. Agent-driven functional QA is an opt-in capability whose
 workflow the [`qa-bootstrap` skill](skills/qa-bootstrap/SKILL.md) generates. See
 [provider and control setup](docs/proof/control-setup.md).
 
+For GitHub-managed CodeQL, explicitly select the optional
+[`github-codeql-default-setup` provider](docs/providers/codeql.md). It validates
+managed-workflow and all-language analysis provenance; the existing advanced
+`github-codeql` contract and default selections stay unchanged. Unverifiable
+or missing analyses remain unverified, never passed.
+
 ## Status vocabulary
 
 🟢 **GREEN**: authoritative pass. 🟠 **ORANGE**: advisory gap.

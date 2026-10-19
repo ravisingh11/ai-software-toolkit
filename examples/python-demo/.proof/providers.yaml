@@ -117,6 +117,16 @@
       "secrets": [],
       "enabled_by_default": true
     },
+    "github-codeql-default-setup": {
+      "display_name": "GitHub CodeQL default setup",
+      "activation": "github",
+      "capabilities": ["deep-sast"],
+      "checks": {"deep-sast": {"check_name": "CodeQL", "workflow": "CodeQL", "workflow_path": "dynamic/github-code-scanning/codeql"}},
+      "template": null,
+      "template_available": false,
+      "secrets": [],
+      "enabled_by_default": false
+    },
     "github-dependency-review": {
       "display_name": "GitHub Dependency Review",
       "activation": "github",

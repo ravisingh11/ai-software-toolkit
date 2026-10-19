@@ -254,6 +254,8 @@ def not_run(check_name: str, reason: str) -> dict[str, Any]:
 
 def check_matches_declared_app(check: dict[str, Any], contract: dict[str, Any]) -> bool:
     """Return whether a same-name check came from the contract's declared app class."""
+    if contract.get("provider_id") == CODEQL_DEFAULT_PROVIDER:
+        return codeql_app(check.get("app"), "github-advanced-security", 57789)
     app = check.get("app")
     actual_slug = app.get("slug") if isinstance(app, dict) else None
     app_slug = contract.get("app_slug")
@@ -633,6 +635,242 @@ def self_reported_measurements(
     return measurements
 
 
+CODEQL_DEFAULT_PROVIDER = "github-codeql-default-setup"
+CODEQL_DEFAULT_PATH = "dynamic/github-code-scanning/codeql"
+CODEQL_LANGUAGES = {
+    "actions": "actions", "c-cpp": "c-cpp", "cpp": "c-cpp",
+    "csharp": "csharp", "go": "go", "java": "java-kotlin",
+    "java-kotlin": "java-kotlin", "kotlin": "java-kotlin",
+    "javascript": "javascript-typescript", "typescript": "javascript-typescript",
+    "javascript-typescript": "javascript-typescript", "python": "python",
+    "ruby": "ruby", "rust": "rust", "swift": "swift",
+}
+
+
+def codeql_require(condition: Any, reason: str) -> None:
+    if not condition:
+        raise ValueError(reason)
+
+
+def codeql_id(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def codeql_app(app: Any, slug: str, app_id: int) -> bool:
+    return isinstance(app, dict) and app.get("slug") == slug and app.get("id") == app_id
+
+
+def codeql_pages(url: str, token: str, key: str | None = None) -> list[dict[str, Any]]:
+    """Require complete bounded enumeration, including stable totals and unique IDs."""
+    records: list[dict[str, Any]] = []
+    expected_total = None
+    for page in range(1, MAX_CHECK_RUN_PAGES + 1):
+        payload = _request(f"{url}{'&' if '?' in url else '?'}per_page=100&page={page}", token)
+        if key is not None:
+            codeql_require(isinstance(payload, dict), "CodeQL enumeration response is malformed.")
+            total = payload.get("total_count")
+            codeql_require(isinstance(total, int) and not isinstance(total, bool) and total >= 0,
+                           "CodeQL enumeration count is malformed.")
+            codeql_require(expected_total is None or total == expected_total,
+                           "CodeQL enumeration count changed during collection.")
+            expected_total = total
+            batch = payload.get(key)
+        else:
+            batch = payload
+        codeql_require(isinstance(batch, list) and len(batch) <= 100,
+                       "CodeQL enumeration page is malformed.")
+        codeql_require(all(isinstance(item, dict) and codeql_id(item.get("id")) for item in batch),
+                       "CodeQL enumeration contains malformed identities.")
+        records.extend(batch)
+        codeql_require(len({item["id"] for item in records}) == len(records),
+                       "CodeQL enumeration contains duplicate identities.")
+        if len(batch) < 100:
+            codeql_require(expected_total is None or expected_total == len(records),
+                           "Complete CodeQL enumeration could not be proven.")
+            return records
+    raise ValueError("CodeQL enumeration exceeded the bounded page limit.")
+
+
+def codeql_configuration_tree(api: str, revision: str, token: str) -> list[tuple[str, str, str, str]]:
+    tree = _request(f"{api}/git/trees/{quote(revision, safe='')}?recursive=1", token)
+    codeql_require(isinstance(tree, dict) and tree.get("truncated") is False
+                   and isinstance(tree.get("tree"), list), "CodeQL configuration tree is incomplete.")
+    entries = []
+    paths = set()
+    for entry in tree["tree"]:
+        codeql_require(isinstance(entry, dict) and isinstance(entry.get("path"), str)
+                       and bool(entry["path"]) and entry["path"] not in paths,
+                       "CodeQL configuration tree is malformed or ambiguous.")
+        path = entry["path"]
+        paths.add(path)
+        if path in {".github", ".github/codeql"} or path.startswith(".github/codeql/"):
+            codeql_require(isinstance(entry.get("sha"), str)
+                           and re.fullmatch(r"[0-9a-f]{40}", entry["sha"]) is not None
+                           and (entry.get("type"), entry.get("mode")) in {
+                               ("tree", "040000"), ("blob", "100644"), ("blob", "100755"),
+                           } and (path not in {".github", ".github/codeql"} or entry["type"] == "tree"),
+                           "CodeQL configuration includes an unsupported link, submodule or malformed entry.")
+            if path != ".github":
+                entries.append((path, entry["type"], entry["mode"], entry["sha"]))
+    return sorted(entries)
+
+
+def codeql_default_evidence(
+    repo: str, revision: str, token: str, contract: dict[str, Any],
+    check: dict[str, Any], provider_name: str,
+    trusted_base_revision: str | None, pull_request_number: int | None,
+) -> dict[str, Any]:
+    """Recognize GitHub-managed CodeQL only through its independent platform identities."""
+    try:
+        codeql_require(contract == {
+            "check_name": "CodeQL", "workflow": "CodeQL", "workflow_path": CODEQL_DEFAULT_PATH,
+            "provider_id": CODEQL_DEFAULT_PROVIDER, "control_ids": ["deep-sast"],
+        }, "The CodeQL default setup provider contract is invalid.")
+        codeql_require(codeql_app(check.get("app"), "github-advanced-security", 57789),
+                       "The CodeQL default setup check application is not GitHub Advanced Security.")
+        codeql_require(codeql_id(check.get("id")) and isinstance(check.get("check_suite"), dict)
+                       and codeql_id(check["check_suite"].get("id")),
+                       "CodeQL aggregate check or suite identity is missing or malformed.")
+        codeql_require(check.get("name") == "CodeQL" and check.get("head_sha") == revision
+                       and check.get("status") == "completed"
+                       and check.get("conclusion") in {"success", "failure"},
+                       "The CodeQL default setup result is incomplete or not bound to the exact head.")
+        codeql_require(codeql_id(pull_request_number) and isinstance(trusted_base_revision, str)
+                       and bool(trusted_base_revision), "CodeQL default setup requires an exact PR and trusted base.")
+        api = f"https://api.github.com/repos/{repo}"
+        pr = _request(f"{api}/pulls/{pull_request_number}", token)
+        codeql_require(isinstance(pr, dict) and pr.get("number") == pull_request_number
+                       and pr.get("head", {}).get("sha") == revision
+                       and pr.get("base", {}).get("sha") == trusted_base_revision
+                       and pr.get("base", {}).get("repo", {}).get("full_name") == repo,
+                       "CodeQL default setup pull request or base binding does not match.")
+        repo_id = pr["base"]["repo"].get("id")
+        codeql_require(codeql_id(repo_id), "CodeQL repository identity is missing.")
+        owner_type = pr["base"]["repo"].get("owner", {}).get("type")
+        codeql_require(owner_type in {"User", "Organization"}, "CodeQL repository owner type is unknown.")
+        if owner_type == "Organization":
+            properties = _request(f"{api}/properties/values", token)
+            codeql_require(isinstance(properties, list) and all(isinstance(item, dict) for item in properties),
+                           "CodeQL repository properties could not be verified.")
+            codeql_require(not any(item.get("property_name", "").startswith("github-codeql-")
+                                   and item.get("value") not in (None, "", []) for item in properties),
+                           "Custom CodeQL repository properties are unsupported for default setup evidence.")
+        setup = _request(f"{api}/code-scanning/default-setup", token)
+        codeql_require(isinstance(setup, dict) and setup.get("state") == "configured",
+                       "CodeQL default setup is not configured or could not be verified.")
+        codeql_require(not (set(setup) - {
+            "state", "languages", "query_suite", "threat_model", "updated_at", "schedule",
+            "runner_type", "runner_label",
+        }), "CodeQL default setup contains unsupported configuration fields.")
+        languages = setup.get("languages")
+        codeql_require(isinstance(languages, list) and bool(languages)
+                       and all(isinstance(lang, str) and lang in CODEQL_LANGUAGES for lang in languages)
+                       and len(set(languages)) == len(languages),
+                       "CodeQL configured languages are missing, duplicated or unsupported.")
+        required_languages = {CODEQL_LANGUAGES[lang] for lang in languages}
+        runs = codeql_pages(f"{api}/actions/runs?head_sha={quote(revision, safe='')}&event=dynamic", token,
+                            "workflow_runs")
+        runs = [run for run in runs if run.get("path") == CODEQL_DEFAULT_PATH]
+        codeql_require(len(runs) == 1, "CodeQL default setup has no unique workflow run for this head.")
+        run = _request(f"{api}/actions/runs/{runs[0]['id']}", token)
+        pr_ref = f"refs/pull/{pull_request_number}/head"
+        codeql_require(isinstance(run, dict) and run.get("id") == runs[0]["id"]
+                       and run.get("path") == CODEQL_DEFAULT_PATH and run.get("event") == "dynamic"
+                       and run.get("head_sha") == revision and run.get("head_branch") == pr_ref
+                       and run.get("repository", {}).get("id") == repo_id
+                       and run.get("repository", {}).get("full_name") == repo
+                       and run.get("status") == "completed" and run.get("conclusion") == "success"
+                       and run.get("run_attempt") == 1 and codeql_id(run.get("workflow_id"))
+                       and codeql_id(run.get("check_suite_id")),
+                       "CodeQL default setup workflow provenance is incomplete or ambiguous.")
+        timestamp = evaluator_module().check_timestamp
+        started = timestamp(run.get("run_started_at"))
+        finished = timestamp(run.get("updated_at"))
+        codeql_require(timestamp(setup.get("updated_at")) <= started <= finished,
+                       "CodeQL default setup configuration changed after the analysis started.")
+        workflow = _request(f"{api}/actions/workflows/{run['workflow_id']}", token)
+        codeql_require(isinstance(workflow, dict) and workflow.get("id") == run["workflow_id"]
+                       and workflow.get("path") == CODEQL_DEFAULT_PATH and workflow.get("name") == "CodeQL"
+                       and workflow.get("state") == "active", "CodeQL managed workflow identity does not match.")
+        codeql_require(codeql_configuration_tree(api, revision, token)
+                       == codeql_configuration_tree(api, trusted_base_revision, token),
+                       "CodeQL configuration differs from the trusted base.")
+        jobs = codeql_pages(f"{api}/actions/runs/{run['id']}/attempts/1/jobs", token, "jobs")
+        suite_checks = codeql_pages(f"{api}/check-suites/{run['check_suite_id']}/check-runs?filter=all",
+                                   token, "check_runs")
+        expected_names = {f"Analyze ({language})" for language in required_languages}
+        codeql_require({job.get("name") for job in jobs if str(job.get("name", "")).startswith("Analyze (")}
+                       == expected_names
+                       and {item.get("name") for item in suite_checks
+                            if str(item.get("name", "")).startswith("Analyze (")} == expected_names,
+                       "CodeQL analysis jobs differ from the configured language set.")
+        language_windows = {}
+        for language in sorted(required_languages):
+            name = f"Analyze ({language})"
+            matching_jobs = [job for job in jobs if job.get("name") == name]
+            matching_checks = [item for item in suite_checks if item.get("name") == name]
+            codeql_require(len(matching_jobs) == len(matching_checks) == 1,
+                           "CodeQL configured language analysis is missing or ambiguous.")
+            job, native_check = matching_jobs[0], matching_checks[0]
+            codeql_require(job["id"] == native_check["id"] and job.get("run_id") == run["id"]
+                           and job.get("run_attempt") == 1 and job.get("head_sha") == revision
+                           and job.get("status") == "completed" and job.get("conclusion") == "success"
+                           and native_check.get("head_sha") == revision
+                           and native_check.get("status") == "completed"
+                           and native_check.get("conclusion") == "success"
+                           and native_check.get("check_suite", {}).get("id") == run["check_suite_id"]
+                           and codeql_app(native_check.get("app"), "github-actions", 15368),
+                           "CodeQL language job and check provenance do not match.")
+            job_started, job_completed = timestamp(job.get("started_at")), timestamp(job.get("completed_at"))
+            codeql_require(started <= job_started <= job_completed <= finished,
+                           "CodeQL analysis job timing does not match the managed run.")
+            language_windows[language] = (job_started, job_completed)
+        analyses = codeql_pages(f"{api}/code-scanning/analyses?ref={quote(pr_ref, safe='')}", token)
+        current = [item for item in analyses if item.get("commit_sha") == revision
+                   and item.get("tool", {}).get("name") == "CodeQL"]
+        codeql_require(len(current) == len(required_languages),
+                       "CodeQL exact-head analyses are missing or ambiguous.")
+        observed = set()
+        for analysis in current:
+            environment = json.loads(analysis.get("environment", ""))
+            codeql_require(isinstance(environment, dict), "CodeQL analysis environment is malformed.")
+            language = environment.get("language")
+            codeql_require(isinstance(language, str) and language in required_languages
+                           and language not in observed and analysis.get("ref") == pr_ref
+                           and analysis.get("analysis_key") == f"{CODEQL_DEFAULT_PATH}:analyze"
+                           and analysis.get("category") == f"/language:{language}"
+                           and analysis.get("error") == "" and analysis.get("warning") == ""
+                           and language_windows[language][0] <= timestamp(analysis.get("created_at"))
+                           <= language_windows[language][1],
+                           "CodeQL exact-head analysis provenance is incomplete or ambiguous.")
+            observed.add(language)
+        codeql_require(observed == required_languages, "CodeQL configured language analysis is incomplete.")
+        fresh_checks = [item for item in enumerate_check_runs(repo, revision, token, "CodeQL")
+                        if codeql_app(item.get("app"), "github-advanced-security", 57789)]
+        codeql_require(len(fresh_checks) == 1 and all(fresh_checks[0].get(field) == check.get(field)
+                       for field in ("id", "name", "head_sha", "status", "conclusion", "check_suite", "app")),
+                       "CodeQL aggregate check changed or became ambiguous during collection.")
+        codeql_require(_request(f"{api}/actions/runs/{run['id']}", token) == run
+                       and _request(f"{api}/code-scanning/default-setup", token) == setup,
+                       "CodeQL managed run or configuration changed during collection.")
+        final_runs = codeql_pages(f"{api}/actions/runs?head_sha={quote(revision, safe='')}&event=dynamic", token,
+                                  "workflow_runs")
+        codeql_require([item for item in final_runs if item.get("path") == CODEQL_DEFAULT_PATH] == runs,
+                       "CodeQL managed workflow run enumeration changed during collection.")
+        if owner_type == "Organization":
+            codeql_require(_request(f"{api}/properties/values", token) == properties,
+                           "CodeQL repository properties changed during collection.")
+        result = check_run_evidence("deep-sast", provider_name, check)
+        result["evidence"] = [
+            f"CodeQL default setup: {check['conclusion']}; https://github.com/{repo}/actions/runs/{run['id']}",
+            "Verified configured languages: " + ", ".join(sorted(required_languages)),
+        ]
+        return bounded_result(result)
+    except (HTTPError, URLError, OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+        reason = str(error) if type(error) is ValueError else "CodeQL default setup platform provenance could not be verified."
+        return not_run("CodeQL", reason)
+
+
 def proven_check_evidence(
     repo: str,
     revision: str,
@@ -644,10 +882,15 @@ def proven_check_evidence(
     trusted_base_revision: str | None = None,
     trusted_workflow_ref: str | None = None,
     _run_provenance: dict[str, Any] | None = None,
+    pull_request_number: int | None = None,
 ) -> dict[str, Any]:
     # Output only: never trust caller-provided workflow metadata.
     if _run_provenance is not None:
         _run_provenance.clear()
+    if contract.get("provider_id") == CODEQL_DEFAULT_PROVIDER:
+        return codeql_default_evidence(
+            repo, revision, token, contract, check, provider_name, trusted_base_revision, pull_request_number,
+        )
     check_name = contract["check_name"]
     if check.get("name") != check_name:
         return not_run(check_name, "The GitHub check name does not match the declared provider contract.")
@@ -962,6 +1205,7 @@ def collect_checks(
                 providers[provider_id]["display_name"],
                 trusted_base_revision=trusted_base_revision,
                 trusted_workflow_ref=trusted_workflow_ref,
+                pull_request_number=pull_request_number,
             )
         for control_id in contract["control_ids"]:
             results.setdefault(control_id, {})[provider_id] = copy.deepcopy(result)

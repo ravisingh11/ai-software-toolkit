@@ -165,6 +165,23 @@ class RendererTests(unittest.TestCase):
         ]
         return card
 
+    def test_default_setup_provider_has_public_label_without_hiding_missing_evidence(self) -> None:
+        card = self.provider_card()
+        card["status"] = "ORANGE"
+        card["advisory"] = {"passed": 0, "total": 1, "percent": 0.0}
+        row = card["controls"][0]
+        row["evidence_status"] = "no_result"
+        provider = {"id": "github-codeql-default-setup", "display_name": "PRIVATE ignored"}
+        row["authoritative_provider"] = provider
+        row["configured_provider"] = provider
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = self.render(self.write_source(root, card), root / "published")
+            result = next(row for row in metadata["controls"] if row["id"] == "deep-sast")
+            self.assertEqual(result["provider"], "GitHub CodeQL default setup")
+            self.assertEqual(result["status"], "no_result")
+            self.assertEqual(result["mode"], "advisory")
+
     def test_provider_selection_is_visible_without_changing_activation_or_results(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); output = root / "published"

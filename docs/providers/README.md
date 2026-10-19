@@ -8,6 +8,7 @@ and the diagnostics that tell you where setup stands.
 
 | Provider | Capabilities | Credential | Template | Command ownership | Guide |
 | --- | --- | --- | --- | --- | --- |
+| GitHub CodeQL default setup | `deep-sast` | `GITHUB_TOKEN` with read access to Actions, checks, PRs, contents, and security events | none (GitHub-managed) | Explicitly selected managed setup; every configured language must be proven | [codeql.md](codeql.md) |
 | SonarQube | `static-quality`, `changed-code-coverage` | `SONAR_TOKEN` | `workflows/sonar.yml` | Scanner action plus the quality-gate wait action | [sonarqube.md](sonarqube.md) |
 | Snyk Code | `deep-sast` | `SNYK_TOKEN` | `workflows/snyk.yml` | Adapter: `snyk code test` | [snyk.md](snyk.md) |
 | Snyk Open Source | `dependency-vulnerability` | `SNYK_TOKEN` | `workflows/snyk.yml` | Adapter: `snyk test` | [snyk.md](snyk.md) |

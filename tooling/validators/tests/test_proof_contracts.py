@@ -199,6 +199,27 @@ class ProofContractValidationTests(unittest.TestCase):
             },
         )
 
+    def test_codeql_default_setup_is_opt_in_with_an_exact_managed_contract(self) -> None:
+        config = load("policies/provider-config.yaml")
+        provider = config["providers"]["github-codeql-default-setup"]
+        self.assertFalse(provider["enabled_by_default"])
+        self.assertIsNone(provider["template"])
+        self.assertEqual(config["selections"]["deep-sast"]["authoritative"], "github-codeql")
+        self.validator("validate_provider_document")(config, self.catalog())
+        spec = importlib.util.spec_from_file_location("default_contract_evaluator", ROOT / "proof/evaluate.py")
+        evaluator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(evaluator)
+        evaluator.validate_provider_config(config, self.catalog())
+        for field, value in (("workflow_path", ".github/workflows/codeql.yml"),
+                             ("app_slug", "github-advanced-security")):
+            with self.subTest(field=field):
+                modified = json.loads(json.dumps(config))
+                modified["providers"]["github-codeql-default-setup"]["checks"]["deep-sast"][field] = value
+                with self.assertRaises(ValueError):
+                    self.validator("validate_provider_document")(modified, self.catalog())
+                with self.assertRaises(ValueError):
+                    evaluator.validate_provider_config(modified, self.catalog())
+
     def test_default_selections_exclude_disabled_supplementals(self) -> None:
         document = load("policies/provider-config.yaml")
         providers = document["providers"]
