@@ -233,11 +233,11 @@ remains TypeScript. Each consuming repository owns adoption and enforcement.
 
 ### Recorded five-language verification
 
-The [2026-10-18 manual run](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39168166046)
+The [2026-10-18 manual run](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39185524558)
 passed all **30 stages** (versions, build, lint, tests, architecture, coverage)
 and **115 conformance cases** (23 per language) on reference-app revision
-[`2383bcf`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/2383bcfc9b46ad890f46bd6f4593d52c32772e49),
-using toolkit revision [`e5d3074`](https://github.com/ravisingh11/ai-software-toolkit/commit/e5d307429831220209a6455f931471310c0726e5).
+[`2f9ac1f`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/2f9ac1fcce571ed54d51b7fdf2aa50a8aadbe3b9),
+using toolkit revision [`c46a7c2`](https://github.com/ravisingh11/ai-software-toolkit/commit/c46a7c263ea7667ea9c0fe061b628afd51ed6507).
 
 | Language-specific example | Changed-line coverage in example scope |
 | --- | --- |
@@ -290,6 +290,20 @@ activation. Configure supported providers and real command variables, then
 [verify a pull request](docs/quickstart.md#7-open-a-pull-request).
 The collector checks the exact PR head and trusted provider provenance.
 Do not make a check required until you have observed reliable results.
+
+For unconfigured Snyk integrations, explicitly set `SNYK_CODE_ENABLED=false`
+and/or `SNYK_OPEN_SOURCE_ENABLED=false` to match the jobs you disable. The
+scorecard skips waiting for those providers' absent checks while retaining
+missing evidence as **no result**. Queued/running checks still wait, and a
+selected enforced control still blocks without passing evidence. Unset or
+empty variables retain normal waiting. See [Snyk setup](docs/providers/snyk.md).
+
+The [verified fix run](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39184673806)
+collected evidence in **19 seconds**, compared with **30 minutes 34 seconds**
+using the previous trusted runtime on the same PR head. Missing Snyk evidence
+remained **ORANGE / no result**; optionality and branch rules did not change.
+See [recorded verification](docs/verification/scorecard-wait.md) for revisions,
+tests, and the distinction between this repository and the reference app.
 
 ## Two useful badges
 

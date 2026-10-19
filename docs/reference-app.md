@@ -7,6 +7,13 @@ and [scorecard](https://ravisingh11.github.io/ai-software-toolkit-reference-app/
 are published separately. Consult that repository for current deployment and CI
 evidence; the local Python fixture below does not verify the deployed app.
 
+The separate app also contains optional Java, TypeScript, Python, PHP, and Scala
+quality examples. Each uses its language's own lint, test, coverage, and
+architecture tools; the five-language workflow is manual-only and is not a
+required merge check. See the app's
+[recorded verification](https://github.com/ravisingh11/ai-software-toolkit-reference-app#merged-maintenance-and-recorded-verification-2026-10-18)
+and the toolkit's [scorecard wait verification](verification/scorecard-wait.md).
+
 ## In-repository Python fixture
 
 `examples/python-demo/` is the toolkit's executable consumer: a standard-library
