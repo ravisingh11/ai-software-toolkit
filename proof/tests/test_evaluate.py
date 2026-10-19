@@ -50,6 +50,22 @@ def contracts() -> tuple[dict, dict, dict, dict]:
 
 
 class ProviderContractTests(unittest.TestCase):
+    def test_lifecycle_contract_rejects_spoofed_provider_and_changed_binding(self) -> None:
+        _, _, catalog, providers = contracts()
+        controls = {control["id"]: control for control in catalog["controls"]}
+        contract = {"workflow": "Lifecycle Verification", "workflow_path": ".github/workflows/lifecycle-verification.yml",
+                    "artifact_name_prefix": "proof-lifecycle-evidence-", "artifact_member": "lifecycle-receipt.json"}
+        provider = providers["providers"]["github-artifact-attestations"]
+        provider["lifecycle"], provider["checks"] = contract, {}
+        MODULE.validate_provider_config(providers, controls)
+        provider["lifecycle"]["workflow_path"] = ".github/workflows/untrusted.yml"
+        with self.assertRaisesRegex(ValueError, "lifecycle contract"):
+            MODULE.validate_provider_config(providers, controls)
+        del provider["lifecycle"]
+        providers["providers"]["repository-build"]["lifecycle"] = contract
+        with self.assertRaisesRegex(ValueError, "lifecycle contract"):
+            MODULE.validate_provider_config(providers, controls)
+
     def test_catalog_declares_ai_reviews_advisory_only(self) -> None:
         _, _, catalog, _ = contracts()
         policies = {
@@ -518,6 +534,37 @@ class EvaluateV2Tests(unittest.TestCase):
                 self.assertEqual(result["summary"]["advisory"], {"passed": passed, "total": 2})
                 self.assertEqual(result["subject"], {"type": "git-commit", "revision": "abc123"})
                 self.assertEqual(result["companion_subjects"], [{"type": "pull-request", "revision": "sha256:pr"}])
+
+    def test_release_artifact_companion_does_not_inherit_commit_pass(self) -> None:
+        policy, profiles, catalog, providers = contracts()
+        policy["overrides"]["release"]["artifact-provenance"] = "advisory"
+        digest = "sha256:" + "a" * 64
+        document = {"version": 2, "subject": {"type": "artifact", "revision": digest}, "results": {}}
+        for status, expected in ((None, "missing"), ("passed", "passed")):
+            if status:
+                document["results"] = {"artifact-provenance": {"github-artifact-attestations": {
+                    "producer": "GitHub Attestations", "status": status, "evidence": ["verified digest"]}}}
+            result = MODULE.evaluate(policy, profiles, catalog, providers, evidence(), "change", "abc123", "git-commit",
+                                     companions=[("artifact", digest, document, "release")])
+            row = next(row for row in result["controls"] if row["id"] == "artifact-provenance")
+            self.assertEqual(row["authoritative_evidence_status"], expected)
+            self.assertEqual(row["evidence_revision"], digest)
+        result = MODULE.evaluate(policy, profiles, catalog, providers, evidence(), "change", "abc123", "git-commit",
+                                 companions=[("artifact", "sha256:" + "b" * 64, document, "release")])
+        self.assertEqual(result["decision"], "block")
+        row = next(row for row in result["controls"] if row["id"] == "artifact-provenance")
+        self.assertEqual(row["authoritative_evidence_status"], "missing")
+
+    def test_companion_operation_is_explicit_and_legacy_default_preserved(self) -> None:
+        companion = self.pull_request_companion("passed")
+        self.assertEqual(self.evaluate_with_companion((*companion, "change"))["decision"], "allow")
+        with self.assertRaises(ValueError):
+            self.evaluate_with_companion((*companion, "invalid"))
+
+    def test_release_supports_environment_stages_without_broadening_change(self) -> None:
+        for stage in ("deployment", "post-deployment", "runtime"):
+            self.assertTrue(MODULE.operation_supports_stage("release", stage))
+            self.assertFalse(MODULE.operation_supports_stage("change", stage))
 
     def test_enforced_companion_failure_blocks(self) -> None:
         result = self.evaluate_with_companion(self.pull_request_companion("failed"), mode="enforced")

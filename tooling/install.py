@@ -35,6 +35,7 @@ CORE_WORKFLOWS = {
     "migration-validation.yml": ROOT / "workflows" / "migration-validation.yml",
     "semgrep-ce.yml": ROOT / "workflows" / "semgrep-ce.yml",
     "gitleaks.yml": ROOT / "workflows" / "gitleaks.yml",
+    "lifecycle-verification.yml": ROOT / "workflows" / "lifecycle-verification.yml",
 }
 GITHUB_WORKFLOWS = {
     "codeql.yml": ROOT / "workflows" / "codeql.yml",
@@ -52,6 +53,7 @@ PRESERVED_CONFIGURATION = {
     Path(".proof/change-scope.yaml"),
     Path(".proof/pr-metadata.yaml"),
     Path(".proof/ground-truth-ai.yaml"),
+    Path(".proof/lifecycle.json"),
 }
 V1_PATHS = (
     Path(".guardrails/producer-manifest.json"),
@@ -105,6 +107,7 @@ def runtime_sources(target: Path) -> list[InstallItem]:
         "change-scope.yaml": ROOT / "proof/defaults/change-scope.yaml",
         "pr-metadata.yaml": ROOT / "proof/defaults/pr-metadata.yaml",
         "ground-truth-ai.yaml": ROOT / "proof/defaults/ground-truth-ai.yaml",
+        "lifecycle.json": ROOT / "proof/defaults/lifecycle.json",
         "evaluate.py": ROOT / "proof/evaluate.py",
         "scorecard.py": ROOT / "tooling/proof_scorecard.py",
         "configure.py": ROOT / "tooling/configure_proof.py",
@@ -113,6 +116,9 @@ def runtime_sources(target: Path) -> list[InstallItem]:
         "run_repository_command.py": ROOT / "tooling/run_repository_command.py",
         "fetch_pr_metadata.py": ROOT / "tooling/fetch_pr_metadata.py",
         "github_evidence.py": ROOT / "tooling/github_evidence.py",
+        "lifecycle_contract.py": ROOT / "tooling/lifecycle_contract.py",
+        "collect_lifecycle_evidence.py": ROOT / "tooling/collect_lifecycle_evidence.py",
+        "lifecycle_producers.py": ROOT / "tooling/lifecycle_producers.py",
         "produce.py": PRODUCER,
         "check_test_integrity.py": ROOT / "tooling/check_test_integrity.py",
         "check_changed_coverage.py": ROOT / "tooling/check_changed_coverage.py",

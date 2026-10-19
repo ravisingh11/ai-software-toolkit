@@ -1,0 +1,12 @@
+**
+!.proof/
+!.proof/**
+!docs/
+!docs/**
+!examples/
+!examples/lifecycle/
+!examples/lifecycle/server.py
+**/__pycache__/
+**/*.pyc
+**/.env*
+**/.git/

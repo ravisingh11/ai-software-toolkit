@@ -49,7 +49,7 @@ def operation_supports_stage(operation: str, stage: str) -> bool:
     if operation == "change":
         return stage in {"change", "change-and-release"}
     if operation == "release":
-        return stage in {"release", "pre-release", "change-and-release"}
+        return stage in {"release", "pre-release", "change-and-release", "deployment", "post-deployment", "runtime"}
     raise ValueError(f"unknown operation: {operation}")
 
 
@@ -140,6 +140,28 @@ def validate_provider_config(config: dict[str, Any], controls: dict[str, dict[st
             raise ValueError(f"provider {provider_id} references an unknown capability")
         if not isinstance(provider.get("display_name"), str) or not provider["display_name"].strip():
             raise ValueError(f"provider {provider_id} display name is invalid")
+        lifecycle_pairs = {
+            "trivy-iac-config": "iac-misconfiguration",
+            "trivy-container-image": "container-vulnerability",
+            "trivy-artifact-sbom": "artifact-sbom",
+            "trivy-artifact-sbom-scan": "artifact-vulnerability",
+            "github-artifact-attestations": "artifact-provenance",
+            "repository-deployment-policy": "deployment-policy",
+            "zap-baseline-local": "dynamic-application-security",
+            "repository-runtime-assurance": "runtime-assurance",
+            "repository-soak": "runtime-soak",
+        }
+        if "lifecycle" in provider:
+            if (provider_id not in lifecycle_pairs
+                    or capabilities != [lifecycle_pairs[provider_id]]
+                    or provider.get("checks") != {} or provider.get("reviews")
+                    or provider["lifecycle"] != {
+                        "workflow": "Lifecycle Verification",
+                        "workflow_path": ".github/workflows/lifecycle-verification.yml",
+                        "artifact_name_prefix": "proof-lifecycle-evidence-",
+                        "artifact_member": "lifecycle-receipt.json",
+                    }):
+                raise ValueError(f"provider {provider_id} lifecycle contract is invalid")
         checks = provider.get("checks")
         if not isinstance(checks, dict) or any(capability not in capabilities for capability in checks):
             raise ValueError(f"provider {provider_id} checks are invalid")
@@ -669,29 +691,33 @@ def evaluate(
     expected_subject_type: str,
     *,
     all_catalog_controls: bool = False,
-    companions: list[tuple[str, str, dict[str, Any]]] | None = None,
+    companions: list[tuple[str, str, dict[str, Any]] | tuple[str, str, dict[str, Any], str]] | None = None,
 ) -> dict[str, Any]:
     """Evaluate one primary subject plus optional companion subjects.
 
-    A companion is ``(subject_type, expected_revision, evidence)`` and scores
+    A companion is ``(subject_type, expected_revision, evidence[, operation])`` and scores
     the controls bound to that subject type, such as mutable pull-request
     metadata beside commit-bound checks. Each evidence document must exactly
-    match its own expected subject.
+    match its own expected subject. Omitted companion operations inherit the primary operation.
     """
-    subjects = [(expected_subject_type, expected_revision, evidence), *(companions or [])]
-    if len({subject_type for subject_type, _, _ in subjects}) != len(subjects):
+    subjects = [(expected_subject_type, expected_revision, evidence, operation)]
+    for companion in companions or []:
+        if len(companion) not in {3, 4}:
+            raise ValueError("companion must contain subject type, revision, evidence, and optional operation")
+        subjects.append((*companion, operation) if len(companion) == 3 else companion)
+    if len({subject_type for subject_type, _, _, _ in subjects}) != len(subjects):
         raise ValueError("each evaluated subject type may appear only once")
     selected: dict[str, dict[str, Any]] = {}
     sources: dict[str, tuple[dict[str, Any], bool]] = {}
     findings: list[dict[str, Any]] = []
     all_subjects_match = True
-    for subject_type, revision, document in subjects:
+    for subject_type, revision, document, subject_operation in subjects:
         if not revision or len(revision) > 200:
             raise ValueError("expected revision must be 1-200 characters")
         if subject_type not in {"git-commit", "artifact", "environment", "pull-request"}:
             raise ValueError("expected subject type is invalid")
         subject_selected, controls, providers = effective_controls(
-            policy, profiles, catalog, provider_config, operation, subject_type
+            policy, profiles, catalog, provider_config, subject_operation, subject_type
         )
         validate_evidence(document, controls, providers)
         matches = document["subject"] == {"type": subject_type, "revision": revision}
@@ -708,7 +734,7 @@ def evaluate(
             selected[control_id] = selection
             sources[control_id] = (document, matches)
     subject = evidence["subject"]
-    evaluated_subject_types = {subject_type for subject_type, _, _ in subjects}
+    evaluated_subject_types = {subject_type for subject_type, _, _, _ in subjects}
 
     rows: list[dict[str, Any]] = []
     counts = {mode: {"passed": 0, "total": 0} for mode in ("enforced", "advisory")}
@@ -770,6 +796,8 @@ def evaluate(
             "authoritative_provider": {"id": authority_id, "display_name": providers[authority_id]["display_name"]},
             "authoritative_evidence_status": authority_status,
             "authoritative_result": authority_result,
+            "evidence_subject": source["subject"]["type"],
+            "evidence_revision": source["subject"]["revision"],
             "readiness": readiness,
             "supplemental": supplemental,
         }
@@ -798,7 +826,7 @@ def evaluate(
         "findings": findings,
     }
     if companions:
-        result["companion_subjects"] = [dict(document["subject"]) for _, _, document in companions]
+        result["companion_subjects"] = [dict(document["subject"]) for _, _, document, _ in subjects[1:]]
     return result
 
 

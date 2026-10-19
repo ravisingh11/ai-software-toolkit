@@ -222,3 +222,13 @@ the standalone adapter workflows.
    `FOSSA`, `Snyk Code`, or `Snyk Open Source` checks and their exact-revision
    evidence before changing required checks. Missing credentials, withheld
    fork credentials, and incomplete scans do not establish a passing result.
+
+## Optional lifecycle producers
+
+The [lifecycle guide](lifecycle.md) covers the executable providers
+`trivy-container-image`, `trivy-iac-config`, `trivy-artifact-sbom`,
+`trivy-artifact-sbom-scan`, `repository-deployment-policy`,
+`zap-baseline-local`, `repository-runtime-assurance`, and the completed typed
+collection paths for `github-artifact-attestations` and `repository-soak`.
+They require explicit repository activation and a real owned verification
+fixture. Their existence is not evidence that they have run in a consumer.

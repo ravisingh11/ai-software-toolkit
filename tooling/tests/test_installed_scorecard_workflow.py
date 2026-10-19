@@ -10,6 +10,8 @@ import textwrap
 import unittest
 from pathlib import Path
 
+import yaml
+
 
 INSTALLER = Path(__file__).resolve().parents[1] / "install.py"
 SPEC = importlib.util.spec_from_file_location("proof_v2_install", INSTALLER)
@@ -106,7 +108,7 @@ class InstalledScorecardWorkflowTests(unittest.TestCase):
                 enforcement_scripts,
             )
 
-    def test_collection_wait_covers_longest_installed_producer_with_bounded_headroom(self) -> None:
+    def test_collection_wait_covers_automatic_producers_with_bounded_headroom(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             target = Path(temporary)
             MODULE.install(target, dry_run=False)
@@ -125,20 +127,22 @@ class InstalledScorecardWorkflowTests(unittest.TestCase):
             wait_seconds = int(wait_match.group(1))
             scorecard_timeout_minutes = int(scorecard_timeout_match.group(1))
 
-            producer_timeout_minutes = max(
-                int(timeout)
-                for workflow in workflows.glob("*.yml")
-                if workflow.name != "proof-scorecard.yml"
-                for timeout in re.findall(
-                    r"timeout-minutes:\s*(\d+)",
-                    workflow.read_text(encoding="utf-8"),
-                )
-            )
+            automatic_timeouts = []
+            for workflow in workflows.glob("*.yml"):
+                if workflow.name == "proof-scorecard.yml":
+                    continue
+                content = workflow.read_text(encoding="utf-8")
+                definition = yaml.safe_load(content)
+                events = definition.get("on", definition.get(True, {}))
+                if not any(event in events for event in ("pull_request", "pull_request_target", "pull_request_review")):
+                    continue
+                automatic_timeouts.extend(int(value) for value in re.findall(r"timeout-minutes:\s*(\d+)", content))
+            producer_timeout_minutes = max(automatic_timeouts)
 
             self.assertGreaterEqual(
                 wait_seconds,
                 producer_timeout_minutes * 60,
-                "collector polling must cover the longest installed producer timeout",
+                "collector polling must cover the longest automatic PR producer timeout",
             )
             self.assertGreater(
                 scorecard_timeout_minutes * 60,

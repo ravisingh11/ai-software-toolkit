@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "scope": "verification",
+  "dockerfile": "examples/lifecycle/Dockerfile",
+  "context": ".",
+  "iac_paths": [
+    "examples/lifecycle/Dockerfile"
+  ],
+  "port": 8080,
+  "health_path": "/health",
+  "health_revision_key": "revision",
+  "required_headers": {
+    "X-Content-Type-Options": "nosniff"
+  },
+  "negative_probes": [
+    {
+      "path": "/not-found",
+      "status": 404
+    }
+  ],
+  "soak_seconds": 10,
+  "max_latency_ms": 2000,
+  "max_image_bytes": 2147483648,
+  "build_network": "none"
+}

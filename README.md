@@ -347,6 +347,9 @@ Its release-attestation workflow is not PR scorecard evidence.
 Provider names identify selected evidence contracts, not operational services.
 The [complete provider implementation inventory](docs/providers/availability.md)
 lists shipped producers, consumer-owned integrations, and collection gaps.
+The new [optional lifecycle providers](docs/providers/lifecycle.md) execute real
+artifact, IaC and verification-environment checks with separate typed evidence.
+They require explicit activation; definitions alone are never passing results.
 Check a repository's actual activation and exact-revision evidence before
 describing any provider as working there.
 

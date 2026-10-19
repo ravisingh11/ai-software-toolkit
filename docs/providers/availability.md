@@ -48,7 +48,7 @@ in either case.
 | `github-dependency-review` | [`dependency-review.yml`](../../workflows/dependency-review.yml), GitHub dependency-review action | GitHub dependency data/access and a completed PR comparison. This is not a full dependency inventory scan. |
 | `github-secret-protection` | [`github-secret-protection.yml`](../../workflows/github-secret-protection.yml), settings probe and run-bound evidence | `SECURITY_SETTINGS_TOKEN` with sufficient access and actual platform secret scanning/push-protection settings. A workflow file alone does not enable them. |
 | `github-dependabot` | [`dependabot-verification.yml`](../../workflows/dependabot-verification.yml), platform settings probe | `SECURITY_SETTINGS_TOKEN` and actual alerts/automated security-fixes settings. It does not inspect `.github/dependabot.yml` or prove every vulnerability has been remediated. |
-| `github-artifact-attestations` | [`artifact-provenance.yml`](../../workflows/artifact-provenance.yml), GitHub attestation action | Real release artifact/build and permissions. **No automatic artifact-subject scorecard collection path is shipped**; a release job is not a PR scorecard pass. |
+| `github-artifact-attestations` | [`artifact-provenance.yml`](../../workflows/artifact-provenance.yml), GitHub attestation action | Real release artifact/build and permissions. The optional [lifecycle workflow](lifecycle.md) signs the actual image and receipt, and its typed collector validates that joint signature. Standalone release-job success alone is not a PR scorecard pass. |
 | `sonarqube` | [`sonar.yml`](../../workflows/sonar.yml), scanner and asynchronous quality-gate wait | Host/project/token and a real completed gate. Changed-code coverage additionally requires coverage input and an appropriate server gate; the collector does not inspect gate conditions. See [limitations](sonarqube.md#install). |
 | `qa-bootstrap-workflow` | Evidence contract for consumer-generated `QA / report`; [`qa-bootstrap` skill](../../skills/qa-bootstrap/SKILL.md) | Generate and verify the app-specific executor/reporter. **No fixed QA workflow or universal application test implementation is shipped.** PR-authored execution stays advisory. |
 | `snyk-code` | [`snyk.yml`](../../workflows/snyk.yml), [`provider_adapter.py`](../../tooling/provider_adapter.py): `snyk code test` | Explicit activation, isolated credential, supported project, service access/quota and exact-head run-bound evidence. |
@@ -60,17 +60,28 @@ in either case.
 | `ai-qa-adapter` | Shared AI review workflow, QA role-result wrapper and Claude reference reviewer | The same manual reviewer installation, command, credential and role-specific exact-head evidence; not an activated reviewer by default. |
 | `ai-security-adapter` | Shared AI review workflow, security role-result wrapper and Claude reference reviewer | The same manual reviewer installation, command, credential and role-specific exact-head evidence; not an activated reviewer by default. |
 | `ai-repository-standards-adapter` | Shared AI review workflow, repository-standards role-result wrapper and Claude reference reviewer | The same manual reviewer installation, command, credential and role-specific exact-head evidence; not an activated reviewer by default. |
-| `repository-soak` | [`soak.yml`](../../workflows/soak.yml), scheduled/manual command runner | Consumer-owned workload, duration/threshold measurements and `SOAK_COMMAND`. **No automatic environment-subject scorecard collection path is shipped.** The template is not an endurance-test implementation. |
+| `repository-soak` | [`soak.yml`](../../workflows/soak.yml), scheduled/manual command runner | Consumer-owned workload, duration/threshold measurements and `SOAK_COMMAND`. The optional [lifecycle workflow](lifecycle.md) now measures a bounded verification workload and imports exact environment-subject evidence. The standalone command template is not a universal endurance-test implementation. |
 
-## Catalog capabilities without a built-in provider
+## Additional lifecycle providers
 
-These seven entries in the control catalog are **evidence-only contracts**:
-`container-vulnerability`, `iac-misconfiguration`, `artifact-sbom`,
-`artifact-vulnerability`, `deployment-policy`, `dynamic-application-security`,
-and `runtime-assurance`. They have no built-in selected producer. In particular,
-the DAST entry does not mean a DAST scanner exists or has run. A consumer must
-implement and verify the producer, subject binding and collection path before
-claiming those capabilities.
+The seven former evidence-only capabilities now have built-in producers and
+typed collection. They remain explicitly opt-in, not new Core/GitHub profile
+requirements. See [activation, execution limits and provenance](lifecycle.md).
+
+| Provider ID | Real producer | Remaining prerequisite |
+| --- | --- | --- |
+| `trivy-container-image` | Pinned Trivy scan of actual saved image | Build the owned verification artifact; current database and completed report |
+| `trivy-iac-config` | Pinned Trivy configuration scan | Nonempty supported IaC inputs for the exact commit |
+| `trivy-artifact-sbom` | Pinned Trivy CycloneDX generation | Nonempty inventory for the actual image, not just a source manifest |
+| `trivy-artifact-sbom-scan` | Pinned Trivy scan of that exact inventory | Matching SBOM digest, current database and complete findings |
+| `repository-deployment-policy` | Actual Docker isolation/deployment inspection | A real scoped verification deployment; does not claim production approvals |
+| `zap-baseline-local` | Pinned OWASP ZAP passive baseline | Owned internal application endpoint and completed target-bound report |
+| `repository-runtime-assurance` | Version, header, negative-request and resource probes | Exact deployed image/revision and measured environment snapshot |
+
+The completed artifact-provenance and soak collection paths use the same
+optional lifecycle receipt. Actual hosted execution and accepted publication
+must still be verified for each consumer; neither the new definitions nor
+unit fixtures establish that verification.
 
 ## Verify an installation
 

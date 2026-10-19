@@ -73,6 +73,30 @@
         }
       }
     },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workflow",
+        "workflow_path",
+        "artifact_name_prefix",
+        "artifact_member"
+      ],
+      "properties": {
+        "workflow": {
+          "const": "Lifecycle Verification"
+        },
+        "workflow_path": {
+          "const": ".github/workflows/lifecycle-verification.yml"
+        },
+        "artifact_name_prefix": {
+          "const": "proof-lifecycle-evidence-"
+        },
+        "artifact_member": {
+          "const": "lifecycle-receipt.json"
+        }
+      }
+    },
     "provider": {
       "type": "object",
       "$comment": "The property names in checks and reviews must be disjoint; Proof semantic validation enforces this cross-object constraint.",
@@ -87,6 +111,7 @@
           "propertyNames": {"$ref": "#/$defs/identifier"},
           "additionalProperties": {"$ref": "#/$defs/check"}
         },
+        "lifecycle": {"$ref": "#/$defs/lifecycle"},
         "reviews": {
           "type": "object",
           "propertyNames": {"$ref": "#/$defs/identifier"},

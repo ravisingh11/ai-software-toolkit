@@ -37,6 +37,13 @@ Evidence groups provider results under the capability they support:
 Subject types are `git-commit`, `pull-request`, `artifact`, and `environment`. The catalog
 declares which subject type each capability accepts.
 
+The optional [lifecycle receipt](../providers/lifecycle.md#exact-subject-collection)
+imports three separately bound v2 documents, authenticated by a joint signature
+over the receipt and actual verification image. Artifact/environment companions
+retain their own expected digests and release-operation applicability beside a
+commit scorecard. The public labels explicitly identify verification scope;
+neither a commit result nor preview execution is production assurance.
+
 ## Result requirements
 
 | Raw status | Required fields | Meaning |

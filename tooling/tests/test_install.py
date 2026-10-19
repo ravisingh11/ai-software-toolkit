@@ -27,6 +27,7 @@ CORE_WORKFLOWS = {
     "pr-metadata.yml",
     "semgrep-ce.yml",
     "gitleaks.yml",
+    "lifecycle-verification.yml",
 }
 GITHUB_WORKFLOWS = {
     "codeql.yml",
@@ -54,6 +55,10 @@ CANONICAL_DISTRIBUTION = {
     ".proof/change-scope.yaml": "proof/defaults/change-scope.yaml",
     ".proof/pr-metadata.yaml": "proof/defaults/pr-metadata.yaml",
     ".proof/ground-truth-ai.yaml": "proof/defaults/ground-truth-ai.yaml",
+    ".proof/lifecycle.json": "proof/defaults/lifecycle.json",
+    ".proof/lifecycle_contract.py": "tooling/lifecycle_contract.py",
+    ".proof/collect_lifecycle_evidence.py": "tooling/collect_lifecycle_evidence.py",
+    ".proof/lifecycle_producers.py": "tooling/lifecycle_producers.py",
     ".proof/evaluate.py": "proof/evaluate.py",
     ".proof/scorecard.py": "tooling/proof_scorecard.py",
     ".proof/configure.py": "tooling/configure_proof.py",

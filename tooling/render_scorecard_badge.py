@@ -239,6 +239,92 @@ PUBLIC_PROVIDERS = {'repository-validator': ('Repository Validators',
  'repository-soak': ('Repository Soak Command', ('runtime-soak',))}
 
 
+LIFECYCLE_PROVIDERS = {
+    "iac-misconfiguration": ("trivy-iac-config", "Trivy IaC Configuration", "git-commit"),
+    "container-vulnerability": ("trivy-container-image", "Trivy Container Image", "artifact"),
+    "artifact-sbom": ("trivy-artifact-sbom", "Trivy Artifact SBOM", "artifact"),
+    "artifact-vulnerability": ("trivy-artifact-sbom-scan", "Trivy Artifact Vulnerabilities", "artifact"),
+    "artifact-provenance": ("github-artifact-attestations", "GitHub Artifact Attestations", "artifact"),
+    "deployment-policy": ("repository-deployment-policy", "Verification Deployment Policy", "environment"),
+    "dynamic-application-security": ("zap-baseline-local", "OWASP ZAP Local Baseline", "environment"),
+    "runtime-assurance": ("repository-runtime-assurance", "Verification Runtime Assurance", "environment"),
+    "runtime-soak": ("repository-soak", "Repository Soak Command", "environment"),
+}
+for _control, (_provider, _name, _kind) in LIFECYCLE_PROVIDERS.items():
+    PUBLIC_PROVIDERS[_provider] = (_name, [_control])
+
+
+def _lifecycle_context(document: dict[str, Any], repository: str | None) -> dict[str, str]:
+    """Validate the collector projection again before labeling typed public outcomes."""
+    binding = document.get("lifecycle_verification")
+    if binding is None:
+        for row in (document.get("controls") or []):
+            if not isinstance(row, dict):
+                continue
+            contract = LIFECYCLE_PROVIDERS.get(row.get("id"))
+            if (contract and contract[2] != "git-commit" and row.get("effective_mode") in {"advisory", "enforced"}
+                    and (row.get("authoritative_provider") or {}).get("id") == contract[0]):
+                raise ValueError("active lifecycle result lacks verification context")
+        return {}
+    if not isinstance(binding, dict) or set(binding) != {"version", "scope", "provenance_verified", "context", "subjects"}:
+        raise ValueError("invalid lifecycle verification binding")
+    if type(binding["version"]) is not int or binding["version"] != 1 or binding["scope"] != "verification" or type(binding["provenance_verified"]) is not bool:
+        raise ValueError("invalid lifecycle verification scope")
+    if _result_breakdown(document)["availability"] != "available":
+        raise ValueError("lifecycle scorecard control counts are inconsistent")
+    context = binding["context"]
+    if not isinstance(context, dict) or set(context) != {"repository", "pull_request_number", "head_sha", "base_sha", "run_id", "run_attempt", "workflow_sha", "artifact_kind", "environment_scope"}:
+        raise ValueError("invalid lifecycle context")
+    if (not isinstance(context["repository"], str)
+            or re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", context["repository"]) is None
+            or (repository is not None and context["repository"] != repository)
+            or context["head_sha"] != document["subject"]["revision"]
+            or not isinstance(context["base_sha"], str) or not REVISION_PATTERN.fullmatch(context["base_sha"])
+            or type(context["pull_request_number"]) is not int or context["pull_request_number"] < 1
+            or context["artifact_kind"] != "verification-fixture" or context["environment_scope"] != "verification"):
+        raise ValueError("lifecycle context does not match the scorecard")
+    verified = binding["provenance_verified"]
+    if verified:
+        if (type(context["run_id"]) is not int or context["run_id"] < 1
+                or type(context["run_attempt"]) is not int or context["run_attempt"] != 1
+                or not isinstance(context["workflow_sha"], str) or not REVISION_PATTERN.fullmatch(context["workflow_sha"])):
+            raise ValueError("invalid verified lifecycle run")
+    elif any(context[key] is not None for key in ("run_id", "run_attempt", "workflow_sha")):
+        raise ValueError("unverified lifecycle context cannot assert a run")
+    subjects = binding["subjects"]
+    if not isinstance(subjects, dict) or set(subjects) != {"artifact", "environment"}:
+        raise ValueError("invalid lifecycle subjects")
+    for kind, subject in subjects.items():
+        if not isinstance(subject, dict) or set(subject) != {"type", "revision"} or subject["type"] != kind:
+            raise ValueError("invalid lifecycle subject binding")
+        revision = subject["revision"]
+        if not isinstance(revision, str) or (re.fullmatch(r"sha256:[0-9a-f]{64}", revision) is None if verified else revision != "unavailable:" + context["head_sha"]):
+            raise ValueError("invalid lifecycle subject identity")
+        if subject not in document.get("companion_subjects", []):
+            raise ValueError("lifecycle subject was not evaluated")
+    labels = {}
+    for row in document["controls"]:
+        contract = LIFECYCLE_PROVIDERS.get(row.get("id"))
+        if not contract or row.get("effective_mode") not in {"advisory", "enforced"}:
+            continue
+        provider, _, kind = contract
+        if not isinstance(row.get("authoritative_provider"), dict):
+            raise ValueError("invalid lifecycle authoritative provider")
+        if row["authoritative_provider"].get("id") != provider:
+            continue
+        result = row.get("authoritative_result")
+        if not isinstance(result, dict) or result.get("status") != row.get("evidence_status"):
+            raise ValueError("lifecycle authoritative result mismatch")
+        if not verified and row.get("evidence_status") != "no_result":
+            raise ValueError("unverified lifecycle result cannot pass or fail")
+        expected_subject = document["subject"] if kind == "git-commit" else subjects[kind]
+        if row.get("evidence_subject") != kind or row.get("evidence_revision") != expected_subject["revision"]:
+            raise ValueError("lifecycle result subject binding mismatch")
+        if kind != "git-commit":
+            labels[row["id"]] = "Verification artifact" if kind == "artifact" else "Verification environment"
+    return labels
+
+
 _CONTROL_RESULTS = {
     "passed": ("Passed", "good"), "failed": ("Failed", "danger"),
     "blocked": ("Blocked", "caution"), "no_result": ("Unverified", "neutral"),
@@ -647,6 +733,7 @@ def _provider_links(row: dict[str, Any], label: str, repository: str | None,
 
 def _control_details(document: dict[str, Any], repository: str | None = None) -> list[dict[str, Any]]:
     """Project bounded results for known controls; fail closed on bad totals."""
+    labels = _lifecycle_context(document, repository)
     consistent = _result_breakdown(document)["availability"] == "available"
     rows = {row["id"]: row for row in document["controls"]} if consistent else {}
     details = []
@@ -658,12 +745,22 @@ def _control_details(document: dict[str, Any], repository: str | None = None) ->
         separate = (valid and mode == "not_activated" and row.get("inactive_reason") == "other_subject"
                     and row.get("evidence_subject") == "pull-request")
         provider = _provider_label(control_id, row) if valid else "Not reported"
+        links = _provider_links(row, provider, repository, document.get("subject", {}).get("revision", ""))
+        binding = document.get("lifecycle_verification")
+        contract = LIFECYCLE_PROVIDERS.get(control_id)
+        if binding and contract and (row.get("authoritative_provider") or {}).get("id") == contract[0]:
+            context = binding["context"]
+            links["provider_run_url"] = (
+                f"https://github.com/{context['repository']}/actions/runs/{context['run_id']}/attempts/{context['run_attempt']}"
+                if binding["provenance_verified"] else None
+            )
         details.append({"id": control_id, "name": name, "purpose": purpose, "group": group,
                         "mode": mode if valid else "not_reported",
                         "status": status if valid else "not_reported",
                         "separate_subject": "pull-request" if separate else None,
                         "provider": provider,
-                        **_provider_links(row, provider, repository, document.get("subject", {}).get("revision", "")),
+                        "verification_scope": labels.get(control_id),
+                        **links,
                         "execution": _execution_details(row) if valid else {"availability": "unavailable"},
                         "measurements": _measurements(control_id, row) if valid else {"availability": "unavailable"},
                         "detail": _pr_metadata_detail(control_id, row) if valid else {"availability": "unavailable"}})
@@ -862,6 +959,8 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
                 provider_html = f'<a href="{safe["provider_config_url"]}" aria-label="Provider configuration for {safe["name"]}">{provider_html}</a>'
             if row.get("provider_run_url"):
                 provider_html += f' · <a href="{safe["provider_run_url"]}" aria-label="Latest reported run for {safe["name"]}">Latest reported run ↗</a>'
+            if row.get("verification_scope"):
+                provider_html += f'<br><span class="check-note">{safe["verification_scope"]}</span>'
             target = _check_target(row["id"])
             # A dash means no active mode: unknown (not reported) or excluded (not activated).
             mode = "—" if row["mode"] in _INACTIVE_STATUSES else _CONTROL_MODES[row["mode"]]

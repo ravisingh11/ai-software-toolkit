@@ -52,6 +52,38 @@ def scorecard(
 
 
 class RendererTests(unittest.TestCase):
+    def test_lifecycle_labels_require_bound_collector_context(self) -> None:
+        card = scorecard()
+        subject = {"type": "artifact", "revision": "sha256:" + "c" * 64}
+        environment = {"type": "environment", "revision": "sha256:" + "d" * 64}
+        card["companion_subjects"] = [subject, environment]
+        row = {"id": "artifact-sbom", "effective_mode": "advisory", "evidence_status": "passed",
+               "authoritative_provider": {"id": "trivy-artifact-sbom"},
+               "evidence_subject": "artifact", "evidence_revision": subject["revision"]}
+        card["controls"] = [row]
+        card["enforced"] = {"passed": 0, "total": 0}
+        card["advisory"] = {"passed": 1, "total": 1}
+        row["authoritative_result"] = {"status": "passed"}
+        with self.assertRaises(ValueError):
+            MODULE._lifecycle_context(card, "owner/repo")
+        card["lifecycle_verification"] = {
+            "version": 1, "scope": "verification", "provenance_verified": True,
+            "subjects": {"artifact": subject, "environment": environment},
+            "context": {"repository": "owner/repo", "pull_request_number": 1, "head_sha": REVISION,
+                        "base_sha": "b" * 40, "run_id": 123, "run_attempt": 1, "workflow_sha": "e" * 40,
+                        "artifact_kind": "verification-fixture", "environment_scope": "verification"}}
+        self.assertEqual(MODULE._lifecycle_context(card, "owner/repo"), {"artifact-sbom": "Verification artifact"})
+        for key, value in (("head_sha", "f" * 40), ("repository", "attacker/repo"), ("run_attempt", 2),
+                           ("environment_scope", "production")):
+            previous = card["lifecycle_verification"]["context"][key]
+            card["lifecycle_verification"]["context"][key] = value
+            with self.assertRaises(ValueError):
+                MODULE._lifecycle_context(card, "owner/repo")
+            card["lifecycle_verification"]["context"][key] = previous
+        row["evidence_revision"] = "sha256:" + "0" * 64
+        with self.assertRaises(ValueError):
+            MODULE._lifecycle_context(card, "owner/repo")
+
     def test_freshness_runtime_behavior(self) -> None:
         baseline = {
             "version": 1, "operation": "change", "repository": "owner/repo",

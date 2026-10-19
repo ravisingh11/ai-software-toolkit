@@ -18,6 +18,7 @@ permissions:
   checks: read
   pull-requests: read
   security-events: read
+  attestations: read
 
 jobs:
   scorecard:
@@ -165,6 +166,33 @@ jobs:
             "${collector_args[@]}" \
             --output "${EVIDENCE_JSON}"
           cp "${EVIDENCE_JSON}" .artifacts/proof/evidence.json
+      - name: Collect optional artifact and verification-environment evidence
+        if: ${{ github.event.pull_request != null && vars.PROOF_LIFECYCLE_ENABLED == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION: ${{ github.event.pull_request.head.sha }}
+          BASE_REVISION: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          collector=.proof-trusted/.proof/collect_lifecycle_evidence.py
+          # Runtime adoption must merge before its trusted producer can be used.
+          # An older trusted base remains missing; candidate code never replaces it.
+          if [ ! -f "${collector}" ]; then
+            echo 'The trusted runtime does not yet support lifecycle collection.' >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+          python3 "${collector}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pull-request-number "${PULL_REQUEST_NUMBER}" \
+            --revision "${REVISION}" \
+            --trusted-base-revision "${BASE_REVISION}" \
+            --trusted-workflow-ref "refs/heads/${BASE_REF}" \
+            --providers .proof-trusted/.proof/providers.yaml \
+            --config .proof-trusted/.proof/lifecycle.json \
+            --output-dir .artifacts/proof/lifecycle
+          echo 'PROOF_LIFECYCLE_EVIDENCE=.artifacts/proof/lifecycle/lifecycle-companions.json' >> "${GITHUB_ENV}"
       - name: Evaluate pull-request metadata
         if: ${{ github.event.pull_request != null }}
         run: |
@@ -204,6 +232,9 @@ jobs:
             if [ -n "${PROOF_PULL_REQUEST_EVIDENCE:-}" ]; then
               pull_request_args+=(--pull-request-evidence "${PROOF_PULL_REQUEST_EVIDENCE}")
             fi
+          fi
+          if [ -n "${PROOF_LIFECYCLE_EVIDENCE:-}" ]; then
+            pull_request_args+=(--lifecycle-evidence "${PROOF_LIFECYCLE_EVIDENCE}")
           fi
           EVIDENCE_JSON=".artifacts/proof/evidence-${PROOF_TIMESTAMP}.json"
           SCORECARD_JSON=".artifacts/proof/scorecard-${PROOF_TIMESTAMP}.json"

@@ -162,13 +162,27 @@ class ScorecardV2Tests(unittest.TestCase):
         self.assertEqual((card["status"], card["decision"]), ("ORANGE", "allow"))
 
     def test_evidence_only_control_has_no_configured_provider(self) -> None:
-        card = self.card(all_controls=True)
+        args = fixture()
+        # Keep the generic future-capability contract, rather than treating the
+        # now implemented SBOM provider as absent.
+        next(control for control in args[2]["controls"] if control["id"] == "artifact-sbom")["availability"] = "evidence-only"
+        del args[3]["selections"]["artifact-sbom"]
+        card = MODULE.scorecard(*args, "change", "abc123", subject_type="git-commit", all_catalog_controls=True)
         row = next(row for row in card["controls"] if row["id"] == "artifact-sbom")
         self.assertIsNone(row["configured_provider"])
         self.assertIn(f"{row['name']} — Not configured: not_activated", MODULE.render(card))
         inactive = next(row for row in card["controls"] if row["id"] == "static-quality")
         self.assertEqual(inactive["configured_provider"]["display_name"], "SonarQube")
         self.assertIsNone(inactive["authoritative_provider"])
+
+    def test_lifecycle_definition_does_not_imply_activation_or_a_pass(self) -> None:
+        card = self.card(all_controls=True)
+        row = next(row for row in card["controls"] if row["id"] == "artifact-sbom")
+        self.assertEqual(row["configured_provider"], {
+            "id": "trivy-artifact-sbom", "display_name": "Trivy Artifact SBOM",
+        })
+        self.assertIsNone(row["authoritative_provider"])
+        self.assertEqual(row["evidence_status"], "not_activated")
 
     def test_legacy_rows_fall_back_only_when_configured_provider_is_absent(self) -> None:
         card = self.card()

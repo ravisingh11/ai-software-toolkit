@@ -61,9 +61,10 @@ context from satisfying a ruleset through GitHub's skipped-job semantics.
 The optional GitHub profile is additive. Its runnable scorecard paths cover
 CodeQL, Dependency Review, GitHub Secret Protection, and Dependabot
 verification. It also installs an artifact-attestation workflow for releases,
-but that workflow does not yet emit nested artifact evidence or feed a release
-scorecard. Artifact provenance therefore remains incomplete as a Proof
-runtime path. Both profiles default every selected capability to `advisory`.
+and offers a separate manual lifecycle workflow with exact artifact/environment
+receipts. The latter requires explicit opt-in and an owned verification fixture;
+it does not run automatically or establish production readiness. Both profiles
+default every selected capability to `advisory`.
 
 SonarQube, Snyk, Semgrep AppSec Platform, FOSSA, Codex Code Review, other AI review adapters, and a
 repository soak command are provider definitions, not runnable profiles. A
@@ -199,14 +200,23 @@ optional **Latest PR Scorecard** badge reports the newest accepted PR
 evaluation; a successful workflow can therefore coexist with an `ORANGE`
 score. Neither badge claims that current `main` has the latest PR's readiness.
 
-## Evidence-only lifecycle capabilities
+## Optional lifecycle collection
 
-Container vulnerability, IaC misconfiguration, artifact SBOM, artifact
-vulnerability, deployment policy, dynamic application security, and runtime
-assurance are catalog/evidence contracts only. They are not selectable in a
-runnable profile and cannot be activated by policy. Future implementations
-must add providers and exact-subject evidence before these capabilities become
-runnable.
+Container vulnerability, IaC misconfiguration, artifact SBOM/vulnerability,
+deployment policy, local dynamic application security and runtime assurance now
+have real providers. They are runnable but have no new profile defaults.
+The manual lifecycle workflow and collector keep commit, actual artifact digest
+and verification-environment snapshot separate. Explicit release overrides
+select artifact/environment controls, which score as release-operation
+companions beside commit/PR evidence. Release lifecycle applicability includes
+deployment, post-deployment and runtime stages; change applicability is not
+broadened. Missing companions remain missing, never repurposed commit passes.
+
+The collector authenticates a small receipt and the actual image jointly via a
+single GitHub attestation, validates every GitHub/source/subject binding and
+rechecks mutable identities. Public rows label verification artifact and
+environment scope explicitly. See [the full lifecycle contract](../providers/lifecycle.md).
+This scoped preview evidence does not establish a production deployment.
 
 See [Proof standard](README.md), [producer contract](producer-contract.md),
 and [control status](control-status.md).

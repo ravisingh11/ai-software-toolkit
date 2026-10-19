@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import importlib.util
 import json
 import sys
@@ -65,8 +66,12 @@ def scorecard(
     *,
     subject_type: str,
     all_catalog_controls: bool = False,
-    companions: list[tuple[str, str, dict[str, Any]]] | None = None,
+    companions: list[tuple[str, str, dict[str, Any]] | tuple[str, str, dict[str, Any], str]] | None = None,
+    lifecycle_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if lifecycle_evidence is not None:
+        evidence, lifecycle_companions = merge_lifecycle(evidence, lifecycle_evidence, revision)
+        companions = [*(companions or []), *lifecycle_companions]
     result = evaluator_module().evaluate(
         policy, profiles, catalog, providers, evidence, operation, revision,
         subject_type, all_catalog_controls=all_catalog_controls, companions=companions,
@@ -114,7 +119,35 @@ def scorecard(
     }
     if "companion_subjects" in result:
         card["companion_subjects"] = result["companion_subjects"]
+    if lifecycle_evidence is not None:
+        card["lifecycle_verification"] = {
+            "version": 1,
+            "scope": "verification",
+            "provenance_verified": lifecycle_evidence["provenance_verified"],
+            "context": {key: value for key, value in lifecycle_evidence["context"].items() if key != "reason"},
+            "subjects": {key: lifecycle_evidence["documents"][key]["subject"] for key in ("artifact", "environment")},
+        }
     return normalize_public(card)
+
+
+def merge_lifecycle(evidence: dict[str, Any], manifest: dict[str, Any], revision: str) -> tuple[dict, list]:
+    """Import only the validated collector envelope; never overwrite earlier evidence."""
+    from lifecycle_contract import validate_companions_manifest
+
+    validate_companions_manifest(manifest, revision)
+    if evidence.get("subject") != {"type": "git-commit", "revision": revision}:
+        raise ValueError("lifecycle evidence requires the exact primary git subject")
+    merged = copy.deepcopy(evidence)
+    for control, results in manifest["documents"]["git_commit"]["results"].items():
+        target = merged["results"].setdefault(control, {})
+        if set(target) & set(results):
+            raise ValueError("duplicate lifecycle control/provider evidence")
+        target.update(copy.deepcopy(results))
+    companions = []
+    for kind in ("artifact", "environment"):
+        document = manifest["documents"][kind]
+        companions.append((kind, document["subject"]["revision"], document, "release"))
+    return merged, companions
 
 
 def render(card: dict[str, Any]) -> str:
@@ -135,6 +168,8 @@ def render(card: dict[str, Any]) -> str:
             else "Not configured" if "configured_provider" in control else "Not reported"
         )
         line = f"  {control['readiness']} {control['name']} — {provider_name}: {control['evidence_status']}"
+        if card.get("lifecycle_verification") and control.get("evidence_subject") in {"artifact", "environment"}:
+            line += " (Verification " + control["evidence_subject"] + ")"
         if control.get("inactive_reason") == "other_subject":
             line += f" (Checked separately on the {control['evidence_subject']} subject)"
         if control["supplemental"]:
@@ -178,6 +213,7 @@ def main() -> int:
         "--pull-request-evidence", type=Path,
         help="Pull-request-subject evidence; omitted means no pull-request result was produced",
     )
+    parser.add_argument("--lifecycle-evidence", type=Path, help="Trusted collector lifecycle companion manifest")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     if args.pull_request_evidence and not args.pull_request_revision:
@@ -201,6 +237,7 @@ def main() -> int:
             subject_type=args.subject_type,
             all_catalog_controls=args.all_catalog_controls,
             companions=companions,
+            lifecycle_evidence=load_json_object(args.lifecycle_evidence) if args.lifecycle_evidence else None,
         )
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"ERROR: {error}", file=sys.stderr)

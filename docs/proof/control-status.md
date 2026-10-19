@@ -50,9 +50,11 @@ Capabilities outside selected profiles are omitted by default. In a complete
 `--all-catalog-controls` view they appear `GRAY` unless a repository adds a
 runnable mode override.
 
-Future lifecycle capabilities marked `evidence-only` are also omitted by
-default and appear `GRAY` only in the complete catalog view. They cannot be
-selected or promoted until runtime/provider contracts are implemented.
+The optional lifecycle capabilities now have producers, but no new profile
+defaults. Explicit advisory overrides and manual receipt collection are required;
+their artifact and verification-environment subjects stay separate from the
+commit. See [lifecycle setup](../providers/lifecycle.md). Any future capability
+still marked `evidence-only` remains unavailable for activation.
 
 Runnable controls also declare an enforcement policy. `promotable` controls
 may move from advisory to enforced after validation. `advisory-only` controls

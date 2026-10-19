@@ -107,11 +107,23 @@ class ConfigureProofV2Tests(unittest.TestCase):
                 sets=["ai-engineering-review=enforced"],
             )
 
-    def test_rejects_unknown_or_evidence_only_policy_controls(self) -> None:
+    def test_rejects_unknown_or_wrong_stage_policy_controls(self) -> None:
         with self.assertRaisesRegex(ValueError, "unknown control"):
             self.apply(enable_profiles=[], disable_profiles=[], sets=["unknown=advisory"])
-        with self.assertRaisesRegex(ValueError, "evidence-only"):
+        with self.assertRaisesRegex(ValueError, "artifact-sbom cannot be configured for change"):
             self.apply(enable_profiles=[], disable_profiles=[], sets=["artifact-sbom=advisory"])
+
+    def test_lifecycle_controls_require_explicit_release_opt_in(self) -> None:
+        policy, profiles, catalog, providers = contracts()
+        self.assertEqual(policy["overrides"]["release"], {})
+        MODULE.apply_changes(
+            policy, profiles, catalog, providers, operation="release", all_operations=False,
+            sets=["artifact-sbom=advisory", "deployment-policy=advisory", "runtime-assurance=advisory"],
+        )
+        self.assertEqual(policy["overrides"]["release"], {
+            "artifact-sbom": "advisory", "deployment-policy": "advisory", "runtime-assurance": "advisory",
+        })
+        self.assertEqual(policy["overrides"]["change"], {})
 
     def test_provider_selection_and_supplemental_mutations(self) -> None:
         policy, profiles, catalog, providers = contracts()

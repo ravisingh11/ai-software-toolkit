@@ -10,6 +10,23 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+LIFECYCLE_PROVIDERS = {
+    "trivy-container-image": "container-vulnerability",
+    "trivy-iac-config": "iac-misconfiguration",
+    "trivy-artifact-sbom": "artifact-sbom",
+    "trivy-artifact-sbom-scan": "artifact-vulnerability",
+    "repository-deployment-policy": "deployment-policy",
+    "zap-baseline-local": "dynamic-application-security",
+    "repository-runtime-assurance": "runtime-assurance",
+    "github-artifact-attestations": "artifact-provenance",
+    "repository-soak": "runtime-soak",
+}
+LIFECYCLE_CONTRACT = {
+    "workflow": "Lifecycle Verification",
+    "workflow_path": ".github/workflows/lifecycle-verification.yml",
+    "artifact_name_prefix": "proof-lifecycle-evidence-",
+    "artifact_member": "lifecycle-receipt.json",
+}
 ABSOLUTE_PATH_PATTERN = re.compile(r"(/Users/|/private/|\\\\Users\\\\)")
 IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 REPO_RELATIVE_PATH_PATTERN = re.compile(
@@ -142,7 +159,7 @@ def validate_provider_document(config: dict, catalog: dict[str, dict]) -> None:
     for provider_id, provider in providers.items():
         if not valid_identifier(provider_id) or not isinstance(provider, dict):
             raise ValueError("provider entries must use valid identifiers and objects")
-        if set(provider) not in (provider_fields, provider_fields | {"reviews"}):
+        if set(provider) not in (provider_fields, provider_fields | {"reviews"}, provider_fields | {"lifecycle"}):
             raise ValueError(f"provider {provider_id} has invalid fields")
         require_nonempty_string(provider["display_name"], f"provider {provider_id} display_name")
         if provider["activation"] not in {"repository", "github", "external"}:
@@ -158,6 +175,18 @@ def validate_provider_document(config: dict, catalog: dict[str, dict]) -> None:
         checks = provider["checks"]
         if not isinstance(checks, dict) or any(capability not in capabilities for capability in checks):
             raise ValueError(f"provider {provider_id} checks are invalid")
+        if provider_id in LIFECYCLE_PROVIDERS or "lifecycle" in provider:
+            if (
+                provider_id not in LIFECYCLE_PROVIDERS
+                or capabilities != [LIFECYCLE_PROVIDERS[provider_id]]
+                or checks != {}
+                or provider.get("reviews")
+                or provider.get("lifecycle") != LIFECYCLE_CONTRACT
+                or provider.get("template") != "workflows/lifecycle-verification.yml"
+                or provider.get("template_available") is not True
+                or provider.get("enabled_by_default") is not (provider_id == "github-artifact-attestations")
+            ):
+                raise ValueError(f"provider {provider_id} requires its exact lifecycle receipt contract")
         if provider_id == "github-codeql-default-setup" and (
             capabilities != ["deep-sast"]
             or checks != {"deep-sast": {
@@ -356,6 +385,8 @@ def validate_provider_template_names(config: dict, root: Path = ROOT) -> None:
                 break
         if not workflow_name:
             raise ValueError(f"provider {provider_id} template workflow name is missing")
+        if "lifecycle" in provider and provider["lifecycle"]["workflow"] != workflow_name:
+            raise ValueError(f"provider {provider_id} lifecycle template workflow name does not match contract")
         for capability, check in provider["checks"].items():
             if check["workflow"] != workflow_name:
                 raise ValueError(

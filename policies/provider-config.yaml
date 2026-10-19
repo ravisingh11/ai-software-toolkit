@@ -160,12 +160,20 @@
     "github-artifact-attestations": {
       "display_name": "GitHub Artifact Attestations",
       "activation": "github",
-      "capabilities": ["artifact-provenance"],
-      "checks": {"artifact-provenance": {"check_name": "Artifact Provenance", "workflow": "Artifact Provenance", "workflow_path": ".github/workflows/artifact-provenance.yml"}},
-      "template": "workflows/artifact-provenance.yml",
+      "capabilities": [
+        "artifact-provenance"
+      ],
+      "checks": {},
+      "template": "workflows/lifecycle-verification.yml",
       "template_available": true,
       "secrets": [],
-      "enabled_by_default": true
+      "enabled_by_default": true,
+      "lifecycle": {
+        "workflow": "Lifecycle Verification",
+        "workflow_path": ".github/workflows/lifecycle-verification.yml",
+        "artifact_name_prefix": "proof-lifecycle-evidence-",
+        "artifact_member": "lifecycle-receipt.json"
+      }
     },
     "sonarqube": {
       "display_name": "SonarQube",
@@ -290,15 +298,156 @@
     "repository-soak": {
       "display_name": "Repository Soak Command",
       "activation": "repository",
-      "capabilities": ["runtime-soak"],
-      "checks": {"runtime-soak": {"check_name": "Soak Check", "workflow": "Soak Check", "workflow_path": ".github/workflows/soak.yml"}},
-      "template": "workflows/soak.yml",
+      "capabilities": [
+        "runtime-soak"
+      ],
+      "checks": {},
+      "template": "workflows/lifecycle-verification.yml",
       "template_available": true,
       "secrets": [],
-      "enabled_by_default": false
+      "enabled_by_default": false,
+      "lifecycle": {
+        "workflow": "Lifecycle Verification",
+        "workflow_path": ".github/workflows/lifecycle-verification.yml",
+        "artifact_name_prefix": "proof-lifecycle-evidence-",
+        "artifact_member": "lifecycle-receipt.json"
+      }
+    },
+    "trivy-container-image": {
+      "display_name": "Trivy Container Image",
+      "activation": "repository",
+      "capabilities": [
+        "container-vulnerability"
+      ],
+      "checks": {},
+      "template": "workflows/lifecycle-verification.yml",
+      "template_available": true,
+      "secrets": [],
+      "enabled_by_default": false,
+      "lifecycle": {
+        "workflow": "Lifecycle Verification",
+        "workflow_path": ".github/workflows/lifecycle-verification.yml",
+        "artifact_name_prefix": "proof-lifecycle-evidence-",
+        "artifact_member": "lifecycle-receipt.json"
+      }
+    },
+    "trivy-iac-config": {
+      "display_name": "Trivy IaC Configuration",
+      "activation": "repository",
+      "capabilities": [
+        "iac-misconfiguration"
+      ],
+      "checks": {},
+      "template": "workflows/lifecycle-verification.yml",
+      "template_available": true,
+      "secrets": [],
+      "enabled_by_default": false,
+      "lifecycle": {
+        "workflow": "Lifecycle Verification",
+        "workflow_path": ".github/workflows/lifecycle-verification.yml",
+        "artifact_name_prefix": "proof-lifecycle-evidence-",
+        "artifact_member": "lifecycle-receipt.json"
+      }
+    },
+    "trivy-artifact-sbom": {
+      "display_name": "Trivy Artifact SBOM",
+      "activation": "repository",
+      "capabilities": [
+        "artifact-sbom"
+      ],
+      "checks": {},
+      "template": "workflows/lifecycle-verification.yml",
+      "template_available": true,
+      "secrets": [],
+      "enabled_by_default": false,
+      "lifecycle": {
+        "workflow": "Lifecycle Verification",
+        "workflow_path": ".github/workflows/lifecycle-verification.yml",
+        "artifact_name_prefix": "proof-lifecycle-evidence-",
+        "artifact_member": "lifecycle-receipt.json"
+      }
+    },
+    "trivy-artifact-sbom-scan": {
+      "display_name": "Trivy Artifact Vulnerabilities",
+      "activation": "repository",
+      "capabilities": [
+        "artifact-vulnerability"
+      ],
+      "checks": {},
+      "template": "workflows/lifecycle-verification.yml",
+      "template_available": true,
+      "secrets": [],
+      "enabled_by_default": false,
+      "lifecycle": {
+        "workflow": "Lifecycle Verification",
+        "workflow_path": ".github/workflows/lifecycle-verification.yml",
+        "artifact_name_prefix": "proof-lifecycle-evidence-",
+        "artifact_member": "lifecycle-receipt.json"
+      }
+    },
+    "repository-deployment-policy": {
+      "display_name": "Verification Deployment Policy",
+      "activation": "repository",
+      "capabilities": [
+        "deployment-policy"
+      ],
+      "checks": {},
+      "template": "workflows/lifecycle-verification.yml",
+      "template_available": true,
+      "secrets": [],
+      "enabled_by_default": false,
+      "lifecycle": {
+        "workflow": "Lifecycle Verification",
+        "workflow_path": ".github/workflows/lifecycle-verification.yml",
+        "artifact_name_prefix": "proof-lifecycle-evidence-",
+        "artifact_member": "lifecycle-receipt.json"
+      }
+    },
+    "zap-baseline-local": {
+      "display_name": "OWASP ZAP Local Baseline",
+      "activation": "repository",
+      "capabilities": [
+        "dynamic-application-security"
+      ],
+      "checks": {},
+      "template": "workflows/lifecycle-verification.yml",
+      "template_available": true,
+      "secrets": [],
+      "enabled_by_default": false,
+      "lifecycle": {
+        "workflow": "Lifecycle Verification",
+        "workflow_path": ".github/workflows/lifecycle-verification.yml",
+        "artifact_name_prefix": "proof-lifecycle-evidence-",
+        "artifact_member": "lifecycle-receipt.json"
+      }
+    },
+    "repository-runtime-assurance": {
+      "display_name": "Verification Runtime Assurance",
+      "activation": "repository",
+      "capabilities": [
+        "runtime-assurance"
+      ],
+      "checks": {},
+      "template": "workflows/lifecycle-verification.yml",
+      "template_available": true,
+      "secrets": [],
+      "enabled_by_default": false,
+      "lifecycle": {
+        "workflow": "Lifecycle Verification",
+        "workflow_path": ".github/workflows/lifecycle-verification.yml",
+        "artifact_name_prefix": "proof-lifecycle-evidence-",
+        "artifact_member": "lifecycle-receipt.json"
+      }
     }
   },
   "selections": {
+    "container-vulnerability": {"authoritative": "trivy-container-image", "supplemental": []},
+    "iac-misconfiguration": {"authoritative": "trivy-iac-config", "supplemental": []},
+    "artifact-sbom": {"authoritative": "trivy-artifact-sbom", "supplemental": []},
+    "artifact-vulnerability": {"authoritative": "trivy-artifact-sbom-scan", "supplemental": []},
+    "deployment-policy": {"authoritative": "repository-deployment-policy", "supplemental": []},
+    "dynamic-application-security": {"authoritative": "zap-baseline-local", "supplemental": []},
+    "runtime-assurance": {"authoritative": "repository-runtime-assurance", "supplemental": []},
     "repository-validation": {"authoritative": "repository-validator", "supplemental": []},
     "documentation-validation": {"authoritative": "repository-validator", "supplemental": []},
     "repository-ground-truth": {"authoritative": "repository-validator", "supplemental": []},

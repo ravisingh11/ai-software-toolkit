@@ -386,3 +386,14 @@ The installed workflows and reusable templates use the pinned
 `python3 tooling/sync_workflow_templates.py --write` after changing an installed
 action pin so consumers receive the same release. Permissions and enforcement
 choices remain owned by each repository.
+
+## Optional lifecycle verification
+
+`lifecycle-verification.yml` is installed as a manual (`workflow_dispatch`)
+workflow. It builds an isolated verification artifact, runs real Trivy scans,
+CycloneDX generation, local ZAP, deployment/runtime probes and a bounded soak,
+then separately attests the image and typed receipt. It changes no required
+checks or policy defaults. `PROOF_LIFECYCLE_ENABLED=true` opts the trusted PR
+scorecard into exact-subject receipt import. Missing evidence and actual failed
+results remain visible. See [lifecycle setup and trust](../docs/providers/lifecycle.md)
+for BuildKit, pinned fixture, sandbox, signature and bootstrap requirements.
