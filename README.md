@@ -252,13 +252,38 @@ local observations are separate from the linked CI artifacts.
 
 The reference app also reconciled a duplicate CodeQL activation after this live
 verification: GitHub default setup stays active, while the optional advanced
-workflow opt-in was removed. Its selected advanced-workflow evidence contract
-remains unchanged, so default-setup scans do not turn missing Deep SAST evidence
-into a pass. See the [reference app configuration note](https://github.com/ravisingh11/ai-software-toolkit-reference-app#recorded-live-verification-and-cleanup-2026-10-19).
+workflow opt-in was removed. At that historical snapshot, its selected advanced-workflow evidence contract
+did not accept default-setup scans, leaving Deep SAST unverified. The later
+verified default-setup adoption is recorded below. See the [reference app configuration note](https://github.com/ravisingh11/ai-software-toolkit-reference-app#recorded-live-verification-and-cleanup-2026-10-19).
 
 All checks remain optional to adopt. The five-language workflow remains **manual
 (`workflow_dispatch`) and optional**; this verification did not rerun it or fill
 missing PR coverage with the separately recorded example results.
+
+### Latest recorded CodeQL verification
+
+The [toolkit scorecard](https://ravisingh11.github.io/ai-software-toolkit/#check-deep-sast)
+and [reference app scorecard](https://ravisingh11.github.io/ai-software-toolkit-reference-app/#check-deep-sast)
+link selected providers to configuration and the reported run. These are recorded
+PR snapshots; use their freshness notice and **Refresh latest** for later publications.
+
+| Repository | Verified CodeQL evidence | Recorded scorecard |
+| --- | --- | --- |
+| Toolkit | [Advanced-setup run 39351939645](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39351939645), evaluated at `02385ff57ed68f7e78e31c7d78a2fb198de7119c` | [Proof 39351939905](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39351939905): 24/25 advisory checks passed; dependency-vulnerability evidence was missing. |
+| Reference app | [Default-setup run 39359727461](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39359727461), evaluated at `8170fa54ca12abf682c91b689f6a6e1b17ab8523` in [PR #40](https://github.com/ravisingh11/ai-software-toolkit-reference-app/pull/40) | [Proof 39359728920](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39359728920): 20/25 advisory checks passed, including Deep SAST. |
+
+The reference app collector verified managed CodeQL provenance and analyses for
+all configured languages: **Actions, JavaScript/TypeScript, and Python**. This
+CodeQL result does not establish Java, PHP, or Scala scan coverage; the five-language
+examples use their own tools. A passing provider result is not a claim of zero
+security findings.
+
+Both snapshots have **zero enforced controls**. The reference app still has
+missing changed-code coverage, platform secret-protection, and dependency-remediation
+evidence; its container and artifact vulnerability checks failed visibly. The
+previously approved Snyk failure remains visible. Missing evidence is **Unverified**,
+never passed. All checks remain optional to adopt, and the polyglot workflow remains
+**manual (`workflow_dispatch`) and optional**.
 
 ## Optional quality checks
 
@@ -307,10 +332,10 @@ remains TypeScript. Each consuming repository owns adoption and enforcement.
 
 ### Recorded five-language verification
 
-The latest recorded [manual run (2026-10-20 UTC)](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39349416084)
+The latest recorded [manual run (2026-10-20 UTC)](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39352901729)
 completed successfully on reference-app revision
-[`92c2778`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/92c27786b157f5770a9a032f2fd2a823e22142d0),
-using toolkit revision [`6984096`](https://github.com/ravisingh11/ai-software-toolkit/commit/698409630ce7de4ca0398994908fcde92f2fc893).
+[`902eb02`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/902eb0249fa107f1c1319c4dedfbdd534b3f4c14),
+using toolkit revision [`bb4130d`](https://github.com/ravisingh11/ai-software-toolkit/commit/bb4130d4a27eb2d127fc832200797c732443119a).
 It passed **25 non-coverage stages** (versions, build, lint, tests and
 architecture) and **115 conformance cases** (23 per language). All five
 changed-code coverage stages were **not applicable**, with
