@@ -355,6 +355,16 @@ They require explicit activation; definitions alone are never passing results.
 Check a repository's actual activation and exact-revision evidence before
 describing any provider as working there.
 
+The [initial lifecycle run](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39340201779)
+verified eight controls, including the jointly attested artifact and receipt.
+DAST was **blocked** because ZAP could not export its report; that historical
+result is not a clean security scan. The producer now streams the report from
+its private container filesystem, and the verification fixture omits server
+implementation versions. A new manual run and hosted scorecard collection
+must verify those changes before they can be described as passing. Findings,
+blocked tools, missing credentials, and unconfigured providers remain visible;
+all checks remain optional and the polyglot workflow remains manual.
+
 Keep capabilities advisory until their producer, stable check name,
 exact-subject evidence, and remediation owner are verified.
 [Promote one proven capability](docs/quickstart.md#8-promote-one-proven-capability);
