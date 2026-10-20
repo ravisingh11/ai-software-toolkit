@@ -3,515 +3,266 @@
 **Move fast. Prove it works.** Shared skills, QA workflows, and Proof checks for
 planning, building, testing, securing, and releasing software with AI.
 
-AI Software Toolkit supports development, QA, security, and release teams.
 Skills guide repeatable work, functional QA exercises application behavior,
-and Proof connects verification results to policy through revision-bound
-checks and readable scorecards. Your repository owns its architecture,
-acceptance criteria, and commands.
+and Proof connects tests and scanners to revision-bound evidence and readable
+scorecards. Your repository owns its architecture, acceptance criteria, tools,
+and commands.
 
-**All toolkit checks are optional to adopt.** Your repository chooses which
-checks run, their tools and thresholds, and whether to enforce them. Examples
-demonstrate language-specific implementations; they do not impose required
-checks or branch rules on consuming repositories.
+**All toolkit checks are optional to adopt.** Choose which checks run, their
+thresholds, and whether to enforce them. Installing the toolkit does not make
+checks required or change branch protection. Language examples are starting
+points to adapt or replace.
 
 I built this because AI lets me create more code and ship changes faster than
 ever. I wanted that speed without losing confidence in what I ship: lightweight
 skills and checks that run with the work, with quality considered from the
 first acceptance criterion through release and feedback.
 
-The repository is **`ravisingh11/ai-software-toolkit`**, formerly
-`ravisingh11/engineering-standards`. Existing forks remain connected. See the
-[rename migration guide](docs/repository-rename.md) for remote, workflow, and
-Pages updates; the repository rename did not change the runtime contract.
-
-This repository opts into the lifecycle providers as advisory checks. Run **Lifecycle Verification** manually against an exact open PR head; missing, blocked, and failed results remain visible. This repository choice does not change installer profile defaults or require checks in consuming repositories. The polyglot workflow remains manual and optional.
-
-## What the toolkit brings together
-
-| Component | Purpose | Start here |
-| --- | --- | --- |
-| Standards | Define expectations for quality, security, and accountable AI use | [AI development policy](policies/ai-development.md) |
-| Skills | Guide agents through repeatable development, QA, security, and release work | [Install shared skills](skills/README.md#install-locally) |
-| Verification | Produce evidence from tests, functional QA, and scanners | [Set up functional QA](skills/qa-bootstrap/SKILL.md) |
-| Quality recipes | Select real linting, test integrity, defensive tests, changed-code coverage, and architecture checks | [Optional quality checks](#optional-quality-checks) |
-| Proof | Evaluate evidence against policy and expose missing results | [Install and configure Proof](docs/quickstart.md) |
-| Providers | Use SonarQube scanner and quality-gate actions; use adapter-owned commands and reason codes for Snyk and FOSSA | [Providers](docs/providers/README.md) |
-| Reference app | Exercise installation and runtime behavior; inspect separate deployment evidence | [Reference app](docs/reference-app.md) |
-| Measurement — aspiration | Learn whether delivery is improving across the lifecycle | [Vision and maturity](docs/vision.md) |
-
-QA helps shape acceptance criteria and risk coverage, explores behavior, and
-feeds failures back into future validation. Quality is shared across the
-lifecycle; QA expertise is part of planning and improvement as well as testing.
-
-See [the toolkit vision](docs/vision.md) for the Plan → Build → Validate →
-Release → Improve direction and the distinction between available components,
-optional integrations, and future work.
-
 [![Version](https://img.shields.io/github/v/release/ravisingh11/ai-software-toolkit?label=version)](https://github.com/ravisingh11/ai-software-toolkit/releases/latest)
 [![License](https://img.shields.io/github/license/ravisingh11/ai-software-toolkit?label=license)](LICENSE)
 [![Scorecard Workflow](https://github.com/ravisingh11/ai-software-toolkit/actions/workflows/proof-scorecard.yml/badge.svg?event=pull_request_target)](https://github.com/ravisingh11/ai-software-toolkit/actions/workflows/proof-scorecard.yml)
 [![Latest PR Scorecard](https://ravisingh11.github.io/ai-software-toolkit/proof-badge.svg)](https://ravisingh11.github.io/ai-software-toolkit/)
 
+## See it in a sample application
+
+[**Fieldnotes — sample application repository**](https://github.com/ravisingh11/ai-software-toolkit-reference-app)
+shows the toolkit in a working TypeScript issue tracker.
+
+- [Open the application](https://ai-software-toolkit-reference-app.navivision-account.workers.dev/)
+- [Read its live PR scorecard](https://ravisingh11.github.io/ai-software-toolkit-reference-app/)
+- [Explore the app's setup and evidence guide](https://github.com/ravisingh11/ai-software-toolkit-reference-app/blob/main/docs/verification/README.md)
+- [Try its Java, TypeScript, Python, PHP, and Scala quality examples](https://github.com/ravisingh11/ai-software-toolkit-reference-app/tree/main/examples/polyglot)
+
+The deployed application is TypeScript; the other languages are independent
+quality examples. Their polyglot workflow is **manual (`workflow_dispatch`) and
+optional**, with an explicit comparison base and repository-selected threshold.
+Example results do not establish full-application coverage or deployment readiness.
+
+## What you can use
+
+| Component | Purpose | Start here |
+| --- | --- | --- |
+| Skills | Repeatable development, review, security, and release tasks | [Install shared skills](skills/README.md#install-locally) |
+| Functional QA | Acceptance criteria, browser/API exploration, and failure-path verification | [Set up QA](skills/qa-bootstrap/SKILL.md) |
+| Quality recipes | Linting, test integrity, defensive tests, changed-code coverage, and architecture boundaries | [Optional quality checks](#optional-quality-checks) |
+| Proof | Bind results to their source revision and expose missing evidence | [Onboarding guide](docs/quickstart.md) |
+| Providers | Connect repository commands, GitHub checks, and optional scanners | [Provider setup](docs/providers/README.md) |
+| Standards | Expectations for quality, security, and accountable AI use | [AI development policy](policies/ai-development.md) |
+
+Use components independently. QA helps shape acceptance criteria and risk
+coverage, explores behavior, and feeds failures back into future validation.
+See the [toolkit vision](docs/vision.md) for the wider delivery lifecycle.
+
 ## Start here
 
-Choose the entry point above for skills or QA. The demo below introduces
-Proof (named Guardrails in v1.0.0); it does not include the newer QA bootstrap and functional-QA
-integration listed under [Unreleased](CHANGELOG.md#unreleased).
+Use Git, **Python 3.11+**, and a POSIX shell. Start from a reviewed toolkit
+checkout and an existing application repository:
 
-Try the embedded Python demo in an isolated directory with Git, Python 3.11+
-and a POSIX shell. No account, token, Docker, or paid service is required to
-get a scorecard.
+```sh
+git clone https://github.com/ravisingh11/ai-software-toolkit.git
+cd ai-software-toolkit
+python3 tooling/ai_toolkit discover --target /path/to/your-repo
+python3 tooling/ai_toolkit init --target /path/to/your-repo --components proof --preview
+```
 
-> [!NOTE]
-> The demo pins **v1.0.0**, released before Guardrails was renamed Proof, so
-> its commands use that release's `.guardrails/` and `GUARDRAILS_*` names. The
-> next release switches them to `.proof/` and `PROOF_*`.
+Discovery and preview do not write files. Review the proposed files and commands,
+then apply the same selection:
+
+```sh
+python3 tooling/ai_toolkit init --target /path/to/your-repo --components proof --yes
+python3 tooling/ai_toolkit doctor --target /path/to/your-repo
+```
+
+Replace `/path/to/your-repo` with your repository's path. `doctor` inspects setup;
+it does not execute checks or prove they passed. Configure real repository
+commands and review the installed policy before running a scan.
+
+Follow the [onboarding guide](docs/quickstart.md) for command configuration,
+ground-truth documents, GitHub setup, and your first PR. The
+[CLI guide](docs/install.md) covers skills, QA, runtime-only installs, updates,
+and managed-file ownership.
+
+### Try an isolated Python demo
+
+From the toolkit checkout, copy the embedded demo into a separate directory.
+No account, token, paid service, or Docker is required to get a report:
 
 ```sh
 demo_workspace="$(mktemp -d)"
-git clone --branch v1.0.0 https://github.com/ravisingh11/ai-software-toolkit.git "$demo_workspace/ai-software-toolkit"
-standards_root="$demo_workspace/ai-software-toolkit"
-cp -R "$standards_root/examples/python-demo" "$demo_workspace/python-demo"
-cd "$demo_workspace/python-demo"
-
-# The embedded demo already has an installation; refresh its shipped runtime.
-python3 "$standards_root/tooling/install.py" --target . --refresh-existing --dry-run
-python3 "$standards_root/tooling/install.py" --target . --refresh-existing
-python3 .guardrails/configure.py --set unit-tests=advisory
-export GUARDRAILS_BUILD_COMMAND='python3 -m compileall -q app.py test_app.py tools .guardrails'
-export GUARDRAILS_UNIT_TEST_COMMAND="python3 -m unittest discover -s . -p 'test_*.py'"
-export GUARDRAILS_WORKING_DIRECTORY='.'
-
-# Local evidence requires a committed, clean HEAD. Identity is demo-only.
+cp -R examples/python-demo/. "$demo_workspace/"
+cd "$demo_workspace"
 git init -q
 git add .
-git -c user.name='Guardrails Demo' -c user.email='demo@example.invalid' commit -qm 'chore: initialize Guardrails demo'
-python3 .guardrails/scan.py
+git -c user.name='Toolkit Demo' -c user.email='demo@example.invalid' commit -qm 'chore: initialize toolkit demo'
+python3 tools/run_proof.py
 ```
 
-The scanner executes the configured demo commands and writes JSON evidence and
-a timestamped Markdown report under `.artifacts/guardrails/`. It does not push
-anything. Build and unit tests can pass locally; unconfigured commands,
-unavailable scanner tools, and GitHub-only checks do **not** become passes.
-Expect advisory gaps, not an all-green promise.
-
-A small **illustrative** scorecard (not a live scan or badge):
-
-| Readiness | Capability | Evidence |
-| --- | --- | --- |
-| 🟢 GREEN | Unit tests | Passed for the exact subject |
-| 🟠 ORANGE | Changed-code coverage | No result; advisory |
-| 🔴 RED | Build, if enforced | No result; blocks |
-| ⚪ GRAY | Artifact provenance in a PR | Not activated |
-
-See the [full illustrative report](docs/examples/sample-scorecard.md),
-[status meanings](docs/proof/control-status.md), and
-[onboarding guide](docs/quickstart.md) for real-repository setup and troubleshooting.
-
-## Proof model
-
-```text
-profile -> capability -> authoritative provider -> exact-subject evidence
-                  \---- supplemental providers ----> advisory evidence
-```
-
-A capability is an engineering outcome; its authoritative provider produces
-the evidence. Supplemental providers stay advisory and cannot satisfy or block
-it. Configuration expresses intent, not proof of execution. A missing check is
-not a pass.
-
-## Install
-
-The shared [`ai-toolkit` CLI](docs/install.md) is the front door for Proof,
-skills, and QA bootstrap: `discover` and `init --preview` are read-only,
-`init --yes` installs the selected components and records `toolkit.toml` and
-`toolkit.lock.json`, `doctor` reports installed / configured / verified state
-without executing anything, `check` explains what ran, failed, and remains
-unverified, and `update` refreshes managed files while preserving your edits.
-The same code serves the CLI, the `toolkit-setup` skill, and the
-`AI Toolkit Setup` starter workflow.
-
-For the underlying installer, [preview and install Core](docs/quickstart.md#1-preview-and-install-core),
-then [configure real commands](docs/quickstart.md#3-configure-repository-commands)
-and [declare ground truth](docs/quickstart.md#4-declare-repository-ground-truth).
-Do not substitute demo commands or no-ops for your application's validation.
-The installer copies runtime/configuration and workflow files, not credentials.
+The helper supplies real Python build and unit-test commands. Reports appear
+under `.artifacts/proof/`. Missing scanner tools, command configuration, and
+GitHub-only evidence remain visible as **no result**. Scope and documentation
+comparison checks need a parent commit, so an initial-commit demo can have
+advisory gaps. The demo does not push anything.
 
 ## Configure and run
 
-Follow [inspect policy and run](docs/quickstart.md#5-inspect-policy-and-run).
-Commit installation and configuration before scanning. Dirty worktrees produce
-no-result evidence rather than a passing claim about `HEAD`.
-[Setup diagnostics](docs/quickstart.md#diagnose-installation)
-inspect setup without executing your commands. Their `configured`,
-`action_needed`, and `unverified` states describe
-setup, not scan results. Exit zero is not a pass.
+The [onboarding guide](docs/quickstart.md#3-configure-repository-commands)
+explains `PROOF_BUILD_COMMAND`, `PROOF_UNIT_TEST_COMMAND`, and other command
+variables. Use your application's real commands; do not substitute demo
+commands or no-ops. Map your existing architecture, testing, security, and
+deployment documents in `.proof/ground-truth-ai.yaml`.
 
-## Read PR size and LOC
+Review and commit the installation and configuration before scanning. Run from
+the consumer repository:
 
-Open the **PR Size / Files & LOC** Actions workflow and its **Files & LOC
-report** job. The report compares the counted changes with the repository's
-configured limits and separates excluded changes from the total diff.
-The check listed on a PR retains the name **PR Change Scope**.
+```sh
+python3 .proof/configure.py --list
+python3 .proof/doctor.py
+python3 .proof/scan.py
+```
 
-Large PRs can overwhelm human reviewers. Prefer smaller, focused PRs so
-feedback is easier to act on and each change is easier to verify. Size limits
-are review aids; staying below them does not establish correctness.
+Local evidence binds to a clean, committed `HEAD`. A dirty worktree produces
+no-result evidence instead of claiming a pass for the commit. Read the generated
+Markdown and JSON, fix actual failures, and verify independent producers on a PR.
 
-| Measurement | Toolkit default limit |
-| --- | ---: |
-| Counted files | 12 |
-| Added lines | 300 |
-| Added + deleted lines | 500 |
-| Most added lines in one file | 150 |
+<a id="recorded-live-verification-and-cleanup-2026-10-19"></a>
 
-These defaults warn only. The report states whether the consuming repository
-uses advisory or enforced mode; a within-limit row is not proof that the PR's
-other checks passed. Thresholds and excluded paths are defined in the
-consumer's `.proof/change-scope.yaml`.
+## Read the scorecard
 
-The [live scorecard dashboard](https://ravisingh11.github.io/ai-software-toolkit/#size-title)
-shows the same measurements for its latest accepted PR snapshot. Its repository
-label identifies whose changes are being measured; this toolkit dashboard does
-not aggregate the reference app's PRs. Older evidence without structured
-measurements shows unavailable. See [report details](docs/proof/control-setup.md#reading-the-pr-size-report).
+An **illustrative example**, not a live scan:
 
-For the other controls, the [evidence results guide](docs/proof/control-setup.md#reading-scorecard-evidence)
-explains **passed**, **failed**, **blocked**, and **unverified**. The dashboard
-represents every trusted built-in catalog control individually, with its ID,
-name, purpose, and validated effective mode and evidence status when available.
-Absent rows show **Not reported**, separately from explicit `not_activated`
-modes; neither means a pass. An unverified result means usable evidence is
-missing, not that the check failed. The source CI run links to detailed
-evidence. Provider names link to their configuration at the evaluated revision;
-**Latest reported run** links to validated same-repository GitHub check evidence
-when present in that snapshot. Private provider details remain in the source
-report. The dashboard
-is a published PR snapshot; its timestamp does not prove it matches the current
-PR head or main. **ALLOW** means enforced controls were satisfied for that
-snapshot, not that the change is ready to merge or release.
+| Check | Provider | Mode | Evidence |
+| --- | --- | --- | --- |
+| Unit tests | Repository Unit Test Command | Advisory | Passed for the exact revision |
+| Changed-code coverage | Repository Changed Code Coverage Command | Advisory | No result; command not configured |
+| Deep SAST | GitHub CodeQL default setup | Advisory | No result; analysis provenance unavailable |
+| Container vulnerability | Trivy Container Image | Advisory | Failed; findings remain visible |
+| Artifact provenance | Not configured | Not activated | Excluded from active totals |
+
+This example is **ORANGE / ALLOW**, with zero enforced controls. `ALLOW` means
+the configured policy permits the evaluated snapshot; it does not mean all
+checks passed or the application is ready to release. See the
+[full illustrative report](docs/examples/sample-scorecard.md) and
+[status guide](docs/proof/control-status.md).
+
+Open the [toolkit scorecard](https://ravisingh11.github.io/ai-software-toolkit/)
+or the [sample application's scorecard](https://ravisingh11.github.io/ai-software-toolkit-reference-app/)
+to inspect actual evidence. Each page identifies its repository, evaluated
+revision, and source CI run. Provider names link to configuration at that
+revision; **Latest reported run** opens available evidence for that snapshot.
+Provider selection is separate from successful execution.
+
+- **Passed:** usable authoritative evidence satisfies the check.
+- **Failed / Blocked:** the producer reported a failure or could not complete.
+- **Unverified:** usable evidence is missing; it is never a pass.
+- **Not configured:** no provider is selected.
+- **Not reported:** this snapshot has no validated result row.
+- **Not activated:** the check is outside the selected policy or operation.
+
+A passing scanner check is not a claim of zero vulnerabilities. Finding counts,
+when displayed, retain their reporting source. Missing credentials, skipped
+producers, and unavailable analyses stay explicit. The
+[evidence guide](docs/proof/control-setup.md#reading-scorecard-evidence)
+explains the full contract.
 
 ### Scorecard freshness
 
-The live scorecard checks for a newer publication on load, when returning to the
-tab, and every 60 seconds while visible. **Matches the latest published snapshot**
-means the displayed results match the site's published snapshot; it does not
-verify current `main`, the latest PR head, CI success, or passing controls.
+The page checks for a newer publication on load, when returning to the tab, and
+every 60 seconds while visible. A newer-snapshot notice offers **Refresh latest**,
+which reloads the published report and preserves the selected section. Refresh
+does not start CI or enable checks; existing results stay visible until refresh.
 
-When a newer validated snapshot is published, an older-results notice offers
-**Refresh latest**. Refresh is manual and preserves the selected check or section.
-It reloads the published page without starting CI or enabling checks. Existing
-results, including missing evidence, remain visible until refresh.
-
-If the freshness check fails or metadata cannot be validated, freshness remains
-**unknown**. A previously confirmed newer-publication notice stays visible after
-a failed recheck. With JavaScript disabled, freshness is explicitly not checked
-and a refresh link remains available. Tabs opened before this feature shipped
-need one initial reload. Snapshot age alone does not establish staleness.
-See the [freshness contract](docs/proof/control-setup.md#reading-scorecard-evidence).
-All checks remain optional; freshness does not change activation or enforcement.
-
-The [verified scorecard run, attempt 2](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39288247675/attempts/2)
-evaluated PR #112 at [`d0e6753`](https://github.com/ravisingh11/ai-software-toolkit/commit/d0e6753a1085d8bfbf66aecfebea22dd5fbfbd98).
-Its [successful publication](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39288744600)
-used merged toolkit revision [`9ef9297`](https://github.com/ravisingh11/ai-software-toolkit/commit/9ef929780eaff0f863e9c44c5dbca8911f9f21b0).
-Recorded on 2026-10-19, it retained an advisory PR-size failure and missing Snyk
-evidence: **ORANGE / ALLOW**, with zero enforced controls. A successful workflow
-or publication does not turn those results into passes.
-
-### Recorded live verification and cleanup (2026-10-19)
-
-The live verification after the README updates
-([toolkit #113](https://github.com/ravisingh11/ai-software-toolkit/pull/113),
-[reference app #34](https://github.com/ravisingh11/ai-software-toolkit-reference-app/pull/34))
-confirmed that both public pages matched the HTML and JSON artifacts from their
-latest successful publications at the time:
-
-| Scorecard | Evaluated PR run | Pages publication | Recorded advisory result |
-| --- | --- | --- | --- |
-| Toolkit | [39295749865, attempt 1](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39295749865/attempts/1) | [39297574622](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39297574622) | 14/16 passed; PR metadata failed and dependency vulnerability had no result. |
-| Reference app | [39295060071, attempt 1](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39295060071/attempts/1) | [39296050722](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39296050722) | 13/16 passed; changed-code coverage, platform secret protection, and dependency remediation had no result. |
-
-Both snapshots were **ORANGE / ALLOW**, with **zero enforced controls**.
-Missing evidence remained **Unverified**, never passed. Already-open older tabs
-showed the newer-publication notice; mouse and keyboard **Refresh latest** loaded
-the publications above and preserved `#size-title`. Neither page reported browser
-errors. All **59 toolkit renderer tests** passed, including freshness failure
-regressions. This records publication freshness, not current `main`, newer CI,
-or the deployed reference Worker. Later publications may supersede these runs.
-
-The local cleanup record covers **two merged local branches and two temporary
-worktrees**, preserved in recoverable Git bundles and checkout archives, followed
-by **310 ignored cache/junk files** removed (304 toolkit, six reference app).
-All **8,589 inventoried evidence/state files** in the latter cleanup remained
-unchanged by hash comparison. **183 tracked YAML files** were reviewed; none was
-proven obsolete and none was deleted. Optional workflows, templates, historical
-docs, QA reports, coverage, and Worker databases were retained. Cleanup manifests,
-archives, screenshots, and logs remain in the local verification archive; these
-local observations are separate from the linked CI artifacts.
-
-The reference app also reconciled a duplicate CodeQL activation after this live
-verification: GitHub default setup stays active, while the optional advanced
-workflow opt-in was removed. At that historical snapshot, its selected advanced-workflow evidence contract
-did not accept default-setup scans, leaving Deep SAST unverified. The later
-verified default-setup adoption is recorded below. See the [reference app configuration note](https://github.com/ravisingh11/ai-software-toolkit-reference-app#recorded-live-verification-and-cleanup-2026-10-19).
-
-All checks remain optional to adopt. The five-language workflow remains **manual
-(`workflow_dispatch`) and optional**; this verification did not rerun it or fill
-missing PR coverage with the separately recorded example results.
-
-### Latest recorded CodeQL verification
-
-The [toolkit scorecard](https://ravisingh11.github.io/ai-software-toolkit/#check-deep-sast)
-and [reference app scorecard](https://ravisingh11.github.io/ai-software-toolkit-reference-app/#check-deep-sast)
-link selected providers to configuration and the reported run. These are recorded
-PR snapshots; use their freshness notice and **Refresh latest** for later publications.
-
-| Repository | Verified CodeQL evidence | Recorded scorecard |
-| --- | --- | --- |
-| Toolkit | [Advanced-setup run 39351939645](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39351939645), evaluated at `02385ff57ed68f7e78e31c7d78a2fb198de7119c` | [Proof 39351939905](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39351939905): 24/25 advisory checks passed; dependency-vulnerability evidence was missing. |
-| Reference app | [Default-setup run 39359727461](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39359727461), evaluated at `8170fa54ca12abf682c91b689f6a6e1b17ab8523` in [PR #40](https://github.com/ravisingh11/ai-software-toolkit-reference-app/pull/40) | [Proof 39359728920](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39359728920): 20/25 advisory checks passed, including Deep SAST. |
-
-The reference app collector verified managed CodeQL provenance and analyses for
-all configured languages: **Actions, JavaScript/TypeScript, and Python**. This
-CodeQL result does not establish Java, PHP, or Scala scan coverage; the five-language
-examples use their own tools. A passing provider result is not a claim of zero
-security findings.
-
-Both snapshots have **zero enforced controls**. The reference app still has
-missing changed-code coverage, platform secret-protection, and dependency-remediation
-evidence; its container and artifact vulnerability checks failed visibly. The
-previously approved Snyk failure remains visible. Missing evidence is **Unverified**,
-never passed. All checks remain optional to adopt, and the polyglot workflow remains
-**manual (`workflow_dispatch`) and optional**.
+**Matches the latest published snapshot** refers to the site's publication,
+not current `main`, the latest PR head, or the deployed application. If the
+freshness check cannot be validated, it reports unknown. A workflow-success
+badge and an evidence scorecard answer different questions. See
+[freshness and badge setup](docs/quickstart.md#publish-the-optional-scorecard-badge).
 
 ## Optional quality checks
 
-Choose the checks that fit your repository. The
-[quality recipes](docs/standards/optional-quality-checks.md) provide runnable
-building blocks; repository owners choose tools, source scope, thresholds,
-CI triggers, and whether results are advisory or enforced. These recipes add
-no default required checks or branch-protection changes.
+Choose tools, source scopes, thresholds, CI triggers, and policy modes that fit
+your repository. The [quality recipes](docs/standards/optional-quality-checks.md)
+provide runnable building blocks:
 
 | Check | What it exercises |
 | --- | --- |
-| Real linting | Language-aware rules, with formatting and type checking kept as separate commands |
-| Test integrity | Fresh JUnit results, actual test cases, and repository-selected skipped-test budgets |
-| Defensive tests | Authorization, tenant/resource access, invalid inputs, and other selected failure paths |
-| Changed-code coverage | Fresh Cobertura reports compared with an explicit Git base and selected source paths |
-| Architecture boundaries | Allowed dependency directions, cycles, and imports across selected boundaries |
+| Real linting | Language-aware rules, separate from formatting and type checking |
+| Test integrity | Fresh test reports, actual test cases, and selected skipped-test budgets |
+| Defensive tests | Authorization, tenant/resource access, invalid input, and failure paths |
+| Changed-code coverage | Fresh coverage reports compared with an explicit Git base and source scope |
+| Architecture boundaries | Dependency direction, cycles, and imports across selected boundaries |
 
-The lint and architecture configurations in
-[`examples/typescript-quality/`](examples/typescript-quality/README.md) are
-**TypeScript examples**. Java, Python, PHP, Scala, and other languages need
-their own tools and commands. Extend or replace the relevant recipe for your
-language, framework, and source layout; an ESLint configuration cannot analyze
-Java classes. See [language-specific choices](docs/standards/optional-quality-checks.md#choose-tools-for-your-language).
+The [TypeScript recipe](examples/typescript-quality/README.md) uses TypeScript
+tools. Other languages need their own implementations. The sample app's
+[polyglot examples](https://github.com/ravisingh11/ai-software-toolkit-reference-app/blob/main/examples/polyglot/README.md)
+show these choices:
 
-The separate [Fieldnotes reference app](https://github.com/ravisingh11/ai-software-toolkit-reference-app) has
-[runnable examples for all five languages](https://github.com/ravisingh11/ai-software-toolkit-reference-app/tree/main/examples/polyglot),
-using native tools against a shared defensive issue-transition contract:
-
-| Language | Lint/static analysis | Coverage | Architecture check |
+| Language | Lint/static analysis | Coverage | Architecture |
 | --- | --- | --- | --- |
-| Java | Checkstyle | JaCoCo | Compiled dependencies via `jdeps` |
+| Java | Checkstyle | JaCoCo | `jdeps` |
 | TypeScript | Type-aware ESLint | c8/V8 | dependency-cruiser |
 | Python | Ruff | coverage.py | Conservative AST purity rules |
 | PHP | PHPStan | Xdebug | Conservative token-based purity rules |
-| Scala | WartRemover | JaCoCo | Compiled dependencies via `jdeps` |
+| Scala | WartRemover | JaCoCo | `jdeps` |
 
-Follow the [polyglot guide](https://github.com/ravisingh11/ai-software-toolkit-reference-app/blob/main/examples/polyglot/README.md)
-for runtime requirements, explicit setup, local commands, and coverage scopes.
-Its [Optional polyglot examples workflow](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/workflows/polyglot-examples.yml)
-runs **only by manual dispatch (`workflow_dispatch`)**, for one language or
-all five, with an explicit comparison base and chosen threshold. It does not
-run on pushes or PRs and is not a required merge check. All these checks remain
-optional; repositories choose their own CI triggers and enforcement.
-Evidence covers the selected domain examples; the deployed reference app
-remains TypeScript. Each consuming repository owns adoption and enforcement.
+Their [optional workflow](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/workflows/polyglot-examples.yml)
+runs only when manually dispatched. It does not run on pushes or PRs and is not
+a required merge check. An unchanged comparison can yield **not applicable**
+coverage; that is not a new coverage measurement or a substitute for missing
+application coverage.
 
-### Recorded five-language verification
+## Profiles and providers
 
-The latest recorded [manual run (2026-10-20 UTC)](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39352901729)
-completed successfully on reference-app revision
-[`902eb02`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/902eb0249fa107f1c1319c4dedfbdd534b3f4c14),
-using toolkit revision [`bb4130d`](https://github.com/ravisingh11/ai-software-toolkit/commit/bb4130d4a27eb2d127fc832200797c732443119a).
-It passed **25 non-coverage stages** (versions, build, lint, tests and
-architecture) and **115 conformance cases** (23 per language). All five
-changed-code coverage stages were **not applicable**, with
-`comparison_unchanged: true` against reference-app base
-[`5ae91e8`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/5ae91e812042fee3b27f01a284d808cfbcaa7d94).
-This run provides no new changed-line coverage measurement. The workflow
-remains manual and optional; each language example
-uses its own tools, which consuming repositories can adapt or replace.
+Core selects advisory repository/documentation validation, ground truth, PR
+scope and metadata, lint, migration validation, build, tests, changed-code
+coverage, Semgrep CE, and Gitleaks CLI. The optional
+[GitHub profile](docs/quickstart.md#2-add-the-optional-github-profile) adds
+CodeQL, dependency review, secret protection, and Dependabot verification.
+Choose providers and configure their real prerequisites; workflow files alone
+do not prove activation or successful execution.
 
-The following coverage measurements are **historical**, from the earlier
-[2026-10-19 manual run](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39289785991).
-That run passed all 30 stages and 115 conformance cases on reference-app
-revision [`e34993a`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/e34993afee31f40492dcacafcb93c5ab8e5782cb),
-using toolkit revision [`9ef9297`](https://github.com/ravisingh11/ai-software-toolkit/commit/9ef929780eaff0f863e9c44c5dbca8911f9f21b0).
+[GitHub CodeQL](docs/providers/codeql.md) supports advanced setup and an explicit
+`github-codeql-default-setup` selection for GitHub-managed setup. The latter
+verifies configuration, managed workflow identity, exact revision, and analyses
+for all configured languages. Missing permissions or unverifiable analyses
+remain unverified. CodeQL languages are separate from the five polyglot examples.
 
-| Language-specific example | Historical changed-line coverage in example scope |
-| --- | --- |
-| Java | 100% |
-| TypeScript | 93% |
-| Python | 100% |
-| PHP | 100% |
-| Scala | 92% |
+[Optional lifecycle providers](docs/providers/lifecycle.md) produce IaC,
+container, SBOM, artifact provenance/vulnerability, deployment-policy, DAST,
+runtime, and short soak evidence for immutable artifacts and verification
+environments. They require explicit selection, configuration, and trusted
+collection. Verification fixtures do not attest production deployment or stability.
 
-The historical run used comparison base
-[`2932827`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/2932827657d4758cdf030ab693239cfb2a23e258)
-and a repository-selected 90% threshold. These measurements cover the selected
-example scopes; they do not establish full-application coverage or deployment
-provenance. Its [PR #33 scorecard](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39289788846)
-retained three missing advisory results (changed-code coverage, platform secret
-protection and dependency remediation). Neither historical example coverage
-nor the latest unchanged comparison fills missing PR-head evidence.
-See the [reference app's verification summary](https://github.com/ravisingh11/ai-software-toolkit-reference-app#latest-recorded-verification-2026-10-19)
-for source revisions and remaining evidence limits. All checks remain optional;
-repositories choose their own adoption and enforcement.
+For optional Snyk jobs you leave disabled, set the corresponding
+`SNYK_CODE_ENABLED=false` or `SNYK_OPEN_SOURCE_ENABLED=false` variable explicitly.
+Collection skips waiting for their absent checks while retaining selected
+missing evidence as **no result**. Running jobs still wait. See
+[Snyk setup](docs/providers/snyk.md) and the
+[provider inventory](docs/providers/availability.md) for requirements and limits.
 
-## Profiles
-
-Core is the default advisory profile: repository/documentation/ground-truth
-validation, scope, PR metadata, lint, migration validation, build, unit tests,
-changed-code coverage, Semgrep CE, and Gitleaks CLI. The optional additive
-[GitHub profile](docs/quickstart.md#2-add-the-optional-github-profile) includes
-CodeQL, Dependency Review, Secret Protection, and Dependabot verification.
-Its release-attestation workflow is not PR scorecard evidence.
-
-## Modes and providers
-
-Provider names identify selected evidence contracts, not operational services.
-The [complete provider implementation inventory](docs/providers/availability.md)
-lists shipped producers, consumer-owned integrations, and collection gaps.
-The new [optional lifecycle providers](docs/providers/lifecycle.md) execute real
-artifact, IaC and verification-environment checks with separate typed evidence.
-They require explicit activation; definitions alone are never passing results.
-Check a repository's actual activation and exact-revision evidence before
-describing any provider as working there.
-
-The [initial lifecycle run](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39340201779)
-verified eight controls, including the jointly attested artifact and receipt.
-DAST was **blocked** because ZAP could not export its report; that historical
-result is not a clean security scan. The producer now streams the report from
-its private container filesystem, and the verification fixture omits server
-implementation versions. The [subsequent manual run](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39348439879)
-and [hosted collection](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39348428793)
-verified all nine lifecycle controls for PR #119's original `abdabf5` revision.
-Those results are revision-bound, not evidence for later edits. The ZAP adapter
-also distinguishes informational warnings from noninformational findings while
-retaining its raw report. Findings, blocked tools, missing credentials, and
-unconfigured providers remain visible;
-all checks remain optional and the polyglot workflow remains manual.
-
-Keep capabilities advisory until their producer, stable check name,
-exact-subject evidence, and remediation owner are verified.
-[Promote one proven capability](docs/quickstart.md#8-promote-one-proven-capability);
-policy mode and GitHub rulesets are separate settings. AI review remains
-advisory-only. Agent-driven functional QA is an opt-in capability whose
-workflow the [`qa-bootstrap` skill](skills/qa-bootstrap/SKILL.md) generates. See
-[provider and control setup](docs/proof/control-setup.md).
-
-For GitHub-managed CodeQL, explicitly select the optional
-[`github-codeql-default-setup` provider](docs/providers/codeql.md). It validates
-managed-workflow and all-language analysis provenance; the existing advanced
-`github-codeql` contract and default selections stay unchanged. Unverifiable
-or missing analyses remain unverified, never passed.
-
-## Status vocabulary
-
-🟢 **GREEN**: authoritative pass. 🟠 **ORANGE**: advisory gap.
-🔴 **RED**: enforced gap or wrong-subject evidence; blocked.
-⚪ **GRAY**: inactive for this operation/subject.
-Raw `not_run` or absent evidence is displayed as `no_result`, never a pass.
-Each check names its selected provider (for example, **GitHub CodeQL** for
-Deep SAST). **Not configured** means no provider is selected; **Not reported**
-means selection is unavailable in the snapshot. Provider selection is separate
-from activation and evidence: a missing scan still names its selected provider.
-Configuration links do not imply activation. A run link identifies the latest
-reported check in this snapshot, including failed or skipped checks; it does not
-claim a newer run exists or turn missing evidence into a pass.
-All checks remain optional to adopt, and this display does not change enforcement.
-The default report omits inactive catalog rows; use `--all-catalog-controls`
-to include them. See the [status guide](docs/proof/control-status.md).
-
-## What runs on GitHub
-
-Installed workflows make producers available; files alone do not prove
-activation. Configure supported providers and real command variables, then
-[verify a pull request](docs/quickstart.md#7-open-a-pull-request).
-The collector checks the exact PR head and trusted provider provenance.
-Do not make a check required until you have observed reliable results.
-
-For unconfigured Snyk integrations, explicitly set `SNYK_CODE_ENABLED=false`
-and/or `SNYK_OPEN_SOURCE_ENABLED=false` to match the jobs you disable. The
-scorecard skips waiting for those providers' absent checks while retaining
-missing evidence as **no result**. Queued/running checks still wait, and a
-selected enforced control still blocks without passing evidence. Unset or
-empty variables retain normal waiting. See [Snyk setup](docs/providers/snyk.md).
-
-The [verified fix run](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39184673806)
-collected evidence in **19 seconds**, compared with **30 minutes 34 seconds**
-using the previous trusted runtime on the same PR head. Missing Snyk evidence
-remained **ORANGE / no result**; optionality and branch rules did not change.
-See [recorded verification](docs/verification/scorecard-wait.md) for revisions,
-tests, and the distinction between this repository and the reference app.
-
-## Two useful badges
-
-**Scorecard Workflow** reports workflow execution. **Latest PR Scorecard**
-reports the newest accepted PR evaluation, not current `main`; workflow
-success can still mean `ORANGE / ALLOW`.
-[Badge setup, URLs, Pages ownership, and privacy](docs/quickstart.md#publish-the-optional-scorecard-badge)
-live in the onboarding guide. Publication never changes enforcement.
-
-## Local and pull-request flow
-
-```text
-local scan -> fix findings -> PR -> independent producers -> exact-head scorecard
-```
-
-Local results are machine feedback, not authoritative merge evidence. Follow
-[workflow guidance](workflows/README.md) and [ruleset guidance](rulesets/README.md)
-before requiring checks.
-
-## Ground truth and future capabilities
-
-Repositories own their architecture, testing, security, deployment, and
-contribution docs; map existing paths in `.proof/ground-truth-ai.yaml`.
-Artifact, deployment, and runtime capabilities without implemented producers
-remain evidence contracts, not runnable assurances. See the
-[architecture](docs/proof/architecture.md) and [producer contract](docs/proof/producer-contract.md).
+Each repository decides whether to adopt or enforce a check. If you choose to
+require one, first verify its producer, stable check name, failure behavior,
+exact-subject evidence, and remediation owner. Policy modes and GitHub branch
+rules are separate settings; AI review stays advisory-only.
 
 ## Repository map
-
-Browse the [documentation index](docs/README.md) for adoption, operating guides,
-standards, and retained design history. To run the toolkit against this repository,
-use the [self-check guide](docs/self-check.md).
 
 | Path | Purpose |
 | --- | --- |
 | `policies/` | Capabilities, profiles, providers, and engineering policy |
 | `proof/`, `tooling/` | Evaluator, installer, producers, and validators |
-| `workflows/`, `rulesets/` | GitHub workflow and enforcement templates |
+| `workflows/`, `rulesets/` | Workflow and optional enforcement templates |
 | `skills/` | Reusable agent instructions |
 | `pr-review/`, `prompts/`, `templates/` | Review contracts and reusable guidance |
-| `security/` | Tested scanner rules and fixtures |
-| `examples/` | Runnable consumers |
-| `docs/proof/`, `docs/standards/` | Runtime guides and software delivery standards |
-| `docs/archive/` | Historical designs and plans; current behavior is documented elsewhere |
+| `security/` | Scanner rules and fixtures |
+| `examples/` | Runnable consumers and quality recipes |
+| `docs/` | Onboarding, provider setup, and operating guides |
 | `.proof/`, `.github/workflows/`, `.agents/` | This repository's installed toolkit and CI |
 
-The source and installed directories are intentional: the toolkit is also its
-own consumer. See [source ownership and installed copies](docs/README.md#source-ownership-and-installed-copies)
-before changing or refreshing them.
+See the [documentation index](docs/README.md), [self-check guide](docs/self-check.md),
+and [source ownership guide](docs/README.md#source-ownership-and-installed-copies)
+for working on the toolkit itself.
 
 ## License and validation
 
-MIT licensed; third-party tools keep their own terms. See
-[licensing](docs/licensing.md), [contributing](CONTRIBUTING.md), and the
-[complete validation commands](AGENTS.md#verification).
-Run `tooling/test.sh` for the repository's four unit-test suites.
-Read the [changelog](CHANGELOG.md) and [v1.0.0 release notes](docs/releases/v1.0.0.md)
-for supported contracts, upgrade instructions, and limitations.
+MIT licensed; third-party tools keep their own terms. See [licensing](docs/licensing.md),
+[contributing](CONTRIBUTING.md), and the [validation commands](AGENTS.md#verification).

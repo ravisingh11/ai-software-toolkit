@@ -1,46 +1,72 @@
 # Proof quick start
 
-This guide installs the Proof component of [AI Software Toolkit](vision.md).
-For other entry points, [install skills](../skills/README.md#install-locally)
-or [set up functional QA](../skills/qa-bootstrap/SKILL.md) from a source revision
-containing those capabilities.
+Use the [`ai-toolkit` CLI](install.md) to preview and install the Proof component
+of AI Software Toolkit, configure real repository commands, and collect evidence
+locally and on pull requests. Git, Python 3.11+, and a POSIX shell are the
+prerequisites for this walkthrough. Docker and GitHub access are needed only for
+providers you choose to use. Missing, skipped, stale, or unconfigured evidence
+never counts as a pass.
 
-Install Core, configure repository commands, run locally, and then verify the
-same capability providers on a pull request.
+All checks are optional to adopt. Each repository chooses its providers and
+whether any check becomes enforced; completing this guide does not require
+creating a merge gate. Skills and QA bootstrap are independently adoptable
+through the [CLI installation guide](install.md).
 
-For a copyable, isolated first run, start with the
-[release-pinned Python demo](../README.md#start-here). It clones v1.0.0,
-refreshes the embedded installation, configures real build/test commands,
-commits the demo, and scans it. Git, Python 3.11+, and a POSIX shell are the
-prerequisites. Docker and GitHub credentials are optional; missing providers
-produce no result, not a pass.
+## See a working application
 
-> [!NOTE]
-> This guide uses the Proof names, which no release contains yet, so step 1
-> clones `main`. v1.0.0 predates the rename and uses `.guardrails/` and
-> `GUARDRAILS_*`; to install it, follow the
-> [v1.0.0 quick start](https://github.com/ravisingh11/ai-software-toolkit/blob/v1.0.0/docs/quickstart.md).
-> To move an existing installation, see
-> [migrating from Guardrails](proof/migrating-from-guardrails.md).
+[Fieldnotes, the sample application](https://github.com/ravisingh11/ai-software-toolkit-reference-app),
+is a TypeScript consumer of the toolkit. Open the
+[live application](https://ai-software-toolkit-reference-app.navivision-account.workers.dev/)
+and its [scorecard](https://ravisingh11.github.io/ai-software-toolkit-reference-app/)
+to see the application and its reported verification separately. The scorecard
+links to its source run and shows missing evidence alongside reported results.
 
-The numbered steps below adapt that flow to **your own repository**. Use its
-real commands and ground-truth documents, not the demo's paths.
+The app also includes [Java, TypeScript, Python, PHP, and Scala examples](https://github.com/ravisingh11/ai-software-toolkit-reference-app/tree/main/examples/polyglot).
+Each language uses its own lint, test, coverage, and architecture tools: a
+TypeScript configuration is an example to adapt, not a Java or Python linter.
+The [polyglot workflow](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/workflows/polyglot-examples.yml)
+is manual and optional. Follow its guide to select a language and comparison
+base; it is not a required merge check.
+
+For a small local Python consumer, use the
+[in-repository demo](../examples/python-demo/README.md). The steps below install
+into **your own repository**, using its commands and ground-truth documents.
 
 ## 1. Preview and install Core
 
-Clone the source, then run the installer from that checkout:
+Clone the toolkit into a separate directory. From that checkout, discover the
+target's commands, preview the installation, and apply the reviewed plan:
 
 ```sh
 git clone https://github.com/ravisingh11/ai-software-toolkit.git
 cd ai-software-toolkit
+python3 tooling/ai_toolkit discover --target /path/to/repo
+python3 tooling/ai_toolkit init --target /path/to/repo --components proof --preview
+python3 tooling/ai_toolkit init --target /path/to/repo --components proof --yes
+```
+
+Review discovered commands against the tests and build your repository actually
+uses. Discovery proposes configuration; it does not verify execution. Commit
+`toolkit.toml`, `toolkit.lock.json`, and the reviewed installed files with your
+repository configuration. The [CLI guide](install.md) covers adding skills and
+QA, runtime-only installation, and managed updates.
+
+For advanced installation options below, use `tooling/install.py` from the same
+toolkit checkout. Its direct preview/apply equivalent is:
+
+```sh
 python3 tooling/install.py --target /path/to/repo --dry-run
 python3 tooling/install.py --target /path/to/repo
 ```
 
+Choose one installation path for a fresh target. The direct installer installs
+Proof files; the CLI additionally records the installation manifest and lock.
+
 Replace `/path/to/repo` with an existing consumer directory. Installation writes
 files there; it does not configure GitHub settings or prove any check passed.
-For an existing v2 installation, preview and use `--refresh-existing` instead
-of a plain install. Refresh updates distributed runtime and installer-owned
+For a direct-installer-managed installation, preview and use
+`--refresh-existing` instead of a plain install. CLI-managed installations use
+[`ai-toolkit update`](install.md#update-and-roll-back). Refresh updates distributed runtime and installer-owned
 workflows while preserving repository policy, documentation/ground-truth
 mappings, scope/metadata settings, and consumer-owned workflows. Review the
 diff before committing; provider definitions are refreshed while retaining
@@ -63,13 +89,21 @@ The installer refuses to overwrite an existing pre-commit configuration.
 
 ## 2. Add the optional GitHub profile
 
-For a fresh install:
+For the CLI installation above, preview and add the profile from the toolkit
+checkout:
+
+```sh
+python3 tooling/ai_toolkit init --target /path/to/repo --components proof --profile github --preview
+python3 tooling/ai_toolkit init --target /path/to/repo --components proof --profile github --yes
+```
+
+With the direct installer, select it during a fresh install:
 
 ```sh
 python3 tooling/install.py --target /path/to/repo --profile github
 ```
 
-For an existing v2 installation:
+For an existing direct-installer-managed installation:
 
 ```sh
 python3 tooling/install.py --target /path/to/repo --profile github --merge-existing --dry-run
@@ -80,7 +114,8 @@ Core remains selected. The GitHub profile is an additive advisory overlay.
 
 ## 3. Configure repository commands
 
-This verified example matches the embedded Python demo:
+This Python example matches the embedded demo. Replace these commands with
+commands that exercise your own application:
 
 ```sh
 export PROOF_BUILD_COMMAND='python3 -m compileall -q app.py test_app.py tools .proof'
@@ -121,10 +156,9 @@ filenames are not required.
 
 ## 5. Inspect policy and run
 
-Run from the consumer repository, not the standards checkout. Review and commit
+Run from the consumer repository. Review and commit
 the installation/configuration with your normal Git workflow **before** the
-scan. A new repository also needs `git init` and its initial commit; the
-[demo walkthrough](../README.md#start-here) includes both.
+scan. A new repository also needs `git init` and an initial commit.
 
 ```sh
 python3 .proof/configure.py --list
@@ -188,9 +222,8 @@ mismatch produces `NO RESULT`.
 
 ## Diagnose installation
 
-The installer distributes `.proof/doctor.py` with the runtime,
-including runtime-only installs. Refreshing an existing v2 installation adds
-it. Run these commands from the installed consumer repository:
+The installer distributes `.proof/doctor.py` with the runtime, including
+runtime-only installs. Run these commands from the installed consumer repository:
 
 ```sh
 python3 .proof/doctor.py
@@ -238,7 +271,7 @@ tools, or mutate files, policy, GitHub settings, or secrets. A local
 **configured** result means configuration was found, not that a check ran or
 passed. GitHub metadata also does not prove an exact-head provider pass.
 Continue to use the scanner and trusted PR workflows for execution evidence.
-See the [release notes](releases/v1.0.0.md#upgrade-from-v020) for upgrade constraints.
+See the [installation guide](install.md) for managed updates and rollback.
 
 Git inspection disables hooks, fsmonitor, and filters and does not recurse into
 submodules. An otherwise clean checkout with `.gitmodules` remains `unverified`;
@@ -258,8 +291,28 @@ PROOF_ARTIFACT_BUILD_COMMAND
 PROOF_ARTIFACT_PATH
 ```
 
-`PROOF_CODEQL_LANGUAGES` is the CodeQL language list. Artifact variables
-apply to release/workflow-dispatch provenance, not PR commit evidence.
+`PROOF_CODEQL_LANGUAGES` is the language list for the optional **advanced**
+CodeQL workflow. Artifact variables apply to release/workflow-dispatch
+provenance, not PR commit evidence.
+
+To use GitHub **CodeQL default setup** instead, configure it in GitHub, leave
+`PROOF_CODEQL_LANGUAGES` unset to avoid duplicate advanced uploads, and explicitly
+select its provider from the consumer repository:
+
+```sh
+python3 .proof/configure.py --select-provider deep-sast=github-codeql-default-setup
+```
+
+Hosted configuration verification requires the optional repository secret
+`PROOF_CODEQL_CONFIGURATION_TOKEN`, with a fine-grained credential limited to
+this repository and **Administration: read** (plus GitHub's mandatory metadata
+read access). Store it directly in GitHub secrets. The collector uses it only to
+read the default-setup configuration; native runs and analyses use the workflow
+token. A saved secret or successful CodeQL job alone is not accepted evidence:
+the collector verifies the exact PR revision, trusted configuration, native run,
+and analysis for every configured language. Missing access or incomplete
+provenance remains **Unverified / NO RESULT**. Follow the
+[CodeQL provider guide](providers/codeql.md) for the full contract.
 
 The optional `SECURITY_SETTINGS_TOKEN` is used only by trusted, no-checkout
 `pull_request_target` setting probes for GitHub Secret Protection and
@@ -297,8 +350,9 @@ to failure.
 
 ## 8. Promote one proven capability
 
-Keep all capabilities advisory while tuning. After a provider has a stable
-check name, reliable exact-subject evidence, and a remediation owner:
+This step is optional. Keeping every capability advisory is a complete adoption.
+If your repository chooses enforcement, first verify a stable check name,
+reliable exact-subject evidence, and a remediation owner. Then preview the change:
 
 ```sh
 python3 .proof/configure.py --set unit-tests=enforced --dry-run
@@ -352,7 +406,7 @@ private Pages eligibility, keep the Actions reports as the supported default.
 ## Publish the optional scorecard badge
 
 The installer supports the optional publisher. Run the installation
-commands below from the released standards checkout, not the consumer.
+commands below from your toolkit source checkout, not the consumer.
 
 GitHub's native **Scorecard Workflow** badge reports whether the workflow ran
 successfully. The optional **Latest PR Scorecard** badge reports the newest
@@ -450,7 +504,18 @@ controls do not acquire invented test totals, coverage percentages, or
 security finding counts. This is the latest published PR evaluation, not an
 assessment of the current default branch.
 
-Continue with [control setup](proof/control-setup.md) and [rulesets](../rulesets/README.md).
+### Check snapshot freshness
+
+The published page compares its snapshot metadata with the latest published
+`scorecard.json`. A newer verified publication produces a stale notice; use
+**Refresh latest** to load it. Matching the latest publication does not verify
+current `main`, the current PR head, or newer CI results. Refresh loads the latest published snapshot; it does
+not start a scan or convert missing evidence into a pass. If freshness cannot
+be established, the page says so. Snapshot age alone does not prove staleness.
+Check the source run and evaluated revision before using a result.
+
+Continue with [control setup](proof/control-setup.md) and, if you choose merge
+gates, [rulesets](../rulesets/README.md).
 
 Per-check details also show trusted assessment criteria and validated optional
 execution timestamps, duration, and conclusion. These facts do not imply test
