@@ -360,9 +360,13 @@ verified eight controls, including the jointly attested artifact and receipt.
 DAST was **blocked** because ZAP could not export its report; that historical
 result is not a clean security scan. The producer now streams the report from
 its private container filesystem, and the verification fixture omits server
-implementation versions. A new manual run and hosted scorecard collection
-must verify those changes before they can be described as passing. Findings,
-blocked tools, missing credentials, and unconfigured providers remain visible;
+implementation versions. The [subsequent manual run](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39348439879)
+and [hosted collection](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/39348428793)
+verified all nine lifecycle controls for PR #119's original `abdabf5` revision.
+Those results are revision-bound, not evidence for later edits. The ZAP adapter
+also distinguishes informational warnings from noninformational findings while
+retaining its raw report. Findings, blocked tools, missing credentials, and
+unconfigured providers remain visible;
 all checks remain optional and the polyglot workflow remains manual.
 
 Keep capabilities advisory until their producer, stable check name,

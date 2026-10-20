@@ -382,6 +382,21 @@ class ProducerTests(unittest.TestCase):
         self.assertEqual(docs['artifact']['results']['artifact-sbom']['trivy-artifact-sbom']['status'], 'passed')
         self.assertEqual(docs['environment']['results']['runtime-assurance']['repository-runtime-assurance']['status'], 'blocked')
 
+    def test_zap_informational_warning_exit_respects_existing_risk_policy(self):
+        report = {'site': [{'@name': 'http://proof-target:8080', 'alerts': [{'pluginid': '10031', 'riskcode': '0'}]}]}
+        self.assertEqual(producer.zap_status(report, 2, 'http://proof-target:8080'), 'passed')
+        with self.assertRaises(ValueError):
+            producer.zap_status(report, 1, 'http://proof-target:8080')
+        for code in (1, 2):
+            report['site'][0]['alerts'] = []
+            with self.subTest(code=code), self.assertRaises(ValueError):
+                producer.zap_status(report, code, 'http://proof-target:8080')
+        for risk in ('1', '2', '3'):
+            report['site'][0]['alerts'] = [{'riskcode': '0'}, {'riskcode': risk}]
+            for code in (0, 1, 2):
+                with self.subTest(risk=risk, code=code):
+                    self.assertEqual(producer.zap_status(report, code, 'http://proof-target:8080'), 'failed')
+
     def test_zap_findings_and_clean(self):
         report = {'site': [{'@name': 'http://proof-target:8080', 'alerts': [{'riskcode': '2'}]}]}
         self.assertEqual(producer.zap_status(report, 2, 'http://proof-target:8080'), 'failed')

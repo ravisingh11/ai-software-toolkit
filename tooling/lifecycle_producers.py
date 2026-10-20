@@ -163,7 +163,9 @@ def zap_status(report, code, target):
         if str(alert.get('riskcode')) not in {'0', '1', '2', '3'}:
             raise ValueError('malformed ZAP finding')
     findings = any(int(item['riskcode']) >= 1 for item in site['alerts'])
-    if code in (1, 2) and not findings:
+    # Baseline WARN (exit 2) includes informational alerts by default.
+    # A warning still needs a report alert; FAIL requires a policy finding.
+    if (code == 1 and not findings) or (code == 2 and not site['alerts']):
         raise ValueError('ZAP exit and report disagree')
     return 'failed' if findings else 'passed'
 
