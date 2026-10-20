@@ -307,13 +307,26 @@ remains TypeScript. Each consuming repository owns adoption and enforcement.
 
 ### Recorded five-language verification
 
-The latest recorded [2026-10-19 manual run](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39289785991)
-passed all **30 stages** (versions, build, lint, tests, architecture, coverage)
-and **115 conformance cases** (23 per language) on reference-app revision
-[`e34993a`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/e34993afee31f40492dcacafcb93c5ab8e5782cb),
+The latest recorded [manual run (2026-10-20 UTC)](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39349416084)
+completed successfully on reference-app revision
+[`92c2778`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/92c27786b157f5770a9a032f2fd2a823e22142d0),
+using toolkit revision [`6984096`](https://github.com/ravisingh11/ai-software-toolkit/commit/698409630ce7de4ca0398994908fcde92f2fc893).
+It passed **25 non-coverage stages** (versions, build, lint, tests and
+architecture) and **115 conformance cases** (23 per language). All five
+changed-code coverage stages were **not applicable**, with
+`comparison_unchanged: true` against reference-app base
+[`5ae91e8`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/5ae91e812042fee3b27f01a284d808cfbcaa7d94).
+This run provides no new changed-line coverage measurement. The workflow
+remains manual and optional; each language example
+uses its own tools, which consuming repositories can adapt or replace.
+
+The following coverage measurements are **historical**, from the earlier
+[2026-10-19 manual run](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39289785991).
+That run passed all 30 stages and 115 conformance cases on reference-app
+revision [`e34993a`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/e34993afee31f40492dcacafcb93c5ab8e5782cb),
 using toolkit revision [`9ef9297`](https://github.com/ravisingh11/ai-software-toolkit/commit/9ef929780eaff0f863e9c44c5dbca8911f9f21b0).
 
-| Language-specific example | Changed-line coverage in example scope |
+| Language-specific example | Historical changed-line coverage in example scope |
 | --- | --- |
 | Java | 100% |
 | TypeScript | 93% |
@@ -321,19 +334,17 @@ using toolkit revision [`9ef9297`](https://github.com/ravisingh11/ai-software-to
 | PHP | 100% |
 | Scala | 92% |
 
-This recorded run used comparison base
+The historical run used comparison base
 [`2932827`](https://github.com/ravisingh11/ai-software-toolkit-reference-app/commit/2932827657d4758cdf030ab693239cfb2a23e258)
-and a repository-selected 90% threshold. These are results for the selected
-example scopes, not full-application coverage or a deployment attestation.
-The same revision passed [Application acceptance](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39289758236)
-and the [configured Snyk workflow](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39289758563).
-The reference app's [PR #33 scorecard](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39289788846)
-is separate PR-head evidence: it retained three missing advisory results
-(changed-code coverage, platform secret protection, and dependency remediation).
-The manual example coverage does not fill that PR coverage gap.
-See the [reference app's latest verification summary](https://github.com/ravisingh11/ai-software-toolkit-reference-app#latest-recorded-verification-2026-10-19)
-for source revisions and remaining evidence limits. The
-examples use each language's own tools; adapt or replace them for your stack.
+and a repository-selected 90% threshold. These measurements cover the selected
+example scopes; they do not establish full-application coverage or deployment
+provenance. Its [PR #33 scorecard](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/39289788846)
+retained three missing advisory results (changed-code coverage, platform secret
+protection and dependency remediation). Neither historical example coverage
+nor the latest unchanged comparison fills missing PR-head evidence.
+See the [reference app's verification summary](https://github.com/ravisingh11/ai-software-toolkit-reference-app#latest-recorded-verification-2026-10-19)
+for source revisions and remaining evidence limits. All checks remain optional;
+repositories choose their own adoption and enforcement.
 
 ## Profiles
 
