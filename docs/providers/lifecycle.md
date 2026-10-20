@@ -17,7 +17,7 @@ production infrastructure or claim that a preview is a production release.
 | Runtime soak | `repository-soak` | Same environment; measured bounded workload, duration and resource observations |
 
 Trivy findings at HIGH or CRITICAL fail the relevant scan; unfixed findings are
-not ignored. ZAP's noninformational alerts fail its baseline result. A completed
+not ignored. ZAP's noninformational alerts fail its baseline result. The pinned offline baseline uses the bundled release passive rules (pscanrules v76), verified through ZAP's local installed add-on listing before scanning. Raw and normalized inventory digests are bound into its signed evidence. Startup, missing or malformed inventory blocks the result; no beta-rule or authenticated active-scan coverage is claimed. Both inventory and baseline suppress online add-on updates with `-silent`. A completed
 advisory workflow may therefore contain failed controls. Missing tools, current
 vulnerability data, targets, inventories, reports or signatures never pass.
 A passive baseline is not an authenticated or comprehensive active penetration

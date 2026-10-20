@@ -131,6 +131,28 @@ def validate_sbom(report):
             raise ValueError('incomplete SBOM component')
 
 
+def zap_inventory(stdout):
+    # ZAP's local loader emits name, ID, vVERSION, release status, description.
+    # Non-tab startup messages are retained in the raw file, not treated as rows.
+    addons = []
+    seen = set()
+    for line in stdout.splitlines():
+        if '\t' not in line:
+            continue
+        fields = line.split('\t', 4)
+        if len(fields) != 5:
+            raise ValueError('Malformed ZAP installed add-on inventory')
+        name, addon_id, version, status, description = fields
+        if not name or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*', addon_id) or not re.fullmatch(r'v[0-9]+(?:\.[0-9]+)*', version) or status not in {'unknown', 'example', 'alpha', 'beta', 'weekly', 'release'} or not description or addon_id in seen:
+            raise ValueError('Malformed or duplicate ZAP installed add-on')
+        seen.add(addon_id)
+        addons.append({'id': addon_id, 'version': version[1:], 'status': status})
+    required = {'id': 'pscanrules', 'version': '76.0.0', 'status': 'release'}
+    if required not in addons:
+        raise ValueError('Pinned ZAP release passive rules v76 absent from local loader')
+    return {'image': ZAP_IMAGE, 'scope': 'bundled release passive baseline', 'addons': sorted(addons, key=lambda item: item['id'])}
+
+
 def zap_status(report, code, target):
     if code not in (0, 1, 2) or not isinstance(report, dict) or not isinstance(report.get('site'), list) or len(report['site']) != 1:
         raise ValueError('ZAP did not complete against one target')
@@ -199,6 +221,10 @@ def result(provider, status, reason, report=None):
         value['evidence'] = [reason]
         if report:
             value['evidence'].append(f'report:{Path(report).name} {digest(report)}')
+            if provider == 'zap-baseline-local':
+                for name in ('zap-addonlist.txt', 'zap-inventory.json'):
+                    inventory = Path(report).parent / name
+                    value['evidence'].append(f'installed-inventory:{name} {digest(inventory)}')
             metadata = Path(report).parent / 'trivy-version.json'
             if provider.startswith('trivy-') and metadata.is_file():
                 value['evidence'].append(f'tool-and-database:trivy-version.json {digest(metadata)}')
@@ -373,11 +399,14 @@ def produce(args):
             try:
                 # Keep the bounded private report mount alive until extraction.
                 # A foreground baseline exits before its tmpfs can be copied.
-                run.run(['docker', 'run', '-d', '--name', zap_name, '--network', network, '--user', '1000:1000', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--pids-limit', '512', '--memory', '2g', '--cpus', '2', '--tmpfs', '/zap/wrk:rw,noexec,nosuid,size=64m,uid=1000,gid=1000,mode=0770', '--entrypoint', '/bin/sleep', ZAP_IMAGE, '660'])
-                completed = run.run(['docker', 'exec', zap_name, 'zap-baseline.py', '-t', target + '/', '-m', '1', '-T', '5', '-J', 'zap.json'], timeout=600, allowed=(0, 1, 2, 3))
+                run.run(['docker', 'run', '-d', '--name', zap_name, '--network', network, '--user', '1000:1000', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--pids-limit', '512', '--memory', '2g', '--cpus', '2', '--tmpfs', '/zap/wrk:rw,noexec,nosuid,size=64m,uid=1000,gid=1000,mode=0770', '--entrypoint', '/bin/sleep', ZAP_IMAGE, '900'])
+                inventory_raw = output / 'zap-addonlist.txt'
+                inventory_raw.write_text(run.run(['docker', 'exec', zap_name, 'zap.sh', '-cmd', '-silent', '-addonlist'], timeout=120).stdout, encoding='utf-8')
+                write(output / 'zap-inventory.json', zap_inventory(inventory_raw.read_text(encoding='utf-8')))
+                completed = run.run(['docker', 'exec', zap_name, 'zap-baseline.py', '-t', target + '/', '-m', '1', '-T', '5', '-J', 'zap.json', '-z', '-silent'], timeout=600, allowed=(0, 1, 2, 3))
                 report = output / 'zap.json'
-                report.write_text(run.run(['docker', 'exec', zap_name, 'cat', '/zap/wrk/zap.json']).stdout, encoding='utf-8')
-                record('dynamic-application-security', zap_status(strict_json(report.read_bytes()), completed.returncode, target), 'Pinned ZAP passive baseline against isolated first-party verification target; all noninformational alerts fail', report)
+                report.write_text(run.run(['docker', 'exec', zap_name, 'cat', '/zap/wrk/zap.json'], timeout=30).stdout, encoding='utf-8')
+                record('dynamic-application-security', zap_status(strict_json(report.read_bytes()), completed.returncode, target), 'Pinned ZAP bundled release passive baseline (installed pscanrules v76); isolated first-party verification target; all noninformational alerts fail', report)
             finally:
                 run.run(['docker', 'rm', '-f', zap_name], allowed=(0, 1))
         except (ValueError, KeyError, OSError, subprocess.SubprocessError) as error:

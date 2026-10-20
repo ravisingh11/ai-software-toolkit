@@ -173,6 +173,18 @@ class ProducerTests(unittest.TestCase):
                     producer.safe_file(root, name)
             self.assertEqual(producer.safe_file(root, 'file'), root / 'file')
 
+    def test_zap_inventory_requires_unique_installed_release_from_loader(self):
+        row = 'Passive Scan Rules\tpscanrules\tv76.0.0\trelease\tRelease rules'
+        inventory = producer.zap_inventory('Starting ZAP\n' + row + '\n')
+        self.assertEqual(inventory['addons'][0]['version'], '76.0.0')
+        mixed = row + ''.join(f'\nAddon\taddon{status}\tv1.2.3\t{status}\tDescription\twith tab' for status in ('unknown', 'example', 'alpha', 'beta', 'weekly'))
+        self.assertEqual(len(producer.zap_inventory(mixed)['addons']), 6)
+        for invalid in ('', row + '\n' + row, row.replace('v76.0.0', 'v70.0.0'), row.replace('v76.0.0', 'v76'),
+                        row.replace('release', 'beta'), row.replace('release', 'RELEASE'), 'broken\tpscanrules',
+                        row.replace('pscanrules', 'pscanrulesBeta')):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                producer.zap_inventory(invalid)
+
     def test_zap_empty_wrong_target_and_bad_exit_rejected(self):
         for report, code in (({}, 0), ({'site': []}, 0), ({'site': [{'@name': 'https://example.com', 'alerts': []}]}, 0), ({'site': [{'@name': 'http://proof-target:8080', 'alerts': []}]}, 3)):
             with self.assertRaises(ValueError):
@@ -272,7 +284,19 @@ class ProducerTests(unittest.TestCase):
                 if failure == 'zap-start':
                     raise ValueError('ZAP container startup failed')
                 zap['alive'] = True
+            if argv[:2] == ['docker', 'exec'] and 'zap.sh' in argv:
+                if argv[-3:] != ['-cmd', '-silent', '-addonlist'] or kwargs['timeout'] != 120:
+                    raise ValueError('Inventory must be offline and bounded')
+                if not zap['alive'] or failure == 'zap-inventory-start':
+                    raise ValueError('ZAP loader startup failed')
+                text = 'Passive Scan Rules\tpscanrules\tv76.0.0\trelease\tRelease rules'
+                if failure == 'zap-inventory-missing':
+                    text = 'Starting ZAP'
+                if failure == 'zap-inventory-malformed':
+                    text = 'broken\tpscanrules'
             if argv[:2] == ['docker', 'exec'] and 'zap-baseline.py' in argv:
+                if argv[argv.index('-z') + 1] != '-silent':
+                    raise ValueError('Baseline must not attempt online add-on changes')
                 if not zap['alive'] or failure == 'zap-exec':
                     raise ValueError('ZAP cannot execute')
                 if argv[argv.index('-J') + 1] != 'zap.json':
@@ -312,6 +336,10 @@ class ProducerTests(unittest.TestCase):
         contract_spec.loader.exec_module(contract)
         receipt['artifact'].update(artifact_id=3, artifact_name='proof-lifecycle-image-2-1', archive_digest='sha256:' + 'f'*64)
         contract.validate_receipt(receipt, cfg)
+        dast = receipt['documents']['environment']['results']['dynamic-application-security']['zap-baseline-local']
+        if dast['status'] in ('passed', 'failed'):
+            for name in ('zap-addonlist.txt', 'zap-inventory.json'):
+                self.assertIn(f'installed-inventory:{name} {producer.digest(output / name)}', dast['evidence'])
         return receipt['documents']
 
     def test_full_lifecycle_records_actual_subject_bound_results(self):
@@ -341,7 +369,7 @@ class ProducerTests(unittest.TestCase):
         self.assertEqual(docs['artifact']['results']['artifact-sbom']['trivy-artifact-sbom']['status'], 'passed')
 
     def test_zap_start_and_exec_failures_cleanup_and_remain_blocked(self):
-        for failure in ('zap-start', 'zap-exec', 'zap-empty', 'zap-duplicate'):
+        for failure in ('zap-start', 'zap-exec', 'zap-empty', 'zap-duplicate', 'zap-inventory-start', 'zap-inventory-missing', 'zap-inventory-malformed'):
             docs = self.exercise(failure)
             self.assertEqual(docs['environment']['results']['dynamic-application-security']['zap-baseline-local']['status'], 'blocked')
 
