@@ -21,6 +21,9 @@ if not assessment['controls']:
 
 
 class Handler(BaseHTTPRequestHandler):
+    def version_string(self):
+        return 'ToolkitVerificationFixture'
+
     def do_GET(self):
         if self.path == '/health':
             body = json.dumps({'revision': os.environ['PROOF_REVISION'], 'runtime_controls_evaluated': len(assessment['controls']), 'runtime_missing_evidence_status': assessment['status'], 'documentation_files': len(list(Path('/app/docs').rglob('*.md')))}).encode()
