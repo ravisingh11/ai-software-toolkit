@@ -8,6 +8,10 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Refresh README onboarding and scorecard terminology, correct shipped CLI
+  and lifecycle capability descriptions, index published release notes, and
+  ignore generated distribution archives and the local Ruff cache.
+
 - Stage standalone skill replacements before moving the installed copy when
   `rsync` is unavailable. Restore failed promotions and handled interruptions,
   retain and report the original if rollback cannot complete, and cover partial

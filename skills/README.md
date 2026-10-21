@@ -2,8 +2,8 @@
 
 This directory is the canonical source for reusable agent skills in the
 AI Software Toolkit. Skills are small, task-specific operating
-guides that tell Codex how to perform repeatable engineering, security,
-QA, release, and repository administration work.
+guides that tell Codex and Claude Code how to perform repeatable engineering,
+security, QA, release, and repository administration work.
 
 ## Choose a starting point
 
@@ -17,9 +17,9 @@ QA, release, and repository administration work.
   to assess risks and evidence within the application's authority.
 
 See [the delivery lifecycle and maturity map](../docs/vision.md). Choose a
-source revision or release containing the desired skill; newer QA additions
-are documented under [Unreleased](../CHANGELOG.md#unreleased), not in the
-v1.0.0 Proof demo. Installing a skill does not prove it has run.
+source revision or release containing the desired skill; consult the
+[changelog](../CHANGELOG.md) and [release notes](../docs/releases/README.md)
+for availability. Installing a skill does not prove it has run.
 
 ## Policy
 

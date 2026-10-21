@@ -12,13 +12,13 @@ Six entry points, one per component:
 | **Skills** | [Skill catalog](../skills/README.md) — review skills, the five action skills, installation for Codex and Claude Code | Each action skill's `VERIFICATION.md` for what has been proven |
 | **QA** | [QA bootstrap](../skills/qa-bootstrap/SKILL.md) — generate the `qa` orchestrator | [Plans, findings, and regression reruns](../skills/qa-bootstrap/references/plans-and-findings.md) |
 | **Providers** | [Providers](providers/README.md) — SonarQube, Snyk, FOSSA, reason codes, adapter-owned commands | [Live verification ledger](providers/verification.md) |
-| **Reference app** | [Reference app](reference-app.md) — what the embedded demo demonstrates and what is still planned | [Demo README](../examples/python-demo/README.md) |
+| **Reference app** | [Reference app](reference-app.md) — the embedded Python fixture and separate TypeScript application | [Demo README](../examples/python-demo/README.md) |
 
 Also: [Vision and maturity](vision.md) (what is shipped, opt-in, or planned),
 [self-check](self-check.md) and [contributing](../CONTRIBUTING.md) for
 developing the toolkit, the [repository rename](repository-rename.md) note,
 the [Guardrails to Proof migration](proof/migrating-from-guardrails.md),
-and the [changelog](../CHANGELOG.md) with [v1.0.0 release notes](releases/v1.0.0.md).
+and the [changelog](../CHANGELOG.md) with [release notes](releases/README.md).
 
 ## Guides by area
 
@@ -29,7 +29,7 @@ and the [changelog](../CHANGELOG.md) with [v1.0.0 release notes](releases/v1.0.0
 | [standards/](standards/README.md) | Agent guidance, commits, error handling, release evidence, and specification-driven development |
 | [agent-workflows/](agent-workflows/README.md) | Repository administration and dependency remediation workflows |
 | [examples/](examples/sample-scorecard.md) | Illustrative scorecards and workflow examples |
-| [releases/](releases/v1.0.0.md) | Published release notes |
+| [releases/](releases/README.md) | Published release notes |
 | [archive/](archive/README.md) | Historical designs and implementation plans; not current setup instructions |
 
 Shared requirements live in [policies/](../policies/ai-development.md).
@@ -61,8 +61,8 @@ repository name.
 
 ## Local output and history
 
-`.artifacts/`, `.omx/`, `.superpowers/`, and `.worktrees/` hold local output or
-working state and are ignored by Git. Keep generated reports and execution
+`dist/`, `.artifacts/`, `.omx/`, `.superpowers/`, and `.worktrees/` hold local
+output or working state and are ignored by Git. Keep generated reports and execution
 transcripts there. Curate durable design rationale into `docs/archive/`; current
 instructions belong in the guides above. Removed transient reports and the
 superseded v0.3.0 draft remain available in Git history.

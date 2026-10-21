@@ -1,7 +1,7 @@
 # AI Software Toolkit
 
 **Move fast. Prove it works.** Shared skills, QA workflows, and Proof checks for
-planning, building, testing, securing, and releasing software with AI.
+planning, building, testing, securing, and releasing software with people and AI.
 
 Skills guide repeatable work, functional QA exercises application behavior,
 and Proof connects tests and scanners to revision-bound evidence and readable
@@ -82,10 +82,12 @@ ground-truth documents, GitHub setup, and your first PR. The
 [CLI guide](docs/install.md) covers skills, QA, runtime-only installs, updates,
 and managed-file ownership.
 
-### Use with Claude Code
+<a id="use-with-claude-code"></a>
 
-Install the starter skills into your application's `.claude/skills/` directory.
-From this toolkit checkout, preview first, then apply:
+### Install skills for Codex or Claude Code
+
+For Claude Code, install the starter skills into your application's
+`.claude/skills/` directory. From this toolkit checkout, preview first, then apply:
 
 ```sh
 python3 tooling/ai_toolkit init --target /path/to/your-repo --components skills --clients claude-code --skills starter --preview
@@ -94,7 +96,14 @@ python3 tooling/ai_toolkit init --target /path/to/your-repo --components skills 
 
 This skills-only selection does not install Proof workflows or run checks.
 Use `--clients codex,claude-code` if you use both clients; they share the same
-canonical skills in their respective project directories.
+canonical skills in their respective project directories. For Codex alone, use
+`--clients codex`; its project destination is `.agents/skills/`.
+
+The separate [`tooling/install-skills.sh`](skills/README.md#install-locally)
+installer copies selected skills and their shared helpers into your client
+skills directory. It does not install package dependencies, run the copied
+helpers, or install Proof workflows. Review replacement behavior and recovery
+limits in the [installation guide](docs/install.md#installing-and-verifying-action-skills).
 
 In Claude Code, ask: “Use the code-review skill to review this change. Explain
 risks with file references. Do not run tests or commands unless I ask.” Keep
@@ -159,7 +168,7 @@ An **illustrative example**, not a live scan:
 | Changed-code coverage | Repository Changed Code Coverage Command | Advisory | No result; command not configured |
 | Deep SAST | GitHub CodeQL default setup | Advisory | No result; analysis provenance unavailable |
 | Container vulnerability | Trivy Container Image | Advisory | Failed; findings remain visible |
-| Artifact provenance | Not configured | Not activated | Excluded from active totals |
+| Artifact provenance | Not configured | Not activated | Excluded from selected totals |
 
 This example is **ORANGE / ALLOW**, with zero enforced controls. `ALLOW` means
 the configured policy permits the evaluated snapshot; it does not mean all
@@ -174,8 +183,15 @@ revision, and source CI run. Provider names link to configuration at that
 revision; **Latest reported run** opens available evidence for that snapshot.
 Provider selection is separate from successful execution.
 
+**Selected checks** counts checks included in the evaluation, not checks that
+have successfully run. The scorecard separates failed, blocked, and unverified
+results. Inactive checks stay outside that total, including checks belonging
+to a subject this evaluation did not score. An empty enforced selection says
+**No checks enforced**; it does not represent a passing check.
+
 - **Passed:** usable authoritative evidence satisfies the check.
-- **Failed / Blocked:** the producer reported a failure or could not complete.
+- **Failed:** usable evidence reports a failed check.
+- **Blocked:** the producer could not complete or the evidence could not be accepted.
 - **Unverified:** usable evidence is missing; it is never a pass.
 - **Not configured:** no provider is selected.
 - **Not reported:** this snapshot has no validated result row.

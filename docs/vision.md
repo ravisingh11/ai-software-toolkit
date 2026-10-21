@@ -43,17 +43,17 @@ the tree; no date promised).
 
 | Area | Status | What adoption still requires |
 | --- | --- | --- |
-| Proof Core and GitHub profile | Shipped; the README demo pins v1.0.0 | Real consumer commands as repository variables, applicable settings, and observed evidence |
-| `ai-toolkit` CLI (`discover`, `init`, `doctor`, `check`, `providers`, `skills`, `qa`, `update`) | Shipped in source under [Unreleased](../CHANGELOG.md#unreleased); the `ai-toolkit.pyz` release asset is planned | Run `init` and commit `toolkit.toml` / `toolkit.lock.json`; `verified` in `doctor` comes only from revision-bound evidence |
+| Proof Core and GitHub profile | Shipped; the embedded Python demo includes the installed runtime | Real consumer commands as repository variables, applicable settings, and observed evidence |
+| `ai-toolkit` CLI (`discover`, `init`, `doctor`, `check`, `providers`, `skills`, `qa`, `update`) | Shipped in source and as the `ai-toolkit.pyz` asset in [v2.1.0](releases/v2.1.0.md) | Run `init` and commit `toolkit.toml` / `toolkit.lock.json`; `verified` in `doctor` comes only from revision-bound evidence |
 | External providers: SonarQube, Snyk Code, Snyk Open Source, FOSSA | Opt-in; templates and the adapter are shipped, contract tests pass, **no adapter is live-verified** ([ledger](providers/verification.md)) | Copy the template, add the credential, select the provider, verify a representative PR, record the ledger row |
 | Semgrep AppSec Platform, Codex Code Review, AI review adapters | Opt-in provider definitions; Semgrep and Codex rely on platform integrations, the others on repository-owned commands | A reviewed integration or command and a verified exact-head check; AI review stays advisory-only |
-| Runtime soak | Awaiting an environment-evidence producer and collection path | Scheduled or dispatched checks alone cannot satisfy the environment evidence contract; the PR reporter collects git-commit evidence only |
+| Runtime soak | Opt-in; the [lifecycle workflow](providers/lifecycle.md) measures a bounded verification workload and collects environment-subject evidence | Supply an owned workload, duration and thresholds; a scheduled command alone does not prove endurance or production health |
 | Review skills (code, security, dependency, release, and others) | Shipped source catalog with installers for Codex and Claude Code | Choose a revision, install, supply application context; installation is not execution |
 | Action skills (`fix-ci`, `generate-unit-tests`, `fix-security-finding`, `dependency-upgrade`, `address-pr-findings`) | Shipped with fixtures and ledgers; **not verified in either client yet** | A recorded live run per client in each skill's `VERIFICATION.md` |
 | Agent-driven functional QA | Opt-in; `qa-bootstrap` shipped, plans and findings documented, FLAKY blocks | Run bootstrap, configure drivers and environments, execute the generated `qa`, inspect evidence; advisory-only |
 | Reference app | Python fixture exercises install, refresh, and local scorecards; nested CI templates are shipped but not live-verified. The separate Node reference app has its own evidence ([details](reference-app.md)); fixture QA and repair remain planned | Decide the lock refresh workflow before committing `toolkit.toml` to the demo |
 | AI security guidance | Shipped policy | Configure and verify actual agent/runtime protections; policy text does not enable them |
-| Release and runtime assurance | Readiness skills shipped; several lifecycle capabilities remain [evidence-only contracts](proof/architecture.md#evidence-only-lifecycle-capabilities) | Implement and validate the missing producers |
+| Release and runtime assurance | Readiness skills and optional [lifecycle producers](providers/availability.md#additional-lifecycle-providers) shipped | Configure owned artifacts and environments, run the producers, and verify exact-subject evidence; fixtures do not establish hosted or production readiness |
 | DORA and AI delivery diagnostics | Planned; no measurement pipeline or dashboard exists | Define service boundaries and data sources, implement collection, validate attribution |
 
 Source availability, release availability, consumer configuration, and a

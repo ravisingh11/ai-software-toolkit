@@ -89,7 +89,7 @@ The installer refuses to overwrite an existing pre-commit configuration.
 
 ### Claude Code setup
 
-For Claude Code skills, use the [README setup](../README.md#use-with-claude-code).
+For Claude Code skills, use the [README setup](../README.md#install-skills-for-codex-or-claude-code).
 The project destination is `.claude/skills/`; Codex uses `.agents/skills/`.
 The same canonical `SKILL.md` definitions serve both clients.
 

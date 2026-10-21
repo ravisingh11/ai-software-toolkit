@@ -81,6 +81,10 @@ python3 tooling/validators/validate_no_migrations.py
 git diff --check
 ```
 
+`tooling/validate-skills.py` also executes skill-helper unit tests; it is not
+a documentation-only validator. When local test execution is restricted,
+leave those suites to CI and state which local checks were omitted.
+
 Before making a new status check required, run it on a representative change,
 confirm its actual GitHub check-run name, and add that name to the ruleset only
 after the failure and recovery behavior are understood.
