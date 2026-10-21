@@ -142,16 +142,20 @@ All selected checks still count in the unchanged totals. The toolkit policy
 decision is distinct from GitHub required merge checks. The freshness notice is
 non-sticky on mobile so it cannot cover tables or anchored results.
 
-This repository selects all built-in controls as advisory in their applicable
-stages, including functional QA, static quality, license compliance and all AI
-review roles. Missing evidence stays unverified. Consumer defaults remain opt-in,
-and provider activation, credentials and manual polyglot execution are unchanged.
+This repository's PR development example selects its Core and GitHub profile checks
+as advisory. Unselected current-stage tools are available to adopt; unselected
+release-family checks are relevant later. Their absence is not a failed or
+unverifiable result. Selected failures and missing evidence remain in the score.
+Consumer defaults remain opt-in, and provider inputs, credentials, and manual
+polyglot execution are unchanged.
 
 Release-family stages include `pre-release`, `deployment`, `post-deployment`,
-and `runtime`, as well as `release` and `change-and-release`. Advisory selection
-covers all of them. Policy coverage checks both each operation's eligible stages
-and the union of all 33 catalog controls, so an environment stage cannot silently
-fall out of the repository's advisory selection.
+and `runtime`, as well as `release` and `change-and-release`. Release policy
+selections remain advisory but do not enter a normal PR development evaluation.
+Lifecycle receipt import additionally requires `PROOF_SCORECARD_STAGE=lifecycle`
+alongside `PROOF_LIFECYCLE_ENABLED=true`. The stage label describes the actual
+evaluation scope, not an inferred product maturity level. Historical snapshots
+are not rescored using a newer policy.
 
 Duplicate matching producer check names are an explicit public evidence gap:
 `ambiguous_producer`. The collector does not choose a passing check from
@@ -186,3 +190,24 @@ Zero-count categories are hidden in display summaries and evidence tables;
 empty table modes are omitted and empty cells show a dash. Underlying JSON
 counts and machine codes remain unchanged for compatibility. This presentation
 change does not enable services, change enforcement, or run manual workflows.
+
+### Selection, adoption, and stage applicability
+
+Only policy-selected checks applicable to the current evaluation enter its score.
+The renderer separates Selected checks, Tools available to adopt, and Checks
+relevant later using validated selection and the built-in catalog stage mapping.
+It never moves a selected failed, blocked, or missing result out of the score.
+Unknown or incomplete selection remains explicitly unknown rather than being
+claimed as an unselected adoption option. Custom control names remain private.
+
+The repository's ordinary development selection is 16 advisory Core/GitHub checks;
+9 other tools are adoption examples and 8 checks are relevant later. Adoption
+cards explain when each tool is useful and link setup guidance, without implying
+missing execution is a failure. Exact aggregate counts and decisions still come
+from the policy evaluator, not from UI filtering. Enforced controls retain their
+fail-closed behavior. Manual lifecycle and polyglot workflows remain manual.
+
+The release example also starts with the existing Core/GitHub profile selection
+(8 checks, including artifact provenance); selecting a release operation does not
+automatically select deployment, runtime, or every optional artifact scanner.
+Those tools require an explicit project policy choice when they become applicable.

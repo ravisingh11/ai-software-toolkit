@@ -193,7 +193,7 @@ jobs:
             --output "${EVIDENCE_JSON}"
           cp "${EVIDENCE_JSON}" .artifacts/proof/evidence.json
       - name: Collect optional artifact and verification-environment evidence
-        if: ${{ github.event.pull_request != null && vars.PROOF_LIFECYCLE_ENABLED == 'true' }}
+        if: ${{ github.event.pull_request != null && vars.PROOF_LIFECYCLE_ENABLED == 'true' && vars.PROOF_SCORECARD_STAGE == 'lifecycle' }}
         env:
           GH_TOKEN: ${{ github.token }}
           REVISION: ${{ github.event.pull_request.head.sha }}
