@@ -85,6 +85,41 @@ physical_path() {
   fi
 }
 
+# Stage beside the destination so both renames stay on the same filesystem.
+# Keep the original recoverable until the staged copy has been installed.
+replace_without_rsync() (
+  local src="$1" dst="$2" staging committed=0
+  staging="$(mktemp -d "${dst%/*}/.${dst##*/}.replace.XXXXXXXX")" || return
+
+  cleanup_replacement() {
+    local status=$?
+    trap - EXIT HUP INT TERM
+    if [ "$committed" -eq 0 ] && [ -d "$staging/original" ]; then
+      # Never overwrite a destination created while the operation was interrupted.
+      if [ -e "$dst" ] || [ -L "$dst" ] || ! mv "$staging/original" "$dst"; then
+        printf 'ERROR: replacement failed; original skill preserved at %s\n' "$staging/original" >&2
+        exit 1
+      fi
+    fi
+    if ! rm -rf "$staging"; then
+      printf 'ERROR: cannot clean replacement staging directory: %s\n' "$staging" >&2
+      exit 1
+    fi
+    exit "$status"
+  }
+
+  trap cleanup_replacement EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+
+  mkdir "$staging/replacement" || exit $?
+  cp -pR "$src/." "$staging/replacement/" || exit $?
+  mv "$dst" "$staging/original" || exit $?
+  mv "$staging/replacement" "$dst" || exit $?
+  committed=1
+)
+
 # Copy a skill directory with rsync when it is installed, and with cp and find
 # otherwise, as in minimal containers and CI images. Modes match rsync -a:
 # install copies everything, merge copies only missing files, replace makes
@@ -119,9 +154,7 @@ copy_tree() {
       done
       ;;
     replace)
-      rm -rf "$dst"
-      mkdir -p "$dst"
-      cp -pR "$src/." "$dst/"
+      replace_without_rsync "$src" "$dst"
       ;;
   esac
 }

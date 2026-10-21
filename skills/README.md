@@ -68,6 +68,12 @@ Install behavior:
 - `--merge-existing` preserves local files and adds missing canonical files.
 - `--replace-existing` fully replaces the target skill and should be used deliberately.
 
+Without `rsync`, replacement stages a complete sibling copy before moving the
+existing skill. Failed promotion attempts restore the original; if restoration
+cannot finish, the original is retained and its recovery path is printed.
+Recovery is per skill. Uncatchable termination can leave staging directories
+requiring manual recovery; see [installer details](../docs/install.md#installing-and-verifying-action-skills).
+
 Source and target roots must not overlap (including aliases resolved through
 existing filesystem links); this is checked before installing any skill.
 Redundant path separators and dot components are normalized before link checks.

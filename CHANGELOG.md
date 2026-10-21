@@ -8,6 +8,11 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Stage standalone skill replacements before moving the installed copy when
+  `rsync` is unavailable. Restore failed promotions and handled interruptions,
+  retain and report the original if rollback cannot complete, and cover partial
+  copy, rename, rollback, and termination failures in CI.
+
 - Clarify published scorecards with “selected checks” and separate failed,
   blocked, unverified, and inactive counts. Keep inactive checks outside the
   selected total, identify empty enforcement explicitly, and preserve optional

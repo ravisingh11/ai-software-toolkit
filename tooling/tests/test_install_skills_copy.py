@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -51,7 +52,7 @@ class CopyWithoutRsyncTests(unittest.TestCase):
         return subprocess.run(
             ["bash", str(SCRIPT), "--source", str(self.source), "--target", str(target),
              "--skill", "demo", *mode],
-            cwd=ROOT, env=env, capture_output=True, text=True,
+            cwd=ROOT, env=env, capture_output=True, text=True, timeout=30,
         )
 
     def seeded_target(self, name):
@@ -64,6 +65,76 @@ class CopyWithoutRsyncTests(unittest.TestCase):
 
     def test_rsync_is_not_on_the_test_path(self):
         self.assertIsNone(shutil.which("rsync", path=self.no_rsync))
+
+    def stub_command(self, name, body):
+        """Inject a failure into one real filesystem command on the fallback path."""
+        real_command = shutil.which(name)
+        self.assertIsNotNone(real_command)
+        stub = Path(self.no_rsync) / name
+        stub.unlink()
+        stub.write_text("#!/bin/bash\nset -eu\n" + body.replace("REAL_COMMAND", shlex.quote(real_command)))
+        stub.chmod(0o755)
+
+    def assert_original_restored(self, target, before, inode):
+        self.assertEqual(snapshot(target), before)
+        self.assertEqual((target / "demo").stat().st_ino, inode)
+        self.assertEqual(list(target.glob(".demo.replace.*")), [])
+
+    def test_failed_staging_copy_preserves_original_installation(self):
+        target = self.seeded_target("copy-failure")
+        before = snapshot(target)
+        inode = (target / "demo").stat().st_ino
+        self.stub_command("cp", 'printf "partial copy" > "$3/partial.md"\nexit 23\n')
+        result = self.run_install(target, "--replace-existing", path=self.no_rsync)
+        self.assertEqual(result.returncode, 23, result.stderr)
+        self.assert_original_restored(target, before, inode)
+        self.assertNotIn("Replaced", result.stdout)
+
+    def test_failed_backup_rename_preserves_original_installation(self):
+        target = self.seeded_target("backup-failure")
+        before = snapshot(target)
+        inode = (target / "demo").stat().st_ino
+        self.stub_command("mv", 'case "$2" in */original) exit 23 ;; esac\nexec REAL_COMMAND "$@"\n')
+        result = self.run_install(target, "--replace-existing", path=self.no_rsync)
+        self.assertEqual(result.returncode, 23, result.stderr)
+        self.assert_original_restored(target, before, inode)
+
+    def test_failed_promotion_restores_original_installation(self):
+        target = self.seeded_target("promotion-failure")
+        before = snapshot(target)
+        inode = (target / "demo").stat().st_ino
+        self.stub_command("mv", 'case "$1" in */replacement) exit 23 ;; esac\nexec REAL_COMMAND "$@"\n')
+        result = self.run_install(target, "--replace-existing", path=self.no_rsync)
+        self.assertEqual(result.returncode, 23, result.stderr)
+        self.assert_original_restored(target, before, inode)
+        self.assertNotIn("Replaced", result.stdout)
+
+    def test_failed_restore_retains_original_and_reports_recovery_path(self):
+        target = self.seeded_target("restore-failure")
+        before = snapshot(target / "demo")
+        self.stub_command("mv", 'case "$1" in */replacement|*/original) exit 23 ;; esac\nexec REAL_COMMAND "$@"\n')
+        result = self.run_install(target, "--replace-existing", path=self.no_rsync)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((target / "demo").exists())
+        retained = list(target.glob(".demo.replace.*"))
+        self.assertEqual(len(retained), 1)
+        original = retained[0] / "original"
+        self.assertEqual(snapshot(original), before)
+        self.assertIn(str(original), result.stderr)
+        self.assertNotIn("Replaced", result.stdout)
+
+    def test_termination_after_backup_restores_original_installation(self):
+        target = self.seeded_target("terminated")
+        before = snapshot(target)
+        inode = (target / "demo").stat().st_ino
+        self.stub_command("mv", '''case "$2" in
+  */original) REAL_COMMAND "$@"; kill -TERM "$PPID"; exit 0 ;;
+esac
+exec REAL_COMMAND "$@"
+''')
+        result = self.run_install(target, "--replace-existing", path=self.no_rsync)
+        self.assertNotEqual(result.returncode, 0)
+        self.assert_original_restored(target, before, inode)
 
     def test_each_mode_matches_the_expected_files_without_rsync(self):
         expected = {

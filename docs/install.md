@@ -250,6 +250,15 @@ Claude Code install with `tooling/install-skills.sh --client claude-code
 `rsync` when it is available and otherwise falls back to `cp` and `find` with
 the same install, merge, and replace results.
 
+Without `rsync`, replacement uses `mktemp` and `mv` to stage a complete copy
+beside the destination before moving the installed skill. Copy failures leave
+the existing skill untouched; promotion failures restore it. HUP, INT, and TERM
+also attempt restoration. If restoration fails or the destination is occupied,
+the original is retained in the staging directory and its recovery path is
+printed. Successful replacements remove the temporary backup. This protection
+is per skill, not a transaction across the whole installation; uncatchable
+termination can leave a staging directory for manual recovery.
+
 Source and target roots must not overlap (including aliases resolved through
 existing filesystem links); this is checked before installing any skill.
 Redundant path separators and dot components are normalized before link checks.
