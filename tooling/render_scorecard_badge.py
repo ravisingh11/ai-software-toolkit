@@ -864,6 +864,10 @@ def _controls_markdown(controls: list[dict[str, Any]]) -> str:
         if row.get("provider_run_url"):
             provider += f" · [Latest reported run]({row['provider_run_url']})"
         lines.append(f"| {row['name']} | `{row['id']}` | {provider} | {_CONTROL_MODES[row['mode']]} | {_result_label(row)[0]} | {row['purpose']} |")
+    failures = [row for row in controls if row["status"] == "failed" and row.get("diagnostic")]
+    if failures:
+        lines += ["", "### Failure details", ""]
+        lines += [f"- {row['name']}: {row['diagnostic']['message']}" for row in failures]
     unverified = [row for row in controls if row["status"] == "no_result"]
     if unverified:
         lines += ["", "### Missing verification evidence", ""]
