@@ -87,6 +87,37 @@ python3 tooling/install.py --target /path/to/repo --local-hooks
 
 The installer refuses to overwrite an existing pre-commit configuration.
 
+### Claude Code setup
+
+For Claude Code skills, use the [README setup](../README.md#use-with-claude-code).
+The project destination is `.claude/skills/`; Codex uses `.agents/skills/`.
+The same canonical `SKILL.md` definitions serve both clients.
+
+To install Proof and Claude Code starter skills together, while leaving GitHub
+Actions workflows out of the installation:
+
+```sh
+python3 tooling/ai_toolkit init --target /path/to/repo --components proof,skills --clients claude-code --skills starter --no-actions --preview
+python3 tooling/ai_toolkit init --target /path/to/repo --components proof,skills --clients claude-code --skills starter --no-actions --yes
+```
+
+`--no-actions` controls workflow installation; it does not disable existing
+repository workflows. These setup commands do not run tests or scans. Keep
+execution permissions in your own `CLAUDE.md`, review the installed skills,
+and configure repository commands only for checks you choose to run.
+
+For optional functional QA, the CLI can install its bootstrap skill separately:
+
+```sh
+python3 tooling/ai_toolkit qa bootstrap --target /path/to/repo --client claude-code
+```
+
+Bootstrap installs the setup skill; it does not establish that application QA
+passed. Ask Claude Code to use it only when you want to configure QA. Claude
+Code skill installation is separate from the optional Anthropic-backed CI
+review adapter and does not configure its credentials. See the
+[CLI guide](install.md#providers-skills-qa) for component management.
+
 ## 2. Add the optional GitHub profile
 
 For the CLI installation above, preview and add the profile from the toolkit

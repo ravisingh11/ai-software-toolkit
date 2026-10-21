@@ -8,6 +8,12 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-21
+
+- Publish the shared CLI and Proof runtime with optional provider, lifecycle, and scorecard capabilities described below. See [release notes](docs/releases/v2.1.0.md) for migration and verification limits.
+- Add Claude Code onboarding: starter skills, `.claude/skills/`, repository-owned `CLAUDE.md` guidance, dual-client selection, optional QA bootstrap, and setup without installing Actions workflows.
+- All checks remain optional; the sample application's polyglot workflow remains manual. No tests were rerun for this release.
+
 - Detect newer published scorecard snapshots with same-site metadata checks and
   offer a manual refresh that preserves the current section. Keep offline or
   inconsistent freshness unknown, preserve missing evidence and existing results,
