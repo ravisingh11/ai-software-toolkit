@@ -105,3 +105,16 @@ policy. Keep draft release assets complete before publication.
 
 See GitHub's documentation for [workflow execution policies](https://docs.github.com/en/actions/how-tos/administer/control-workflow-execution)
 and [immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases).
+
+## Scorecard evidence guidance
+
+Dependabot's `dependency-remediation` control is selected as advisory in this
+repository. This verifies configuration; it does not make dependency updates or
+other toolkit controls mandatory. GitHub enabling Dependabot and Proof verifying
+its settings are distinct states.
+
+Unverified cards and the Markdown report describe the evidence missing from the
+snapshot and give provider-specific next steps. Lifecycle evidence requires the
+manual Proof Lifecycle workflow for the evaluated revision. Guidance does not
+claim that a credential or input is definitely absent when the snapshot cannot
+establish the cause. Candidate-supplied reason strings are not published.

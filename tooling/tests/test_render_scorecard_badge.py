@@ -413,6 +413,28 @@ class RendererTests(unittest.TestCase):
                     self.assertIn(expected, text)
                 self.assertNotIn("private-", text)
 
+    def test_missing_evidence_guidance_is_public_safe_and_subject_specific(self) -> None:
+        ids = ["iac-misconfiguration", "artifact-provenance", "runtime-soak",
+               "dependency-vulnerability", "dependency-remediation", "build"]
+        card = scorecard(status="ORANGE", enforced=(0, 0), advisory=(0, len(ids)))
+        card["controls"] = [
+            {"id": control_id, "effective_mode": "advisory", "evidence_status": "no_result",
+             "reason": "PRIVATE-CANDIDATE-REASON"}
+            for control_id in ids
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "published"
+            self.render(self.write_source(root, card), output)
+            for filename in ("index.html", "scorecard.md"):
+                text = (output / filename).read_text()
+                for expected in ("evaluated commit", "verification artifact", "verification environment",
+                                 "manual Proof Lifecycle", "fork credential withholding",
+                                 "SECURITY_SETTINGS_TOKEN", "producer result for this evaluated revision",
+                                 "does not establish the exact cause", "not a passing result"):
+                    self.assertIn(expected, text)
+                self.assertNotIn("PRIVATE-CANDIDATE-REASON", text)
+
     def test_empty_enforcement_is_not_presented_as_a_passing_check(self) -> None:
         card = scorecard(status="GREEN", enforced=(0, 0), advisory=(1, 1))
         card["controls"] = [

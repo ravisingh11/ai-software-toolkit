@@ -14,7 +14,7 @@
       "build": "advisory",
       "unit-tests": "advisory",
       "dependency-vulnerability": "advisory",
-      "dependency-remediation": "not_activated",
+      "dependency-remediation": "advisory",
       "iac-misconfiguration": "advisory"
     },
     "release": {

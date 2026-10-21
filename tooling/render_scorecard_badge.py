@@ -779,6 +779,30 @@ def _result_label(row: dict[str, Any]) -> tuple[str, str]:
     return _SEPARATE_RESULT if row.get("separate_subject") else _CONTROL_RESULTS[row["status"]]
 
 
+def _unverified_note(row: dict[str, Any]) -> str:
+    """Publish trusted guidance, never free-form reasons from candidate artifacts."""
+    control_id = row["id"]
+    if control_id in LIFECYCLE_PROVIDERS:
+        kind = LIFECYCLE_PROVIDERS[control_id][2]
+        subject = {"git-commit": "evaluated commit", "artifact": "verification artifact",
+                   "environment": "verification environment"}[kind]
+        guidance = (f"Missing: usable {row['name']} evidence bound to the {subject}. "
+                    "Run the manual Proof Lifecycle verification for this PR revision and inspect its producer result, "
+                    "required inputs, and evidence publication. Enabling the workflow alone does not supply evidence.")
+    elif control_id == "dependency-vulnerability":
+        guidance = ("Missing: a usable dependency scan result for this revision. Check the selected provider's workflow "
+                    "for missing credentials, unsupported dependency inputs, fork credential withholding, or skipped execution; "
+                    "then run the provider and publish its evidence.")
+    elif control_id == "dependency-remediation":
+        guidance = ("Missing: verified Dependabot settings evidence for this revision. Check Dependabot Verification and "
+                    "whether SECURITY_SETTINGS_TOKEN can read vulnerability alerts and automated security fix settings. "
+                    "Dependabot may already be enabled even when its verification evidence is missing.")
+    else:
+        guidance = ("Missing: a usable producer result for this evaluated revision. Open the source CI run to check "
+                    "whether the producer ran, has its required configuration, and published revision-bound evidence.")
+    return guidance + " This snapshot does not establish the exact cause. This is not a passing result."
+
+
 def _controls_markdown(controls: list[dict[str, Any]]) -> str:
     lines = ["## Individual checks", "", "Every built-in catalog check is listed. Provider links open configuration at the evaluated revision; Latest reported run links open available evidence for this snapshot. Not reported means this snapshot has no validated row; it does not imply disabled or passed.", "",
              "| Check | ID | Provider | Mode | Result | Purpose |", "| --- | --- | --- | --- | --- | --- |"]
@@ -789,6 +813,10 @@ def _controls_markdown(controls: list[dict[str, Any]]) -> str:
         if row.get("provider_run_url"):
             provider += f" · [Latest reported run]({row['provider_run_url']})"
         lines.append(f"| {row['name']} | `{row['id']}` | {provider} | {_CONTROL_MODES[row['mode']]} | {_result_label(row)[0]} | {row['purpose']} |")
+    unverified = [row for row in controls if row["status"] == "no_result"]
+    if unverified:
+        lines += ["", "### Missing verification evidence", ""]
+        lines += [f"- {row['name']}: {_unverified_note(row)}" for row in unverified]
     measured = [(row["name"], _measurement_summary(row["measurements"]), row["measurements"]) for row in controls]
     measured = [(name, summary, values) for name, summary, values in measured if summary]
     if measured:
@@ -949,7 +977,7 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
             safe = {key: html.escape(value, quote=True) for key, value in row.items() if isinstance(value, str)}
             note = {"not_reported": "No validated row in this snapshot. Activation and outcome are unknown.",
                     "not_activated": "Not activated for this evaluation. Excluded from selected-check totals.",
-                    "no_result": "No usable evidence was available. This is not a passing result.",
+                    "no_result": _unverified_note(row),
                     "passed": "",
                     "failed": "The producer reported a failure.",
                     "blocked": "The producer reported a blocker."}[row["status"]]
