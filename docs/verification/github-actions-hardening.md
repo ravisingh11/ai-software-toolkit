@@ -173,3 +173,16 @@ it does not prove no manual run exists. Polyglot and lifecycle execution remain 
 Trusted collector callers may declare `--provider-activation PROVIDER=STATE`, where STATE
 is `disabled`, `not_configured`, or `awaiting_manual_run`. Declarations label only absent
 or provenance-validated skipped checks, preserving actual results and rejection reasons.
+
+The public scorecard uses **Unable to verify** for the remaining unknown or
+unusable evidence category, alongside **Passed**, **Failed**, **Blocked**,
+**Not configured**, **Disabled**, and **Awaiting manual run**. **Advisory** and
+**Enforced** describe policy mode independently of those statuses. Advisory
+results do not block the toolkit policy decision; enforced checks must pass,
+so an enforced failure, blocker, or unavailable result blocks that decision.
+GitHub merge enforcement additionally depends on required checks and rulesets.
+
+Zero-count categories are hidden in display summaries and evidence tables;
+empty table modes are omitted and empty cells show a dash. Underlying JSON
+counts and machine codes remain unchanged for compatibility. This presentation
+change does not enable services, change enforcement, or run manual workflows.
