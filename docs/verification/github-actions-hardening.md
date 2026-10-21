@@ -140,3 +140,8 @@ Manual lifecycle checks have a separate attention group and explicit scope label
 All selected checks still count in the unchanged totals. The toolkit policy
 decision is distinct from GitHub required merge checks. The freshness notice is
 non-sticky on mobile so it cannot cover tables or anchored results.
+
+This repository selects all built-in controls as advisory in their applicable
+stages, including functional QA, static quality, license compliance and all AI
+review roles. Missing evidence stays unverified. Consumer defaults remain opt-in,
+and provider activation, credentials and manual polyglot execution are unchanged.

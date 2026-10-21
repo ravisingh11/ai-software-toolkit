@@ -224,6 +224,22 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
         self.assertEqual(evidence["results"]["build"]["external-build"]["status"], "passed")
         self.assertNotIn("deep-sast", evidence["results"])
 
+    def test_no_wait_review_is_sampled_once_without_hiding_missing_evidence(self) -> None:
+        policy, profiles, catalog, providers = contracts()
+        contract = {"control_id": "ai-engineering-review", "provider_id": "codex-github-review",
+                    "provider_name": "Codex Code Review"}
+        with patch.object(MODULE, "expected_checks", return_value={}), \
+                patch.object(MODULE, "expected_reviews", return_value=[contract]), \
+                patch.object(MODULE, "collect_review_evidence", return_value={"producer": "Codex", "status": "not_run"}) as review, \
+                patch.object(MODULE.time, "monotonic", return_value=0), \
+                patch.object(MODULE.time, "sleep") as sleep:
+            evidence = MODULE.collect_checks("owner/repo", "abc123", "token", policy, profiles, catalog,
+                                             providers, "change", wait_seconds=1800, pull_request_number=17,
+                                             no_wait_providers={"codex-github-review"})
+        review.assert_called_once()
+        sleep.assert_not_called()
+        self.assertEqual(evidence["results"]["ai-engineering-review"]["codex-github-review"]["status"], "not_run")
+
     def test_collects_codex_review_only_for_exact_head_and_bot_identity(self) -> None:
         policy, profiles, catalog, providers = contracts()
         for control_id in list(policy["overrides"]["change"]):

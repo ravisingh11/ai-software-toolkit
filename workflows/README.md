@@ -437,3 +437,11 @@ on their cards. This presentation changes neither their selection nor their
 contribution to totals. Checks remain optional to adopt, polyglot verification
 remains manual, and GitHub required merge checks remain separate from the toolkit
 policy decision. On mobile the freshness notice stays in normal document flow.
+
+This repository explicitly selects every built-in check as advisory for its
+applicable change/release stage. This repository setting does not change the
+consumer baseline. Unconfigured providers remain unverified. Collection samples
+manual QA and native reviews without waiting for absent results; it also avoids
+waiting for optional providers whose workflow activation flags are off. A review
+submission can refresh the scorecard through the existing review event. Provider
+credentials and external service activation are separate repository decisions.

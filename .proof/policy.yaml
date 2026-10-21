@@ -9,23 +9,44 @@
   "overrides": {
     "change": {
       "repository-validation": "advisory",
+      "documentation-validation": "advisory",
+      "repository-ground-truth": "advisory",
+      "change-scope": "advisory",
+      "pr-metadata": "advisory",
       "format-and-lint": "advisory",
       "migration-validation": "advisory",
       "build": "advisory",
       "unit-tests": "advisory",
-      "dependency-vulnerability": "advisory",
+      "functional-qa": "advisory",
+      "changed-code-coverage": "advisory",
+      "custom-static-analysis": "advisory",
+      "secret-detection": "advisory",
+      "deep-sast": "advisory",
+      "dependency-change-review": "advisory",
+      "platform-secret-protection": "advisory",
       "dependency-remediation": "advisory",
+      "static-quality": "advisory",
+      "dependency-vulnerability": "advisory",
+      "license-compliance": "advisory",
+      "ai-engineering-review": "advisory",
+      "ai-qa-review": "advisory",
+      "ai-security-review": "advisory",
+      "ai-repository-standards-review": "advisory",
       "iac-misconfiguration": "advisory"
     },
     "release": {
-      "container-vulnerability": "advisory",
-      "artifact-sbom": "advisory",
-      "artifact-vulnerability": "advisory",
+      "repository-validation": "advisory",
+      "documentation-validation": "advisory",
+      "repository-ground-truth": "advisory",
+      "build": "advisory",
+      "unit-tests": "advisory",
+      "custom-static-analysis": "advisory",
+      "secret-detection": "advisory",
       "artifact-provenance": "advisory",
-      "deployment-policy": "advisory",
-      "dynamic-application-security": "advisory",
-      "runtime-assurance": "advisory",
-      "runtime-soak": "advisory"
+      "container-vulnerability": "advisory",
+      "iac-misconfiguration": "advisory",
+      "artifact-sbom": "advisory",
+      "artifact-vulnerability": "advisory"
     }
   }
 }

@@ -94,7 +94,11 @@ class ActionDistributionTests(unittest.TestCase):
             modes.update(policy["overrides"][lifecycle])
             with self.subTest(lifecycle=lifecycle):
                 self.assertTrue(modes)
-                self.assertLessEqual(set(modes.values()), {"advisory", "not_activated"})
+                self.assertEqual(set(modes.values()), {"advisory"})
+                catalog = json.loads((ROOT / ".proof/control-catalog.yaml").read_text())["controls"]
+                expected = {control["id"] for control in catalog
+                            if control["stage"] in {lifecycle, "change-and-release"}}
+                self.assertEqual(set(modes), expected)
         self.assertEqual(policy["overrides"]["change"]["dependency-remediation"], "advisory")
 
     def test_no_active_runtime_or_workflow_references_a_producer_manifest(self) -> None:

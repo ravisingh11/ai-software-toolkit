@@ -1261,6 +1261,7 @@ def collect_checks(
             review_results[key] = result
             if (
                 result["status"] != "passed"
+                and contract["provider_id"] not in no_wait_providers
                 and pull_request_number is not None
                 and time.monotonic() < deadline
                 and review_attempts < maximum_attempts
@@ -1291,7 +1292,7 @@ def main() -> int:
     parser.add_argument("--wait-seconds", type=int, default=0)
     parser.add_argument(
         "--no-wait-provider", action="append", default=[], dest="no_wait_providers",
-        metavar="PROVIDER", help="Do not wait for this provider's absent check; keep missing evidence visible.",
+        metavar="PROVIDER", help="Do not wait for this provider's absent check or review; keep missing evidence visible.",
     )
     parser.add_argument("--pull-request-number", type=int)
     args = parser.parse_args()

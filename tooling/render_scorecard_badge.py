@@ -844,6 +844,12 @@ def _unverified_note(row: dict[str, Any]) -> str:
         guidance = ("Missing: a usable dependency scan result for this revision. Check the selected provider's workflow "
                     "for missing credentials, unsupported dependency inputs, fork credential withholding, or skipped execution; "
                     "then run the provider and publish its evidence.")
+    elif control_id == "functional-qa":
+        guidance = ("Missing: a QA report for this revision. Configure and run the repository-owned QA producer manually "
+                    "and publish its evidence. Selecting advisory mode does not run QA or polyglot tests.")
+    elif control_id.startswith("ai-"):
+        guidance = ("Missing: a result from the selected AI reviewer for this revision. Configure or request that reviewer "
+                    "and publish its exact-revision review evidence. Advisory selection does not configure credentials or invoke a model.")
     elif control_id == "dependency-remediation":
         guidance = ("Missing: verified Dependabot settings evidence for this revision. Check Dependabot Verification and "
                     "whether SECURITY_SETTINGS_TOKEN can read vulnerability alerts and automated security fix settings. "

@@ -136,6 +136,9 @@ jobs:
           PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number || '' }}
           SNYK_CODE_ENABLED: ${{ vars.SNYK_CODE_ENABLED }}
           SNYK_OPEN_SOURCE_ENABLED: ${{ vars.SNYK_OPEN_SOURCE_ENABLED }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          FOSSA_ENABLED: ${{ vars.FOSSA_ENABLED }}
+          AI_REVIEW_COMMAND: ${{ vars.AI_REVIEW_COMMAND }}
         run: |
           set -euo pipefail
           mkdir -p .artifacts/proof
@@ -144,7 +147,22 @@ jobs:
           EVIDENCE_JSON=".artifacts/proof/evidence-${PROOF_TIMESTAMP}.json"
           # Disabled optional jobs will not publish checks. Keep their missing
           # evidence, but do not spend the collection budget waiting for absence.
-          collector_args=(--wait-seconds 1800)
+          # Manual QA and native reviews are sampled now; later PR review events
+          # refresh the scorecard without reserving a runner for absent reviews.
+          collector_args=(--wait-seconds 1800
+            --no-wait-provider qa-bootstrap-workflow
+            --no-wait-provider codex-github-review)
+          if [ -z "${SONAR_HOST_URL}" ]; then
+            collector_args+=(--no-wait-provider sonarqube)
+          fi
+          case "${FOSSA_ENABLED:-}" in
+            [Ff][Aa][Ll][Ss][Ee]) collector_args+=(--no-wait-provider fossa) ;;
+          esac
+          if [ -z "${AI_REVIEW_COMMAND}" ]; then
+            collector_args+=(--no-wait-provider ai-engineering-adapter
+              --no-wait-provider ai-qa-adapter --no-wait-provider ai-security-adapter
+              --no-wait-provider ai-repository-standards-adapter)
+          fi
           # Match the Snyk jobs' case-insensitive GitHub string comparison.
           case "${SNYK_CODE_ENABLED:-}" in
             [Ff][Aa][Ll][Ss][Ee]) collector_args+=(--no-wait-provider snyk-code) ;;
