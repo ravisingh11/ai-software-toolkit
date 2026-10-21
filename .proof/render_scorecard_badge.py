@@ -329,7 +329,7 @@ def _lifecycle_context(document: dict[str, Any], repository: str | None) -> dict
 
 _CONTROL_RESULTS = {
     "passed": ("Passed", "good"), "failed": ("Failed", "danger"),
-    "blocked": ("Blocked", "caution"), "no_result": ("Unverified", "neutral"),
+    "blocked": ("Blocked", "caution"), "no_result": ("Unable to verify", "neutral"),
     "not_activated": ("Not activated", "neutral"),
     "not_reported": ("Not reported", "neutral"),
 }
@@ -857,9 +857,9 @@ def _activation_state(row: dict[str, Any]) -> str:
 
 def _activation_summary(controls: list[dict[str, Any]]) -> str:
     labels = {"not_configured": "Not configured", "disabled": "Disabled",
-              "awaiting_manual_run": "Awaiting manual run", "unverified": "Unverified"}
+              "awaiting_manual_run": "Awaiting manual run", "unverified": "Unable to verify"}
     counts = {key: sum(_activation_state(row) == key for row in controls) for key in labels}
-    return "Built-in activation and evidence availability: " + " · ".join(f"{label}: {counts[key]}" for key, label in labels.items()) + ". Advisory is a policy mode, independent of provider activation. These categories split unavailable evidence for built-in checks; none counts as passed."
+    return "Built-in activation and evidence availability: " + (" · ".join(f"{label}: {counts[key]}" for key, label in labels.items() if counts[key]) or "No unavailable evidence reported") + ". Advisory is a policy mode, independent of provider activation. These categories split unavailable evidence for built-in checks; none counts as passed."
 
 
 def _unverified_note(row: dict[str, Any]) -> str:
@@ -1150,14 +1150,35 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
 
 
 
+def _breakdown_columns(breakdown: dict[str, Any]) -> list[tuple[str, str]]:
+    columns = [(key, label) for key, label in (("passed", "Passed"), ("failed", "Failed"),
+               ("blocked", "Blocked"), ("unverified", "Unavailable evidence"))
+               if breakdown["overall"][key]]
+    if breakdown["inactive"]:
+        columns.append(("inactive", "Inactive"))
+    return columns
+
+
+def _breakdown_values(breakdown: dict[str, Any], mode: str, columns: list[tuple[str, str]]) -> list[str]:
+    values = []
+    for key, _ in columns:
+        count = breakdown["inactive"] if key == "inactive" and mode == "overall" else breakdown[mode].get(key, 0)
+        values.append(str(count) if count else "—")
+    return values
+
+
 def _breakdown_markdown(breakdown: dict[str, Any]) -> str:
     if breakdown["availability"] != "available":
         return "Result breakdown unavailable: this source does not contain complete, consistent control results."
-    lines = ["| Evidence results | Passed | Failed | Blocked | Unavailable evidence | Inactive |", "| --- | ---: | ---: | ---: | ---: | ---: |"]
+    columns = _breakdown_columns(breakdown)
+    if not columns:
+        return "No check results reported."
+    lines = ["| Evidence results | " + " | ".join(label for _, label in columns) + " |",
+             "| --- | " + " | ".join("---:" for _ in columns) + " |"]
     for key, label in (("overall", "All selected checks"), ("enforced", "Enforced"), ("advisory", "Advisory")):
-        counts = breakdown[key]
-        inactive = str(breakdown["inactive"]) if key == "overall" else "—"
-        lines.append(f"| {label} | {counts['passed']} | {counts['failed']} | {counts['blocked']} | {counts['unverified']} | {inactive} |")
+        if key != "overall" and not any(breakdown[key].values()):
+            continue
+        lines.append("| " + label + " | " + " | ".join(_breakdown_values(breakdown, key, columns)) + " |")
     return "\n".join(lines)
 
 
@@ -1165,12 +1186,17 @@ def _breakdown_html(breakdown: dict[str, Any]) -> str:
     heading = '<section class="scope-panel" aria-labelledby="results-title"><h2 id="results-title">Evidence results</h2>'
     if breakdown["availability"] != "available":
         return heading + '<p>Result breakdown unavailable: this source does not contain complete, consistent control results.</p></section>'
+    columns = _breakdown_columns(breakdown)
+    if not columns:
+        return heading + '<p>No check results reported.</p></section>'
     rows = []
     for key, label in (("overall", "All selected checks"), ("enforced", "Enforced"), ("advisory", "Advisory")):
-        counts = breakdown[key]
-        inactive = str(breakdown["inactive"]) if key == "overall" else "—"
-        rows.append(f'<tr><th scope="row">{label}</th><td>{counts["passed"]}</td><td>{counts["failed"]}</td><td>{counts["blocked"]}</td><td>{counts["unverified"]}</td><td>{inactive}</td></tr>')
-    return heading + '<div class="size-table-wrap" role="region" aria-label="Evidence results" tabindex="0"><table class="size-table"><caption>Control outcomes, separated from unavailable evidence</caption><thead><tr><th scope="col">Controls</th><th scope="col">Passed</th><th scope="col">Failed</th><th scope="col">Blocked</th><th scope="col">Unavailable evidence</th><th scope="col">Inactive</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div><p>Failed means a reported failure. Blocked means the producer reported a blocker. Unavailable evidence includes not configured, disabled, awaiting manual run, and unverified checks; see their separate counts and labels below. Inactive counts reported checks not selected for this evaluation, including checks evaluated on another subject; they are excluded from selected totals. Unreported checks are not assumed inactive.</p></section>'
+        if key != "overall" and not any(breakdown[key].values()):
+            continue
+        values = ''.join(f'<td>{value}</td>' for value in _breakdown_values(breakdown, key, columns))
+        rows.append(f'<tr><th scope="row">{label}</th>{values}</tr>')
+    headers = ''.join(f'<th scope="col">{label}</th>' for _, label in columns)
+    return heading + '<div class="size-table-wrap" role="region" aria-label="Evidence results" tabindex="0"><table class="size-table"><caption>Control outcomes, separated from unavailable evidence</caption><thead><tr><th scope="col">Controls</th>' + headers + '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div><p>Failed means a reported failure. Blocked means the producer reported a blocker. Unavailable evidence includes not configured, disabled, awaiting manual run, and unable to verify checks; see their separate counts and labels below. Zero-count categories are hidden; a dash means no results in that category. Inactive counts reported checks not selected for this evaluation, including checks evaluated on another subject; they are excluded from selected totals. Unreported checks are not assumed inactive.</p></section>'
 
 
 _SIZE_GUIDANCE = "Large PRs can overwhelm human reviewers; smaller, focused PRs make feedback more actionable."
@@ -1476,6 +1502,9 @@ _ALLOW_MEANING = "ALLOW means the enforced toolkit controls are satisfied for th
 _UNGATED_MEANING = ("No enforced controls are configured, so the policy decision is not gated by any control "
                     "and every result is advisory. It does not establish mergeability or release readiness. GitHub required merge checks are separate.")
 _BLOCK_MEANING = "BLOCK means at least one enforced control did not pass for this snapshot."
+_MODE_MEANING = ("Advisory results do not block the toolkit policy decision. Enforced checks require a pass: "
+                 "a failed, blocked, or unverifiable enforced check blocks that decision. "
+                 "GitHub blocks merging only through its configured required checks and rulesets.")
 
 
 def _collection_note(controls: list[dict[str, Any]]) -> str:
@@ -1488,8 +1517,9 @@ def _collection_note(controls: list[dict[str, Any]]) -> str:
 
 def _decision_meaning(metadata: dict[str, Any]) -> str:
     if metadata["decision"] == "block":
-        return _BLOCK_MEANING
-    return _UNGATED_MEANING if metadata["enforced"]["total"] == 0 else _ALLOW_MEANING
+        return _BLOCK_MEANING + " " + _MODE_MEANING
+    meaning = _UNGATED_MEANING if metadata["enforced"]["total"] == 0 else _ALLOW_MEANING
+    return meaning + " " + _MODE_MEANING
 
 
 def _markdown(metadata: dict[str, Any]) -> str:
@@ -1516,7 +1546,7 @@ def _markdown(metadata: dict[str, Any]) -> str:
 
 {_breakdown_markdown(metadata["result_breakdown"])}
 
-Failed means a reported failure. Blocked means the producer reported a blocker. Unavailable evidence includes not configured, disabled, awaiting manual run, and unverified checks; see their separate counts and labels below. Inactive counts reported checks not selected for this evaluation, including checks evaluated on another subject; they are excluded from selected totals. Unreported checks are not assumed inactive.
+Failed means a reported failure. Blocked means the producer reported a blocker. Unavailable evidence includes not configured, disabled, awaiting manual run, and unable to verify checks; see their separate counts and labels below. Inactive counts reported checks not selected for this evaluation, including checks evaluated on another subject; they are excluded from selected totals. Unreported checks are not assumed inactive.
 
 {_decision_meaning(metadata)}
 This is a published PR snapshot. The source timestamp does not prove it matches the current PR head or current main.
@@ -1816,14 +1846,15 @@ def _html(metadata: dict[str, Any]) -> str:
             readiness = {key: sum(_activation_state(row) == key for row in selected)
                          for key in ("not_configured", "disabled", "awaiting_manual_run")}
             unverified = max(0, results["unverified"] - sum(readiness.values()))
-            note = (f"Failed: {results['failed']} · Blocked: {results['blocked']} · Unverified: {unverified}"
-                    f" · Not configured: {readiness['not_configured']} · Disabled: {readiness['disabled']}"
-                    f" · Awaiting manual run: {readiness['awaiting_manual_run']}")
+            statuses = (("Failed", results["failed"]), ("Blocked", results["blocked"]),
+                        ("Unable to verify", unverified), ("Not configured", readiness["not_configured"]),
+                        ("Disabled", readiness["disabled"]), ("Awaiting manual run", readiness["awaiting_manual_run"]))
+            note = " · ".join(f"{name}: {count}" for name, count in statuses if count) or "All selected checks passed"
             if passed == total:
                 card_tone = "good"
         else:
             note = "Result breakdown unavailable"
-        if label == "Selected checks" and breakdown["availability"] == "available":
+        if label == "Selected checks" and breakdown["availability"] == "available" and breakdown["inactive"]:
             note += f" · Inactive: {breakdown['inactive']} (excluded)"
         count = f'{passed}<span>/{total}</span>' if total else "None"
         caption = "checks passed" if total else ("checks enforced" if label == "Enforced" else "checks selected")

@@ -403,13 +403,15 @@ class RendererTests(unittest.TestCase):
             self.assertEqual(metadata["result_breakdown"]["inactive"], 1)
             page = (output / "index.html").read_text()
             self.assertIn("Selected checks", page)
-            self.assertIn("Failed: 1 · Blocked: 1 · Unverified: 1 · Not configured: 0 · Disabled: 0 · Awaiting manual run: 0 · Inactive: 1 (excluded)", page)
+            self.assertIn("Failed: 1 · Blocked: 1 · Unable to verify: 1 · Inactive: 1 (excluded)", page)
             self.assertNotIn("not passed", page)
+            for label in ("Failed", "Blocked", "Not configured", "Disabled", "Awaiting manual run", "Unable to verify", "Inactive"):
+                self.assertNotIn(label + ": 0", page)
             for filename in ("index.html", "scorecard.md"):
                 text = (output / filename).read_text()
                 self.assertIn("Inactive", text)
                 self.assertIn("Unreported checks are not assumed inactive", text)
-                for expected in ("Unverified", "Blocked", "mergeability or release readiness",
+                for expected in ("Unable to verify", "Blocked", "mergeability or release readiness",
                                  "current PR head", "Test totals", MODULE._SIZE_GUIDANCE):
                     self.assertIn(expected, text)
                 self.assertNotIn("private-", text)
@@ -892,6 +894,9 @@ class RendererTests(unittest.TestCase):
                 markdown = (root / "output/scorecard.md").read_text()
                 self.assertIn(expected, page)
                 self.assertIn(expected, markdown)
+                for text in (page, markdown):
+                    self.assertIn("Advisory results do not block", text)
+                    self.assertIn("Enforced checks require a pass", text)
                 self.assertEqual("Advisory only" in page, ungated)
                 if card["decision"] == "block":
                     self.assertNotIn("ALLOW means", page)
@@ -1237,16 +1242,37 @@ class RendererTests(unittest.TestCase):
                 for filename in ("index.html", "scorecard.md"):
                     text = (root / "site" / filename).read_text()
                     self.assertIn(label + ": 1", text)
-                    self.assertIn("Unverified: 0", text)
+                    self.assertNotIn("Unable to verify: 0", text)
                     self.assertIn("Advisory", text)
                 page = (root / "site/index.html").read_text()
-                self.assertIn("Unverified: 0", page[page.index('<div class="metrics">'):page.index('id="results-title"')])
+                self.assertNotIn("Unable to verify: 0", page[page.index('<div class="metrics">'):page.index('id="results-title"')])
+
+    def test_zero_counts_are_hidden_without_changing_evidence(self) -> None:
+        breakdown = {"availability": "available", "inactive": 0,
+                     "overall": {"passed": 2, "failed": 0, "blocked": 0, "unverified": 1},
+                     "advisory": {"passed": 2, "failed": 0, "blocked": 0, "unverified": 1},
+                     "enforced": {"passed": 0, "failed": 0, "blocked": 0, "unverified": 0}}
+        for render in (MODULE._breakdown_html, MODULE._breakdown_markdown):
+            output = render(breakdown)
+            self.assertIn("Passed", output)
+            self.assertIn("Unavailable evidence", output)
+            self.assertNotIn('<th scope="col">Failed</th>', output)
+            self.assertNotIn("| Failed |", output)
+            self.assertNotIn('<th scope="row">Enforced</th>', output)
+            self.assertNotIn("| Enforced |", output)
+        self.assertEqual(breakdown["overall"]["failed"], 0)
+        self.assertNotIn(": 0", MODULE._activation_summary([{"status": "passed"}]))
+        self.assertIn("No unavailable evidence", MODULE._activation_summary([{"status": "passed"}]))
+        for mode in ("overall", "advisory", "enforced"):
+            breakdown[mode] = dict.fromkeys(breakdown[mode], 0)
+        for render in (MODULE._breakdown_html, MODULE._breakdown_markdown):
+            self.assertIn("No check results reported", render(breakdown))
 
     def test_activation_labels_do_not_change_advisory_mode_or_results(self) -> None:
         for code, label in (("disabled", "Disabled"), ("not_configured", "Not configured"),
                             ("awaiting_manual_run", "Awaiting manual run"),
-                            ("pr_context_mismatch", "Unverified"),
-                            ("ambiguous_producer", "Unverified")):
+                            ("pr_context_mismatch", "Unable to verify"),
+                            ("ambiguous_producer", "Unable to verify")):
             row = {"status": "no_result", "mode": "advisory", "diagnostic": {"code": code}}
             self.assertEqual(MODULE._result_label(row)[0], label)
             self.assertEqual(row["mode"], "advisory")
@@ -1257,7 +1283,7 @@ class RendererTests(unittest.TestCase):
         summary = MODULE._activation_summary([
             {"status": "no_result", "diagnostic": {"code": code}}
             for code in ("disabled", "not_configured", "awaiting_manual_run", "ambiguous_producer")])
-        for label in ("Disabled", "Not configured", "Awaiting manual run", "Unverified"):
+        for label in ("Disabled", "Not configured", "Awaiting manual run", "Unable to verify"):
             self.assertIn(label + ": 1", summary)
 
     def test_public_catalog_matches_canonical_controls(self) -> None:
@@ -1287,7 +1313,7 @@ class RendererTests(unittest.TestCase):
                     self.assertNotIn(private, text)
             page = (root / "output/index.html").read_text()
             self.assertEqual(page.count('<article class="check-detail '), len(MODULE.PUBLIC_CONTROLS))
-            for label in ("Passed", "Failed", "Blocked", "Unverified", "Not activated", "Not reported"):
+            for label in ("Passed", "Failed", "Blocked", "Unable to verify", "Not activated", "Not reported"):
                 self.assertIn(label, page)
             self.assertIn('href="#size-title"', page)
             self.assertEqual(page.count('scope="rowgroup"'), 4)

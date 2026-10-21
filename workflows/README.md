@@ -469,3 +469,16 @@ These labels never count as passing, and real producer outcomes take precedence.
 HTML and Markdown show separate counts; public JSON retains the evidence status
 and adds an independent `activation` field. Checks remain optional, with polyglot
 and lifecycle workflows run manually.
+
+Scorecard status labels are **Passed**, **Failed**, **Blocked**, **Not configured**,
+**Disabled**, **Awaiting manual run**, and **Unable to verify**. Status and mode
+are separate: each selected check is **Advisory** or **Enforced**. Advisory
+results do not block the toolkit decision. Enforced checks must pass; failures,
+blockers, and unavailable evidence block that decision. GitHub merge blocking
+also depends on configured required checks and rulesets. This display does not
+change a repository's enforcement configuration.
+
+Summary cards, readiness counts, and evidence tables hide zero-count categories.
+Evidence tables omit empty modes and show a dash for an empty cell within a
+nonempty category. Public JSON keeps its existing numeric counters and machine
+status codes (`no_result`/`unverified`); **Unable to verify** is the display label.
