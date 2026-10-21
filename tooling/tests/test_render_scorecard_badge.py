@@ -52,6 +52,25 @@ def scorecard(
 
 
 class RendererTests(unittest.TestCase):
+    def test_independent_iac_stays_in_pr_scope_without_lifecycle_setup(self) -> None:
+        card = scorecard(status="ORANGE", enforced=(0, 0), advisory=(0, 1))
+        provider = {"id": "trivy-repository-iac", "display_name": "Trivy Repository IaC"}
+        card["controls"] = [{"id": "iac-misconfiguration", "effective_mode": "advisory", "evidence_status": "no_result",
+                             "configured_provider": provider, "authoritative_provider": provider,
+                             "authoritative_result": {"status": "not_run", "reason": "not yet reported"}}]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = self.render(self.write_source(root, card), root / "site")
+            row = next(item for item in result["controls"] if item["id"] == "iac-misconfiguration")
+            self.assertEqual(row["evaluation_scope"], "pull-request")
+            self.assertEqual(row["provider"], "Trivy Repository IaC")
+            self.assertNotIn("manual Proof Lifecycle", MODULE._unverified_note(row))
+            attention = MODULE._attention_html(result["controls"], result["result_breakdown"])
+            self.assertIn("Pull-request checks", attention)
+            self.assertNotIn("manual-attention", attention)
+            article = (root / "site/index.html").read_text().split('id="check-iac-misconfiguration"', 1)[1].split("</article>", 1)[0]
+            self.assertNotIn("Manual lifecycle check", article)
+
     def test_lifecycle_labels_require_bound_collector_context(self) -> None:
         card = scorecard()
         subject = {"type": "artifact", "revision": "sha256:" + "c" * 64}
