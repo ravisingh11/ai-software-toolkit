@@ -735,6 +735,10 @@ def _provider_links(row: dict[str, Any], label: str, repository: str | None,
 
 # Map only exact collector conditions to public language. Raw reasons remain private.
 _PUBLIC_REASONS = {
+    "Duplicate matching GitHub check names make provider provenance ambiguous.": (
+        "ambiguous_producer", "Multiple matching producer checks were found for this revision. "
+        "Unambiguous evidence provenance is missing. Inspect the duplicate CI runs and collect a fresh snapshot; "
+        "the collector does not choose a passing result from ambiguous matches."),
     "Lifecycle evidence unavailable: Lifecycle run is absent or ambiguous for this PR revision": (
         "lifecycle_run_missing_or_ambiguous", "No unique manual lifecycle run was found for this PR revision. "
         "Run manual Proof Lifecycle for this revision and collect its signed evidence."),

@@ -152,3 +152,8 @@ and `runtime`, as well as `release` and `change-and-release`. Advisory selection
 covers all of them. Policy coverage checks both each operation's eligible stages
 and the union of all 33 catalog controls, so an environment stage cannot silently
 fall out of the repository's advisory selection.
+
+Duplicate matching producer check names are an explicit public evidence gap:
+`ambiguous_producer`. The collector does not choose a passing check from
+ambiguous matches. The scorecard asks the reader to inspect duplicate CI runs
+and collect fresh, unambiguous evidence; this preserves the CI audit history.

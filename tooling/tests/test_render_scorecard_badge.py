@@ -490,6 +490,9 @@ class RendererTests(unittest.TestCase):
             for reason in MODULE._PUBLIC_REASONS:
                 row = {**rows[0], "authoritative_result": {"status": "no_result", "reason": reason}}
                 self.assertIsNotNone(MODULE._public_diagnostic(row))
+            ambiguous = {**rows[0], "authoritative_result": {"status": "no_result",
+                         "reason": "Duplicate matching GitHub check names make provider provenance ambiguous."}}
+            self.assertEqual(MODULE._public_diagnostic(ambiguous)["code"], "ambiguous_producer")
             for bad in ("private reason", ["unhashable"]):
                 row = {**rows[0], "authoritative_result": {"status": "no_result", "reason": bad}}
                 self.assertIsNone(MODULE._public_diagnostic(row))
