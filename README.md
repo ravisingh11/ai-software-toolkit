@@ -82,6 +82,29 @@ ground-truth documents, GitHub setup, and your first PR. The
 [CLI guide](docs/install.md) covers skills, QA, runtime-only installs, updates,
 and managed-file ownership.
 
+### Use with Claude Code
+
+Install the starter skills into your application's `.claude/skills/` directory.
+From this toolkit checkout, preview first, then apply:
+
+```sh
+python3 tooling/ai_toolkit init --target /path/to/your-repo --components skills --clients claude-code --skills starter --preview
+python3 tooling/ai_toolkit init --target /path/to/your-repo --components skills --clients claude-code --skills starter --yes
+```
+
+This skills-only selection does not install Proof workflows or run checks.
+Use `--clients codex,claude-code` if you use both clients; they share the same
+canonical skills in their respective project directories.
+
+In Claude Code, ask: “Use the code-review skill to review this change. Explain
+risks with file references. Do not run tests or commands unless I ask.” Keep
+repository-specific instructions and execution limits in your own `CLAUDE.md`;
+the installer does not write that file. Skills provide guidance, while Proof
+collects execution evidence. Installing a skill is not a passing check.
+
+See [Claude Code onboarding](docs/quickstart.md#claude-code-setup) for adding
+Proof or QA separately. All checks remain optional.
+
 ### Try an isolated Python demo
 
 From the toolkit checkout, copy the embedded demo into a separate directory.
