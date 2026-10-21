@@ -1228,12 +1228,6 @@ def collect_checks(
                 trusted_workflow_ref=trusted_workflow_ref,
                 pull_request_number=pull_request_number,
             )
-        if (len(matches) == 1 and provider_id == "repository-pr-metadata"
-                and result.get("status") in {"passed", "failed"}
-                and type(matches[0].get("id")) is int and matches[0]["id"] > 0):
-            result.setdefault("evidence", []).append(
-                f"Verified metadata producer; https://github.com/{repo}/runs/{matches[0]['id']}"
-            )
         for control_id in contract["control_ids"]:
             results.setdefault(control_id, {})[provider_id] = copy.deepcopy(result)
     review_attempts = 0

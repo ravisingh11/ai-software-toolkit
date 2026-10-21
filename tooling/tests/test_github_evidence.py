@@ -195,22 +195,6 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
                 providers, "change", trusted_base_revision="base456",
             )
 
-    def test_metadata_results_keep_a_direct_link_only_after_provenance_validation(self) -> None:
-        policy, profiles, catalog, providers = contracts()
-        contract = {"provider_id": "repository-pr-metadata", "control_ids": ["pr-metadata"]}
-        check = check_run("PR Metadata", 321)
-        for status in ("passed", "failed", "not_run"):
-            proven = {"producer": "Metadata", "status": status, "evidence": ["Public summary"]}
-            with patch.object(MODULE, "expected_checks", return_value={"PR Metadata": contract}), \
-                    patch.object(MODULE, "expected_reviews", return_value=[]), \
-                    patch.object(MODULE, "enumerate_check_runs", return_value=[check]), \
-                    patch.object(MODULE, "proven_check_evidence", return_value=proven):
-                evidence = MODULE.collect_checks("owner/repo", "abc123", "token", policy, profiles,
-                                                 catalog, providers, "change")
-            result = evidence["results"]["pr-metadata"]["repository-pr-metadata"]
-            self.assertEqual(any("https://github.com/owner/repo/runs/321" in item for item in result["evidence"]),
-                             status in {"passed", "failed"})
-
     def test_collects_only_proven_authoritative_and_supplemental_git_commit_checks(self) -> None:
         payload = {"check_runs": [
             check_run("Build", 101),

@@ -1330,6 +1330,24 @@ def _write_atomic_text(path: Path, text: str) -> None:
         raise
 
 
+def _published_controls(controls: list[dict[str, Any]], repository: str, run_url: str,
+                        context: dict[str, Any] | None) -> list[dict[str, Any]]:
+    projected = []
+    for row in controls:
+        value = dict(row)
+        if context:
+            if row.get("provider_config_url"):
+                revision = context["runtime_revision"] or context["base_revision"]
+                value["provider_config_url"] = f"https://github.com/{repository}/blob/{revision}/.proof/providers.yaml"
+            # The trusted Proof Scorecard workflow evaluates PR metadata inline.
+            # When no separate producer URL was recorded, that run is the producer.
+            if (row["id"] == "pr-metadata" and row["detail"]["availability"] == "available"
+                    and not row.get("provider_run_url")):
+                value["provider_run_url"] = run_url
+        projected.append(value)
+    return projected
+
+
 def _public_metadata(
     inspected: dict[str, Any],
     repository: str,
@@ -1367,11 +1385,7 @@ def _public_metadata(
         "pages_url": pages_base_url(repository),
         "change_scope": inspected["change_scope"],
         "result_breakdown": inspected["result_breakdown"],
-        "controls": [
-            {**row, "provider_config_url": f"https://github.com/{repository}/blob/{(publication_context['runtime_revision'] or publication_context['base_revision'])}/.proof/providers.yaml"}
-            if publication_context and row.get("provider_config_url") else row
-            for row in inspected["controls"]
-        ],
+        "controls": _published_controls(inspected["controls"], repository, run_url, publication_context),
     }
 
 

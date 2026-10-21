@@ -500,6 +500,25 @@ class RendererTests(unittest.TestCase):
                 "duration_seconds": 0, "conclusion": "skipped"}}}
             self.assertEqual(MODULE._public_diagnostic(skipped)["code"], "producer_skipped")
 
+    def test_inline_metadata_card_links_to_its_bound_evaluation_run(self) -> None:
+        card = scorecard(status="ORANGE", enforced=(0, 0), advisory=(0, 1))
+        card["controls"] = [{"id": "pr-metadata", "effective_mode": "advisory", "evidence_status": "failed",
+                             "authoritative_provider": {"id": "repository-pr-metadata", "display_name": "Metadata"},
+                             "authoritative_result": {"status": "failed", "evidence": [
+                                 "Pull-request body is missing required marker: ## Verification"],
+                                 "pr_metadata": {"version": 1, "title_matches": True,
+                                                 "required_sections": 1, "missing_sections": 1}}}]
+        context = {"pull_request_number": 134, "base_revision": "b" * 40,
+                   "runtime_revision": None, "publisher_revision": "d" * 40}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = self.render(self.write_source(root, card), root / "site", publication_context=context)
+            row = next(row for row in metadata["controls"] if row["id"] == "pr-metadata")
+            self.assertEqual(row["provider_run_url"], RUN_URL)
+            page = (root / "site/index.html").read_text()
+            self.assertIn(f'href="{RUN_URL}">Open producer result', page)
+            self.assertIn("Missing required PR body section: ## Verification", page)
+
     def test_empty_enforcement_is_not_presented_as_a_passing_check(self) -> None:
         card = scorecard(status="GREEN", enforced=(0, 0), advisory=(1, 1))
         card["controls"] = [
