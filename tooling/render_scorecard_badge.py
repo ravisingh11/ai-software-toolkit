@@ -1367,6 +1367,7 @@ main{padding-block:48px 36px}
 h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;letter-spacing:-1.6px}
 .intro{margin:12px 0 28px;color:var(--muted);max-width:680px;font-size:16px}
 .toolkit-overview{padding-bottom:36px;margin-bottom:36px;border-bottom:1px solid var(--line)}
+.overview-promise{max-width:760px;font-size:16px;margin:0 0 22px}
 .overview-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:22px 0}
 .overview-actions .primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .overview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:24px 0}
@@ -1654,7 +1655,7 @@ def _html(metadata: dict[str, Any]) -> str:
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="AI Software Toolkit: shared engineering standards, agent skills, optional checks, and revision-bound evidence. Published PR scorecard for {safe['repository']}: {safe['message']}.">
+  <meta name="description" content="AI is the accelerant. Assurance is mandatory. AI Software Toolkit connects standards, agent skills, and optional checks to revision-bound evidence. Published PR scorecard for {safe['repository']}: {safe['message']}.">
   <title>Latest PR Scorecard · {safe['repository']}</title>
   <style>{_REPORT_CSS}</style>
 </head>
@@ -1669,26 +1670,27 @@ def _html(metadata: dict[str, Any]) -> str:
 <main class="shell">
   <section class="toolkit-overview" aria-labelledby="toolkit-title">
     <p class="eyebrow">AI Software Toolkit / standards, skills, and verification</p>
-    <h1 id="toolkit-title">Move fast. Prove it works.</h1>
-    <p class="intro">An open-source toolkit for people and AI agents to plan, build, review,
-      and release software with clear standards and evidence they can inspect.
-      Adopt the parts that fit your repository.</p>
+    <h1 id="toolkit-title">AI is the accelerant.<br>Assurance is mandatory.</h1>
+    <p class="intro">AI turns directives into code faster than ever. Build assurance into
+      the work before changes ship. AI Software Toolkit provides the foundation:
+      clear standards, controlled agent skills, and checks connected to evidence.</p>
+    <p class="overview-promise"><strong>Your directives. Disciplined execution. Evidence before release.</strong></p>
     <nav class="overview-actions" aria-label="Explore AI Software Toolkit">
-      <a class="button primary" href="https://github.com/ravisingh11/ai-software-toolkit#start-here">Get started <span aria-hidden="true">↗</span></a>
+      <a class="button primary" href="https://github.com/ravisingh11/ai-software-toolkit#start-here">Start building assurance <span aria-hidden="true">↗</span></a>
       <a class="button" href="https://github.com/ravisingh11/ai-software-toolkit/tree/main/skills">Browse skills</a>
       <a class="button" href="https://github.com/ravisingh11/ai-software-toolkit-reference-app">Explore the reference app</a>
       <a href="#scorecard">View this repository’s scorecard ↓</a>
     </nav>
     <div class="overview-grid">
-      <article class="overview-card"><h2>Set clear expectations</h2>
-        <p>Human-readable engineering standards and reusable agent skills guide planning,
-          implementation, review, security, QA, and release work.</p></article>
-      <article class="overview-card"><h2>Choose your checks</h2>
-        <p>Connect your build, tests, quality tools, and scanners. Your repository chooses
-          which checks run, their thresholds, and whether to enforce them.</p></article>
-      <article class="overview-card"><h2>Inspect the evidence</h2>
-        <p>Proof evaluates results against the exact revision and selected policy.
-          Scorecards show passing checks, failures, and missing evidence separately.</p></article>
+      <article class="overview-card"><h2>Define the boundaries</h2>
+        <p>Set expectations before execution. Human-readable standards and reusable
+          agent skills guide planning, implementation, review, security, QA, and release work.</p></article>
+      <article class="overview-card"><h2>Verify the work</h2>
+        <p>Run your build, tests, QA, and scanners against the change. Choose the checks,
+          thresholds, and enforcement that fit your repository’s risks.</p></article>
+      <article class="overview-card"><h2>Demand evidence before release</h2>
+        <p>Proof binds results to the evaluated revision. Inspect passing checks, failures,
+          and missing evidence before making a release decision.</p></article>
     </div>
     <p class="adoption-note"><strong>All toolkit checks are optional to adopt.</strong>
       Installing skills does not run them or make checks required. Your team owns

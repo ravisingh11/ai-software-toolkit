@@ -1,21 +1,33 @@
 # AI Software Toolkit
 
-**Move fast. Prove it works.** Shared skills, QA workflows, and Proof checks for
-planning, building, testing, securing, and releasing software with people and AI.
+**AI is the accelerant. Assurance is mandatory.**
 
-Skills guide repeatable work, functional QA exercises application behavior,
-and Proof connects tests and scanners to revision-bound evidence and readable
-scorecards. Your repository owns its architecture, acceptance criteria, tools,
-and commands.
+AI turns directives into code faster than ever. That speed makes clear
+boundaries, human review, and verifiable results essential. Build assurance
+into the work before changes ship.
+
+**Your directives. Disciplined execution. Evidence before release.**
+
+AI Software Toolkit provides the foundation for that assurance across
+human-led and agent-driven software delivery:
+
+- **Standards** define expectations and safe boundaries.
+- **Agent skills** guide controlled planning, implementation, review, and release.
+- **Functional QA and deterministic checks** produce repeatable observations.
+- **Proof** binds results to the evaluated revision and makes failures and
+  missing evidence visible in readable scorecards.
+
+Start with your highest-risk change. Define the outcome, choose the checks,
+run them, and inspect the evidence before you ship. Your repository owns its
+architecture, acceptance criteria, tools, commands, and release decisions.
 
 **All toolkit checks are optional to adopt.** Choose which checks run, their
-thresholds, and whether to enforce them. Installing the toolkit does not make
-checks required or change branch protection. Language examples are starting
-points to adapt or replace.
+thresholds, and whether to enforce them. Installing the toolkit does not run
+checks, make them required, or change branch protection. Language examples
+are starting points to adapt or replace.
 
-I built this because AI lets me create more code and ship changes faster than
-ever. I wanted that speed without losing confidence in what I ship: lightweight
-skills and checks that run with the work, with quality considered from the
+I built this because AI accelerated what I could ship. I needed assurance to
+keep pace: explicit standards, controlled procedures, and evidence from the
 first acceptance criterion through release and feedback.
 
 [![Version](https://img.shields.io/github/v/release/ravisingh11/ai-software-toolkit?label=version)](https://github.com/ravisingh11/ai-software-toolkit/releases/latest)

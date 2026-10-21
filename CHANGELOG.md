@@ -8,6 +8,8 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Emphasize assurance alongside AI-accelerated delivery in the README and
+  published page, preserving optional adoption and evidence limits.
 - Introduce the toolkit on the published scorecard page with standards, skills,
   optional checks, evidence boundaries, and links to setup and the reference app.
 
