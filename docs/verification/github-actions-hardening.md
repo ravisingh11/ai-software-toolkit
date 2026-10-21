@@ -114,7 +114,7 @@ repository. This verifies configuration; it does not make dependency updates or
 other toolkit controls mandatory. GitHub enabling Dependabot and Proof verifying
 its settings are distinct states.
 
-Unverified cards and the Markdown report describe the evidence missing from the
+Cards marked Unable to verify and the Markdown report describe the evidence missing from the
 snapshot and give provider-specific next steps. Lifecycle evidence requires the
 manual Proof Lifecycle workflow for the evaluated revision. Guidance does not
 claim that a credential or input is definitely absent when the snapshot cannot
@@ -166,7 +166,7 @@ shows **Not configured** when trusted workflow settings establish missing config
 manual QA producer. These remain selected advisory checks with unavailable evidence,
 never passing checks. The public activation summary splits the unavailable-evidence total.
 
-**Unverified** is retained when activation is unknown or evidence is rejected, ambiguous,
+**Unable to verify** is retained when activation is unknown or evidence is rejected, ambiguous,
 pending, or unavailable due to collection errors. A no-wait setting alone does not prove
 a provider is disabled. Closed or mismatched lifecycle PR context remains unverified;
 it does not prove no manual run exists. Polyglot and lifecycle execution remain manual.

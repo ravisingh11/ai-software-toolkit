@@ -464,7 +464,7 @@ The scorecard collector records explicit readiness from trusted workflow setting
 missing `SONAR_HOST_URL` or `AI_REVIEW_COMMAND` means **Not configured**;
 explicit false FOSSA/Snyk flags mean **Disabled**; an absent manual QA producer
 means **Awaiting manual run**. A no-wait hint alone never proves activation state.
-Rejected, ambiguous, pending, or otherwise unavailable evidence stays **Unverified**.
+Rejected, ambiguous, pending, or otherwise unavailable evidence stays **Unable to verify**.
 These labels never count as passing, and real producer outcomes take precedence.
 HTML and Markdown show separate counts; public JSON retains the evidence status
 and adds an independent `activation` field. Checks remain optional, with polyglot
