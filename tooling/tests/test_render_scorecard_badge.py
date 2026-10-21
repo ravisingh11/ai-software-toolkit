@@ -409,8 +409,8 @@ class RendererTests(unittest.TestCase):
                 self.assertNotIn(label + ": 0", page)
             for filename in ("index.html", "scorecard.md"):
                 text = (output / filename).read_text()
-                self.assertIn("Inactive", text)
-                self.assertIn("Unreported checks are not assumed inactive", text)
+                self.assertIn("Tools available to adopt", text)
+                self.assertIn("Unreported checks have unknown selection and are not assumed excluded", text)
                 for expected in ("Unable to verify", "Blocked", "mergeability or release readiness",
                                  "current PR head", "Test totals", MODULE._SIZE_GUIDANCE):
                     self.assertIn(expected, text)

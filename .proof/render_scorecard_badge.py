@@ -1275,7 +1275,7 @@ def _breakdown_html(breakdown: dict[str, Any]) -> str:
         values = ''.join(f'<td>{value}</td>' for value in _breakdown_values(breakdown, key, columns))
         rows.append(f'<tr><th scope="row">{label}</th>{values}</tr>')
     headers = ''.join(f'<th scope="col">{label}</th>' for _, label in columns)
-    return heading + '<div class="size-table-wrap" role="region" aria-label="Evidence results" tabindex="0"><table class="size-table"><caption>Control outcomes, separated from unavailable evidence</caption><thead><tr><th scope="col">Controls</th>' + headers + '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div><p>Failed means a reported failure. Blocked means the producer reported a blocker. Unavailable evidence includes not configured, disabled, awaiting manual run, and checks marked Unable to verify; see their separate counts and labels below. Zero-count categories are hidden; a dash means no results in that category. Inactive counts reported checks not selected for this evaluation, including checks evaluated on another subject; they are excluded from selected totals. Unreported checks are not assumed inactive.</p></section>'
+    return heading + '<div class="size-table-wrap" role="region" aria-label="Evidence results" tabindex="0"><table class="size-table"><caption>Control outcomes, separated from unavailable evidence</caption><thead><tr><th scope="col">Controls</th>' + headers + '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div><p>Failed means a reported failure. Blocked means the producer reported a blocker. Unavailable evidence includes not configured, disabled, awaiting manual run, and checks marked Unable to verify; see their separate counts and labels below. Zero-count categories are hidden; a dash means no results in that category. Tools available to adopt and checks relevant later are excluded from this stage’s score. Checks evaluated on another subject are identified separately. Unreported checks have unknown selection and are not assumed excluded.</p></section>'
 
 
 _SIZE_GUIDANCE = "Large PRs can overwhelm human reviewers; smaller, focused PRs make feedback more actionable."
@@ -1630,7 +1630,7 @@ def _markdown(metadata: dict[str, Any]) -> str:
 
 {_breakdown_markdown(metadata["result_breakdown"])}
 
-Failed means a reported failure. Blocked means the producer reported a blocker. Unavailable evidence includes not configured, disabled, awaiting manual run, and checks marked Unable to verify; see their separate counts and labels below. Inactive counts reported checks not selected for this evaluation, including checks evaluated on another subject; they are excluded from selected totals. Unreported checks are not assumed inactive.
+Failed means a reported failure. Blocked means the producer reported a blocker. Unavailable evidence includes not configured, disabled, awaiting manual run, and checks marked Unable to verify; see their separate counts and labels below. Tools available to adopt and checks relevant later are excluded from this stage’s score. Checks evaluated on another subject are identified separately. Unreported checks have unknown selection and are not assumed excluded.
 
 {_decision_meaning(metadata)}
 This is a published PR snapshot. The source timestamp does not prove it matches the current PR head or current main.
