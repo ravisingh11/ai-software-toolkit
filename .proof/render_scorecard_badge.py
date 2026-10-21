@@ -1471,8 +1471,8 @@ def _snapshot_identity(metadata: dict[str, Any], *, markdown: bool = False) -> s
                     f'<div><dt>{label}</dt><dd>{text}</dd></div>' for label, url, text in values)
     created = html.escape(metadata["source_run_created_at"])
     return (f'<dl class="snapshot-identity">{facts}<div><dt>Source evaluation started</dt><dd><time datetime="{created}">{_utc_label(created)}</time></dd></div></dl>'
-            '<p class="snapshot-note">Historical PR evidence. PR base and policy/runtime can differ from the evaluated commit. '
-            'Publishing with a newer renderer does not rerun checks or apply newer policy.</p>')
+            '<p class="snapshot-note">Results reflect the checks and policy used for that PR. '
+            'Updating this page doesn’t rerun checks or verify current main.</p>')
 
 
 def _svg(metadata: dict[str, Any]) -> str:
@@ -1923,9 +1923,7 @@ def _html(metadata: dict[str, Any]) -> str:
   <section class="scorecard-section" id="scorecard" aria-labelledby="scorecard-title" tabindex="-1">
   <p class="eyebrow">CI evidence / change assessment</p>
   <h2 class="report-title" id="scorecard-title">Latest PR Scorecard</h2>
-  <p class="intro">Published pull-request evidence for <strong>{safe['repository']}</strong>.
-    Selected checks are included in this evaluation; selection does not prove they ran or passed.
-    This snapshot does not certify the application or current main.</p>
+  <p class="intro">Latest published PR results for <strong>{safe['repository']}</strong>.</p>
   {_snapshot_identity(metadata)}
   <aside class="freshness" id="snapshot-freshness" data-snapshot="{snapshot}" data-freshness="unknown" aria-label="Snapshot freshness">
     <p id="snapshot-freshness-status" role="status" aria-live="polite">Freshness not checked. These are published snapshot results; refresh to request the latest publication.</p>
