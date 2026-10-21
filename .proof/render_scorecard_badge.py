@@ -209,7 +209,8 @@ PUBLIC_CONTROLS = (
     ('runtime-assurance', 'Runtime Assurance', 'Verify runtime security and operational safeguards', 'Release & runtime'),
  )
 # Publish built-in identities only; custom configuration labels stay in the source report.
-PUBLIC_PROVIDERS = {'repository-validator': ('Repository Validators',
+PUBLIC_PROVIDERS = {'trivy-repository-vulnerabilities': ('Trivy Repository Dependencies', ('dependency-vulnerability',)),
+ 'trivy-repository-iac': ('Trivy Repository IaC', ('iac-misconfiguration',)), 'repository-validator': ('Repository Validators',
                           ('repository-validation', 'documentation-validation', 'repository-ground-truth')),
  'repository-change-scope': ('PR Size / Files & LOC', ('change-scope',)),
  'repository-pr-metadata': ('Repository PR Metadata', ('pr-metadata',)),

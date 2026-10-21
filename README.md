@@ -228,6 +228,13 @@ freshness check cannot be validated, it reports unknown. A workflow-success
 badge and an evidence scorecard answer different questions. See
 [freshness and badge setup](docs/quickstart.md#publish-the-optional-scorecard-badge).
 
+## Independent provenance and Trivy
+
+Attest published release files or run Trivy dependency, IaC, and image scans
+without setting up deployment, ZAP, or soak testing. Start with the
+[independent setup guide](docs/providers/independent-security.md). Checks remain
+optional; advanced lifecycle verification stays manual.
+
 ## Optional quality checks
 
 Choose tools, source scopes, thresholds, CI triggers, and policy modes that fit

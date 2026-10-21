@@ -1,0 +1,145 @@
+# Proof installer-owned workflow. Independent opt-in scans; no deployment required.
+name: Trivy
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      scan:
+        description: Independent scan to run.
+        type: choice
+        options: [dependencies, iac, image]
+        default: dependencies
+        required: true
+      path:
+        description: Repository-relative source path for dependency or IaC scans.
+        type: string
+        default: '.'
+        required: false
+      image:
+        description: Public registry image pinned with @sha256 (image scan only).
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trivy-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependencies:
+    name: Trivy / Dependencies
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' && inputs.scan == 'dependencies' || (github.event_name == 'pull_request' && vars.PROOF_TRIVY_DEPENDENCIES_ENABLED == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Install checksum-pinned Trivy
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/trivy.tar.gz"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            https://github.com/aquasecurity/trivy/releases/download/v0.76.0/trivy_0.76.0_Linux-64bit.tar.gz \
+            --output "$archive"
+          echo "e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7  $archive" | sha256sum --check --status
+          mkdir -p "$RUNNER_TEMP/proof-trivy-bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/proof-trivy-bin" trivy
+          echo "$RUNNER_TEMP/proof-trivy-bin" >> "$GITHUB_PATH"
+      - name: Scan independently
+        env:
+          TRIVY_TARGET: ${{ inputs.path || vars.PROOF_TRIVY_PATH || '.' }}
+        run: |
+          python3 .proof/run_trivy.py --mode dependencies --target "$TRIVY_TARGET" \
+            --output "$RUNNER_TEMP/trivy-dependencies"
+      - name: Preserve scanner reports even on failure
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: trivy-dependencies-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/trivy-dependencies/
+          if-no-files-found: warn
+
+  iac:
+    name: Trivy / IaC
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' && inputs.scan == 'iac' || (github.event_name == 'pull_request' && vars.PROOF_TRIVY_IAC_ENABLED == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Install checksum-pinned Trivy
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/trivy.tar.gz"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            https://github.com/aquasecurity/trivy/releases/download/v0.76.0/trivy_0.76.0_Linux-64bit.tar.gz \
+            --output "$archive"
+          echo "e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7  $archive" | sha256sum --check --status
+          mkdir -p "$RUNNER_TEMP/proof-trivy-bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/proof-trivy-bin" trivy
+          echo "$RUNNER_TEMP/proof-trivy-bin" >> "$GITHUB_PATH"
+      - name: Scan independently
+        env:
+          TRIVY_TARGET: ${{ inputs.path || vars.PROOF_TRIVY_PATH || '.' }}
+        run: |
+          python3 .proof/run_trivy.py --mode iac --target "$TRIVY_TARGET" \
+            --output "$RUNNER_TEMP/trivy-iac"
+      - name: Preserve scanner reports even on failure
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: trivy-iac-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/trivy-iac/
+          if-no-files-found: warn
+
+  image:
+    name: Trivy / Image
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' && inputs.scan == 'image' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Install checksum-pinned Trivy
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/trivy.tar.gz"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            https://github.com/aquasecurity/trivy/releases/download/v0.76.0/trivy_0.76.0_Linux-64bit.tar.gz \
+            --output "$archive"
+          echo "e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7  $archive" | sha256sum --check --status
+          mkdir -p "$RUNNER_TEMP/proof-trivy-bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/proof-trivy-bin" trivy
+          echo "$RUNNER_TEMP/proof-trivy-bin" >> "$GITHUB_PATH"
+      - name: Scan independently
+        env:
+          TRIVY_TARGET: ${{ inputs.image }}
+        run: |
+          python3 .proof/run_trivy.py --mode image --target "$TRIVY_TARGET" \
+            --output "$RUNNER_TEMP/trivy-image"
+      - name: Preserve scanner reports even on failure
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: trivy-image-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/trivy-image/
+          if-no-files-found: warn

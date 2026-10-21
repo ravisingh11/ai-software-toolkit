@@ -24,6 +24,7 @@ INSTALLER_MARKER = "# Proof installer-owned workflow."
 RUNTIME_MARKER = "# Proof installer-owned runtime."
 
 CORE_WORKFLOWS = {
+    "trivy.yml": ROOT / "workflows" / "trivy.yml",
     "proof-scorecard.yml": ROOT / "workflows" / "proof-scorecard.yml",
     "change-scope.yml": ROOT / "workflows" / "change-scope.yml",
     "pr-metadata.yml": ROOT / "workflows" / "pr-metadata.yml",
@@ -119,6 +120,8 @@ def runtime_sources(target: Path) -> list[InstallItem]:
         "lifecycle_contract.py": ROOT / "tooling/lifecycle_contract.py",
         "collect_lifecycle_evidence.py": ROOT / "tooling/collect_lifecycle_evidence.py",
         "lifecycle_producers.py": ROOT / "tooling/lifecycle_producers.py",
+        "run_trivy.py": ROOT / "tooling/run_trivy.py",
+        "prepare_release_attestation.py": ROOT / "tooling/prepare_release_attestation.py",
         "produce.py": PRODUCER,
         "check_test_integrity.py": ROOT / "tooling/check_test_integrity.py",
         "check_changed_coverage.py": ROOT / "tooling/check_changed_coverage.py",

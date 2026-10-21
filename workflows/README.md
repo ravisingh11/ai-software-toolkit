@@ -482,3 +482,16 @@ Summary cards, readiness counts, and evidence tables hide zero-count categories.
 Evidence tables omit empty modes and show a dash for an empty cell within a
 nonempty category. Public JSON keeps its existing numeric counters and machine
 status codes (`no_result`/`unverified`); **Unable to verify** is the display label.
+
+## Independent provenance and Trivy starters
+
+`artifact-provenance.yml` supports exact published release-asset verification
+with just a release tag, separately from its compatible native build-provenance
+mode. `trivy.yml` supplies independent dependency, IaC and digest-pinned image
+scans, with an SBOM for images. Neither starter requires deployment or the
+advanced manual `lifecycle-verification.yml` workflow.
+
+**Trivy Repository Dependencies** (`trivy-repository-vulnerabilities`) and
+**Trivy Repository IaC** (`trivy-repository-iac`) are optional selectable PR
+providers. Existing provider selections and required checks are unchanged.
+See [setup and evidence boundaries](../docs/providers/independent-security.md).

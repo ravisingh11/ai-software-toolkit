@@ -8,7 +8,16 @@ on:
     inputs:
       artifact-path:
         description: Existing release artifact path or glob to attest.
-        required: true
+        required: false
+        type: string
+      release-tag:
+        description: Published release tag whose exact uploaded assets should be verified.
+        required: false
+        type: string
+      asset-pattern:
+        description: Uploaded release asset filename pattern (release verification only).
+        required: false
+        default: '*'
         type: string
 
 concurrency:
@@ -40,3 +49,46 @@ jobs:
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-path: ${{ inputs.artifact-path || vars.PROOF_ARTIFACT_PATH }}
+      - name: Preserve the artifact built and attested by this workflow
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: provenance-artifacts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ inputs.artifact-path || vars.PROOF_ARTIFACT_PATH }}
+          if-no-files-found: error
+
+  verify-release:
+    name: Verify published release artifacts
+    if: >-
+      ${{ inputs.release-tag != '' ||
+          (github.event_name == 'release' && vars.PROOF_ARTIFACT_PROVENANCE_ENABLED == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out verifier without executing release assets
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Retrieve and verify exact published asset bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release-tag || github.event.release.tag_name }}
+          ASSET_PATTERN: ${{ inputs.asset-pattern || '*' }}
+        run: |
+          python3 .proof/prepare_release_attestation.py \
+            --repository "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" \
+            --pattern "$ASSET_PATTERN" --output "$RUNNER_TEMP/release-verification"
+      - name: Attest release verification (not original build execution)
+        id: verification
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: ${{ runner.temp }}/release-verification/assets/*
+          predicate-type: https://github.com/ravisingh11/ai-software-toolkit/attestations/release-artifact-verification/v1
+          predicate-path: ${{ runner.temp }}/release-verification/predicate.json
+      - name: Preserve the verification predicate and signature bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/release-verification/predicate.json
+            ${{ steps.verification.outputs.bundle-path }}
+          if-no-files-found: error

@@ -8,6 +8,12 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Add independent, opt-in Trivy dependency/IaC PR providers and manual image
+  scans with SBOM output. Add exact published release-asset verification
+  attestations alongside compatible native build provenance, without requiring
+  deployment or advanced lifecycle setup. Preserve signed-receipt contracts,
+  optional enforcement, and manual lifecycle/polyglot workflows.
+
 ## [2.1.1] - 2026-10-21
 
 Release preparation; tagging and publication await maintainer approval. See

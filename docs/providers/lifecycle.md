@@ -1,5 +1,8 @@
 # Optional artifact and verification-environment providers
 
+For provenance or Trivy alone, start with the [independent workflows](independent-security.md).
+This advanced path is for combined artifact and environment evidence.
+
 The lifecycle providers run real tools against a built verification container
 and its isolated runtime. They are manual and optional. They do not provision
 production infrastructure or claim that a preview is a production release.

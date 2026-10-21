@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SEMGREP_IMAGE = "semgrep/semgrep@sha256:b94b53d02fd4a022f9eac4e2af1380f5c3c4c21400e79d3336bdff1d1db5e796"
 GITLEAKS_IMAGE = "ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f"
 CORE_WORKFLOWS = {
+    "trivy.yml",
     "proof-scorecard.yml",
     "change-scope.yml",
     "pr-metadata.yml",

@@ -1,6 +1,48 @@
 {
   "version": 2,
   "providers": {
+    "trivy-repository-vulnerabilities": {
+      "display_name": "Trivy Repository Dependencies",
+      "activation": "github",
+      "capabilities": [
+        "dependency-vulnerability"
+      ],
+      "checks": {
+        "dependency-vulnerability": {
+          "check_name": "Trivy / Dependencies",
+          "workflow": "Trivy",
+          "workflow_path": ".github/workflows/trivy.yml",
+          "trusted_paths": [
+            ".proof/run_trivy.py"
+          ]
+        }
+      },
+      "template": "workflows/trivy.yml",
+      "template_available": true,
+      "secrets": [],
+      "enabled_by_default": false
+    },
+    "trivy-repository-iac": {
+      "display_name": "Trivy Repository IaC",
+      "activation": "github",
+      "capabilities": [
+        "iac-misconfiguration"
+      ],
+      "checks": {
+        "iac-misconfiguration": {
+          "check_name": "Trivy / IaC",
+          "workflow": "Trivy",
+          "workflow_path": ".github/workflows/trivy.yml",
+          "trusted_paths": [
+            ".proof/run_trivy.py"
+          ]
+        }
+      },
+      "template": "workflows/trivy.yml",
+      "template_available": true,
+      "secrets": [],
+      "enabled_by_default": false
+    },
     "repository-validator": {
       "display_name": "Repository Validators",
       "activation": "repository",

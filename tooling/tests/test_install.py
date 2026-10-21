@@ -16,6 +16,7 @@ assert SPEC and SPEC.loader
 SPEC.loader.exec_module(MODULE)
 
 CORE_WORKFLOWS = {
+    "trivy.yml",
     "proof-scorecard.yml",
     "change-scope.yml",
     "repository-validation.yml",

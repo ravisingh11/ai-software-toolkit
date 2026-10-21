@@ -97,3 +97,11 @@ unverified rows remain unverified; static fixtures and local broad-token
 replays must not be relabeled as hosted workflow verification. Keep the optional
 polyglot workflow manual in repositories that adopt that example, and preserve
 language-specific setup requirements.
+
+## Independent adoption
+
+For release provenance and Trivy without deployment or runtime setup, use the
+[independent security guide](independent-security.md). Repository dependencies
+and IaC have optional native PR providers; image scans and release-asset
+verification retain their artifact scope. Advanced lifecycle remains manual;
+its existing signed-receipt collector is unchanged.

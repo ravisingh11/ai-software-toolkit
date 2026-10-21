@@ -232,3 +232,11 @@ The [lifecycle guide](lifecycle.md) covers the executable providers
 collection paths for `github-artifact-attestations` and `repository-soak`.
 They require explicit repository activation and a real owned verification
 fixture. Their existence is not evidence that they have run in a consumer.
+
+## Independent adoption
+
+For release provenance and Trivy without deployment or runtime setup, use the
+[independent security guide](independent-security.md). Repository dependencies
+and IaC have optional native PR providers; image scans and release-asset
+verification retain their artifact scope. Advanced lifecycle remains manual;
+its existing signed-receipt collector is unchanged.
