@@ -78,7 +78,7 @@ class ActionDistributionTests(unittest.TestCase):
         providers = json.loads((ROOT / ".proof/providers.yaml").read_text())
         self.assertEqual(policy["version"], 2)
         self.assertEqual(policy["profiles"], ["core", "github"])
-        self.assertEqual(policy["overrides"]["change"]["dependency-remediation"], "not_activated")
+        self.assertEqual(policy["overrides"]["change"]["dependency-remediation"], "advisory")
         self.assertEqual(baseline["profiles"], ["core"])
         self.assertEqual(catalog["version"], 2)
         self.assertEqual(providers["version"], 2)
@@ -95,7 +95,7 @@ class ActionDistributionTests(unittest.TestCase):
             with self.subTest(lifecycle=lifecycle):
                 self.assertTrue(modes)
                 self.assertLessEqual(set(modes.values()), {"advisory", "not_activated"})
-        self.assertEqual(policy["overrides"]["change"]["dependency-remediation"], "not_activated")
+        self.assertEqual(policy["overrides"]["change"]["dependency-remediation"], "advisory")
 
     def test_no_active_runtime_or_workflow_references_a_producer_manifest(self) -> None:
         paths = [
