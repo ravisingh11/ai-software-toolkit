@@ -121,12 +121,13 @@ establish the cause. Candidate-supplied reason strings are not published.
 
 ### Snapshot identity and actionable results
 
-The public scorecard identifies its PR, evaluated commit, policy base, evaluation
-runtime (when recorded), page renderer revision, and source evaluation start.
+The public scorecard identifies its PR, evaluated commit, PR base, policy/runtime
+revision (when recorded), page renderer revision, and source evaluation start.
 Source bindings version 2 record the checked-out trusted runtime. Historical
 version 1 sources remain readable and explicitly say that runtime identity was
 not recorded. Updating the renderer does not rerun historical checks or select
-new policy. Configuration links use the trusted base when its identity is known.
+new policy. Configuration links use the recorded policy/runtime revision, falling back to
+the PR base for historical sources that did not record their runtime.
 
 Known collector conditions are projected as bounded public reason codes and
 reviewed explanations. Missing results, skipped producers, incomplete collection,

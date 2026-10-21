@@ -448,10 +448,10 @@ class RendererTests(unittest.TestCase):
             self.assertEqual(result["snapshot_identity"]["evaluated_revision"], REVISION)
             for filename in ("index.html", "scorecard.md"):
                 text = (root / "site" / filename).read_text()
-                for expected in ("/pull/134", "/commit/" + REVISION, "Policy base", "Evaluation runtime", "Page renderer",
+                for expected in ("/pull/134", "/commit/" + REVISION, "PR base", "Policy / runtime", "Page renderer",
                                  "GitHub required merge checks are separate"):
                     self.assertIn(expected, text)
-            self.assertIn("/blob/" + "b" * 40, next(row for row in result["controls"] if row["id"] == "build")["provider_config_url"])
+            self.assertIn("/blob/" + "c" * 40, next(row for row in result["controls"] if row["id"] == "build")["provider_config_url"])
             context["runtime_revision"] = None
             self.render(source, root / "legacy", publication_context=context)
             self.assertIn("Not recorded in this historical source", (root / "legacy/index.html").read_text())

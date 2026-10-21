@@ -1362,7 +1362,7 @@ def _public_metadata(
         "change_scope": inspected["change_scope"],
         "result_breakdown": inspected["result_breakdown"],
         "controls": [
-            {**row, "provider_config_url": f"https://github.com/{repository}/blob/{publication_context['base_revision']}/.proof/providers.yaml"}
+            {**row, "provider_config_url": f"https://github.com/{repository}/blob/{(publication_context['runtime_revision'] or publication_context['base_revision'])}/.proof/providers.yaml"}
             if publication_context and row.get("provider_config_url") else row
             for row in inspected["controls"]
         ],
@@ -1376,8 +1376,8 @@ def _snapshot_identity(metadata: dict[str, Any], *, markdown: bool = False) -> s
     repository = metadata["repository"]
     number = identity["pull_request_number"]
     values = [("Pull request", f"https://github.com/{repository}/pull/{number}", f"#{number}")]
-    for key, label in (("evaluated_revision", "Evaluated commit"), ("base_revision", "Policy base"),
-                       ("runtime_revision", "Evaluation runtime"), ("publisher_revision", "Page renderer")):
+    for key, label in (("evaluated_revision", "Evaluated commit"), ("base_revision", "PR base"),
+                       ("runtime_revision", "Policy / runtime"), ("publisher_revision", "Page renderer")):
         revision = identity[key]
         if revision:
             values.append((label, f"https://github.com/{repository}/commit/{revision}", revision[:12]))
@@ -1389,7 +1389,7 @@ def _snapshot_identity(metadata: dict[str, Any], *, markdown: bool = False) -> s
                     f'<div><dt>{label}</dt><dd>{text}</dd></div>' for label, url, text in values)
     created = html.escape(metadata["source_run_created_at"])
     return (f'<dl class="snapshot-identity">{facts}<div><dt>Source evaluation started</dt><dd><time datetime="{created}">{_utc_label(created)}</time></dd></div></dl>'
-            '<p class="snapshot-note">Historical PR evidence. Policy base and evaluation runtime can differ from the evaluated commit. '
+            '<p class="snapshot-note">Historical PR evidence. PR base and policy/runtime can differ from the evaluated commit. '
             'Publishing with a newer renderer does not rerun checks or apply newer policy.</p>')
 
 
