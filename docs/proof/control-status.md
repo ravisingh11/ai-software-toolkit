@@ -28,6 +28,22 @@ passed for the exact subject. Default scorecards omit inactive controls;
 `GRAY` rows appear only when `--all-catalog-controls` requests the complete
 catalog view.
 
+## Published scorecard counts
+
+The published summary calls advisory and enforced controls **selected checks**.
+Selection means inclusion in the policy for this evaluation; it does not prove
+execution or enforcement. The passed fraction counts only selected checks.
+Failed, blocked, and unverified results are displayed separately rather than
+combined as “not passed.” Missing evidence remains unverified, never passed.
+
+**Inactive** counts reported controls not selected for this evaluation,
+including controls evaluated on another subject. Inactive counts are shown
+separately and excluded from the selected denominator; they are not assigned
+to the enforced or advisory result counts. A missing row is not assumed
+inactive. Incomplete or inconsistent evidence displays an unavailable breakdown
+instead of invented counts. With no enforced checks, the summary says
+**No checks enforced**. All toolkit checks remain optional to adopt and enforce.
+
 ## Common interpretations
 
 | Observation | Interpretation |

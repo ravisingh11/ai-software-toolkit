@@ -8,6 +8,11 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Clarify published scorecards with “selected checks” and separate failed,
+  blocked, unverified, and inactive counts. Keep inactive checks outside the
+  selected total, identify empty enforcement explicitly, and preserve optional
+  adoption, policy decisions, and missing-evidence behavior.
+
 ## [2.1.0] - 2026-10-21
 
 - Publish the shared CLI and Proof runtime with optional provider, lifecycle, and scorecard capabilities described below. See [release notes](docs/releases/v2.1.0.md) for migration and verification limits.

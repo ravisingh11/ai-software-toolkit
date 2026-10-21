@@ -399,12 +399,35 @@ class RendererTests(unittest.TestCase):
             self.assertEqual(metadata["result_breakdown"]["enforced"], {
                 "passed": 1, "failed": 0, "blocked": 0, "unverified": 0,
             })
+            self.assertEqual(metadata["result_breakdown"]["inactive"], 1)
+            page = (output / "index.html").read_text()
+            self.assertIn("Selected checks", page)
+            self.assertIn("Failed: 1 · Blocked: 1 · Unverified: 1 · Inactive: 1 (excluded)", page)
+            self.assertNotIn("not passed", page)
             for filename in ("index.html", "scorecard.md"):
                 text = (output / filename).read_text()
+                self.assertIn("Inactive", text)
+                self.assertIn("Unreported checks are not assumed inactive", text)
                 for expected in ("Unverified", "Blocked", "mergeability or release readiness",
                                  "current PR head", "Test totals", MODULE._SIZE_GUIDANCE):
                     self.assertIn(expected, text)
                 self.assertNotIn("private-", text)
+
+    def test_empty_enforcement_is_not_presented_as_a_passing_check(self) -> None:
+        card = scorecard(status="GREEN", enforced=(0, 0), advisory=(1, 1))
+        card["controls"] = [
+            {"id": "build", "effective_mode": "advisory", "evidence_status": "passed"},
+            {"id": "runtime-soak", "effective_mode": "not_activated", "evidence_status": "not_activated"},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = self.render(self.write_source(root, card), root / "published")
+            self.assertEqual(metadata["result_breakdown"]["inactive"], 1)
+            self.assertEqual(metadata["total"], 1)
+            page = (root / "published/index.html").read_text()
+            self.assertIn("No checks enforced", page)
+            self.assertIn("Inactive: 1 (excluded)", page)
+            self.assertNotIn('0<span>/0</span>', page)
 
     def test_incomplete_or_inconsistent_breakdown_is_unavailable(self) -> None:
         for mutation in ("missing", "empty", "duplicate", "unknown", "mode", "passed", "malformed"):
@@ -428,7 +451,10 @@ class RendererTests(unittest.TestCase):
                 metadata = self.render(self.write_source(root, card), root / "published")
                 self.assertEqual(metadata["result_breakdown"], {"availability": "unavailable"})
                 self.assertEqual(metadata["passed"], 2)
-                self.assertIn("Result breakdown unavailable", (root / "published/index.html").read_text())
+                page = (root / "published/index.html").read_text()
+                self.assertIn("Result breakdown unavailable", page)
+                self.assertNotIn("Inactive:", page)
+                self.assertNotIn("not passed", page)
 
     def scope_card(self, *, exceeded: bool = False) -> dict[str, Any]:
         card = scorecard(status="ORANGE" if exceeded else "GREEN", advisory=(3 if exceeded else 4, 4))
@@ -672,7 +698,7 @@ class RendererTests(unittest.TestCase):
             root = Path(directory)
             self.render(self.write_source(root, card), root / "output")
             page = (root / "output/index.html").read_text()
-            self.assertNotIn("excluded from the active-control totals", page)
+            self.assertNotIn("excluded from the selected-check totals", page)
             self.assertIn("whether they count toward the totals is unknown", page)
 
     def test_totals_are_reconciled_with_the_listed_checks(self) -> None:
@@ -690,9 +716,9 @@ class RendererTests(unittest.TestCase):
             self.render(self.write_source(root, card), root / "output")
             page = (root / "output/index.html").read_text()
             inactive = len(ids) - 4
-            self.assertIn(f"The totals count 3 active checks. Of the {len(ids)} built-in checks listed below, "
-                          f"3 are active, {inactive} are not activated and 1 is not reported. "
-                          "Only active checks count toward the totals.", page)
+            self.assertIn(f"The totals count 3 selected checks. Of the {len(ids)} built-in checks listed below, "
+                          f"3 are selected, {inactive} are not activated and 1 is not reported. "
+                          "Only selected checks count toward the totals; selection does not mean execution or enforcement.", page)
             self.assertLess(page.index('class="metrics-note"'), page.index('id="results-title"'))
 
     def test_pull_request_checks_are_labeled_as_checked_separately(self) -> None:
@@ -736,7 +762,7 @@ class RendererTests(unittest.TestCase):
             self.render(self.write_source(root), root / "output")
             page = (root / "output/index.html").read_text()
             self.assertIn("Individual results could not be matched to these totals", page)
-            self.assertNotIn("Only active checks count", page)
+            self.assertNotIn("Only selected checks count", page)
 
     def test_durations_are_human_readable(self) -> None:
         for seconds, expected in ((0, "0s"), (59, "59s"), (60, "1m 0s"), (743, "12m 23s"), (3723, "1h 2m 3s")):
@@ -1130,7 +1156,7 @@ class RendererTests(unittest.TestCase):
             self.assertLess(page.index('id="check-build"'), page.index('id="inactive-title"'))
             self.assertLess(page.index('id="inactive-title"'), page.index('id="check-runtime-soak"'))
             self.assertIn("Checked elsewhere, not activated, or not reported <span>(", page)
-            self.assertIn("Not activated checks are excluded from the active-control totals.", page)
+            self.assertIn("Not activated checks are excluded from the selected-check totals.", page)
             self.assertIn("whether they count toward the totals is unknown", page)
             self.assertNotIn("excluded from the totals above", page)
             # PR Size measurements are a subsection of its card, not a nested titled panel.

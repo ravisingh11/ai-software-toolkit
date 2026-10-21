@@ -146,6 +146,7 @@ def _result_breakdown(document: dict[str, Any]) -> dict[str, Any]:
     counts = {mode: dict.fromkeys(("passed", "failed", "blocked", "unverified"), 0)
               for mode in ("enforced", "advisory")}
     seen = set()
+    inactive = 0
     for row in rows:
         if not isinstance(row, dict):
             return unavailable
@@ -154,6 +155,7 @@ def _result_breakdown(document: dict[str, Any]) -> dict[str, Any]:
             return unavailable
         seen.add(control_id)
         if mode == "not_activated":
+            inactive += 1
             continue
         if not isinstance(mode, str) or mode not in counts:
             return unavailable
@@ -166,7 +168,7 @@ def _result_breakdown(document: dict[str, Any]) -> dict[str, Any]:
         if values["passed"] != expected["passed"] or sum(values.values()) != expected["total"]:
             return unavailable
     overall = {key: sum(values[key] for values in counts.values()) for key in counts["enforced"]}
-    return {"availability": "available", "overall": overall, **counts}
+    return {"availability": "available", "overall": overall, "inactive": inactive, **counts}
 
 
 # Public display allowlist: never use artifact-supplied names, reasons, or URLs.
@@ -825,7 +827,7 @@ def _check_target(control_id: str) -> str:
 
 
 def _attention_html(controls: list[dict[str, Any]], breakdown: dict[str, Any]) -> str:
-    """List active checks without a passing result, most severe first."""
+    """List selected checks without a passing result, most severe first."""
     flagged = sorted((row for row in controls if row["status"] in _ATTENTION_STATUSES),
                      key=lambda row: _ATTENTION_STATUSES.index(row["status"]))
     unnamed = 0
@@ -891,7 +893,7 @@ def _inactive_intro(inactive: list[tuple[str, str]]) -> str:
     if "separate" in statuses:
         parts.append("Checks marked Checked on the PR run against the pull request, not this commit, and are excluded from these totals.")
     if "not_activated" in statuses:
-        parts.append("Not activated checks are excluded from the active-control totals.")
+        parts.append("Not activated checks are excluded from the selected-check totals.")
     if "not_reported" in statuses:
         parts.append("Not reported checks have no validated row in this snapshot; whether they count toward the totals is unknown.")
     return " ".join(parts)
@@ -913,11 +915,11 @@ def _count_reconciliation(metadata: dict[str, Any]) -> str:
     def plural(count: int, noun: str) -> str:
         return f"{count} {noun}{'' if count == 1 else 's'}"
 
-    parts = [f"The totals count {plural(metadata['total'], 'active check')}."]
+    parts = [f"The totals count {plural(metadata['total'], 'selected check')}."]
     def verb(count: int, singular: str, plural_form: str) -> str:
         return f"{count} {singular if count == 1 else plural_form}"
 
-    breakdown = [verb(active, "is active", "are active")]
+    breakdown = [verb(active, "is selected", "are selected")]
     if separate:
         breakdown.append(verb(separate, "is checked on the pull request", "are checked on the pull request"))
     if inactive:
@@ -927,7 +929,7 @@ def _count_reconciliation(metadata: dict[str, Any]) -> str:
     joined = breakdown[0] if len(breakdown) == 1 else ", ".join(breakdown[:-1]) + " and " + breakdown[-1]
     parts.append(f"Of the {listed} built-in checks listed below, {joined}.")
     if separate or inactive or missing:
-        parts.append("Only active checks count toward the totals.")
+        parts.append("Only selected checks count toward the totals; selection does not mean execution or enforcement.")
     if custom > 0:
         parts.append(f"{plural(custom, 'custom check')} also {'counts' if custom == 1 else 'count'} but "
                      f"{'is' if custom == 1 else 'are'} not listed by name.")
@@ -946,7 +948,7 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
             label, tone = _result_label(row)
             safe = {key: html.escape(value, quote=True) for key, value in row.items() if isinstance(value, str)}
             note = {"not_reported": "No validated row in this snapshot. Activation and outcome are unknown.",
-                    "not_activated": "Not activated for this evaluation. Excluded from active-control totals.",
+                    "not_activated": "Not activated for this evaluation. Excluded from selected-check totals.",
                     "no_result": "No usable evidence was available. This is not a passing result.",
                     "passed": "",
                     "failed": "The producer reported a failure.",
@@ -1014,10 +1016,11 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
 def _breakdown_markdown(breakdown: dict[str, Any]) -> str:
     if breakdown["availability"] != "available":
         return "Result breakdown unavailable: this source does not contain complete, consistent control results."
-    lines = ["| Evidence results | Passed | Failed | Blocked | Unverified |", "| --- | ---: | ---: | ---: | ---: |"]
-    for key, label in (("overall", "All active controls"), ("enforced", "Enforced"), ("advisory", "Advisory")):
+    lines = ["| Evidence results | Passed | Failed | Blocked | Unverified | Inactive |", "| --- | ---: | ---: | ---: | ---: | ---: |"]
+    for key, label in (("overall", "All selected checks"), ("enforced", "Enforced"), ("advisory", "Advisory")):
         counts = breakdown[key]
-        lines.append(f"| {label} | {counts['passed']} | {counts['failed']} | {counts['blocked']} | {counts['unverified']} |")
+        inactive = str(breakdown["inactive"]) if key == "overall" else "—"
+        lines.append(f"| {label} | {counts['passed']} | {counts['failed']} | {counts['blocked']} | {counts['unverified']} | {inactive} |")
     return "\n".join(lines)
 
 
@@ -1026,10 +1029,11 @@ def _breakdown_html(breakdown: dict[str, Any]) -> str:
     if breakdown["availability"] != "available":
         return heading + '<p>Result breakdown unavailable: this source does not contain complete, consistent control results.</p></section>'
     rows = []
-    for key, label in (("overall", "All active controls"), ("enforced", "Enforced"), ("advisory", "Advisory")):
+    for key, label in (("overall", "All selected checks"), ("enforced", "Enforced"), ("advisory", "Advisory")):
         counts = breakdown[key]
-        rows.append(f'<tr><th scope="row">{label}</th><td>{counts["passed"]}</td><td>{counts["failed"]}</td><td>{counts["blocked"]}</td><td>{counts["unverified"]}</td></tr>')
-    return heading + '<div class="size-table-wrap" role="region" aria-label="Evidence results" tabindex="0"><table class="size-table"><caption>Control outcomes, separated from unavailable evidence</caption><thead><tr><th scope="col">Controls</th><th scope="col">Passed</th><th scope="col">Failed</th><th scope="col">Blocked</th><th scope="col">Unverified</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div><p>Failed means a reported failure. Blocked means the producer reported a blocker. Unverified means no usable result was available.</p></section>'
+        inactive = str(breakdown["inactive"]) if key == "overall" else "—"
+        rows.append(f'<tr><th scope="row">{label}</th><td>{counts["passed"]}</td><td>{counts["failed"]}</td><td>{counts["blocked"]}</td><td>{counts["unverified"]}</td><td>{inactive}</td></tr>')
+    return heading + '<div class="size-table-wrap" role="region" aria-label="Evidence results" tabindex="0"><table class="size-table"><caption>Control outcomes, separated from unavailable evidence</caption><thead><tr><th scope="col">Controls</th><th scope="col">Passed</th><th scope="col">Failed</th><th scope="col">Blocked</th><th scope="col">Unverified</th><th scope="col">Inactive</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div><p>Failed means a reported failure. Blocked means the producer reported a blocker. Unverified means no usable result was available. Inactive counts reported checks not selected for this evaluation, including checks evaluated on another subject; they are excluded from selected totals. Unreported checks are not assumed inactive.</p></section>'
 
 
 _SIZE_GUIDANCE = "Large PRs can overwhelm human reviewers; smaller, focused PRs make feedback more actionable."
@@ -1308,6 +1312,8 @@ def _decision_meaning(metadata: dict[str, Any]) -> str:
 
 
 def _markdown(metadata: dict[str, Any]) -> str:
+    enforced = metadata["enforced"]
+    enforced_summary = f"{enforced['passed']}/{enforced['total']} passed" if enforced["total"] else "No checks enforced"
     return f"""# Latest PR Scorecard
 
 ![{metadata["message"]}](proof-badge.svg)
@@ -1317,8 +1323,8 @@ def _markdown(metadata: dict[str, Any]) -> str:
 | Repository | {metadata["repository"]} |
 | Operation | {metadata["operation"]} |
 | Status | {metadata["status"]} |
-| Active controls | {metadata["passed"]}/{metadata["total"]} passed |
-| Enforced | {metadata["enforced"]["passed"]}/{metadata["enforced"]["total"]} passed |
+| Selected checks | {metadata["passed"]}/{metadata["total"]} passed |
+| Enforced | {enforced_summary} |
 | Advisory | {metadata["advisory"]["passed"]}/{metadata["advisory"]["total"]} passed |
 | Source run | [{metadata["source_run_id"]} attempt {metadata["source_run_attempt"]}]({metadata["source_run_url"]}) |
 | Source created | {metadata["source_run_created_at"]} |
@@ -1327,7 +1333,7 @@ def _markdown(metadata: dict[str, Any]) -> str:
 
 {_breakdown_markdown(metadata["result_breakdown"])}
 
-Failed means a reported failure. Blocked means the producer reported a blocker. Unverified means no usable result was available.
+Failed means a reported failure. Blocked means the producer reported a blocker. Unverified means no usable result was available. Inactive counts reported checks not selected for this evaluation, including checks evaluated on another subject; they are excluded from selected totals. Unreported checks are not assumed inactive.
 
 {_decision_meaning(metadata)}
 This is a published PR snapshot. The source timestamp does not prove it matches the current PR head or current main.
@@ -1588,27 +1594,37 @@ _FRESHNESS_SCRIPT = r"""
 def _html(metadata: dict[str, Any]) -> str:
     safe = {key: html.escape(str(value), quote=True) for key, value in metadata.items()}
     tone, headline = {
-        "GREEN": ("good", "All active controls passed"),
+        "GREEN": ("good", "All selected checks passed"),
         "ORANGE": ("caution", "Advisory controls need attention"),
         "RED": ("danger", "Enforced controls need attention"),
     }[metadata["status"]]
     cards = []
     for label, counts, card_tone in (
-        ("Active controls", metadata, tone),
+        ("Selected checks", metadata, tone),
         ("Enforced", metadata["enforced"], "danger"),
         ("Advisory", metadata["advisory"], "caution"),
     ):
         passed, total = counts["passed"], counts["total"]
         percent = passed / total * 100 if total else 0
+        breakdown = metadata["result_breakdown"]
         if not total:
-            card_tone, note = "neutral", "No controls configured"
-        elif passed == total:
-            card_tone, note = "good", "All passed"
+            card_tone = "neutral"
+            note = {"Selected checks": "No checks selected", "Enforced": "No checks enforced",
+                    "Advisory": "No advisory checks selected"}[label]
+        elif breakdown["availability"] == "available":
+            results = breakdown[{"Selected checks": "overall", "Enforced": "enforced", "Advisory": "advisory"}[label]]
+            note = f"Failed: {results['failed']} · Blocked: {results['blocked']} · Unverified: {results['unverified']}"
+            if passed == total:
+                card_tone = "good"
         else:
-            note = f"{total - passed} not passed"
+            note = "Result breakdown unavailable"
+        if label == "Selected checks" and breakdown["availability"] == "available":
+            note += f" · Inactive: {breakdown['inactive']} (excluded)"
+        count = f'{passed}<span>/{total}</span>' if total else "None"
+        caption = "checks passed" if total else ("checks enforced" if label == "Enforced" else "checks selected")
         cards.append(f"""<section class="metric {card_tone}" aria-label="{label}">
-  <h2>{label}</h2><div class="count">{passed}<span>/{total}</span></div>
-  <p class="count-caption">controls passed</p>
+  <h2>{label}</h2><div class="count">{count}</div>
+  <p class="count-caption">{caption}</p>
   <div class="track" aria-hidden="true"><div class="fill" style="width:{percent:.2f}%"></div></div>
   <p class="metric-note">{note}</p>
 </section>""")

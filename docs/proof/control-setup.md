@@ -433,8 +433,8 @@ change.
 ## Reading scorecard evidence
 
 A sentence under the totals reconciles them with the table: how many
-active checks the totals count, and how many of the listed built-in checks
-are active, checked on the pull request, not activated, or not reported.
+selected checks the totals count, and how many of the listed built-in checks
+are selected, checked on the pull request, not activated, or not reported.
 Custom controls that count toward
 the totals are reported as a number, not by name.
 
