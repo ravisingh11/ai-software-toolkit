@@ -456,3 +456,16 @@ Release-stage advisory selection also covers the catalog's `pre-release`,
 Policy, Dynamic Application Security, and Runtime Assurance therefore remain
 selected as advisory alongside the other built-in controls. A missing manual
 verification result stays unverified, and does not deactivate its policy mode.
+
+### Scorecard activation versus policy mode
+
+Selecting a check as `advisory` does not configure or enable its producer.
+The scorecard collector records explicit readiness from trusted workflow settings:
+missing `SONAR_HOST_URL` or `AI_REVIEW_COMMAND` means **Not configured**;
+explicit false FOSSA/Snyk flags mean **Disabled**; an absent manual QA producer
+means **Awaiting manual run**. A no-wait hint alone never proves activation state.
+Rejected, ambiguous, pending, or otherwise unavailable evidence stays **Unverified**.
+These labels never count as passing, and real producer outcomes take precedence.
+HTML and Markdown show separate counts; public JSON retains the evidence status
+and adds an independent `activation` field. Checks remain optional, with polyglot
+and lifecycle workflows run manually.
