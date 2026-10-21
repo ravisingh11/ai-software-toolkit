@@ -312,7 +312,8 @@ class RendererTests(unittest.TestCase):
                         self.assertNotIn("PRIVATE", text)
                         self.assertNotIn("private/forged", text)
                     page = (output / "index.html").read_text()
-                    self.assertEqual(page.count(f'href="{url}"'), 2)
+                    self.assertEqual(page.count(f'href="{url}"'), 3)
+                    self.assertIn(f'href="{url}">Open producer result', page)
                     self.assertIn(f"[GitHub CodeQL]({config_url})", (output / "scorecard.md").read_text())
                     self.assertTrue(all(row["provider_config_url"] is None
                                         for row in MODULE.inspect_scorecard(source)["controls"]))

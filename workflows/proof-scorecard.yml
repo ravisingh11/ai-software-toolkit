@@ -152,13 +152,13 @@ jobs:
           collector_args=(--wait-seconds 1800
             --no-wait-provider qa-bootstrap-workflow
             --no-wait-provider codex-github-review)
-          if [ -z "${SONAR_HOST_URL}" ]; then
+          if [ -z "${SONAR_HOST_URL:-}" ]; then
             collector_args+=(--no-wait-provider sonarqube)
           fi
           case "${FOSSA_ENABLED:-}" in
             [Ff][Aa][Ll][Ss][Ee]) collector_args+=(--no-wait-provider fossa) ;;
           esac
-          if [ -z "${AI_REVIEW_COMMAND}" ]; then
+          if [ -z "${AI_REVIEW_COMMAND:-}" ]; then
             collector_args+=(--no-wait-provider ai-engineering-adapter
               --no-wait-provider ai-qa-adapter --no-wait-provider ai-security-adapter
               --no-wait-provider ai-repository-standards-adapter)

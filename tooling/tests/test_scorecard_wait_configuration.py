@@ -19,7 +19,7 @@ class ScorecardWaitConfigurationTests(unittest.TestCase):
         return next(step for step in workflow["jobs"]["scorecard"]["steps"]
                     if step.get("name") == "Collect selected provider checks")
 
-    def test_only_explicitly_disabled_snyk_providers_get_wait_hints(self) -> None:
+    def test_optional_providers_and_manual_reviews_get_bounded_wait_hints(self) -> None:
         cases = [
             ({}, []),
             ({"PULL_REQUEST_NUMBER": ""}, []),
@@ -35,6 +35,15 @@ class ScorecardWaitConfigurationTests(unittest.TestCase):
             ({"SNYK_OPEN_SOURCE_ENABLED": " false "}, []),
             ({"SNYK_CODE_ENABLED": "false; touch injected"}, []),
         ]
+        manual = ["qa-bootstrap-workflow", "codex-github-review"]
+        ai = ["ai-engineering-adapter", "ai-qa-adapter", "ai-security-adapter", "ai-repository-standards-adapter"]
+        cases = [(variables, manual + ["sonarqube"] + ai + expected) for variables, expected in cases]
+        cases += [
+            ({"SONAR_HOST_URL": "https://sonar.example", "AI_REVIEW_COMMAND": "review", "FOSSA_ENABLED": "true"}, manual),
+            ({"FOSSA_ENABLED": "false"}, manual + ["sonarqube", "fossa"] + ai),
+            ({"FOSSA_ENABLED": "FALSE"}, manual + ["sonarqube", "fossa"] + ai),
+            ({"AI_REVIEW_COMMAND": "$(touch injected)"}, manual + ["sonarqube"]),
+        ]
         for variables, expected in cases:
             with self.subTest(variables=variables), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
@@ -48,7 +57,7 @@ class ScorecardWaitConfigurationTests(unittest.TestCase):
                     "output.write_text(json.dumps(sys.argv[1:]))\n"
                 )
                 environment = os.environ.copy()
-                for name in ("SNYK_CODE_ENABLED", "SNYK_OPEN_SOURCE_ENABLED"):
+                for name in ("SNYK_CODE_ENABLED", "SNYK_OPEN_SOURCE_ENABLED", "SONAR_HOST_URL", "FOSSA_ENABLED", "AI_REVIEW_COMMAND"):
                     environment.pop(name, None)
                 environment.update({
                     "GITHUB_ENV": str(root / "github-env"),
@@ -72,7 +81,7 @@ class ScorecardWaitConfigurationTests(unittest.TestCase):
 
     def test_wait_hints_read_repository_variables_without_secrets_or_pr_expressions(self) -> None:
         step = self.collector_step()
-        for name in ("SNYK_CODE_ENABLED", "SNYK_OPEN_SOURCE_ENABLED"):
+        for name in ("SNYK_CODE_ENABLED", "SNYK_OPEN_SOURCE_ENABLED", "SONAR_HOST_URL", "FOSSA_ENABLED", "AI_REVIEW_COMMAND"):
             self.assertEqual(step["env"][name], "${{ vars." + name + " }}")
         self.assertNotIn("${{", step["run"])
         # The settings-only credential is intentionally available to this
