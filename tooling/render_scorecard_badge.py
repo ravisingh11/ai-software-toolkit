@@ -733,6 +733,52 @@ def _provider_links(row: dict[str, Any], label: str, repository: str | None,
     return links
 
 
+# Map only exact collector conditions to public language. Raw reasons remain private.
+_PUBLIC_REASONS = {
+    "Lifecycle evidence unavailable: Lifecycle run is absent or ambiguous for this PR revision": (
+        "lifecycle_run_missing_or_ambiguous", "No unique manual lifecycle run was found for this PR revision. "
+        "Run manual Proof Lifecycle for this revision and collect its signed evidence."),
+    "Lifecycle evidence unavailable: PR/head/base identity differs": (
+        "revision_mismatch", "Evidence rejected: its PR, head, or base identity does not match this evaluation. "
+        "Run manual Proof Lifecycle for this PR revision; evidence for another revision cannot pass."),
+    "Waiting is disabled for this provider; its check did not report this revision.": (
+        "provider_not_reported_no_wait", "No provider result was reported for this revision, and collection was configured "
+        "not to wait for this provider. Inspect its workflow activation and skipped runs."),
+    "The selected provider check did not report this revision.": (
+        "provider_not_reported", "No provider result was reported for this revision. Inspect the producer workflow and its evidence publication."),
+    "The artifact-backed check has not completed.": (
+        "producer_pending", "The evidence-producing check had not completed when this snapshot was collected."),
+    "Complete GitHub check-run enumeration could not be proven.": (
+        "collection_unavailable", "The collector could not obtain a complete check listing. Inspect its API access and retry collection."),
+}
+
+
+def _public_diagnostic(row: dict[str, Any]) -> dict[str, str] | None:
+    result = row.get("authoritative_result")
+    provider = row.get("authoritative_provider")
+    if not isinstance(result, dict) or not isinstance(provider, dict):
+        return None
+    contract = PUBLIC_PROVIDERS.get(provider.get("id")) if isinstance(provider.get("id"), str) else None
+    if not contract or row.get("id") not in contract[1]:
+        return None
+    status = "no_result" if result.get("status") == "not_run" else result.get("status")
+    if status != row.get("evidence_status"):
+        return None
+    if status == "no_result":
+        reason = result.get("reason")
+        known = _PUBLIC_REASONS.get(reason) if isinstance(reason, str) else None
+        if known:
+            return {"code": known[0], "message": known[1]}
+        execution = _execution_details(row)
+        if execution.get("conclusion") == "skipped":
+            return {"code": "producer_skipped", "message": "The producer was skipped for this revision; no passing evidence was supplied."}
+    if row.get("id") == "pr-metadata" and status == "failed":
+        evidence = result.get("evidence")
+        if isinstance(evidence, list) and "Pull-request body is missing required marker: ## Verification" in evidence:
+            return {"code": "missing_verification_section", "message": "Missing required PR body section: ## Verification. Update the PR description and collect a fresh metadata result."}
+    return None
+
+
 def _control_details(document: dict[str, Any], repository: str | None = None) -> list[dict[str, Any]]:
     """Project bounded results for known controls; fail closed on bad totals."""
     labels = _lifecycle_context(document, repository)
@@ -760,6 +806,8 @@ def _control_details(document: dict[str, Any], repository: str | None = None) ->
                         "mode": mode if valid else "not_reported",
                         "status": status if valid else "not_reported",
                         "separate_subject": "pull-request" if separate else None,
+                        "diagnostic": _public_diagnostic(row) if valid else None,
+                        "evaluation_scope": "manual-lifecycle" if control_id in LIFECYCLE_PROVIDERS else "pull-request",
                         "provider": provider,
                         "verification_scope": labels.get(control_id),
                         **links,
@@ -781,6 +829,9 @@ def _result_label(row: dict[str, Any]) -> tuple[str, str]:
 
 def _unverified_note(row: dict[str, Any]) -> str:
     """Publish trusted guidance, never free-form reasons from candidate artifacts."""
+    diagnostic = row.get("diagnostic")
+    if diagnostic:
+        return diagnostic["message"] + " This is not a passing result."
     control_id = row["id"]
     if control_id in LIFECYCLE_PROVIDERS:
         kind = LIFECYCLE_PROVIDERS[control_id][2]
@@ -865,14 +916,20 @@ def _attention_html(controls: list[dict[str, Any]], breakdown: dict[str, Any]) -
     if not flagged and not unnamed:
         return ""
     items = []
+    lifecycle_items = []
     for row in flagged:
         label, tone = _CONTROL_RESULTS[row["status"]]
         name = html.escape(row["name"])
-        items.append(f'<li><span class="size-result {tone}">{label}</span> <a href="#{_check_target(row["id"])}">{name}</a> <span class="attention-mode">{_CONTROL_MODES[row["mode"]]}</span></li>')
+        target_items = lifecycle_items if row["id"] in LIFECYCLE_PROVIDERS else items
+        target_items.append(f'<li><span class="size-result {tone}">{label}</span> <a href="#{_check_target(row["id"])}">{name}</a> <span class="attention-mode">{_CONTROL_MODES[row["mode"]]}</span></li>')
     if unnamed:
         plural = "s" if unnamed != 1 else ""
         items.append(f'<li class="attention-private">{unnamed} custom control{plural} without a passing result. Custom control names are not published.</li>')
-    return '<section class="attention" aria-labelledby="attention-title"><h2 id="attention-title">Needs attention</h2><ul>' + ''.join(items) + '</ul></section>'
+    pr_list = '<h3>Pull-request checks</h3><ul>' + ''.join(items) + '</ul>' if items else ''
+    manual_list = ('<details class="manual-attention"><summary>Manual lifecycle checks needing evidence '
+                   f'({len(lifecycle_items)})</summary><p>These checks require manual verification for the evaluated revision. '
+                   'They remain optional according to repository policy.</p><ul>' + ''.join(lifecycle_items) + '</ul></details>') if lifecycle_items else ''
+    return '<section class="attention" aria-labelledby="attention-title"><h2 id="attention-title">Needs attention</h2>' + pr_list + manual_list + '</section>'
 
 
 # Repository-owned commands whose only portable signal is their exit status.
@@ -983,7 +1040,11 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
                     "blocked": "The producer reported a blocker."}[row["status"]]
             if row.get("separate_subject"):
                 note = _SEPARATE_NOTE
+            elif row["status"] == "failed" and row.get("diagnostic"):
+                note = html.escape(row["diagnostic"]["message"])
             evidence = '' if row["status"] in _INACTIVE_STATUSES else f'<a href="{html.escape(run_url, quote=True)}" aria-label="Source report for {safe["name"]}">Source report ↗</a>'
+            if row.get("provider_run_url") and row["status"] not in _INACTIVE_STATUSES:
+                evidence = f'<a href="{safe["provider_run_url"]}">Open producer result ↗</a>' + evidence
             provider_html = safe["provider"]
             if row.get("provider_config_url"):
                 provider_html = f'<a href="{safe["provider_config_url"]}" aria-label="Provider configuration for {safe["name"]}">{provider_html}</a>'
@@ -1025,11 +1086,13 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
                 measurements += _scope_html(scope)
             note_html = f'<p class="check-note">{note}</p>' if note else ''
             mode_html = '' if row["mode"] in _INACTIVE_STATUSES else f'<p class="check-mode">{_CONTROL_MODES[row["mode"]]}</p>'
+            if row["id"] in LIFECYCLE_PROVIDERS:
+                mode_html += '<p class="check-note">Manual lifecycle check · evaluated separately from PR checks.</p>'
             card = f'<article class="check-detail {tone}" id="check-{safe["id"]}" tabindex="-1"><div class="check-top"><h3>{safe["name"]} <code class="check-id">{safe["id"]}</code></h3><span class="size-result">{label}</span></div><p>{safe["purpose"]}</p><p class="check-provider">Provider: {provider_html}</p>{mode_html}{note_html}{run_facts}{measurements}<div class="check-links">{evidence}<a href="#checks-title">Back to checks ↑</a></div></article>'
             detail_status = "separate" if row.get("separate_subject") else row["status"]
             (inactive_details if row["status"] in _INACTIVE_STATUSES else active_details).append((detail_status, card))
         groups.append(f'<tbody><tr class="check-category"><th colspan="4" scope="rowgroup">{html.escape(group)}</th></tr>{"".join(rows)}</tbody>')
-    overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title" tabindex="-1">Individual checks</h2><p class="checks-intro">All built-in catalog checks. Select a check to see its purpose and evidence below. Provider names link to configuration at the evaluated revision. Latest reported run links open available evidence for this snapshot, not a newer scan. Provider names describe selection, not credential readiness or a passing scan. Not configured means no provider was selected. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the check has no active mode in this snapshot. Custom controls may contribute to totals without publishing their private names.</p><div class="checks-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results, policy modes, and selected providers for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col" class="mode-cell">Mode</th><th scope="col">Provider</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
+    overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title" tabindex="-1">Individual checks</h2><p class="checks-intro">All built-in catalog checks. Select a check to see its purpose and evidence below. Provider names link to trusted base configuration when its identity is recorded. Latest reported run links open available evidence for this snapshot, not a newer scan. Provider names describe selection, not credential readiness or a passing scan. Not configured means no provider was selected. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the check has no active mode in this snapshot. Custom controls may contribute to totals without publishing their private names.</p><div class="checks-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results, policy modes, and selected providers for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col" class="mode-cell">Mode</th><th scope="col">Provider</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
     # Stable sort: checks needing attention first, then passes, each in catalog order.
     order = (*_ATTENTION_STATUSES, "passed")
     active = ''.join(card for _, card in sorted(active_details, key=lambda item: order.index(item[0])))
@@ -1265,6 +1328,7 @@ def _public_metadata(
     run_url: str,
     source_run_created_at: str,
     expected_revision: str,
+    publication_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     published_at = (
         datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
@@ -1285,6 +1349,7 @@ def _public_metadata(
         "source_run_created_at": source_run_created_at,
         "published_at": published_at,
         "subject_digest": f"sha256:{hashlib.sha256(expected_revision.encode()).hexdigest()}",
+        "snapshot_identity": ({**publication_context, "evaluated_revision": expected_revision} if publication_context else None),
         "passed": passed,
         "total": total,
         "enforced": inspected["enforced"],
@@ -1292,8 +1357,36 @@ def _public_metadata(
         "pages_url": pages_base_url(repository),
         "change_scope": inspected["change_scope"],
         "result_breakdown": inspected["result_breakdown"],
-        "controls": inspected["controls"],
+        "controls": [
+            {**row, "provider_config_url": f"https://github.com/{repository}/blob/{publication_context['base_revision']}/.proof/providers.yaml"}
+            if publication_context and row.get("provider_config_url") else row
+            for row in inspected["controls"]
+        ],
     }
+
+
+def _snapshot_identity(metadata: dict[str, Any], *, markdown: bool = False) -> str:
+    identity = metadata.get("snapshot_identity")
+    if not identity:
+        return "Snapshot identity was not recorded by this publisher. Open the source CI run."
+    repository = metadata["repository"]
+    number = identity["pull_request_number"]
+    values = [("Pull request", f"https://github.com/{repository}/pull/{number}", f"#{number}")]
+    for key, label in (("evaluated_revision", "Evaluated commit"), ("base_revision", "Policy base"),
+                       ("runtime_revision", "Evaluation runtime"), ("publisher_revision", "Page renderer")):
+        revision = identity[key]
+        if revision:
+            values.append((label, f"https://github.com/{repository}/commit/{revision}", revision[:12]))
+        else:
+            values.append((label, None, "Not recorded in this historical source"))
+    if markdown:
+        return "\n".join(f"- {label}: [{text}]({url})" if url else f"- {label}: {text}" for label, url, text in values)
+    facts = ''.join(f'<div><dt>{label}</dt><dd><a href="{url}">{text}</a></dd></div>' if url else
+                    f'<div><dt>{label}</dt><dd>{text}</dd></div>' for label, url, text in values)
+    created = html.escape(metadata["source_run_created_at"])
+    return (f'<dl class="snapshot-identity">{facts}<div><dt>Source evaluation started</dt><dd><time datetime="{created}">{_utc_label(created)}</time></dd></div></dl>'
+            '<p class="snapshot-note">Historical PR evidence. Policy base and evaluation runtime can differ from the evaluated commit. '
+            'Publishing with a newer renderer does not rerun checks or apply newer policy.</p>')
 
 
 def _svg(metadata: dict[str, Any]) -> str:
@@ -1319,9 +1412,9 @@ def _svg(metadata: dict[str, Any]) -> str:
 """
 
 
-_ALLOW_MEANING = "ALLOW means the enforced controls are satisfied for this snapshot. It does not establish mergeability or release readiness."
+_ALLOW_MEANING = "ALLOW means the enforced toolkit controls are satisfied for this snapshot. It does not establish mergeability or release readiness. GitHub required merge checks are separate."
 _UNGATED_MEANING = ("No enforced controls are configured, so the policy decision is not gated by any control "
-                    "and every result is advisory. It does not establish mergeability or release readiness.")
+                    "and every result is advisory. It does not establish mergeability or release readiness. GitHub required merge checks are separate.")
 _BLOCK_MEANING = "BLOCK means at least one enforced control did not pass for this snapshot."
 
 
@@ -1345,6 +1438,8 @@ def _markdown(metadata: dict[str, Any]) -> str:
     return f"""# Latest PR Scorecard
 
 ![{metadata["message"]}](proof-badge.svg)
+
+{_snapshot_identity(metadata, markdown=True)}
 
 | Field | Value |
 | --- | --- |
@@ -1447,6 +1542,9 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .checks{margin-top:36px}.checks h2{font-size:28px;margin:0}.checks-intro{color:var(--muted);max-width:850px;font-size:14px}
 .checks-table-wrap{overflow-x:auto}.checks-table-wrap:focus-visible{outline:3px solid #227b92;outline-offset:3px}
 .attention{margin:0 0 22px;padding:20px 24px;background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.snapshot-identity{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0;padding:18px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.snapshot-identity dt{font-size:12px;color:var(--muted)}.snapshot-identity dd{margin:0;font-size:13px;overflow-wrap:anywhere}.snapshot-note{font-size:13px;color:var(--muted)}
+.attention h3{font-size:13px;margin:12px 0 8px}.manual-attention{margin-top:16px}.manual-attention p{font-size:13px}
 .attention h2{margin:0 0 10px;font-size:15px}.attention ul{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:14px}
 .attention .size-result{font-size:11px;padding:2px 7px;min-width:78px;text-align:center}.attention-mode{color:var(--muted);font-size:12px}
 .attention-private{color:var(--muted);font-size:13px}
@@ -1496,7 +1594,7 @@ summary{cursor:pointer;width:fit-content;font-weight:600}
 footer{display:flex;align-items:center;justify-content:space-between;gap:20px;border-top:1px solid var(--line);padding:22px 0 12px;color:var(--muted);font-size:11px}
 footer img{display:block;max-width:100%;height:auto}
 .formats{display:flex;gap:20px;flex-wrap:wrap;font-size:12px}
-@media(max-width:800px){:root{--snapshot-anchor-offset:240px}}
+@media(max-width:800px){:root{--snapshot-anchor-offset:24px}.freshness{position:static}.freshness .button{padding:6px 12px}.snapshot-identity{grid-template-columns:1fr}}
 @media(max-width:680px){
   .shell{width:calc(100% - 36px)}
   .topbar .shell{gap:12px}.repo-link{font-size:12px}
@@ -1564,7 +1662,7 @@ _FRESHNESS_SCRIPT = r"""
     const attempt = latest.source_run_attempt - baseline.source_run_attempt;
     if (publication === 0 && sameRun && sameCreated && sameDigest && attempt === 0) {
       if (stale) throw new Error("Previously observed newer snapshot");
-      message("current", "Matches the latest published snapshot. This does not verify current main or newer CI results.");
+      message("current", "Latest publication loaded. This historical PR snapshot does not verify current main or newer CI results.");
     } else if (publication > 0 && ((sameRun && sameCreated && sameDigest && attempt >= 0) ||
         (!sameRun && (created > 0 || (created === 0 && latest.source_run_id > baseline.source_run_id))))) {
       stale = true;
@@ -1730,6 +1828,7 @@ def _html(metadata: dict[str, Any]) -> str:
   <p class="intro">Published pull-request evidence for <strong>{safe['repository']}</strong>.
     Selected checks are included in this evaluation; selection does not prove they ran or passed.
     This snapshot does not certify the application or current main.</p>
+  {_snapshot_identity(metadata)}
   <aside class="freshness" id="snapshot-freshness" data-snapshot="{snapshot}" data-freshness="unknown" aria-label="Snapshot freshness">
     <p id="snapshot-freshness-status" role="status" aria-live="polite">Freshness not checked. These are published snapshot results; refresh to request the latest publication.</p>
     <a class="button" id="snapshot-refresh" href="?snapshot-refresh={safe['source_run_id']}-{safe['source_run_attempt']}">Refresh latest</a>
@@ -1738,7 +1837,7 @@ def _html(metadata: dict[str, Any]) -> str:
   <section class="status-panel {tone}" aria-label="Scorecard status">
     <div><div class="status-label"><span class="status-dot" aria-hidden="true"></span>{safe['status']}</div>
       <h2>{headline}</h2><p>{_decision_meaning(metadata)}</p></div>
-    <dl class="decision"><dt>Policy decision</dt><dd>{safe['decision'].upper()}</dd>{ungated}</dl>
+    <dl class="decision"><dt>Toolkit policy decision</dt><dd>{safe['decision'].upper()}</dd>{ungated}</dl>
   </section>
   {_attention_html(metadata["controls"], metadata["result_breakdown"])}
   <div class="metrics">{''.join(cards)}</div>
@@ -1811,6 +1910,7 @@ def render_badge(
     run_url: str,
     source_run_created_at: str,
     expected_revision: str,
+    publication_context: dict[str, Any] | None = None,
 ) -> dict[str, object]:
     """Render a validated scorecard into a bounded, static public projection."""
     inspected = _validated_scorecard(Path(source_dir), repository)
@@ -1828,6 +1928,17 @@ def render_badge(
     if inspected["subject_revision"] != expected_revision:
         raise ValueError("scorecard revision does not match expected revision")
 
+    if publication_context is not None:
+        keys = {"pull_request_number", "base_revision", "runtime_revision", "publisher_revision"}
+        if not isinstance(publication_context, dict) or set(publication_context) != keys:
+            raise ValueError("publication context fields are invalid")
+        _integer(publication_context["pull_request_number"], "pull_request_number", positive=True)
+        for key in keys - {"pull_request_number"}:
+            value = publication_context[key]
+            if key == "runtime_revision" and value is None:
+                continue
+            if not isinstance(value, str) or not REVISION_PATTERN.fullmatch(value):
+                raise ValueError("publication context revision is invalid")
     output_dir = Path(output_dir)
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(
@@ -1842,6 +1953,7 @@ def render_badge(
             run_url,
             source_run_created_at,
             expected_revision,
+            publication_context,
         )
         (temporary / "proof-badge.svg").write_text(
             _svg(metadata), encoding="utf-8"
@@ -1873,6 +1985,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-url")
     parser.add_argument("--source-run-created-at")
     parser.add_argument("--expected-revision")
+    parser.add_argument("--publication-context", type=Path)
     return parser
 
 
@@ -1897,7 +2010,8 @@ def main() -> int:
         missing = [name for name, value in required.items() if value is None]
         if missing:
             raise ValueError(f"rendering requires: {', '.join(missing)}")
-        metadata = render_badge(args.source_dir, args.output_dir, **required)
+        context = json.loads(args.publication_context.read_text()) if args.publication_context else None
+        metadata = render_badge(args.source_dir, args.output_dir, publication_context=context, **required)
         print(
             f"Published badge input: {metadata['status']} {metadata['passed']}/{metadata['total']}"
         )

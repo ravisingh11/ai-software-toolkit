@@ -249,10 +249,16 @@ def validate_source_binding(
         "base_branch",
         "base_sha",
     }
+    if isinstance(source, dict) and source.get("version") == 2:
+        expected_keys.add("runtime_sha")
     if not isinstance(source, dict) or set(source) != expected_keys:
         raise ValueError("source binding fields are incomplete or ambiguous")
-    if source.get("version") != 1 or type(source.get("version")) is not int:
-        raise ValueError("source binding version must be 1")
+    if type(source.get("version")) is not int or source.get("version") not in {1, 2}:
+        raise ValueError("source binding version must be 1 or 2")
+    if source["version"] == 2:
+        runtime = source["runtime_sha"]
+        if not isinstance(runtime, str) or not SHA_PATTERN.fullmatch(runtime) or not ancestry_checker(runtime):
+            raise ValueError("source runtime SHA is not a trusted default-branch ancestor")
     if source.get("run_id") != run["id"] or type(source.get("run_id")) is not int:
         raise ValueError("source binding run ID does not match")
     if (
@@ -816,6 +822,14 @@ def reconcile(
                 raise CandidateRejected(
                     "failed source run must contain a RED block scorecard"
                 )
+            publisher_revision = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=repository_root, text=True,
+            ).strip()
+            context_path = root / "publication-context.json"
+            context_path.write_text(json.dumps({
+                "pull_request_number": pull_number, "base_revision": source["base_sha"],
+                "runtime_revision": source.get("runtime_sha"), "publisher_revision": publisher_revision,
+            }))
             run_url = (
                 f"https://github.com/{repository}/actions/runs/{normalized_run['id']}"
                 f"/attempts/{normalized_run['run_attempt']}"
@@ -840,6 +854,8 @@ def reconcile(
                     normalized_run["created_at"],
                     "--expected-revision",
                     revision,
+                    "--publication-context",
+                    str(context_path),
                 ]
             )
             return {

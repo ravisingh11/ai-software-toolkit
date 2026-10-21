@@ -479,6 +479,9 @@ class ReconcilerTests(unittest.TestCase):
             self.assertEqual(len(rejected), 1)
             published = json.loads((output / "scorecard.json").read_text())
             self.assertEqual(published["source_run_id"], 199)
+            self.assertEqual(published["snapshot_identity"]["pull_request_number"], 7)
+            self.assertEqual(published["snapshot_identity"]["publisher_revision"], revision)
+            self.assertIsNone(published["snapshot_identity"]["runtime_revision"])
 
             class PrivateClient(Client):
                 def json(self, url: str) -> Any:
@@ -583,6 +586,16 @@ class ReconcilerTests(unittest.TestCase):
             self.assertRaises(MODULE.TrustedRuntimeError),
         ):
             MODULE._run_renderer(["python", "renderer.py"])
+
+    def test_source_v2_records_only_a_valid_trusted_runtime_revision(self) -> None:
+        normalized = MODULE.validate_run(run(), REPOSITORY, DEFAULT_BRANCH)
+        source = source_binding(version=2, runtime_sha=BASE_SHA)
+        MODULE.validate_source_binding(source, normalized, pull_request(), REPOSITORY,
+                                       DEFAULT_BRANCH, HEAD_SHA, lambda sha: sha == BASE_SHA)
+        for runtime in ("c" * 40, "short", [], None):
+            with self.subTest(runtime=runtime), self.assertRaises(ValueError):
+                MODULE.validate_source_binding({**source, "runtime_sha": runtime}, normalized, pull_request(),
+                                               REPOSITORY, DEFAULT_BRANCH, HEAD_SHA, lambda sha: sha == BASE_SHA)
 
     def test_validation_rejects_malformed_run_published_and_source_records(self) -> None:
         normalized = MODULE.validate_run(run(), REPOSITORY, DEFAULT_BRANCH)

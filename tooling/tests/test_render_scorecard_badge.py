@@ -173,7 +173,7 @@ class RendererTests(unittest.TestCase):
             page = (output / "index.html").read_text(encoding="utf-8")
             self.assertIn('.freshness{position:sticky;top:12px;z-index:10;', page)
             self.assertIn(':root{--snapshot-anchor-offset:120px}', page)
-            self.assertIn('@media(max-width:800px){:root{--snapshot-anchor-offset:240px}}', page)
+            self.assertIn('@media(max-width:800px){:root{--snapshot-anchor-offset:24px}.freshness{position:static}', page)
             self.assertIn('scroll-margin-top:var(--snapshot-anchor-offset)', page)
             self.assertIn('padding:12px;z-index:20}', page)
             self.assertIn('id="snapshot-freshness-status" role="status" aria-live="polite"', page)
@@ -434,6 +434,71 @@ class RendererTests(unittest.TestCase):
                                  "does not establish the exact cause", "not a passing result"):
                     self.assertIn(expected, text)
                 self.assertNotIn("PRIVATE-CANDIDATE-REASON", text)
+
+    def test_public_snapshot_identity_and_trusted_base_configuration(self) -> None:
+        context = {"pull_request_number": 134, "base_revision": "b" * 40,
+                   "runtime_revision": "c" * 40, "publisher_revision": "d" * 40}
+        card = scorecard(enforced=(0, 0), advisory=(1, 1))
+        card["controls"] = [{"id": "build", "effective_mode": "advisory", "evidence_status": "passed",
+                             "configured_provider": {"id": "repository-build", "display_name": "Build"}}]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self.write_source(root, card)
+            result = self.render(source, root / "site", publication_context=context)
+            self.assertEqual(result["snapshot_identity"]["evaluated_revision"], REVISION)
+            for filename in ("index.html", "scorecard.md"):
+                text = (root / "site" / filename).read_text()
+                for expected in ("/pull/134", "/commit/" + REVISION, "Policy base", "Evaluation runtime", "Page renderer",
+                                 "GitHub required merge checks are separate"):
+                    self.assertIn(expected, text)
+            self.assertIn("/blob/" + "b" * 40, next(row for row in result["controls"] if row["id"] == "build")["provider_config_url"])
+            context["runtime_revision"] = None
+            self.render(source, root / "legacy", publication_context=context)
+            self.assertIn("Not recorded in this historical source", (root / "legacy/index.html").read_text())
+            for overrides in ({"pull_request_number": True}, {"base_revision": "bad"},
+                              {"publisher_revision": "<script>"}, {"runtime_revision": []}, {"extra": "private"}):
+                with self.subTest(overrides=overrides), self.assertRaises(ValueError):
+                    self.render(source, root / "invalid", publication_context={**context, **overrides})
+
+    def test_known_evidence_conditions_and_manual_checks_are_distinct(self) -> None:
+        rows = [
+            {"id": "iac-misconfiguration", "effective_mode": "advisory", "evidence_status": "no_result",
+             "authoritative_provider": {"id": "trivy-iac-config", "display_name": "Trivy"},
+             "authoritative_result": {"status": "no_result", "reason": "Lifecycle evidence unavailable: PR/head/base identity differs"}},
+            {"id": "dependency-vulnerability", "effective_mode": "advisory", "evidence_status": "no_result",
+             "authoritative_provider": {"id": "snyk-open-source", "display_name": "Snyk"},
+             "authoritative_result": {"status": "not_run", "reason": "Waiting is disabled for this provider; its check did not report this revision."}},
+            {"id": "pr-metadata", "effective_mode": "advisory", "evidence_status": "failed",
+             "authoritative_provider": {"id": "repository-pr-metadata", "display_name": "Metadata"},
+             "authoritative_result": {"status": "failed", "evidence": ["Pull-request body is missing required marker: ## Verification",
+                                      "Verified metadata producer; https://github.com/owner/repo/runs/123"]}},
+        ]
+        card = scorecard(status="ORANGE", enforced=(0, 0), advisory=(0, len(rows)))
+        card["controls"] = rows
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = self.render(self.write_source(root, card), root / "site")
+            published = {row["id"]: row for row in metadata["controls"]}
+            self.assertEqual(published["iac-misconfiguration"]["diagnostic"]["code"], "revision_mismatch")
+            self.assertEqual(published["dependency-vulnerability"]["diagnostic"]["code"], "provider_not_reported_no_wait")
+            page = (root / "site/index.html").read_text()
+            for expected in ("Evidence rejected", "not to wait", "## Verification", "Open producer result",
+                             "Manual lifecycle checks needing evidence (1)", "Toolkit policy decision"):
+                self.assertIn(expected, page)
+            self.assertIn('href="https://github.com/owner/repo/runs/123"', page)
+            for reason in MODULE._PUBLIC_REASONS:
+                row = {**rows[0], "authoritative_result": {"status": "no_result", "reason": reason}}
+                self.assertIsNotNone(MODULE._public_diagnostic(row))
+            for bad in ("private reason", ["unhashable"]):
+                row = {**rows[0], "authoritative_result": {"status": "no_result", "reason": bad}}
+                self.assertIsNone(MODULE._public_diagnostic(row))
+            self.assertIsNone(MODULE._public_diagnostic({}))
+            self.assertIsNone(MODULE._public_diagnostic({**rows[0], "authoritative_provider": {"id": "private"}}))
+            self.assertIsNone(MODULE._public_diagnostic({**rows[0], "evidence_status": "passed"}))
+            skipped = {**rows[0], "authoritative_result": {"status": "no_result", "check_execution": {
+                "version": 1, "started_at": "2026-09-08T12:00:00Z", "completed_at": "2026-09-08T12:00:00Z",
+                "duration_seconds": 0, "conclusion": "skipped"}}}
+            self.assertEqual(MODULE._public_diagnostic(skipped)["code"], "producer_skipped")
 
     def test_empty_enforcement_is_not_presented_as_a_passing_check(self) -> None:
         card = scorecard(status="GREEN", enforced=(0, 0), advisory=(1, 1))
