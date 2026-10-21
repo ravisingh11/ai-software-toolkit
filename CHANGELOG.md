@@ -8,6 +8,16 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-10-21
+
+Release preparation; tagging and publication await maintainer approval. See
+[release notes](docs/releases/v2.1.1.md) for scope and evidence limits.
+
+- Require maintainer code-owner review for contributions to this repository,
+  retaining the owner-authored PR exception and separate required CI rules.
+- Update pinned `actions/attest` and `sigstore/cosign-installer` actions and
+  synchronize distributed workflow copies.
+
 - Emphasize assurance alongside AI-accelerated delivery in the README and
   published page, preserving optional adoption and evidence limits.
 - Introduce the toolkit on the published scorecard page with standards, skills,
