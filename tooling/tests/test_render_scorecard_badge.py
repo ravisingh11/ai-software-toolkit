@@ -1217,6 +1217,31 @@ class RendererTests(unittest.TestCase):
             self.assertIn("does not include whether the title matches, required sections present and missing.",
                           card_html[:card_html.index("</article>")])
 
+    def test_explicit_activation_labels_reach_html_markdown_and_json(self) -> None:
+        states = [("disabled", "Disabled"), ("not_configured", "Not configured"),
+                  ("awaiting_manual_run", "Awaiting manual run")]
+        for code, label in states:
+            reason = next(reason for reason, value in MODULE._PUBLIC_REASONS.items() if value[0] == code)
+            card = scorecard(status="ORANGE", enforced=(0, 0), advisory=(0, 1))
+            card["controls"] = [{"id": "dependency-vulnerability", "effective_mode": "advisory",
+                                 "evidence_status": "no_result",
+                                 "authoritative_provider": {"id": "snyk-open-source", "display_name": "Snyk"},
+                                 "authoritative_result": {"status": "not_run", "reason": reason}}]
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                metadata = self.render(self.write_source(root, card), root / "site")
+                row = next(row for row in metadata["controls"] if row["id"] == "dependency-vulnerability")
+                self.assertEqual(row["activation"], code)
+                self.assertEqual(row["mode"], "advisory")
+                self.assertEqual(row["status"], "no_result")
+                for filename in ("index.html", "scorecard.md"):
+                    text = (root / "site" / filename).read_text()
+                    self.assertIn(label + ": 1", text)
+                    self.assertIn("Unverified: 0", text)
+                    self.assertIn("Advisory", text)
+                page = (root / "site/index.html").read_text()
+                self.assertIn("Unverified: 0", page[page.index('<div class="metrics">'):page.index('id="results-title"')])
+
     def test_activation_labels_do_not_change_advisory_mode_or_results(self) -> None:
         for code, label in (("disabled", "Disabled"), ("not_configured", "Not configured"),
                             ("awaiting_manual_run", "Awaiting manual run"),

@@ -736,7 +736,7 @@ def _provider_links(row: dict[str, Any], label: str, repository: str | None,
 # Map only exact collector conditions to public language. Raw reasons remain private.
 _PUBLIC_REASONS = {
     "Provider activation: disabled by repository configuration.": (
-        "disabled", "The provider is explicitly disabled in repository configuration. Advisory mode remains selected; enable the provider to obtain evidence."),
+        "disabled", "The provider is explicitly disabled in repository configuration. Policy mode is unchanged; enable the provider to obtain evidence."),
     "Provider activation: required configuration is absent.": (
         "not_configured", "Required provider configuration is absent. Configure the provider before requesting evidence; advisory selection alone does not configure it."),
     "Provider activation: awaiting a manual run for this revision.": (
@@ -851,9 +851,6 @@ def _activation_state(row: dict[str, Any]) -> str:
     if row["status"] == "no_result":
         if code in {"not_configured", "disabled", "awaiting_manual_run"}:
             return code
-        if code == "lifecycle_run_missing_or_ambiguous":
-            # Ambiguity does not establish that a run is missing.
-            return "unverified"
         return "unverified"
     return "reported" if row["status"] in {"passed", "failed", "blocked"} else row["status"]
 
@@ -862,7 +859,7 @@ def _activation_summary(controls: list[dict[str, Any]]) -> str:
     labels = {"not_configured": "Not configured", "disabled": "Disabled",
               "awaiting_manual_run": "Awaiting manual run", "unverified": "Unverified"}
     counts = {key: sum(_activation_state(row) == key for row in controls) for key in labels}
-    return "Activation and evidence availability: " + " · ".join(f"{label}: {counts[key]}" for key, label in labels.items()) + ". Advisory is a policy mode, independent of provider activation. These categories split the unavailable-evidence total; none counts as passed."
+    return "Built-in activation and evidence availability: " + " · ".join(f"{label}: {counts[key]}" for key, label in labels.items()) + ". Advisory is a policy mode, independent of provider activation. These categories split unavailable evidence for built-in checks; none counts as passed."
 
 
 def _unverified_note(row: dict[str, Any]) -> str:
@@ -1156,7 +1153,7 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
 def _breakdown_markdown(breakdown: dict[str, Any]) -> str:
     if breakdown["availability"] != "available":
         return "Result breakdown unavailable: this source does not contain complete, consistent control results."
-    lines = ["| Evidence results | Passed | Failed | Blocked | Unverified | Inactive |", "| --- | ---: | ---: | ---: | ---: | ---: |"]
+    lines = ["| Evidence results | Passed | Failed | Blocked | Unavailable evidence | Inactive |", "| --- | ---: | ---: | ---: | ---: | ---: |"]
     for key, label in (("overall", "All selected checks"), ("enforced", "Enforced"), ("advisory", "Advisory")):
         counts = breakdown[key]
         inactive = str(breakdown["inactive"]) if key == "overall" else "—"
