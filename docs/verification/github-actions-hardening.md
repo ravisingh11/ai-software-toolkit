@@ -50,7 +50,8 @@ shell commands are outside GitHub's action allowlist enforcement.
 
 Active policy 8224 blocks `pull_request_target` outside the paths below while
 preserving other supported events. Active policy 8225 allows
-`pull_request_target`, `workflow_dispatch`, and `workflow_call` for these paths:
+`pull_request_target`, `pull_request_review`, `workflow_dispatch`, and
+`workflow_call` for these paths:
 
 ```text
 .github/workflows/ai-pr-review.yml

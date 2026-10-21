@@ -479,7 +479,7 @@ class RendererTests(unittest.TestCase):
             root = Path(directory)
             metadata = self.render(self.write_source(root, card), root / "site")
             published = {row["id"]: row for row in metadata["controls"]}
-            self.assertEqual(published["iac-misconfiguration"]["diagnostic"]["code"], "revision_mismatch")
+            self.assertEqual(published["iac-misconfiguration"]["diagnostic"]["code"], "pr_context_mismatch")
             self.assertEqual(published["dependency-vulnerability"]["diagnostic"]["code"], "provider_not_reported_no_wait")
             page = (root / "site/index.html").read_text()
             for expected in ("Evidence rejected", "not to wait", "## Verification", "Open producer result",

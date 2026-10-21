@@ -445,3 +445,8 @@ manual QA and native reviews without waiting for absent results; it also avoids
 waiting for optional providers whose workflow activation flags are off. A review
 submission can refresh the scorecard through the existing review event. Provider
 credentials and external service activation are separate repository decisions.
+
+The repository's event policy also permits the scorecard's existing
+`pull_request_review` trigger. Lifecycle PR-context rejection can mean that the
+PR has closed or that its head/base changed; the public explanation does not
+claim which condition failed when the collector reports them together.

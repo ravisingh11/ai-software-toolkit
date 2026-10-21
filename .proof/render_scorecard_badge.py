@@ -739,8 +739,8 @@ _PUBLIC_REASONS = {
         "lifecycle_run_missing_or_ambiguous", "No unique manual lifecycle run was found for this PR revision. "
         "Run manual Proof Lifecycle for this revision and collect its signed evidence."),
     "Lifecycle evidence unavailable: PR/head/base identity differs": (
-        "revision_mismatch", "Evidence rejected: its PR, head, or base identity does not match this evaluation. "
-        "Run manual Proof Lifecycle for this PR revision; evidence for another revision cannot pass."),
+        "pr_context_mismatch", "Evidence rejected: the PR is not open or its head/base context does not match the lifecycle requirements. "
+        "Use a matching open PR to run manual Proof Lifecycle for the evaluated revision."),
     "Waiting is disabled for this provider; its check did not report this revision.": (
         "provider_not_reported_no_wait", "No provider result was reported for this revision, and collection was configured "
         "not to wait for this provider. Inspect its workflow activation and skipped runs."),
