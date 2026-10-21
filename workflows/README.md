@@ -518,3 +518,8 @@ receipt import with both variables above. This does not make polyglot, QA, or
 lifecycle producers automatic or required. Public JSON adds `evaluation_stage`,
 `selection_counts`, and each known control's `selection_group`/`relevant_stage`;
 raw evaluation totals and policy decisions remain authoritative.
+
+The release example also starts with the existing Core/GitHub profile selection
+(8 checks, including artifact provenance); selecting a release operation does not
+automatically select deployment, runtime, or every optional artifact scanner.
+Those tools require an explicit project policy choice when they become applicable.

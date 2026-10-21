@@ -206,3 +206,8 @@ cards explain when each tool is useful and link setup guidance, without implying
 missing execution is a failure. Exact aggregate counts and decisions still come
 from the policy evaluator, not from UI filtering. Enforced controls retain their
 fail-closed behavior. Manual lifecycle and polyglot workflows remain manual.
+
+The release example also starts with the existing Core/GitHub profile selection
+(8 checks, including artifact provenance); selecting a release operation does not
+automatically select deployment, runtime, or every optional artifact scanner.
+Those tools require an explicit project policy choice when they become applicable.
