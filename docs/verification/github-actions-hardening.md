@@ -146,3 +146,9 @@ This repository selects all built-in controls as advisory in their applicable
 stages, including functional QA, static quality, license compliance and all AI
 review roles. Missing evidence stays unverified. Consumer defaults remain opt-in,
 and provider activation, credentials and manual polyglot execution are unchanged.
+
+Release-family stages include `pre-release`, `deployment`, `post-deployment`,
+and `runtime`, as well as `release` and `change-and-release`. Advisory selection
+covers all of them. Policy coverage checks both each operation's eligible stages
+and the union of all 33 catalog controls, so an environment stage cannot silently
+fall out of the repository's advisory selection.
