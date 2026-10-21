@@ -390,6 +390,20 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
             self.assertEqual(result["status"], "not_run")
             self.assertIn("Waiting is disabled", result["reason"])
 
+    def test_explicit_activation_is_independent_of_no_wait(self) -> None:
+        policy, profiles, catalog, providers = contracts()
+        for state in ("disabled", "not_configured", "awaiting_manual_run"):
+            with patch.object(MODULE, "enumerate_check_runs", return_value=[]):
+                evidence = MODULE.collect_checks(
+                    "owner/repo", "abc123", "token", policy, profiles, catalog, providers,
+                    "change", provider_activation={"github-build": state})
+            result = evidence["results"]["build"]["github-build"]
+            self.assertEqual(result["status"], "not_run")
+            self.assertTrue(result["reason"].startswith("Provider activation:"))
+        with self.assertRaises(ValueError):
+            MODULE.collect_checks("owner/repo", "abc123", "token", policy, profiles, catalog,
+                                  providers, "change", provider_activation={"github-build": "passed"})
+
     def test_snyk_no_wait_keeps_missing_evidence_and_policy_decision(self) -> None:
         for mode, status, decision in (("advisory", "ORANGE", "allow"), ("enforced", "RED", "block")):
             with self.subTest(mode=mode):

@@ -735,6 +735,12 @@ def _provider_links(row: dict[str, Any], label: str, repository: str | None,
 
 # Map only exact collector conditions to public language. Raw reasons remain private.
 _PUBLIC_REASONS = {
+    "Provider activation: disabled by repository configuration.": (
+        "disabled", "The provider is explicitly disabled in repository configuration. Advisory mode remains selected; enable the provider to obtain evidence."),
+    "Provider activation: required configuration is absent.": (
+        "not_configured", "Required provider configuration is absent. Configure the provider before requesting evidence; advisory selection alone does not configure it."),
+    "Provider activation: awaiting a manual run for this revision.": (
+        "awaiting_manual_run", "No manual producer run reported this revision. Start the optional manual workflow and publish its evidence."),
     "Duplicate matching GitHub check names make provider provenance ambiguous.": (
         "ambiguous_producer", "Multiple matching producer checks were found for this revision. "
         "Unambiguous evidence provenance is missing. Inspect the duplicate CI runs and collect a fresh snapshot; "
@@ -818,6 +824,8 @@ def _control_details(document: dict[str, Any], repository: str | None = None) ->
                         "execution": _execution_details(row) if valid else {"availability": "unavailable"},
                         "measurements": _measurements(control_id, row) if valid else {"availability": "unavailable"},
                         "detail": _pr_metadata_detail(control_id, row) if valid else {"availability": "unavailable"}})
+    for detail in details:
+        detail["activation"] = _activation_state(detail)
     return details
 
 
@@ -828,7 +836,33 @@ _SEPARATE_NOTE = ("Policy activates this check on the pull request itself, becau
 
 
 def _result_label(row: dict[str, Any]) -> tuple[str, str]:
-    return _SEPARATE_RESULT if row.get("separate_subject") else _CONTROL_RESULTS[row["status"]]
+    if row.get("separate_subject"):
+        return _SEPARATE_RESULT
+    if row["status"] == "no_result":
+        label = {"not_configured": "Not configured", "disabled": "Disabled",
+                 "awaiting_manual_run": "Awaiting manual run"}.get(_activation_state(row))
+        if label:
+            return label, "neutral"
+    return _CONTROL_RESULTS[row["status"]]
+
+
+def _activation_state(row: dict[str, Any]) -> str:
+    code = (row.get("diagnostic") or {}).get("code")
+    if row["status"] == "no_result":
+        if code in {"not_configured", "disabled", "awaiting_manual_run"}:
+            return code
+        if code == "lifecycle_run_missing_or_ambiguous":
+            # Ambiguity does not establish that a run is missing.
+            return "unverified"
+        return "unverified"
+    return "reported" if row["status"] in {"passed", "failed", "blocked"} else row["status"]
+
+
+def _activation_summary(controls: list[dict[str, Any]]) -> str:
+    labels = {"not_configured": "Not configured", "disabled": "Disabled",
+              "awaiting_manual_run": "Awaiting manual run", "unverified": "Unverified"}
+    counts = {key: sum(_activation_state(row) == key for row in controls) for key in labels}
+    return "Activation and evidence availability: " + " · ".join(f"{label}: {counts[key]}" for key, label in labels.items()) + ". Advisory is a policy mode, independent of provider activation. These categories split the unavailable-evidence total; none counts as passed."
 
 
 def _unverified_note(row: dict[str, Any]) -> str:
@@ -865,7 +899,7 @@ def _unverified_note(row: dict[str, Any]) -> str:
 
 
 def _controls_markdown(controls: list[dict[str, Any]]) -> str:
-    lines = ["## Individual checks", "", "Every built-in catalog check is listed. Provider links open configuration at the evaluated revision; Latest reported run links open available evidence for this snapshot. Not reported means this snapshot has no validated row; it does not imply disabled or passed.", "",
+    lines = ["## Individual checks", "", _activation_summary(controls), "", "Every built-in catalog check is listed. Provider links open configuration at the evaluated revision; Latest reported run links open available evidence for this snapshot. Not reported means this snapshot has no validated row; it does not imply disabled or passed.", "",
              "| Check | ID | Provider | Mode | Result | Purpose |", "| --- | --- | --- | --- | --- | --- |"]
     for row in controls:
         provider = row["provider"]
@@ -1106,7 +1140,7 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
             detail_status = "separate" if row.get("separate_subject") else row["status"]
             (inactive_details if row["status"] in _INACTIVE_STATUSES else active_details).append((detail_status, card))
         groups.append(f'<tbody><tr class="check-category"><th colspan="4" scope="rowgroup">{html.escape(group)}</th></tr>{"".join(rows)}</tbody>')
-    overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title" tabindex="-1">Individual checks</h2><p class="checks-intro">All built-in catalog checks. Select a check to see its purpose and evidence below. Provider names link to trusted base configuration when its identity is recorded. Latest reported run links open available evidence for this snapshot, not a newer scan. Provider names describe selection, not credential readiness or a passing scan. Not configured means no provider was selected. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the check has no active mode in this snapshot. Custom controls may contribute to totals without publishing their private names.</p><div class="checks-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results, policy modes, and selected providers for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col" class="mode-cell">Mode</th><th scope="col">Provider</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
+    overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title" tabindex="-1">Individual checks</h2><p class="checks-intro">All built-in catalog checks. Select a check to see its purpose and evidence below. Provider names link to trusted base configuration when its identity is recorded. Latest reported run links open available evidence for this snapshot, not a newer scan. Provider names describe selection, not credential readiness or a passing scan. Not configured means required provider configuration is absent; it does not change the selected policy mode. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the check has no active mode in this snapshot. Custom controls may contribute to totals without publishing their private names.</p><div class="checks-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results, policy modes, and selected providers for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col" class="mode-cell">Mode</th><th scope="col">Provider</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
     # Stable sort: checks needing attention first, then passes, each in catalog order.
     order = (*_ATTENTION_STATUSES, "passed")
     active = ''.join(card for _, card in sorted(active_details, key=lambda item: order.index(item[0])))
@@ -1114,6 +1148,7 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
     details = '<section class="checks" aria-labelledby="check-details-title"><h2 id="check-details-title">Check details</h2><p class="checks-intro">Checks needing attention come first. Source report links open the evaluation run containing the detailed evidence.</p>' + active
     if inactive:
         details += f'<h3 class="inactive-title" id="inactive-title">Checked elsewhere, not activated, or not reported <span>({len(inactive_details)})</span></h3><p class="checks-intro">{_inactive_intro(inactive_details)}</p><div class="inactive-grid">{inactive}</div>'
+    overview = overview.replace('<p class="checks-intro">', f'<p class="activation-summary">{html.escape(_activation_summary(controls))}</p><p class="checks-intro">', 1)
     return overview + details + '</section>'
 
 

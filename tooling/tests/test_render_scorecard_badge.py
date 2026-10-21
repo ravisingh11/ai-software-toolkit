@@ -1217,6 +1217,24 @@ class RendererTests(unittest.TestCase):
             self.assertIn("does not include whether the title matches, required sections present and missing.",
                           card_html[:card_html.index("</article>")])
 
+    def test_activation_labels_do_not_change_advisory_mode_or_results(self) -> None:
+        for code, label in (("disabled", "Disabled"), ("not_configured", "Not configured"),
+                            ("awaiting_manual_run", "Awaiting manual run"),
+                            ("pr_context_mismatch", "Unverified"),
+                            ("ambiguous_producer", "Unverified")):
+            row = {"status": "no_result", "mode": "advisory", "diagnostic": {"code": code}}
+            self.assertEqual(MODULE._result_label(row)[0], label)
+            self.assertEqual(row["mode"], "advisory")
+            self.assertEqual(row["status"], "no_result")
+        row = {"status": "passed", "mode": "advisory", "diagnostic": {"code": "disabled"}}
+        self.assertEqual(MODULE._result_label(row)[0], "Passed")
+        self.assertEqual(MODULE._activation_state(row), "reported")
+        summary = MODULE._activation_summary([
+            {"status": "no_result", "diagnostic": {"code": code}}
+            for code in ("disabled", "not_configured", "awaiting_manual_run", "ambiguous_producer")])
+        for label in ("Disabled", "Not configured", "Awaiting manual run", "Unverified"):
+            self.assertIn(label + ": 1", summary)
+
     def test_public_catalog_matches_canonical_controls(self) -> None:
         catalog = json.loads((ROOT / "policies/control-catalog.yaml").read_text())["controls"]
         expected = [(row["id"], "PR Size" if row["id"] == "change-scope" else row["name"], row["purpose"]) for row in catalog]

@@ -151,24 +151,29 @@ jobs:
           # refresh the scorecard without reserving a runner for absent reviews.
           collector_args=(--wait-seconds 1800
             --no-wait-provider qa-bootstrap-workflow
+            --provider-activation qa-bootstrap-workflow=awaiting_manual_run
             --no-wait-provider codex-github-review)
           if [ -z "${SONAR_HOST_URL:-}" ]; then
-            collector_args+=(--no-wait-provider sonarqube)
+            collector_args+=(--no-wait-provider sonarqube --provider-activation sonarqube=not_configured)
           fi
           case "${FOSSA_ENABLED:-}" in
-            [Ff][Aa][Ll][Ss][Ee]) collector_args+=(--no-wait-provider fossa) ;;
+            [Ff][Aa][Ll][Ss][Ee]) collector_args+=(--no-wait-provider fossa --provider-activation fossa=disabled) ;;
           esac
           if [ -z "${AI_REVIEW_COMMAND:-}" ]; then
             collector_args+=(--no-wait-provider ai-engineering-adapter
               --no-wait-provider ai-qa-adapter --no-wait-provider ai-security-adapter
-              --no-wait-provider ai-repository-standards-adapter)
+              --no-wait-provider ai-repository-standards-adapter
+              --provider-activation ai-engineering-adapter=not_configured
+              --provider-activation ai-qa-adapter=not_configured
+              --provider-activation ai-security-adapter=not_configured
+              --provider-activation ai-repository-standards-adapter=not_configured)
           fi
           # Match the Snyk jobs' case-insensitive GitHub string comparison.
           case "${SNYK_CODE_ENABLED:-}" in
-            [Ff][Aa][Ll][Ss][Ee]) collector_args+=(--no-wait-provider snyk-code) ;;
+            [Ff][Aa][Ll][Ss][Ee]) collector_args+=(--no-wait-provider snyk-code --provider-activation snyk-code=disabled) ;;
           esac
           case "${SNYK_OPEN_SOURCE_ENABLED:-}" in
-            [Ff][Aa][Ll][Ss][Ee]) collector_args+=(--no-wait-provider snyk-open-source) ;;
+            [Ff][Aa][Ll][Ss][Ee]) collector_args+=(--no-wait-provider snyk-open-source --provider-activation snyk-open-source=disabled) ;;
           esac
           if [ -n "${PULL_REQUEST_NUMBER}" ] && \
             python3 .proof-trusted/.proof/github_evidence.py --help 2>&1 | \

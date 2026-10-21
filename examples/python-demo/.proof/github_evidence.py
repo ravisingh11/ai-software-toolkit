@@ -1137,6 +1137,7 @@ def collect_checks(
     trusted_workflow_ref: str | None = None,
     pull_request_number: int | None = None,
     no_wait_providers: set[str] | None = None,
+    provider_activation: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     if subject_type != "git-commit":
         raise ValueError("GitHub check collection is git-commit only")
@@ -1147,6 +1148,10 @@ def collect_checks(
     unknown = no_wait_providers - providers.keys()
     if unknown:
         raise ValueError(f"Unknown no-wait provider(s): {', '.join(sorted(unknown))}")
+    provider_activation = dict(provider_activation or {})
+    if any(key not in providers or value not in {"disabled", "not_configured", "awaiting_manual_run"}
+           for key, value in provider_activation.items()):
+        raise ValueError("Invalid provider activation declaration")
     check_names = set(expected)
     deadline = time.monotonic() + max(0, wait_seconds)
     maximum_attempts = 1 + (max(0, wait_seconds) + 9) // 10
@@ -1228,6 +1233,17 @@ def collect_checks(
                 trusted_workflow_ref=trusted_workflow_ref,
                 pull_request_number=pull_request_number,
             )
+        # Readiness is supplied by trusted workflow configuration, never inferred
+        # from polling policy. Preserve rejected, ambiguous, pending and real results.
+        activation = provider_activation.get(provider_id)
+        absent = not matches and not wrong_app_only[check_name] and check_name not in enumeration_failures
+        skipped = result.get("reason") == "GitHub check concluded skipped; the provider did not return a passing result."
+        if activation and result.get("status") == "not_run" and (absent or skipped):
+            result["reason"] = {
+                "disabled": "Provider activation: disabled by repository configuration.",
+                "not_configured": "Provider activation: required configuration is absent.",
+                "awaiting_manual_run": "Provider activation: awaiting a manual run for this revision.",
+            }[activation]
         for control_id in contract["control_ids"]:
             results.setdefault(control_id, {})[provider_id] = copy.deepcopy(result)
     review_attempts = 0
@@ -1288,6 +1304,7 @@ def main() -> int:
         "--no-wait-provider", action="append", default=[], dest="no_wait_providers",
         metavar="PROVIDER", help="Do not wait for this provider's absent check or review; keep missing evidence visible.",
     )
+    parser.add_argument("--provider-activation", action="append", default=[], metavar="PROVIDER=STATE")
     parser.add_argument("--pull-request-number", type=int)
     args = parser.parse_args()
     if not args.repo or not args.token:
@@ -1302,6 +1319,7 @@ def main() -> int:
             trusted_workflow_ref=args.trusted_workflow_ref,
             pull_request_number=args.pull_request_number,
             no_wait_providers=set(args.no_wait_providers),
+            provider_activation=dict(item.split("=", 1) for item in args.provider_activation),
         )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")

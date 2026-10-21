@@ -157,3 +157,19 @@ Duplicate matching producer check names are an explicit public evidence gap:
 `ambiguous_producer`. The collector does not choose a passing check from
 ambiguous matches. The scorecard asks the reader to inspect duplicate CI runs
 and collect fresh, unambiguous evidence; this preserves the CI audit history.
+
+### Provider activation and advisory mode
+
+Advisory describes policy enforcement, independently of provider readiness. The scorecard
+shows **Not configured** when trusted workflow settings establish missing configuration,
+**Disabled** for an explicit disabled flag, and **Awaiting manual run** for an absent
+manual QA producer. These remain selected advisory checks with unavailable evidence,
+never passing checks. The public activation summary splits the unavailable-evidence total.
+
+**Unverified** is retained when activation is unknown or evidence is rejected, ambiguous,
+pending, or unavailable due to collection errors. A no-wait setting alone does not prove
+a provider is disabled. Closed or mismatched lifecycle PR context remains unverified;
+it does not prove no manual run exists. Polyglot and lifecycle execution remain manual.
+Trusted collector callers may declare `--provider-activation PROVIDER=STATE`, where STATE
+is `disabled`, `not_configured`, or `awaiting_manual_run`. Declarations label only absent
+or provenance-validated skipped checks, preserving actual results and rejection reasons.
