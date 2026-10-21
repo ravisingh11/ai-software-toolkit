@@ -966,7 +966,7 @@ def _attention_html(controls: list[dict[str, Any]], breakdown: dict[str, Any]) -
     items = []
     lifecycle_items = []
     for row in flagged:
-        label, tone = _CONTROL_RESULTS[row["status"]]
+        label, tone = _result_label(row)
         name = html.escape(row["name"])
         target_items = lifecycle_items if row["id"] in LIFECYCLE_PROVIDERS else items
         target_items.append(f'<li><span class="size-result {tone}">{label}</span> <a href="#{_check_target(row["id"])}">{name}</a> <span class="attention-mode">{_CONTROL_MODES[row["mode"]]}</span></li>')
@@ -1173,7 +1173,7 @@ def _breakdown_html(breakdown: dict[str, Any]) -> str:
         counts = breakdown[key]
         inactive = str(breakdown["inactive"]) if key == "overall" else "—"
         rows.append(f'<tr><th scope="row">{label}</th><td>{counts["passed"]}</td><td>{counts["failed"]}</td><td>{counts["blocked"]}</td><td>{counts["unverified"]}</td><td>{inactive}</td></tr>')
-    return heading + '<div class="size-table-wrap" role="region" aria-label="Evidence results" tabindex="0"><table class="size-table"><caption>Control outcomes, separated from unavailable evidence</caption><thead><tr><th scope="col">Controls</th><th scope="col">Passed</th><th scope="col">Failed</th><th scope="col">Blocked</th><th scope="col">Unverified</th><th scope="col">Inactive</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div><p>Failed means a reported failure. Blocked means the producer reported a blocker. Unverified means no usable result was available. Inactive counts reported checks not selected for this evaluation, including checks evaluated on another subject; they are excluded from selected totals. Unreported checks are not assumed inactive.</p></section>'
+    return heading + '<div class="size-table-wrap" role="region" aria-label="Evidence results" tabindex="0"><table class="size-table"><caption>Control outcomes, separated from unavailable evidence</caption><thead><tr><th scope="col">Controls</th><th scope="col">Passed</th><th scope="col">Failed</th><th scope="col">Blocked</th><th scope="col">Unavailable evidence</th><th scope="col">Inactive</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div><p>Failed means a reported failure. Blocked means the producer reported a blocker. Unavailable evidence includes not configured, disabled, awaiting manual run, and unverified checks; see their separate counts and labels below. Inactive counts reported checks not selected for this evaluation, including checks evaluated on another subject; they are excluded from selected totals. Unreported checks are not assumed inactive.</p></section>'
 
 
 _SIZE_GUIDANCE = "Large PRs can overwhelm human reviewers; smaller, focused PRs make feedback more actionable."
@@ -1519,7 +1519,7 @@ def _markdown(metadata: dict[str, Any]) -> str:
 
 {_breakdown_markdown(metadata["result_breakdown"])}
 
-Failed means a reported failure. Blocked means the producer reported a blocker. Unverified means no usable result was available. Inactive counts reported checks not selected for this evaluation, including checks evaluated on another subject; they are excluded from selected totals. Unreported checks are not assumed inactive.
+Failed means a reported failure. Blocked means the producer reported a blocker. Unavailable evidence includes not configured, disabled, awaiting manual run, and unverified checks; see their separate counts and labels below. Inactive counts reported checks not selected for this evaluation, including checks evaluated on another subject; they are excluded from selected totals. Unreported checks are not assumed inactive.
 
 {_decision_meaning(metadata)}
 This is a published PR snapshot. The source timestamp does not prove it matches the current PR head or current main.
@@ -1814,7 +1814,14 @@ def _html(metadata: dict[str, Any]) -> str:
                     "Advisory": "No advisory checks selected"}[label]
         elif breakdown["availability"] == "available":
             results = breakdown[{"Selected checks": "overall", "Enforced": "enforced", "Advisory": "advisory"}[label]]
-            note = f"Failed: {results['failed']} · Blocked: {results['blocked']} · Unverified: {results['unverified']}"
+            selected = [row for row in metadata["controls"]
+                        if label == "Selected checks" or row["mode"] == label.lower()]
+            readiness = {key: sum(_activation_state(row) == key for row in selected)
+                         for key in ("not_configured", "disabled", "awaiting_manual_run")}
+            unverified = max(0, results["unverified"] - sum(readiness.values()))
+            note = (f"Failed: {results['failed']} · Blocked: {results['blocked']} · Unverified: {unverified}"
+                    f" · Not configured: {readiness['not_configured']} · Disabled: {readiness['disabled']}"
+                    f" · Awaiting manual run: {readiness['awaiting_manual_run']}")
             if passed == total:
                 card_tone = "good"
         else:
