@@ -857,7 +857,7 @@ class RendererTests(unittest.TestCase):
 
     def test_decision_meaning_reflects_enforcement(self) -> None:
         cases = (
-            (scorecard(), "ALLOW means the enforced controls are satisfied", False),
+            (scorecard(), "ALLOW means the enforced toolkit controls are satisfied", False),
             (scorecard(status="ORANGE", enforced=(0, 0), advisory=(3, 4)), "not gated by any control", True),
             (scorecard(status="RED", decision="block", enforced=(9, 10)), "BLOCK means at least one enforced control", False),
         )
