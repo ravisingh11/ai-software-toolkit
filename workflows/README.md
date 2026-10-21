@@ -387,6 +387,17 @@ The installed workflows and reusable templates use the pinned
 action pin so consumers receive the same release. Permissions and enforcement
 choices remain owned by each repository.
 
+## Cosign installer action maintenance
+
+Installed lifecycle verification, its reusable template, and the Python demo
+pin `sigstore/cosign-installer` v4.1.2 consistently. The workflow deliberately
+retains the explicit `cosign-release: v2.6.0` verifier; installer v4 supports
+Cosign v2, so this action update does not adopt Cosign v3 or change verification
+commands. The installer uses its checksum-pinned bootstrap to verify the
+requested release. Permissions, manual lifecycle activation, and policy modes
+are unchanged. Run `python3 tooling/sync_workflow_templates.py --write` after
+installed action pin updates.
+
 ## Optional lifecycle verification
 
 `lifecycle-verification.yml` is installed as a manual (`workflow_dispatch`)
