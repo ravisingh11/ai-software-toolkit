@@ -450,3 +450,9 @@ The repository's event policy also permits the scorecard's existing
 `pull_request_review` trigger. Lifecycle PR-context rejection can mean that the
 PR has closed or that its head/base changed; the public explanation does not
 claim which condition failed when the collector reports them together.
+
+Release-stage advisory selection also covers the catalog's `pre-release`,
+`deployment`, `post-deployment`, and `runtime` stages. Runtime Soak, Deployment
+Policy, Dynamic Application Security, and Runtime Assurance therefore remain
+selected as advisory alongside the other built-in controls. A missing manual
+verification result stays unverified, and does not deactivate its policy mode.
