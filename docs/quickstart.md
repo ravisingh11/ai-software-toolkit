@@ -494,7 +494,10 @@ Add the badges after the first successful publication:
 
 For an `OWNER.github.io` repository, use the Pages root without the repository
 segment. These example URLs are for public Pages; use GitHub's configured
-site URL for private Pages. The bounded projection contains aggregate
+site URL for private Pages. The generated page introduces the toolkit, links to setup, skills, and the
+reference app, and identifies the repository whose scorecard follows. This
+introduction does not activate checks or change the report’s evidence.
+The bounded projection contains aggregate
 status/counts, PR-size measurements and thresholds, source-run metadata, a
 revision digest, and every trusted built-in catalog control. IDs, names, and
 purposes come from the trusted catalog; effective modes and evidence statuses

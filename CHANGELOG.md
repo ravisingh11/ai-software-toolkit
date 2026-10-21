@@ -8,6 +8,9 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Introduce the toolkit on the published scorecard page with standards, skills,
+  optional checks, evidence boundaries, and links to setup and the reference app.
+
 - Refresh README onboarding and scorecard terminology, correct shipped CLI
   and lifecycle capability descriptions, index published release notes, and
   ignore generated distribution archives and the local Ruff cache.
