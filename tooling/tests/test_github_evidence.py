@@ -534,6 +534,7 @@ class GitHubEvidenceV2Tests(unittest.TestCase):
                         "owner/repo", "abc123", "token", policy, profiles, catalog, providers,
                         "change", wait_seconds=1800,
                         no_wait_providers={"github-build", "external-build"},
+                        provider_activation={"github-build": "disabled"},
                     )
                 sleep.assert_not_called()
                 result = evidence["results"]["build"]["github-build"]

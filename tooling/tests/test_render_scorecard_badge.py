@@ -403,7 +403,7 @@ class RendererTests(unittest.TestCase):
             self.assertEqual(metadata["result_breakdown"]["inactive"], 1)
             page = (output / "index.html").read_text()
             self.assertIn("Selected checks", page)
-            self.assertIn("Failed: 1 · Blocked: 1 · Unverified: 1 · Inactive: 1 (excluded)", page)
+            self.assertIn("Failed: 1 · Blocked: 1 · Unverified: 1 · Not configured: 0 · Disabled: 0 · Awaiting manual run: 0 · Inactive: 1 (excluded)", page)
             self.assertNotIn("not passed", page)
             for filename in ("index.html", "scorecard.md"):
                 text = (output / filename).read_text()
