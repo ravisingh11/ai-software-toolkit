@@ -37,6 +37,6 @@ jobs:
         run: bash -euo pipefail -c "${PROOF_ARTIFACT_BUILD_COMMAND}"
         env:
           PROOF_ARTIFACT_BUILD_COMMAND: ${{ vars.PROOF_ARTIFACT_BUILD_COMMAND }}
-      - uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-path: ${{ inputs.artifact-path || vars.PROOF_ARTIFACT_PATH }}

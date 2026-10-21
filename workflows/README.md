@@ -356,6 +356,15 @@ commits the installation to an `ai-toolkit/setup-<tag>` branch and opens a
 pull request with `gh`. Discovered repository commands appear in the preview
 as `gh variable set` lines; the workflow never writes them into the tree.
 
+## Artifact attestation action maintenance
+
+Installed workflows, reusable templates, and the Python demo pin
+`actions/attest` v4.2.2 consistently. The existing explicit `subject-path`
+inputs and lifecycle bundle output remain supported. This update does not
+change permissions, workflow triggers, provider selection, or enforcement.
+After Dependabot updates an installed pin, run
+`python3 tooling/sync_workflow_templates.py --write` to refresh shipped copies.
+
 ## CodeQL action maintenance
 
 Keep the CodeQL initialization and analysis steps on the same pinned release.
