@@ -413,8 +413,10 @@ installed action pin updates.
 workflow. It builds an isolated verification artifact, runs real Trivy scans,
 CycloneDX generation, local ZAP, deployment/runtime probes and a bounded soak,
 then separately attests the image and typed receipt. It changes no required
-checks or policy defaults. `PROOF_LIFECYCLE_ENABLED=true` opts the trusted PR
-scorecard into exact-subject receipt import. Missing evidence and actual failed
+checks or policy defaults. Lifecycle receipt import requires both
+`PROOF_LIFECYCLE_ENABLED=true` and `PROOF_SCORECARD_STAGE=lifecycle`. Ordinary PR
+scorecards evaluate pull-request development and do not import later-stage
+artifact/environment companions. Missing evidence and actual failed
 results remain visible. See [lifecycle setup and trust](../docs/providers/lifecycle.md)
 for BuildKit, pinned fixture, sandbox, signature and bootstrap requirements.
 
@@ -482,3 +484,37 @@ Summary cards, readiness counts, and evidence tables hide zero-count categories.
 Evidence tables omit empty modes and show a dash for an empty cell within a
 nonempty category. Public JSON keeps its existing numeric counters and machine
 status codes (`no_result`/`unverified`); **Unable to verify** is the display label.
+
+### Stage-specific scorecard and adoption examples
+
+The published scorecard separates **Selected checks**, **Tools available to adopt**,
+and **Checks relevant later**. A normal PR evaluates **Pull-request development**:
+only checks selected by the `change` policy for its commit/PR subjects enter the
+score. Release, pre-release, deployment, post-deployment and runtime checks are
+shown as later-stage options when unselected. IaC applies to both change and release;
+when unselected it is an adoption option for the current stage. No stage or policy
+selection is inferred from a missing result, a skipped job, or a passing scan.
+
+This repository's development example selects the existing Core and GitHub profile
+checks (16 checks), all advisory. Nine other development tools are available to
+adopt; eight catalog checks are relevant at later stages. These are examples,
+not requirements to complete the catalog. Provider inputs and credentials are
+unchanged, and an expected missing/failed result for a selected check remains in
+the score. An empty producer result never turns a selected check into an adoption
+option. Historical snapshots retain the policy and scope actually evaluated.
+
+To adopt an available tool, add/configure its producer workflow, select the control
+in `.proof/policy.yaml` for the applicable operation, and collect exact-revision
+evidence. For example, after configuring SonarQube's workflow and credentials:
+
+```sh
+python3 .proof/configure.py --operation change --set static-quality=advisory
+```
+
+Start with Advisory. Select Enforced only after validating the producer and its
+failure behavior. For an explicit lifecycle evaluation, select the applicable
+release controls, manually run Lifecycle Verification, and opt into lifecycle
+receipt import with both variables above. This does not make polyglot, QA, or
+lifecycle producers automatic or required. Public JSON adds `evaluation_stage`,
+`selection_counts`, and each known control's `selection_group`/`relevant_stage`;
+raw evaluation totals and policy decisions remain authoritative.

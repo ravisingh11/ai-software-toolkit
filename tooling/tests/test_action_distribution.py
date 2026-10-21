@@ -87,22 +87,25 @@ class ActionDistributionTests(unittest.TestCase):
     def test_self_repository_active_controls_are_advisory(self) -> None:
         policy = json.loads((ROOT / ".proof/policy.yaml").read_text())
         profiles = json.loads((ROOT / ".proof/profiles.yaml").read_text())["profiles"]
-        selected_ids = set()
         for lifecycle in ("change", "release"):
             modes = {}
             for profile in policy["profiles"]:
                 modes.update(profiles[profile]["defaults"][lifecycle])
             modes.update(policy["overrides"][lifecycle])
-            selected_ids.update(modes)
             with self.subTest(lifecycle=lifecycle):
                 self.assertTrue(modes)
                 self.assertEqual(set(modes.values()), {"advisory"})
                 catalog = json.loads((ROOT / ".proof/control-catalog.yaml").read_text())["controls"]
                 stages = ({"change", "change-and-release"} if lifecycle == "change" else
                           {"release", "pre-release", "change-and-release", "deployment", "post-deployment", "runtime"})
-                expected = {control["id"] for control in catalog if control["stage"] in stages}
+                expected = ({control_id for profile in policy["profiles"]
+                             for control_id in profiles[profile]["defaults"]["change"]}
+                            if lifecycle == "change" else
+                            {control["id"] for control in catalog if control["stage"] in stages})
                 self.assertEqual(set(modes), expected)
-        self.assertEqual(selected_ids, {control["id"] for control in catalog})
+        self.assertEqual(len(policy["overrides"]["change"]), 16)
+        self.assertNotIn("static-quality", policy["overrides"]["change"])
+        self.assertNotIn("functional-qa", policy["overrides"]["change"])
         self.assertEqual(policy["overrides"]["change"]["dependency-remediation"], "advisory")
 
     def test_no_active_runtime_or_workflow_references_a_producer_manifest(self) -> None:

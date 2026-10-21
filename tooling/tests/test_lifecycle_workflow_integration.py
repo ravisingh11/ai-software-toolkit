@@ -21,8 +21,8 @@ class LifecycleWorkflowIntegrationTests(unittest.TestCase):
         return next(step for step in workflow('proof-scorecard.yml')['jobs']['scorecard']['steps']
                     if step.get('name') == 'Collect optional artifact and verification-environment evidence')
 
-    def test_collection_requires_both_pr_context_and_explicit_opt_in(self):
-        self.assertEqual(self.collector()['if'], "${{ github.event.pull_request != null && vars.PROOF_LIFECYCLE_ENABLED == 'true' }}")
+    def test_collection_requires_explicit_lifecycle_stage_as_well_as_opt_in(self):
+        self.assertEqual(self.collector()['if'], "${{ github.event.pull_request != null && vars.PROOF_LIFECYCLE_ENABLED == 'true' && vars.PROOF_SCORECARD_STAGE == 'lifecycle' }}")
         self.assertEqual(workflow('proof-scorecard.yml')['permissions']['attestations'], 'read')
 
     def execute_collector(self, directory, script=None):

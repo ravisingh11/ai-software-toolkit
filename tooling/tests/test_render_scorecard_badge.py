@@ -403,7 +403,7 @@ class RendererTests(unittest.TestCase):
             self.assertEqual(metadata["result_breakdown"]["inactive"], 1)
             page = (output / "index.html").read_text()
             self.assertIn("Selected checks", page)
-            self.assertIn("Failed: 1 · Blocked: 1 · Unable to verify: 1 · Inactive: 1 (excluded)", page)
+            self.assertIn("Failed: 1 · Blocked: 1 · Unable to verify: 1", page)
             self.assertNotIn("not passed", page)
             for label in ("Failed", "Blocked", "Not configured", "Disabled", "Awaiting manual run", "Unable to verify", "Inactive"):
                 self.assertNotIn(label + ": 0", page)
@@ -538,7 +538,8 @@ class RendererTests(unittest.TestCase):
             self.assertEqual(metadata["total"], 1)
             page = (root / "published/index.html").read_text()
             self.assertIn("No checks enforced", page)
-            self.assertIn("Inactive: 1 (excluded)", page)
+            self.assertNotIn("Inactive:", page)
+            self.assertIn("Checks relevant later", page)
             self.assertNotIn('0<span>/0</span>', page)
 
     def test_incomplete_or_inconsistent_breakdown_is_unavailable(self) -> None:
@@ -827,10 +828,12 @@ class RendererTests(unittest.TestCase):
             root = Path(directory)
             self.render(self.write_source(root, card), root / "output")
             page = (root / "output/index.html").read_text()
-            inactive = len(ids) - 4
+            available = sum(control_id not in {"build", "unit-tests", "deep-sast", "runtime-soak"}
+                            and control_id not in MODULE._LATER_STAGES for control_id in ids)
+            later = len(MODULE._LATER_STAGES) - 1
             self.assertIn(f"The totals count 3 selected checks. Of the {len(ids)} built-in checks listed below, "
-                          f"3 are selected, {inactive} are not activated and 1 is not reported. "
-                          "Only selected checks count toward the totals; selection does not mean execution or enforcement.", page)
+                          f"3 are selected, {available} available to adopt, {later} relevant later and 1 is not reported. "
+                          "Only selected checks applicable to this evaluation count toward the totals; adoption options and later-stage checks are excluded. Selection does not mean execution or enforcement.", page)
             self.assertLess(page.index('class="metrics-note"'), page.index('id="results-title"'))
 
     def test_pull_request_checks_are_labeled_as_checked_separately(self) -> None:
@@ -860,7 +863,7 @@ class RendererTests(unittest.TestCase):
             self.assertIn("1 is checked on the pull request", page)
             self.assertIn("Checks marked Checked on the PR run against the pull request", page)
             markdown = (root / "output/scorecard.md").read_text()
-            self.assertIn("| PR Metadata | `pr-metadata` | Not reported | Not activated | Checked on the PR |", markdown)
+            self.assertIn("| PR Metadata | `pr-metadata` | Not reported | — | Checked on the PR |", markdown)
 
     def test_reconciliation_mentions_custom_and_unmatched_rows(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1247,6 +1250,47 @@ class RendererTests(unittest.TestCase):
                 page = (root / "site/index.html").read_text()
                 self.assertNotIn("Unable to verify: 0", page[page.index('<div class="metrics">'):page.index('id="results-title"')])
 
+    def test_stage_scope_discovery_does_not_dilute_selected_score(self) -> None:
+        policy = json.loads((ROOT / ".proof/policy.yaml").read_text())
+        selected = set(policy["overrides"]["change"])
+        card = scorecard(status="GREEN", enforced=(0, 0), advisory=(len(selected), len(selected)))
+        card["controls"] = [{"id": control_id, "effective_mode": "advisory" if control_id in selected else "not_activated",
+                             "evidence_status": "passed" if control_id in selected else "not_activated"}
+                            for control_id, *_ in MODULE.PUBLIC_CONTROLS]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = self.render(self.write_source(root, card), root / "site")
+            self.assertEqual(metadata["total"], 16)
+            self.assertEqual(metadata["passed"], 16)
+            self.assertEqual(metadata["evaluation_stage"], "pull-request-development")
+            self.assertEqual(metadata["selection_counts"], {"selected": 16, "available-to-adopt": 9,
+                             "relevant-later": 8, "unknown": 0, "evaluation-context": 0})
+            page = (root / "site/index.html").read_text()
+            selected_table = page[page.index('id="checks-title"'):page.index('id="check-details-title"')]
+            self.assertNotIn("Static Quality", selected_table)
+            self.assertNotIn("Artifact SBOM", selected_table)
+            for title in ("Selected checks", "Tools available to adopt", "Checks relevant later"):
+                self.assertIn(title, page)
+                self.assertIn(title, (root / "site/scorecard.md").read_text())
+            self.assertIn("overrides.change", page)
+            self.assertIn("overrides.release", page)
+            self.assertIn("Manual producers remain manual", page)
+            self.assertNotIn("Unable to verify:", page)
+            self.assertNotIn("Inactive:", page)
+            self.assertNotIn("Counts not reported", page[page.index('id="available-tools-title"'):])
+
+    def test_scope_classification_never_hides_selected_failures(self) -> None:
+        for status in ("passed", "failed", "blocked", "no_result"):
+            for mode in ("advisory", "enforced"):
+                row = {"id": "artifact-sbom", "mode": mode, "status": status}
+                self.assertEqual(MODULE._selection_group(row), "selected")
+        self.assertEqual(MODULE._selection_group({"id": "artifact-sbom", "mode": "not_activated", "status": "not_reported"}), "unknown")
+        row = {"id": "pr-metadata", "mode": "not_activated", "status": "not_activated", "separate_subject": "pull-request"}
+        self.assertEqual(MODULE._selection_group(row), "evaluation-context")
+        catalog = json.loads((ROOT / "policies/control-catalog.yaml").read_text())["controls"]
+        future = {row["id"] for row in catalog if row["stage"] not in {"change", "change-and-release"}}
+        self.assertEqual(set(MODULE._LATER_STAGES), future)
+
     def test_zero_counts_are_hidden_without_changing_evidence(self) -> None:
         breakdown = {"availability": "available", "inactive": 0,
                      "overall": {"passed": 2, "failed": 0, "blocked": 0, "unverified": 1},
@@ -1313,7 +1357,7 @@ class RendererTests(unittest.TestCase):
                     self.assertNotIn(private, text)
             page = (root / "output/index.html").read_text()
             self.assertEqual(page.count('<article class="check-detail '), len(MODULE.PUBLIC_CONTROLS))
-            for label in ("Passed", "Failed", "Blocked", "Unable to verify", "Not activated", "Not reported"):
+            for label in ("Passed", "Failed", "Blocked", "Unable to verify", "Relevant later", "Not reported"):
                 self.assertIn(label, page)
             self.assertIn('href="#size-title"', page)
             self.assertEqual(page.count('scope="rowgroup"'), 4)
@@ -1334,8 +1378,8 @@ class RendererTests(unittest.TestCase):
             self.assertLess(page.index('id="check-deep-sast"'), page.index('id="check-build"'))
             self.assertLess(page.index('id="check-build"'), page.index('id="inactive-title"'))
             self.assertLess(page.index('id="inactive-title"'), page.index('id="check-runtime-soak"'))
-            self.assertIn("Checked elsewhere, not activated, or not reported <span>(", page)
-            self.assertIn("Not activated checks are excluded from the selected-check totals.", page)
+            self.assertIn("Other evaluation context or selection unknown <span>(", page)
+            self.assertIn("Optional; excluded from this stage’s score.", page)
             self.assertIn("whether they count toward the totals is unknown", page)
             self.assertNotIn("excluded from the totals above", page)
             # PR Size measurements are a subsection of its card, not a nested titled panel.

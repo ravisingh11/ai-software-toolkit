@@ -337,6 +337,26 @@ _CONTROL_MODES = {"enforced": "Enforced", "advisory": "Advisory",
                   "not_activated": "Not activated", "not_reported": "Not reported"}
 
 
+# Built-in catalog stages outside a pull-request development evaluation.
+# Never derive scope from a producer result: selected failures remain selected.
+_LATER_STAGES = {
+    "artifact-provenance": "Release", "container-vulnerability": "Release",
+    "artifact-sbom": "Release", "artifact-vulnerability": "Release",
+    "runtime-soak": "Pre-release", "deployment-policy": "Deployment",
+    "dynamic-application-security": "Post-deployment", "runtime-assurance": "Runtime",
+}
+
+
+def _selection_group(row: dict[str, Any]) -> str:
+    if row["mode"] in {"advisory", "enforced"}:
+        return "selected"
+    if row.get("separate_subject"):
+        return "evaluation-context"
+    if row["status"] != "not_activated":
+        return "unknown"
+    return "relevant-later" if row["id"] in _LATER_STAGES else "available-to-adopt"
+
+
 _REVIEW_FINDING_METRICS = 'Findings by severity (P0 to P3); unresolved P0/P1 findings'
 
 
@@ -826,6 +846,8 @@ def _control_details(document: dict[str, Any], repository: str | None = None) ->
                         "detail": _pr_metadata_detail(control_id, row) if valid else {"availability": "unavailable"}})
     for detail in details:
         detail["activation"] = _activation_state(detail)
+        detail["selection_group"] = _selection_group(detail)
+        detail["relevant_stage"] = _LATER_STAGES.get(detail["id"], "Pull-request development")
     return details
 
 
@@ -838,6 +860,8 @@ _SEPARATE_NOTE = ("Policy activates this check on the pull request itself, becau
 def _result_label(row: dict[str, Any]) -> tuple[str, str]:
     if row.get("separate_subject"):
         return _SEPARATE_RESULT
+    if row["status"] == "not_activated":
+        return ("Relevant later" if _selection_group(row) == "relevant-later" else "Available to adopt"), "neutral"
     if row["status"] == "no_result":
         label = {"not_configured": "Not configured", "disabled": "Disabled",
                  "awaiting_manual_run": "Awaiting manual run"}.get(_activation_state(row))
@@ -896,15 +920,27 @@ def _unverified_note(row: dict[str, Any]) -> str:
 
 
 def _controls_markdown(controls: list[dict[str, Any]]) -> str:
-    lines = ["## Individual checks", "", _activation_summary(controls), "", "Every built-in catalog check is listed. Provider links open configuration at the evaluated revision; Latest reported run links open available evidence for this snapshot. Not reported means this snapshot has no validated row; it does not imply disabled or passed.", "",
-             "| Check | ID | Provider | Mode | Result | Purpose |", "| --- | --- | --- | --- | --- | --- |"]
-    for row in controls:
-        provider = row["provider"]
-        if row.get("provider_config_url"):
-            provider = f"[{provider}]({row['provider_config_url']})"
-        if row.get("provider_run_url"):
-            provider += f" · [Latest reported run]({row['provider_run_url']})"
-        lines.append(f"| {row['name']} | `{row['id']}` | {provider} | {_CONTROL_MODES[row['mode']]} | {_result_label(row)[0]} | {row['purpose']} |")
+    lines = ["## Checks by stage", "", _activation_summary(controls), "",
+             "Only policy-selected checks for the evaluated stage enter the score. Unselected tools are adoption options, not failures.", ""]
+    for group, heading in (("selected", "Selected checks"), ("available-to-adopt", "Tools available to adopt"),
+                           ("relevant-later", "Checks relevant later"), ("evaluation-context", "Other evaluation context"),
+                           ("unknown", "Selection unknown")):
+        members = [row for row in controls if _selection_group(row) == group]
+        if not members:
+            continue
+        lines += ["### " + heading, "", "| Check | ID | Provider | Mode | Result | Purpose |",
+                  "| --- | --- | --- | --- | --- | --- |"]
+        for row in members:
+            provider = row["provider"]
+            if row.get("provider_config_url"):
+                provider = f"[{provider}]({row['provider_config_url']})"
+            if row.get("provider_run_url"):
+                provider += f" · [Latest reported run]({row['provider_run_url']})"
+            mode = "—" if row["mode"] in _INACTIVE_STATUSES else _CONTROL_MODES[row["mode"]]
+            lines.append(f"| {row['name']} | `{row['id']}` | {provider} | {mode} | {_result_label(row)[0]} | {row['purpose']} |")
+        if group in {"available-to-adopt", "relevant-later"}:
+            lines += ["", "Excluded from this stage's score. Adopt when useful: add the producer workflow, configure its inputs, then select Advisory in .proof/policy.yaml. Manual workflows remain manual.", ""]
+            lines += [f"- {row['name']}: useful during {_LATER_STAGES.get(row['id'], 'pull-request development')}." for row in members]
     failures = [row for row in controls if row["status"] == "failed" and row.get("diagnostic")]
     if failures:
         lines += ["", "### Failure details", ""]
@@ -1053,27 +1089,58 @@ def _count_reconciliation(metadata: dict[str, Any]) -> str:
     if separate:
         breakdown.append(verb(separate, "is checked on the pull request", "are checked on the pull request"))
     if inactive:
-        breakdown.append(verb(inactive, "is not activated", "are not activated"))
+        available = sum(_selection_group(row) == "available-to-adopt" for row in controls)
+        later = sum(_selection_group(row) == "relevant-later" for row in controls)
+        if available:
+            breakdown.append(f"{available} available to adopt")
+        if later:
+            breakdown.append(f"{later} relevant later")
     if missing:
         breakdown.append(verb(missing, "is not reported", "are not reported"))
     joined = breakdown[0] if len(breakdown) == 1 else ", ".join(breakdown[:-1]) + " and " + breakdown[-1]
     parts.append(f"Of the {listed} built-in checks listed below, {joined}.")
     if separate or inactive or missing:
-        parts.append("Only selected checks count toward the totals; selection does not mean execution or enforcement.")
+        parts.append("Only selected checks applicable to this evaluation count toward the totals; adoption options and later-stage checks are excluded. Selection does not mean execution or enforcement.")
     if custom > 0:
         parts.append(f"{plural(custom, 'custom check')} also {'counts' if custom == 1 else 'count'} but "
                      f"{'is' if custom == 1 else 'are'} not listed by name.")
     return " ".join(parts)
 
 
+def _opportunity_card(row: dict[str, Any]) -> str:
+    later = _selection_group(row) == "relevant-later"
+    label = "Relevant later" if later else "Available to adopt"
+    name, control_id = html.escape(row["name"]), html.escape(row["id"])
+    when = html.escape(_LATER_STAGES.get(row["id"], "Pull-request development, when this tool fits your project"))
+    operation = "release" if later else "change"
+    setup = (f'<a href="{html.escape(row["provider_config_url"], quote=True)}">Provider setup</a> · '
+             if row.get("provider_config_url") else '')
+    anchor = ' id="size-title"' if row["id"] == "change-scope" else ''
+    return (f'<article class="check-detail neutral" id="check-{control_id}" tabindex="-1">'
+            f'<div class="check-top"><h3{anchor}>{name} <code class="check-id">{control_id}</code></h3>'
+            f'<span class="size-result">{label}</span></div><p>{html.escape(row["purpose"])}</p>'
+            f'<p><strong>Useful during:</strong> {when}.</p><p class="check-note">Optional; excluded from this stage’s score. No passing or failing result is implied.</p>'
+            f'<p>Example provider: {html.escape(row["provider"])}</p><ol>'
+            '<li>Add the producer workflow and configure its required inputs or credentials.</li>'
+            f'<li>Select <code>{control_id}</code> as <code>advisory</code> under <code>overrides.{operation}</code> in <code>.proof/policy.yaml</code>.</li>'
+            '<li>Run the producer for the matching revision and evaluate its applicable stage. Manual producers remain manual.</li></ol>'
+            f'<div class="check-links">{setup}<a href="https://github.com/ravisingh11/ai-software-toolkit/blob/main/workflows/README.md">Adoption guide ↗</a>'
+            '<a href="#checks-title">Back to checks ↑</a></div></article>')
+
+
 def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str, Any]) -> str:
     groups = []
     active_details = []
     inactive_details = []
+    opportunities: dict[str, list[dict[str, Any]]] = {"available-to-adopt": [], "relevant-later": []}
     for group in ("Build & quality", "Security & dependencies", "AI & QA", "Release & runtime"):
         rows = []
         for row in controls:
             if row["group"] != group:
+                continue
+            selection_group = _selection_group(row)
+            if selection_group in opportunities:
+                opportunities[selection_group].append(row)
                 continue
             label, tone = _result_label(row)
             safe = {key: html.escape(value, quote=True) for key, value in row.items() if isinstance(value, str)}
@@ -1136,17 +1203,30 @@ def _controls_html(controls: list[dict[str, Any]], run_url: str, scope: dict[str
             card = f'<article class="check-detail {tone}" id="check-{safe["id"]}" tabindex="-1"><div class="check-top"><h3>{safe["name"]} <code class="check-id">{safe["id"]}</code></h3><span class="size-result">{label}</span></div><p>{safe["purpose"]}</p><p class="check-provider">Provider: {provider_html}</p>{mode_html}{note_html}{run_facts}{measurements}<div class="check-links">{evidence}<a href="#checks-title">Back to checks ↑</a></div></article>'
             detail_status = "separate" if row.get("separate_subject") else row["status"]
             (inactive_details if row["status"] in _INACTIVE_STATUSES else active_details).append((detail_status, card))
+        if not rows:
+            continue
         groups.append(f'<tbody><tr class="check-category"><th colspan="4" scope="rowgroup">{html.escape(group)}</th></tr>{"".join(rows)}</tbody>')
-    overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Every check, visible</p><h2 id="checks-title" tabindex="-1">Individual checks</h2><p class="checks-intro">All built-in catalog checks. Select a check to see its purpose and evidence below. Provider names link to trusted base configuration when its identity is recorded. Latest reported run links open available evidence for this snapshot, not a newer scan. Provider names describe selection, not credential readiness or a passing scan. Not configured means required provider configuration is absent; it does not change the selected policy mode. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the check has no active mode in this snapshot. Custom controls may contribute to totals without publishing their private names.</p><div class="checks-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results, policy modes, and selected providers for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col" class="mode-cell">Mode</th><th scope="col">Provider</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
+    overview = '<section class="checks" aria-labelledby="checks-title"><p class="eyebrow">Stage-specific evaluation</p><h2 id="checks-title" tabindex="-1">Selected checks</h2><p class="checks-intro">These are the checks selected for this evaluation, plus any entries whose selection could not be validated. Adoption options and later-stage checks are listed separately below. Select a check to inspect its evidence. Provider names link to trusted base configuration when its identity is recorded. Latest reported run links open available evidence for this snapshot, not a newer scan. Provider names describe selection, not credential readiness or a passing scan. Not configured means required provider configuration is absent; it does not change the selected policy mode. Not reported means no validated row in this snapshot; it does not imply disabled or passed. A dash means the check has no active mode in this snapshot. Custom controls may contribute to totals without publishing their private names.</p><div class="checks-table-wrap" role="region" aria-label="Individual checks" tabindex="0"><table class="checks-table"><caption>Check results, policy modes, and selected providers for this snapshot</caption><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col" class="mode-cell">Mode</th><th scope="col">Provider</th></tr></thead>' + ''.join(groups) + '</table></div></section>'
     # Stable sort: checks needing attention first, then passes, each in catalog order.
     order = (*_ATTENTION_STATUSES, "passed")
     active = ''.join(card for _, card in sorted(active_details, key=lambda item: order.index(item[0])))
     inactive = ''.join(card for _, card in inactive_details)
     details = '<section class="checks" aria-labelledby="check-details-title"><h2 id="check-details-title">Check details</h2><p class="checks-intro">Checks needing attention come first. Source report links open the evaluation run containing the detailed evidence.</p>' + active
     if inactive:
-        details += f'<h3 class="inactive-title" id="inactive-title">Checked elsewhere, not activated, or not reported <span>({len(inactive_details)})</span></h3><p class="checks-intro">{_inactive_intro(inactive_details)}</p><div class="inactive-grid">{inactive}</div>'
+        details += f'<h3 class="inactive-title" id="inactive-title">Other evaluation context or selection unknown <span>({len(inactive_details)})</span></h3><p class="checks-intro">{_inactive_intro(inactive_details)}</p><div class="inactive-grid">{inactive}</div>'
     overview = overview.replace('<p class="checks-intro">', f'<p class="activation-summary">{html.escape(_activation_summary(controls))}</p><p class="checks-intro">', 1)
-    return overview + details + '</section>'
+    discovery = []
+    for group, target, heading in (("available-to-adopt", "available-tools-title", "Tools available to adopt"),
+                                   ("relevant-later", "relevant-later-title", "Checks relevant later")):
+        members = opportunities[group]
+        if not members:
+            continue
+        links = ' · '.join(f'<a href="#{_check_target(row["id"])}">{html.escape(row["name"])}</a>' for row in members)
+        cards = ''.join(_opportunity_card(row) for row in members)
+        discovery.append(f'<section class="checks" aria-labelledby="{target}"><h2 id="{target}">{heading}</h2>'
+                         '<p>These tools are excluded from the current score. Adopt them when they fit the project and its evaluation stage; they are not missing requirements.</p>'
+                         f'<p class="checks-intro">{links}</p><div class="inactive-grid">{cards}</div></section>')
+    return overview + details + '</section>' + ''.join(discovery)
 
 
 
@@ -1154,8 +1234,7 @@ def _breakdown_columns(breakdown: dict[str, Any]) -> list[tuple[str, str]]:
     columns = [(key, label) for key, label in (("passed", "Passed"), ("failed", "Failed"),
                ("blocked", "Blocked"), ("unverified", "Unavailable evidence"))
                if breakdown["overall"][key]]
-    if breakdown["inactive"]:
-        columns.append(("inactive", "Inactive"))
+
     return columns
 
 
@@ -1368,6 +1447,7 @@ def _validated_scorecard(source_dir: Path, repository: str | None = None) -> dic
         "subject_revision": revision,
         "change_scope": _change_scope(document),
         "result_breakdown": _result_breakdown(document),
+        "evaluation_stage": "lifecycle-verification" if document.get("lifecycle_verification") else "pull-request-development",
         "controls": _control_details(document, repository),
     }
 
@@ -1444,6 +1524,9 @@ def _public_metadata(
         "total": total,
         "enforced": inspected["enforced"],
         "advisory": inspected["advisory"],
+        "evaluation_stage": inspected["evaluation_stage"],
+        "selection_counts": {group: sum(row["selection_group"] == group for row in inspected["controls"])
+                             for group in ("selected", "available-to-adopt", "relevant-later", "unknown", "evaluation-context")},
         "pages_url": pages_base_url(repository),
         "change_scope": inspected["change_scope"],
         "result_breakdown": inspected["result_breakdown"],
@@ -1535,6 +1618,7 @@ def _markdown(metadata: dict[str, Any]) -> str:
 | --- | --- |
 | Repository | {metadata["repository"]} |
 | Operation | {metadata["operation"]} |
+| Evaluation stage | {metadata["evaluation_stage"]} |
 | Status | {metadata["status"]} |
 | Selected checks | {metadata["passed"]}/{metadata["total"]} passed |
 | Enforced | {enforced_summary} |
@@ -1602,6 +1686,7 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .decision{text-align:right;flex-shrink:0}
 .decision dt{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px}
 .decision dd{color:var(--tone);margin:4px 0 0;font-size:20px;font-weight:750}
+.stage-nav{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}.stage-nav a{padding:8px 12px;border:1px solid var(--line);border-radius:8px}
 .metrics-note{margin:12px 2px 0;color:var(--muted);font-size:13px}
 .metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .metric{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:24px}
@@ -1826,6 +1911,14 @@ def _html(metadata: dict[str, Any]) -> str:
         "ORANGE": ("caution", "Advisory controls need attention"),
         "RED": ("danger", "Enforced controls need attention"),
     }[metadata["status"]]
+    discovery_links = [("checks-title", "Selected checks", metadata["total"])]
+    for group, target, label in (("available-to-adopt", "available-tools-title", "Tools available to adopt"),
+                                  ("relevant-later", "relevant-later-title", "Checks relevant later")):
+        count = metadata["selection_counts"][group]
+        if count:
+            discovery_links.append((target, label, count))
+    discovery_navigation = '<nav class="stage-nav" aria-label="Checks by project stage">' + ''.join(
+        f'<a href="#{target}">{label} ({count})</a>' for target, label, count in discovery_links) + '</nav>'
     cards = []
     for label, counts, card_tone in (
         ("Selected checks", metadata, tone),
@@ -1854,8 +1947,7 @@ def _html(metadata: dict[str, Any]) -> str:
                 card_tone = "good"
         else:
             note = "Result breakdown unavailable"
-        if label == "Selected checks" and breakdown["availability"] == "available" and breakdown["inactive"]:
-            note += f" · Inactive: {breakdown['inactive']} (excluded)"
+
         count = f'{passed}<span>/{total}</span>' if total else "None"
         caption = "checks passed" if total else ("checks enforced" if label == "Enforced" else "checks selected")
         cards.append(f"""<section class="metric {card_tone}" aria-label="{label}">
@@ -1924,6 +2016,8 @@ def _html(metadata: dict[str, Any]) -> str:
   <p class="eyebrow">CI evidence / change assessment</p>
   <h2 class="report-title" id="scorecard-title">Latest PR Scorecard</h2>
   <p class="intro">Latest published PR results for <strong>{safe['repository']}</strong>.</p>
+  <p class="stage-context"><strong>Evaluation stage:</strong> {"Lifecycle verification" if metadata["evaluation_stage"] == "lifecycle-verification" else "Pull-request development"}. The catalog offers tools to adopt as your project needs them; it is not a checklist every project must complete.</p>
+  {discovery_navigation}
   {_snapshot_identity(metadata)}
   <aside class="freshness" id="snapshot-freshness" data-snapshot="{snapshot}" data-freshness="unknown" aria-label="Snapshot freshness">
     <p id="snapshot-freshness-status" role="status" aria-live="polite">Freshness not checked. These are published snapshot results; refresh to request the latest publication.</p>

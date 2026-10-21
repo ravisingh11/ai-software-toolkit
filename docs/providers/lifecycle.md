@@ -51,7 +51,10 @@ python3 .proof/configure.py --operation release \
 ```
 
 Review and merge those choices. Then opt the repository's PR collector into
-lifecycle import with the non-secret GitHub variable `PROOF_LIFECYCLE_ENABLED=true`.
+lifecycle import with both non-secret GitHub variables
+`PROOF_LIFECYCLE_ENABLED=true` and `PROOF_SCORECARD_STAGE=lifecycle`.
+Ordinary PR development scorecards do not import release/environment companions;
+those checks appear as relevant later until you request a lifecycle evaluation.
 No new required checks or branch rules are added. The existing Core and GitHub
 profile defaults stay unchanged. Consumers retain their own activation and
 enforcement decisions. The polyglot workflow remains manual and optional.

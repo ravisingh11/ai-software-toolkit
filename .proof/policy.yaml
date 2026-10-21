@@ -17,22 +17,13 @@
       "migration-validation": "advisory",
       "build": "advisory",
       "unit-tests": "advisory",
-      "functional-qa": "advisory",
       "changed-code-coverage": "advisory",
       "custom-static-analysis": "advisory",
       "secret-detection": "advisory",
       "deep-sast": "advisory",
       "dependency-change-review": "advisory",
       "platform-secret-protection": "advisory",
-      "dependency-remediation": "advisory",
-      "static-quality": "advisory",
-      "dependency-vulnerability": "advisory",
-      "license-compliance": "advisory",
-      "ai-engineering-review": "advisory",
-      "ai-qa-review": "advisory",
-      "ai-security-review": "advisory",
-      "ai-repository-standards-review": "advisory",
-      "iac-misconfiguration": "advisory"
+      "dependency-remediation": "advisory"
     },
     "release": {
       "repository-validation": "advisory",
