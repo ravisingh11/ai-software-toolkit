@@ -74,7 +74,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.release-tag || github.event.release.tag_name }}
           ASSET_PATTERN: ${{ inputs.asset-pattern || '*' }}
         run: |
-          python3 .proof/prepare_release_attestation.py \
+          python3 -I .proof/prepare_release_attestation.py \
             --repository "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" \
             --pattern "$ASSET_PATTERN" --output "$RUNNER_TEMP/release-verification"
       - name: Attest release verification (not original build execution)

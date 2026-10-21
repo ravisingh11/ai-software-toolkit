@@ -58,7 +58,7 @@ jobs:
         env:
           TRIVY_TARGET: ${{ inputs.path || vars.PROOF_TRIVY_PATH || '.' }}
         run: |
-          python3 .proof/run_trivy.py --mode dependencies --target "$TRIVY_TARGET" \
+          python3 -I .proof/run_trivy.py --mode dependencies --target "$TRIVY_TARGET" \
             --output "$RUNNER_TEMP/trivy-dependencies"
       - name: Preserve scanner reports even on failure
         if: always()
@@ -96,7 +96,7 @@ jobs:
         env:
           TRIVY_TARGET: ${{ inputs.path || vars.PROOF_TRIVY_PATH || '.' }}
         run: |
-          python3 .proof/run_trivy.py --mode iac --target "$TRIVY_TARGET" \
+          python3 -I .proof/run_trivy.py --mode iac --target "$TRIVY_TARGET" \
             --output "$RUNNER_TEMP/trivy-iac"
       - name: Preserve scanner reports even on failure
         if: always()
@@ -134,7 +134,7 @@ jobs:
         env:
           TRIVY_TARGET: ${{ inputs.image }}
         run: |
-          python3 .proof/run_trivy.py --mode image --target "$TRIVY_TARGET" \
+          python3 -I .proof/run_trivy.py --mode image --target "$TRIVY_TARGET" \
             --output "$RUNNER_TEMP/trivy-image"
       - name: Preserve scanner reports even on failure
         if: always()

@@ -95,7 +95,9 @@ missing inputs, malformed reports and mismatched IaC counts cannot pass. IaC
 requires completed rule evaluations. Regular source subtrees are required;
 symlink-containing targets are refused. Scanner reports and version metadata
 are retained as Actions artifacts, including on failure when available.
-Repository-local Trivy configuration and ignore files are not loaded; inline
+The helper runs Python in isolated mode to prevent source files from shadowing
+standard-library imports. Repository-local Trivy configuration and ignore files
+are not loaded; inline
 IaC exceptions still belong to the reviewed input and remain in Trivy reports.
 A passing scan is not a claim of zero vulnerabilities or full tool coverage.
 

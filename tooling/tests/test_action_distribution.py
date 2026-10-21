@@ -379,6 +379,17 @@ class ActionDistributionTests(unittest.TestCase):
         self.assertIn("id-token: write", text)
         self.assertIn("subject-path:", text)
 
+    def test_independent_scans_are_opt_in_and_isolate_repository_imports(self) -> None:
+        trivy = (ROOT / "workflows/trivy.yml").read_text()
+        self.assertIn("python3 -I .proof/run_trivy.py", trivy)
+        self.assertIn("PROOF_TRIVY_DEPENDENCIES_ENABLED", trivy)
+        self.assertIn("PROOF_TRIVY_IAC_ENABLED", trivy)
+        self.assertNotIn("pull_request_target:", trivy)
+        self.assertNotIn("id-token: write", trivy)
+        self.assertNotIn("attestations: write", trivy)
+        self.assertIn("python3 -I .proof/prepare_release_attestation.py",
+                      (ROOT / "workflows/artifact-provenance.yml").read_text())
+
     def test_default_ruleset_does_not_claim_unactivated_checks(self) -> None:
         ruleset = json.loads((ROOT / "rulesets/default-branch-protection.json").read_text())
         required = [rule for rule in ruleset["rules"] if rule["type"] == "required_status_checks"]
