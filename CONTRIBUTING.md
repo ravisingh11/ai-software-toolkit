@@ -85,6 +85,23 @@ Before making a new status check required, run it on a representative change,
 confirm its actual GitHub check-run name, and add that name to the ruleset only
 after the failure and recovery behavior are understood.
 
+## Maintainer review
+
+Contributions to this repository require a pull request. `.github/CODEOWNERS`
+assigns every path, including the ownership file itself, to `@ravisingh11`.
+The repository's `maintainer-review-required` ruleset requires code-owner
+approval and dismisses stale approvals when new commits are pushed. Ownership
+is effective after the file is merged into the pull request's base branch.
+
+The owner has a PR-only bypass of that review ruleset so owner-authored PRs
+remain mergeable. The separate default-branch ruleset still requires passing
+checks and prevents direct pushes, force pushes, and branch deletion. Tools
+using the owner's credentials share that bypass; contributor PRs must not be
+approved or merged by an agent without the owner's explicit instruction.
+
+This repository-specific requirement does not change the shared ruleset
+template's solo-maintainer defaults.
+
 ## Release readiness
 
 Before a toolkit release:
