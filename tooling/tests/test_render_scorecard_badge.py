@@ -1285,6 +1285,16 @@ class RendererTests(unittest.TestCase):
             self.assertEqual(metadata["selection_counts"], {"selected": 16, "available-to-adopt": 9,
                              "relevant-later": 8, "unknown": 0, "evaluation-context": 0})
             page = (root / "site/index.html").read_text()
+            overview = page[page.index('<section class="catalog-overview"'):page.index('<dl class="snapshot-identity"')]
+            self.assertIn('All 33 checks', overview)
+            self.assertIn('Selected <span>(16)</span>', overview)
+            self.assertIn('Available to adopt <span>(9)</span>', overview)
+            self.assertIn('Relevant later <span>(8)</span>', overview)
+            self.assertEqual(overview.count('<li>'), 33)
+            for control_id, name, *_ in MODULE.PUBLIC_CONTROLS:
+                self.assertEqual(overview.count(f'href="#{MODULE._check_target(control_id)}"'), 1)
+            self.assertIn('Lifecycle verification stays manual', overview)
+            self.assertIn('All checks are optional to adopt', overview)
             selected_table = page[page.index('id="checks-title"'):page.index('id="check-details-title"')]
             self.assertNotIn("Static Quality", selected_table)
             self.assertNotIn("Artifact SBOM", selected_table)
@@ -1297,6 +1307,20 @@ class RendererTests(unittest.TestCase):
             self.assertNotIn("Unable to verify:", page)
             self.assertNotIn("Inactive:", page)
             self.assertNotIn("Counts not reported", page[page.index('id="available-tools-title"'):])
+
+    def test_catalog_overview_keeps_failures_selected_and_unknowns_explicit(self) -> None:
+        rows = [{"id": "artifact-sbom", "name": "Artifact SBOM", "mode": "advisory", "status": "failed"},
+                {"id": "unit-tests", "name": "Unit Tests", "mode": "not_activated", "status": "not_reported"},
+                {"id": "pr-metadata", "name": "PR Metadata", "mode": "not_activated",
+                 "status": "not_activated", "separate_subject": "pull-request"}]
+        overview = MODULE._catalog_overview(rows)
+        self.assertIn('data-selection="selected"', overview)
+        self.assertIn('Selected <span>(1)</span>', overview)
+        self.assertIn('Selection unknown <span>(1)</span>', overview)
+        self.assertIn('Other evaluation context <span>(1)</span>', overview)
+        self.assertNotIn('data-selection="available-to-adopt"', overview)
+        self.assertNotIn('data-selection="relevant-later"', overview)
+        self.assertIn('selection does not mean passed', overview)
 
     def test_scope_classification_never_hides_selected_failures(self) -> None:
         for status in ("passed", "failed", "blocked", "no_result"):

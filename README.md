@@ -195,6 +195,10 @@ revision, and source CI run. Provider names link to configuration at that
 revision; **Latest reported run** opens available evidence for that snapshot.
 Provider selection is separate from successful execution.
 
+The **All 33 checks** overview near the top links every built-in check to its
+details, grouped as selected, available to adopt, or relevant later. Checks are
+optional to adopt, and advanced lifecycle verification stays manual.
+
 **Selected checks** counts checks included in the evaluation, not checks that
 have successfully run. The scorecard separates failed, blocked, and unverified
 results. Inactive checks stay outside that total, including checks belonging

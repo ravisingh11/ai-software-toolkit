@@ -460,8 +460,12 @@ A passing control means its declared producer supplied passing evidence for the
 scored revision. Failed evidence, blocked producers, and unverified results are
 different outcomes. Missing, skipped, stale, or unconfigured evidence must never
 be presented as a pass or as a measured failure. The public scorecard shows
-all 33 trusted built-in catalog controls in a compact table, grouped into quality,
-security, AI/QA, and lifecycle checks. Each entry shows its name, ID, purpose,
+all 33 trusted built-in catalog controls in an always-visible overview near the
+top, grouped as selected, available to adopt, and relevant later. Each name links
+to its detailed evidence or adoption guidance below. Unknown selection and
+checks on separate subjects are labeled explicitly. Only selected applicable
+checks count toward the score; checks remain optional and advanced lifecycle
+verification remains manual. Detailed entries show their name, ID, purpose,
 and validated effective mode and evidence status when reported. Evidence
 labels are **Passed**, **Failed**, **Blocked**, **Unverified**,
 **Not activated**, **Not reported**, and **Checked on the PR** (the policy

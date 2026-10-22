@@ -1693,6 +1693,12 @@ h1{margin:0;font-size:clamp(30px,4.5vw,42px);font-weight:650;line-height:1.2;let
 .decision dt{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px}
 .decision dd{color:var(--tone);margin:4px 0 0;font-size:20px;font-weight:750}
 .stage-nav{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}.stage-nav a{padding:8px 12px;border:1px solid var(--line);border-radius:8px}
+.catalog-overview{margin:24px 0;padding:24px;background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.catalog-overview h2{margin:0 0 8px;font-size:22px}.catalog-overview p{color:var(--muted);font-size:13px}
+.catalog-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;margin-top:20px}
+.catalog-group{min-width:0}.catalog-group h3{margin:0;font-size:15px}.catalog-group h3 span{color:var(--muted)}
+.catalog-group p{margin:8px 0;min-height:40px}.catalog-group ul{padding-left:18px;margin:12px 0 0}
+.catalog-group li{margin:6px 0;font-size:13px;overflow-wrap:anywhere}
 .metrics-note{margin:12px 2px 0;color:var(--muted);font-size:13px}
 .metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .metric{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:24px}
@@ -1782,6 +1788,7 @@ footer img{display:block;max-width:100%;height:auto}
   main{padding-top:30px}.intro{font-size:14px}
   .status-panel{align-items:flex-start;padding:20px;gap:16px}
   .status-panel h2{font-size:18px}.decision dd{font-size:17px}
+  .catalog-grid{grid-template-columns:1fr;gap:20px}.catalog-overview{padding:20px}.catalog-group p{min-height:0}
   .overview-grid{grid-template-columns:1fr;gap:12px}.overview-card{padding:20px}
   .metrics{grid-template-columns:1fr;gap:12px}
   .check-detail{padding:18px}.checks-table th,.checks-table td{padding:7px 9px;white-space:normal}
@@ -1910,6 +1917,29 @@ _FRESHNESS_SCRIPT = r"""
 """
 
 
+def _catalog_overview(controls: list[dict[str, Any]]) -> str:
+    groups = []
+    for group, label, note in (
+        ("selected", "Selected", "Included in this evaluation; selection does not mean passed."),
+        ("available-to-adopt", "Available to adopt", "Optional checks outside this evaluation’s score."),
+        ("relevant-later", "Relevant later", "Checks for later stages. Lifecycle verification stays manual."),
+        ("unknown", "Selection unknown", "This snapshot does not establish whether these checks are selected."),
+        ("evaluation-context", "Other evaluation context", "Checked on a separate subject; excluded from these totals."),
+    ):
+        members = [row for row in controls if _selection_group(row) == group]
+        if not members:
+            continue
+        links = ''.join(f'<li><a href="#{_check_target(row["id"])}">{html.escape(row["name"])}</a></li>'
+                        for row in members)
+        groups.append(f'<section class="catalog-group" data-selection="{group}">'
+                      f'<h3>{label} <span>({len(members)})</span></h3><p>{note}</p><ul>{links}</ul></section>')
+    return ('<section class="catalog-overview" aria-labelledby="catalog-title">'
+            f'<h2 id="catalog-title">All {len(controls)} checks</h2>'
+            '<p>Explore the full built-in catalog. All checks are optional to adopt. '
+            'Only selected checks applicable to this evaluation count toward the score.</p>'
+            '<div class="catalog-grid">' + ''.join(groups) + '</div></section>')
+
+
 def _html(metadata: dict[str, Any]) -> str:
     safe = {key: html.escape(str(value), quote=True) for key, value in metadata.items()}
     tone, headline = {
@@ -2024,6 +2054,7 @@ def _html(metadata: dict[str, Any]) -> str:
   <p class="intro">Latest published PR results for <strong>{safe['repository']}</strong>.</p>
   <p class="stage-context"><strong>Evaluation stage:</strong> {"Lifecycle verification" if metadata["evaluation_stage"] == "lifecycle-verification" else "Pull-request development"}. The catalog offers tools to adopt as your project needs them; it is not a checklist every project must complete.</p>
   {discovery_navigation}
+  {_catalog_overview(metadata["controls"])}
   {_snapshot_identity(metadata)}
   <aside class="freshness" id="snapshot-freshness" data-snapshot="{snapshot}" data-freshness="unknown" aria-label="Snapshot freshness">
     <p id="snapshot-freshness-status" role="status" aria-live="polite">Freshness not checked. These are published snapshot results; refresh to request the latest publication.</p>
@@ -2037,7 +2068,7 @@ def _html(metadata: dict[str, Any]) -> str:
   </section>
   {_attention_html(metadata["controls"], metadata["result_breakdown"])}
   <div class="metrics">{''.join(cards)}</div>
-  <p class="metrics-note">{html.escape(_count_reconciliation(metadata))} <a href="#checks-title">See all checks ↓</a></p>
+  <p class="metrics-note">{html.escape(_count_reconciliation(metadata))} <a href="#catalog-title">See all checks ↑</a></p>
   {_breakdown_html(metadata["result_breakdown"])}
   {_controls_html(metadata["controls"], metadata["source_run_url"], metadata["change_scope"])}
   <section class="evidence" aria-labelledby="evidence-title">
