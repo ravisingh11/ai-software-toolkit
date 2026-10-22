@@ -288,7 +288,9 @@ def cmd_init(args: argparse.Namespace) -> int:
     existing_lock = config.read_lock(target)
     recorded_set = config.recorded_install_set(existing_configuration, existing_lock)
     existing_install = bool(existing_configuration or existing_lock or (target / ".proof").exists()
-                            or any((target / directory).is_dir() for directory in skills.CLIENT_PROJECT_DIRS.values()))
+                            or any((target / directory / name / "SKILL.md").is_file()
+                                   for directory in skills.CLIENT_PROJECT_DIRS.values()
+                                   for name in skills.canonical_skills()))
     if existing_install and args.install_set is not None and args.install_set != (recorded_set or "full"):
         raise ToolkitError("install-set defaults apply only to fresh installations; adopt optional workflows explicitly")
     install_set = recorded_set if existing_install else (args.install_set or "starter")

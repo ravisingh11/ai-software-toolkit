@@ -64,6 +64,16 @@ class StarterInstallationTests(CliFixture):
         self.assertEqual(code, 0, err)
         self.assertFalse((self.target / ".agents").exists())
 
+    def test_existing_unrelated_client_directory_is_still_a_fresh_toolkit_install(self):
+        custom = self.target / ".claude/skills/consumer-owned"
+        custom.mkdir(parents=True)
+        (custom / "SKILL.md").write_text("# Consumer skill\n")
+        code, _, err = run_cli("init", "--target", str(self.target), "--clients", "claude-code", "--yes")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(config.read_lock(self.target)["toolkit"]["install_set"], "starter")
+        self.assertFalse((self.target / ".agents").exists())
+        self.assertEqual((custom / "SKILL.md").read_text(), "# Consumer skill\n")
+
     def test_full_is_explicit_and_github_profile_remains_separate(self):
         self.assertEqual(self.init("--install-set", "full", "--components", "proof")[0], 0)
         self.assertEqual(self.workflows(), set(cli._installer().CORE_WORKFLOWS))
