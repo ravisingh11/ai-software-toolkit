@@ -118,8 +118,15 @@ Before a toolkit release:
    [provider verification ledger](docs/providers/verification.md) and each
    action skill's `VERIFICATION.md` before describing anything as verified.
 6. Build the release assets: `python3 tooling/build_archive.py` for
-   `ai-toolkit.pyz` and its checksum, and `tooling/package-speckit-preset.sh`
-   for the Spec Kit preset archive.
+   `ai-toolkit.pyz` and its checksum. Standard releases also include the full
+   repository source archive, notes, checksums, manifest, and Action metadata.
+   Do not attach the independent Spec Kit ZIP/checksum to standard releases;
+   `tooling/package-speckit-preset.sh` remains an explicit manual add-on packager.
+7. After required CI, run the manual Distribution Acceptance workflow against the
+   exact merged source. `tooling/verify_distribution.py` exercises that archive in
+   fresh consumers and refreshes a consumer installed from published v2.2.1.
+   Retain its verification record with the candidate assets. Prepare a draft with
+   all assets attached before requesting release review; never publish implicitly.
 
 Keep release claims tied to observed evidence. A catalog entry or workflow file
 is not proof that a provider is active.

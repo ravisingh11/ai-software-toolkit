@@ -6,7 +6,7 @@ preset:
   version: "1.0.0"
   description: "Spec Kit preset for issue-first, release-aware engineering standards"
   author: "Engineering Standards contributors"
-  repository: "https://github.com/engineering-standards/spec-kit-preset-engineering-standards"
+  repository: "https://github.com/ravisingh11/ai-software-toolkit/tree/main/tooling/speckit/engineering-standards"
   license: "MIT"
 
 requires:

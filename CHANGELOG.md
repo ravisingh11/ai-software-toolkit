@@ -8,9 +8,27 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
-## [2.2.1] - Draft
+## [2.3.0] - Draft
 
-Prepared for review; not published. See [draft release notes](docs/releases/v2.2.1.md).
+Prepared for maintainer review; not published. See [draft release notes](docs/releases/v2.3.0.md).
+
+- Shorten onboarding, retain detailed evidence guides, and index all 33 optional checks.
+- Make specification-driven development tool-independent and remove unsupported fork-secret advice.
+- Default fresh installs to Proof plus seven starter skills and 11 Core workflows;
+  retain all 12 advisory Core checks and preserve existing installation behavior.
+- Persist starter/full choices in configuration and managed inventory, without migration or pruning.
+- Add read-only per-check activation diagnostics using shared catalog/provider hints.
+- Scope documentation validation to tracked sources with a deterministic snapshot fallback.
+- Separate the optional Spec Kit preset from the CLI archive and standard release assets,
+  retaining its source, manual packager, compatibility identifier, and independent version.
+- Verify archived installation and published-consumer compatibility in hosted CI.
+
+## [2.2.1] - 2026-10-22
+
+Published 2026-10-22 from reviewed source `bf05798e4b03610551f9882620767f31de03d1df`.
+See the [published release](https://github.com/ravisingh11/ai-software-toolkit/releases/tag/v2.2.1)
+for final immutable assets; [preparation notes](docs/releases/v2.2.1.md) retain the
+historical draft description.
 
 - Rename the composite Action to **AI Software Toolkit Proof Attestation** for
   Marketplace submission, retaining its repository path, inputs, and execution

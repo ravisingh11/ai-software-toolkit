@@ -38,6 +38,10 @@ class BuildArchiveTests(unittest.TestCase):
     def test_payload_excludes_tests_and_bytecode(self):
         files = {path.relative_to(ROOT).as_posix() for path in self.module.payload_files()}
         self.assertIn("tooling/install.py", files)
+        self.assertNotIn("tooling/package-speckit-preset.sh", files)
+        self.assertFalse(any(name.startswith("tooling/speckit/") for name in files))
+        self.assertTrue((ROOT / "tooling/package-speckit-preset.sh").is_file())
+        self.assertTrue((ROOT / "tooling/speckit/engineering-standards/preset.yml").is_file())
         self.assertIn("tooling/ai_toolkit/cli.py", files)
         self.assertIn("policies/provider-config.yaml", files)
         self.assertIn("skills/toolkit-setup/SKILL.md", files)

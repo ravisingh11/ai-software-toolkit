@@ -24,6 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ARCHIVE_NAME = "ai-toolkit.pyz"
 PAYLOAD_DIRECTORIES = ("tooling", "proof", "policies", "workflows", "security/semgrep", "skills", "pr-review")
+EXCLUDED_PATHS = (Path("tooling/speckit"), Path("tooling/package-speckit-preset.sh"))
 EXCLUDED_PARTS = {"__pycache__", ".ruff_cache", "tests", "coverage-support", ".DS_Store"}
 
 LAUNCHER = '''"""ai-toolkit archive launcher: extract the payload once per checksum, then run the CLI."""
@@ -115,6 +116,8 @@ def payload_files(root: Path = ROOT) -> list[Path]:
             if not path.is_file():
                 continue
             relative = path.relative_to(root)
+            if any(relative == excluded or excluded in relative.parents for excluded in EXCLUDED_PATHS):
+                continue
             if any(part in EXCLUDED_PARTS for part in relative.parts) or path.suffix in {".pyc", ".pyo"}:
                 continue
             files.append(path)

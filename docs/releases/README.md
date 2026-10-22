@@ -7,7 +7,8 @@ they do not establish the status of a newer revision or a consumer application.
 
 | Release | Scope |
 | --- | --- |
-| [v2.2.1](v2.2.1.md) | Draft patch release for the Action display-name change; awaiting review |
+| [v2.3.0](v2.3.0.md) | Draft: lean fresh installations, complete activation guidance, diagnostics, and optional Spec Kit separation |
+| [v2.2.1](v2.2.1.md) | Published 2026-10-22: Action display-name patch |
 | [v2.2.0](v2.2.0.md) | Published minor release with stage-aware scorecards and independent optional security workflows |
 | [v2.1.1](v2.1.1.md) | Published patch release; see its GitHub release for final assets and publication evidence |
 | [v2.1.0](v2.1.0.md) | Shared CLI distribution, optional providers and lifecycle checks, scorecards, and Claude Code onboarding |

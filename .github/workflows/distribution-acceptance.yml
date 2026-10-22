@@ -1,0 +1,47 @@
+name: Distribution Acceptance
+
+# Maintainer-only release verification. Never distributed as a consumer default.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    name: Distribution Acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          path: candidate
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: bf05798e4b03610551f9882620767f31de03d1df
+          persist-credentials: false
+          path: legacy
+      - name: Build exact candidate archive
+        working-directory: candidate
+        env:
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 tooling/build_archive.py --output dist/ai-toolkit.pyz --revision "$CANDIDATE_SHA"
+      - name: Verify fresh and published consumers
+        working-directory: candidate
+        env:
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 tooling/verify_distribution.py --archive dist/ai-toolkit.pyz \
+            --legacy-source ../legacy --revision "$CANDIDATE_SHA" \
+            --output dist/distribution-verification.json
+      - name: Retain verified candidate bytes
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: verified-distribution-${{ github.event.pull_request.head.sha || github.sha }}
+          path: candidate/dist/
+          if-no-files-found: error
+          retention-days: 30

@@ -5,6 +5,15 @@ forking or vendoring Spec Kit core templates. It is intended for feature work
 that benefits from durable specifications, technical plans, task breakdowns,
 and release evidence.
 
+This is an optional, independently versioned integration. Proof, CLI installation,
+and the seven starter skills do not require Spec Kit. The `engineering-standards`
+identifier and version 1.0.0 remain compatible with existing consumers.
+
+From v2.3.0, the default CLI archive excludes this preset and its packager, and
+standard toolkit releases do not attach a preset ZIP/checksum. The full repository
+source archive retains both. Published assets, including v2.2.1, remain available.
+No separate repository or add-on release is created by this separation.
+
 ## Install For Development
 
 From a Spec Kit initialized repository:
@@ -17,7 +26,7 @@ specify preset resolve spec-template
 
 ## Package
 
-From the engineering standards repository:
+From an explicitly reviewed full toolkit source checkout:
 
 ```bash
 tooling/package-speckit-preset.sh
@@ -28,6 +37,11 @@ The package is written to:
 ```text
 dist/spec-kit-preset-engineering-standards-v1.0.0.zip
 ```
+
+Inspect the output and compute its checksum yourself (`shasum -a 256
+ dist/spec-kit-preset-engineering-standards-v1.0.0.zip`). Packaging does not publish
+or install it. Use `--dev` to adopt your reviewed source locally; a future package
+publication is a separate maintainer decision.
 
 ## Install From Package
 

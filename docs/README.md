@@ -63,6 +63,17 @@ The `engineering-standards` identifier under `tooling/speckit/` is a compatibili
 identifier for the published Spec Kit preset. It is independent of the GitHub
 repository name.
 
+## Distribution verification
+
+The toolkit-owned `.github/workflows/distribution-acceptance.yml` verifies CLI
+archive integrity and fresh/published-consumer compatibility on PRs and explicit
+maintainer dispatch. It is not installed into consumers. After required CI passes,
+run it on the final merged revision and retain the verified CLI bytes and
+`distribution-verification.json` for the draft release. Its fixture runner is
+`tooling/verify_distribution.py`; it does not execute application checks or
+activate providers. Full source archives retain the optional Spec Kit source;
+the default CLI archive and standard release attachments exclude its package.
+
 ## Local output and history
 
 `dist/`, `.artifacts/`, `.omx/`, `.superpowers/`, and `.worktrees/` hold local

@@ -275,6 +275,15 @@ replacing the directory entry, so a symlink that appeared in the meantime is
 never followed. Running `update` at the same
 revision with nothing changed is a no-op.
 
+## Optional Spec Kit add-on
+
+The v2.3.0 CLI archive excludes `tooling/speckit/` and
+`tooling/package-speckit-preset.sh`. Standard toolkit release assets do not include
+the independent preset ZIP/checksum. Use the full source archive and the
+[manual preset packaging/installation guide](../tooling/speckit/engineering-standards/README.md)
+if your repository explicitly adopts Spec Kit. The compatibility identifier,
+source paths, preset version, and published historical assets are preserved.
+
 ## Trust boundaries
 
 - `doctor` never executes anything; `verified` comes only from existing
