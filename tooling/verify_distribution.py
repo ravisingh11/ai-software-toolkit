@@ -332,8 +332,8 @@ def verify(archive: Path, legacy_archive: Path, revision: str) -> dict:
         changed = copy.deepcopy(policy)
         changed["policy"]["overrides"]["change"]["unit-tests"] = "enforced"
         negative_controls.append(reject("changed-selection", lambda: equal(policy, changed, "selection")))
-        custom = new / ".proof/negative-control.txt"
-        custom.write_text("unrequested change")
+        custom = new / "README.md"
+        custom.write_text("unexpected edit to an existing consumer file\n")
         negative_controls.append(reject("altered-custom-file", lambda: compare_consumers(old, new, replacements, additions)))
         card = evaluations[1]["outputs"]["candidate"]["scorecard"]
         false_pass = copy.deepcopy(card)
