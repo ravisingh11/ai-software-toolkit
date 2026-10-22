@@ -8,6 +8,11 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+## [2.2.0] - Unreleased
+
+Release candidate for maintainer review; not tagged or published. See
+[preparation notes](docs/releases/v2.2.0.md) for scope and evidence limits.
+
 - Add an overview of all 33 built-in checks near the top of the scorecard,
   grouped by selected checks, available adoption options, and later-stage
   relevance, with links to each check's details ([#144](https://github.com/ravisingh11/ai-software-toolkit/pull/144)).
