@@ -169,4 +169,3 @@ Each repository decides whether to adopt or enforce a check. If you choose to
 require one, first verify its producer, stable check name, failure behavior,
 exact-subject evidence, and remediation owner. Policy modes and GitHub branch
 rules are separate settings; AI review stays advisory-only.
-
