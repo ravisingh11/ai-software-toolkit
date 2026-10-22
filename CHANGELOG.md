@@ -8,6 +8,16 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+## [2.2.1] - Draft
+
+Prepared for review; not published. See [draft release notes](docs/releases/v2.2.1.md).
+
+- Rename the composite Action to **AI Software Toolkit Proof Attestation** for
+  Marketplace submission, retaining its repository path, inputs, and execution
+  ([#148](https://github.com/ravisingh11/ai-software-toolkit/pull/148)).
+- Align the CLI patch version and prepare release assets, checksums, a manifest,
+  and Marketplace metadata for review. GitHub must still confirm name availability.
+
 ## [2.2.0] - 2026-10-21
 
 Published 2026-10-21 (America/New_York) from reviewed source
