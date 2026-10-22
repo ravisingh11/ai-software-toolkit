@@ -65,13 +65,17 @@ class StarterInstallationTests(CliFixture):
         self.assertFalse((self.target / ".agents").exists())
 
     def test_existing_unrelated_client_directory_is_still_a_fresh_toolkit_install(self):
-        custom = self.target / ".claude/skills/consumer-owned"
+        custom = self.target / ".claude/skills/code-review"
         custom.mkdir(parents=True)
         (custom / "SKILL.md").write_text("# Consumer skill\n")
         code, _, err = run_cli("init", "--target", str(self.target), "--clients", "claude-code", "--yes")
         self.assertEqual(code, 0, err)
         self.assertEqual(config.read_lock(self.target)["toolkit"]["install_set"], "starter")
         self.assertFalse((self.target / ".agents").exists())
+        self.assertEqual((custom / "SKILL.md").read_text(), "# Consumer skill\n")
+        code, out, err = run_cli("update", "--target", str(self.target), "--force", "--json")
+        self.assertEqual(code, 0, err)
+        self.assertIn(".claude/skills/code-review/SKILL.md", json.loads(out)["classification"]["modified"])
         self.assertEqual((custom / "SKILL.md").read_text(), "# Consumer skill\n")
 
     def test_full_is_explicit_and_github_profile_remains_separate(self):

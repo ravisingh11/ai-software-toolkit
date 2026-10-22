@@ -288,9 +288,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     existing_lock = config.read_lock(target)
     recorded_set = config.recorded_install_set(existing_configuration, existing_lock)
     existing_install = bool(existing_configuration or existing_lock or (target / ".proof").exists()
-                            or any((target / directory / name / "SKILL.md").is_file()
-                                   for directory in skills.CLIENT_PROJECT_DIRS.values()
-                                   for name in skills.canonical_skills()))
+                            or any((target / directory / skills.SHARED_BUNDLE).is_dir()
+                                   for directory in skills.CLIENT_PROJECT_DIRS.values()))
     if existing_install and args.install_set is not None and args.install_set != (recorded_set or "full"):
         raise ToolkitError("install-set defaults apply only to fresh installations; adopt optional workflows explicitly")
     install_set = recorded_set if existing_install else (args.install_set or "starter")
@@ -435,6 +434,17 @@ def cmd_init(args: argparse.Namespace) -> int:
         root = Path(row["destination"])
         written.update((root / item).as_posix() for entry in row["skills"] for item in entry["files"])
     hashes = config.hash_managed(target, managed)
+    # A merged consumer skill can contain existing edits. Record the offered
+    # canonical baseline, never adopt those edits as upstream bytes that update
+    # may safely overwrite. Previously recorded baselines below remain intact.
+    for row in applied["skills"]:
+        root = Path(row["destination"])
+        for entry in row["skills"]:
+            if entry["action"] == "skip":
+                continue
+            for source in skills.skill_files(entry["skill"]):
+                path = (root / entry["skill"] / source.relative_to(skills.source_dir() / entry["skill"])).as_posix()
+                hashes[path] = sha256_file(source)
     if previous_lock:
         # Files already under management that init did not rewrite keep their recorded
         # baseline, so a later update still sees local edits as conflicts and can restore

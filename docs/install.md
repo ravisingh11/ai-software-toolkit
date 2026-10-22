@@ -62,7 +62,9 @@ remain manual. `--profile github` and the optional scorecard badge/Pages setup
 are separate choices.
 
 Existing configurations and locks without `install_set` keep full behavior.
-There is no automatic migration or pruning, and changing an existing set with
+Existing client directories alone do not establish a previous toolkit install.
+A fresh merge records the canonical baseline for an existing customized skill,
+so a later update preserves it as a conflict. There is no automatic migration or pruning, and changing an existing set with
 `init` is refused. Updates preserve configurations, owned workflows, custom
 files, and recorded skills. A manually adopted optional workflow in a starter
 installation is left in place. Proof-only installations create no client skill
