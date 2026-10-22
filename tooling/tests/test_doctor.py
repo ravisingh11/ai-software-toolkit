@@ -64,6 +64,21 @@ class DoctorTests(unittest.TestCase):
         self.assertNotIn("touch", json.dumps(report))
         self.assertNotIn("passed", [item["status"] for item in report["checks"]])
 
+    def test_diagnostic_preserves_ignored_and_untracked_file_bytes(self):
+        (self.target / ".gitignore").write_text(".artifacts/\n")
+        ignored = self.target / ".artifacts/consumer-evidence.txt"
+        ignored.parent.mkdir()
+        ignored.write_text("existing ignored evidence\n")
+        (self.target / "consumer-notes.txt").write_text("existing untracked notes\n")
+
+        def snapshot():
+            return {p.relative_to(self.target): (p.read_bytes(), p.stat().st_mode)
+                    for p in self.target.rglob("*") if p.is_file()}
+
+        before = snapshot()
+        self.report(environment={})
+        self.assertEqual(snapshot(), before)
+
     def test_installed_cli_works_without_canonical_checkout_and_does_not_write(self):
         before = self.git("status", "--porcelain")
         environment = {key: value for key, value in os.environ.items()

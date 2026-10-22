@@ -910,11 +910,11 @@ def cmd_update(args: argparse.Namespace) -> int:
     target = resolve_target(args.target)
     configuration = config.read_configuration(target)
     lock = config.read_lock(target)
+    config.recorded_install_set(configuration, lock)
     if args.rollback:
         return _rollback(target, configuration, lock, args)
     if configuration is None:
         raise ToolkitError(f"{config.TOML_NAME} is missing; run `ai-toolkit init` first")
-    config.recorded_install_set(configuration, lock)
     reject_retired_skills(target, configuration, lock)
     current = revision()
     managed = managed_files(target, configuration, lock)
@@ -1020,6 +1020,7 @@ def cmd_update(args: argparse.Namespace) -> int:
 
 
 def _rollback(target: Path, configuration: dict[str, Any] | None, lock: dict[str, Any] | None, args: argparse.Namespace) -> int:
+    install_set = config.recorded_install_set(configuration, lock)
     previous = lock.get("previous") if lock else None
     if not isinstance(previous, dict) or not isinstance(previous.get("backup"), str):
         raise ToolkitError("no previous installation is recorded in the lock; nothing to roll back")
@@ -1042,7 +1043,7 @@ def _rollback(target: Path, configuration: dict[str, Any] | None, lock: dict[str
     components = configuration["toolkit"]["components"] if configuration else list(config.COMPONENTS)
     recorded = previous.get("managed") if isinstance(previous.get("managed"), dict) else {}
     managed = recorded or config.hash_managed(target, managed_files(target, configuration))
-    config.write_lock(target, config.build_lock(previous.get("revision") or revision(), components=components, managed=managed, install_set=config.recorded_install_set(configuration, lock)))
+    config.write_lock(target, config.build_lock(previous.get("revision") or revision(), components=components, managed=managed, install_set=install_set))
     _emit({"restored": restored}, args.json, f"Restored {len(restored)} files from {previous['backup']}.")
     return 0
 

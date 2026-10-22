@@ -101,6 +101,8 @@ Inspect the [live toolkit scorecard](https://ravisingh11.github.io/ai-software-t
 [reading evidence guide](docs/proof/reading-evidence.md) for revision binding,
 freshness, result states, and provider limitations. Historical verification
 records remain in the [provider ledger](docs/providers/verification.md).
+The [v2.3.0 compatibility review](docs/releases/v2.3.0-compatibility.md) explains
+hosted verification against the published CLI and its limits.
 
 ## See it in an application
 

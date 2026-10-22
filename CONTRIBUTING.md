@@ -124,7 +124,8 @@ Before a toolkit release:
    `tooling/package-speckit-preset.sh` remains an explicit manual add-on packager.
 7. After required CI, run the manual Distribution Acceptance workflow against the
    exact merged source. `tooling/verify_distribution.py` exercises that archive in
-   fresh consumers and refreshes a consumer installed from published v2.2.1.
+   fresh consumers and paired legacy consumers installed with the actual published
+   v2.2.1 CLI bytes. See the [compatibility evidence contract](docs/releases/v2.3.0-compatibility.md).
    Retain its verification record with the candidate assets. Prepare a draft with
    all assets attached before requesting release review; never publish implicitly.
 

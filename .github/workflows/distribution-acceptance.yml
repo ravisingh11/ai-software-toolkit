@@ -20,15 +20,21 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           path: candidate
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: bf05798e4b03610551f9882620767f31de03d1df
-          persist-credentials: false
-          path: legacy
+      - name: Download immutable published baseline
+        run: |
+          mkdir -p legacy
+          curl --fail --location --retry 3 \
+            https://github.com/ravisingh11/ai-software-toolkit/releases/download/v2.2.1/ai-toolkit.pyz \
+            --output legacy/ai-toolkit.pyz
+          curl --fail --location --retry 3 \
+            https://github.com/ravisingh11/ai-software-toolkit/releases/download/v2.2.1/ai-toolkit.pyz.sha256 \
+            --output legacy/ai-toolkit.pyz.sha256
+          # The acceptance harness pins both digests before executing the baseline.
       - name: Focused activation and documentation regressions
         working-directory: candidate
         run: |
           python3 -m unittest discover -s tooling/tests -p test_doctor.py
+          PYTHONPATH=tooling/tests python3 -m unittest test_starter_installation
           python3 -m unittest discover -s tooling/validators/tests -p test_validate_documentation.py
           PYTHONPATH=tooling/tests python3 -m unittest test_python_demo.PythonDemoTests.test_demo_documentation_validation_rejects_broken_internal_link
       - name: Build exact candidate archive
@@ -42,7 +48,7 @@ jobs:
           CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           python3 tooling/verify_distribution.py --archive dist/ai-toolkit.pyz \
-            --legacy-source ../legacy --revision "$CANDIDATE_SHA" \
+            --legacy-archive ../legacy/ai-toolkit.pyz --revision "$CANDIDATE_SHA" \
             --output dist/distribution-verification.json
       - name: Retain verified candidate bytes
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

@@ -150,3 +150,20 @@ class StarterInstallationTests(CliFixture):
         snapshot = {p.relative_to(self.target): p.read_bytes() for p in self.target.rglob("*") if p.is_file()}
         self.assertEqual(run_cli("update", "--target", str(self.target), "--force")[0], 2)
         self.assertEqual(snapshot, {p.relative_to(self.target): p.read_bytes() for p in self.target.rglob("*") if p.is_file()})
+
+    def test_rollback_rejects_disagreement_before_restoring_or_deleting_files(self):
+        self.assertEqual(self.init()[0], 0)
+        self.assertEqual(run_cli("update", "--target", str(self.target), "--force")[0], 0)
+        lock = config.read_lock(self.target)
+        lock["toolkit"]["install_set"] = "full"
+        config.write_lock(self.target, lock)
+        # A restore would replace this edit; a post-restore error is too late.
+        (self.target / ".proof/scan.py").write_text("consumer edit after update\n")
+        snapshot = {p.relative_to(self.target): p.read_bytes() for p in self.target.rglob("*") if p.is_file()}
+        for options in ([], ["--dry-run"]):
+            with self.subTest(options=options), patch.object(cli, "_restore") as restore:
+                code, _, error = run_cli("update", "--target", str(self.target), "--rollback", *options)
+                self.assertEqual(code, 2)
+                self.assertIn("disagree", error)
+                restore.assert_not_called()
+                self.assertEqual(snapshot, {p.relative_to(self.target): p.read_bytes() for p in self.target.rglob("*") if p.is_file()})
