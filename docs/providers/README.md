@@ -240,3 +240,12 @@ For release provenance and Trivy without deployment or runtime setup, use the
 and IaC have optional native PR providers; image scans and release-asset
 verification retain their artifact scope. Advanced lifecycle remains manual;
 its existing signed-receipt collector is unchanged.
+
+## Selection, adoption, and execution
+
+Use the [selection and stage guide](availability.md#selection-and-stage) to
+distinguish selected checks, tools available to adopt, and checks relevant later.
+Advisory or Enforced is independent of activation and execution. Inspect the
+revision-bound scorecard and producer evidence for results; this provider catalog
+is not a claim that every listed tool is running. Checks remain optional and
+polyglot examples remain manual.

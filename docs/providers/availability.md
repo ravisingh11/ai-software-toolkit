@@ -6,6 +6,43 @@ It describes shipped implementation, not a claim that a repository has the
 provider running. Every check remains optional; selecting a provider does not
 activate a control or change GitHub branch protection.
 
+## Selection and stage
+
+Use three groups when choosing tools or reading the published scorecard:
+
+- **Selected checks:** policy selects the check for the evaluated subject and
+  stage. Retain failures and missing evidence in its results and totals.
+- **Tools available to adopt:** supported but unselected tools for the current
+  stage. Read their prerequisites below before opting in.
+- **Checks relevant later:** unselected checks aimed at a later release or
+  runtime stage. Select them when that stage and its real inputs apply.
+
+These groups describe adoption, not execution. Advisory and Enforced describe
+policy behavior independently. A selected advisory check may fail or lack usable
+proof. A selected enforced check needs a passing result for the toolkit decision
+to allow progress. Neither choice changes GitHub merge protection automatically.
+
+For this toolkit repository, inspect [policy](../../.proof/policy.yaml) for
+selection and [providers](../../.proof/providers.yaml) for producer mappings.
+Core/GitHub development checks are selected as advisory. Optional Trivy scans
+and provenance can run independently; a workflow run alone does not add a check
+to the stage's selected score. The live page's revision and source-run links are
+the authority for what ran, what passed, and what could not be verified.
+
+To inspect your own installation:
+
+1. Read its policy, evaluation stage, and provider mappings at the same revision.
+2. Inspect enablement variables, commands and required service configuration.
+3. Follow the source report and producer run for exact-subject results. A skipped
+   job or an installed workflow is not passing evidence.
+4. Keep unselected tools outside the score. Opt in only when useful; advanced
+   lifecycle execution and polyglot examples remain manual.
+
+Skills are agent instructions rather than scheduled scanners. Installed skills
+are available to use; task-specific QA or review reports establish actual use.
+The QA bootstrap supplies app-specific guidance and contracts, while a hosted
+QA producer still requires explicit configuration.
+
 Verify these separately:
 
 1. **Implemented:** the producer and collector path exist and match the contract.
