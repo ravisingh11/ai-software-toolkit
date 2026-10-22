@@ -46,9 +46,7 @@ remains available; the preset README covers explicit packaging and installation.
 
 ## Related standards
 
-- [Mature product repositories](mature-product-repo-standard.md)
 - [Release evidence](release-evidence-standard.md)
 - [Error handling](error-handling-standard.md)
-- [Cross-client delivery](../../contracts/CROSS_CLIENT_DELIVERY_CONTRACT.md)
 
 These standards describe outcomes; the chosen specification tool helps record them.
