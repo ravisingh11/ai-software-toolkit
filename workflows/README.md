@@ -536,3 +536,17 @@ advanced manual `lifecycle-verification.yml` workflow.
 **Trivy Repository IaC** (`trivy-repository-iac`) are optional selectable PR
 providers. Existing provider selections and required checks are unchanged.
 See [setup and evidence boundaries](../docs/providers/independent-security.md).
+
+## Fresh installation sets and toolkit release verification
+
+From v2.3.0, fresh `ai-toolkit init --install-set starter` installs 11 Core
+workflows while keeping all 12 advisory Core checks. Trivy and lifecycle
+workflows require explicit adoption; `--profile github` and optional Pages
+publication remain separate choices. Existing installations without a recorded
+set keep the full plan. See [installation sets](../docs/install.md#fresh-starter-installation-v230).
+
+The toolkit-owned [Distribution Acceptance](../.github/workflows/distribution-acceptance.yml)
+workflow exercises the candidate CLI archive on PRs and explicit maintainer
+dispatch. It is not a distributed consumer workflow, does not activate checks,
+and does not execute lifecycle or polyglot producers. A final merged-source run
+retains the verified archive and consumer-compatibility record for release review.
