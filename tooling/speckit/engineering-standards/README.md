@@ -10,7 +10,7 @@ and release evidence.
 From a Spec Kit initialized repository:
 
 ```bash
-specify preset add --dev /path/to/engineering-standards/tooling/speckit/engineering-standards --priority 5
+specify preset add --dev /path/to/ai-software-toolkit/tooling/speckit/engineering-standards --priority 5
 specify preset list
 specify preset resolve spec-template
 ```
@@ -32,7 +32,7 @@ dist/spec-kit-preset-engineering-standards-v1.0.0.zip
 ## Install From Package
 
 ```bash
-specify preset add --from https://github.com/engineering-standards/spec-kit-preset-engineering-standards/releases/download/v1.0.0/spec-kit-preset-engineering-standards-v1.0.0.zip --priority 5
+specify preset add --from https://github.com/ravisingh11/ai-software-toolkit/releases/download/v2.2.1/spec-kit-preset-engineering-standards-v1.0.0.zip --priority 5
 ```
 
 `--from` requires an HTTPS URL. Use `--dev` for local development installs.

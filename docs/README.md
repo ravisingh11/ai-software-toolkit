@@ -20,6 +20,10 @@ developing the toolkit, the [repository rename](repository-rename.md) note,
 the [Guardrails to Proof migration](proof/migrating-from-guardrails.md),
 and the [changelog](../CHANGELOG.md) with [release notes](releases/README.md).
 
+The [activation index](activation.md) covers all 33 checks. The
+[reading evidence guide](proof/reading-evidence.md) preserves detailed setup,
+provider limitations, and scorecard interpretation.
+
 ## Guides by area
 
 | Directory | Contents |

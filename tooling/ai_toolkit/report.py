@@ -39,7 +39,7 @@ REVIEW_SKILLS = {
 REASON_ACTIONS = {
     "configuration-missing": "Install the provider CLI or configuration named in the reason, then rerun.",
     "credential-missing": "Add the provider credential as a secret of the proof-providers environment (or export it locally), then rerun.",
-    "credential-withheld": "Fork pull requests are not sent to the provider; set PROOF_PROVIDERS_SCAN_FORKS=true to scan them.",
+    "credential-withheld": "Credentials are withheld from fork pull requests. Use a trusted same-repository review flow; do not expose provider secrets to fork code.",
     "authentication-failed": "Rotate or fix the provider credential; the current one was rejected.",
     "execution-error": "Open the provider run log; the command failed before producing a result.",
     "analysis-incomplete": "The provider did not finish evaluating this revision; rerun once its analysis completes or raise the timeout.",

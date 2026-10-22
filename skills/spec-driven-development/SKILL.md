@@ -1,55 +1,35 @@
 ---
 name: spec-driven-development
-description: "Use Spec Kit with the engineering standards preset for substantial feature work, cross-client changes, unclear requirements, or risky refactors that need durable specs, plans, tasks, and release evidence."
+description: "Capture tool-independent specifications, plans, tasks, and acceptance evidence for substantial features, unclear requirements, cross-client changes, or risky refactors."
 ---
 
-# Spec-Driven Development
+# Specification-driven development
 
-Use this skill when a repository should use Spec Kit before implementation.
+Use the repository's existing issue tracker, Markdown conventions, or chosen
+specification tool. Spec Kit is optional and is never a prerequisite for this skill.
 
 ## Workflow
 
-1. Confirm the change fits Spec Kit: substantial feature, cross-client work,
-   unclear requirements, architecture-sensitive change, or risky refactor.
-2. Confirm the repository is initialized with Spec Kit and has the engineering
-   standards preset installed.
-3. Use `$speckit-constitution` when governing principles are missing or stale.
-4. Use `$speckit-specify` to produce the feature spec.
-5. Use `$speckit-clarify` if the spec contains high-impact ambiguities.
-6. Use `$speckit-plan` to produce the technical implementation plan.
-7. Use `$speckit-tasks` to generate implementation tasks.
-8. Use `$speckit-analyze` before implementation when artifacts might drift.
-9. Use `$speckit-implement` only after spec, plan, and tasks are coherent.
+1. Capture outcomes, user journeys, constraints, assumptions, and edge cases.
+2. Clarify ambiguities that affect scope or safety.
+3. Record technical decisions, contract changes, risks, and release gates.
+4. Break the plan into independently testable user stories and tasks.
+5. Review consistency before implementing; update artifacts when intent changes.
+6. Link acceptance evidence and release decisions to the reviewed revision.
 
-## Install Commands
+For small changes, use an issue or PR description instead of generating unnecessary
+artifacts. Keep specifications free of secrets, customer data, and private logs.
+Preserve cross-client parity and repository-owned acceptance criteria.
 
-From a Spec Kit initialized repository:
+## Optional integration
 
-```bash
-specify preset add --dev /path/to/engineering-standards/tooling/speckit/engineering-standards --priority 5
-specify preset list
-specify preset resolve spec-template
-```
-
-For a packaged release, publish the ZIP to an HTTPS release URL:
-
-```bash
-specify preset add --from https://github.com/engineering-standards/spec-kit-preset-engineering-standards/releases/download/v1.0.0/spec-kit-preset-engineering-standards-v1.0.0.zip --priority 5
-```
-
-## Standards
-
-- Keep `spec.md` free of implementation details.
-- Keep technical decisions in `plan.md`.
-- Keep tasks grouped by independently testable user story.
-- Link the owning issue or tracker when one exists.
-- Include parity and contract checks for multi-surface behavior.
-- Include release evidence for production-facing changes.
-- Never store secrets, tokens, customer data, private logs, or sensitive
-  operational details in Spec Kit artifacts.
+When the repository already chooses Spec Kit, follow its installed workflow.
+See the toolkit's `docs/standards/spec-driven-development-standard.md` and
+`tooling/speckit/engineering-standards/README.md` for explicit preset installation.
+The preset is independent of Proof and the starter skill selection.
 
 ## Verification
 
-- `specify preset list`
-- `specify preset resolve spec-template`
-- `python3 tooling/validate-skills.py` in this standards repository
+Review that intent, implementation plan, tasks, and acceptance evidence agree.
+Execute only the repository's authorized checks. Installing a skill or generating
+a specification does not execute a producer or prove a check passed.
