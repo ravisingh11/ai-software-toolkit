@@ -25,6 +25,12 @@ jobs:
           ref: bf05798e4b03610551f9882620767f31de03d1df
           persist-credentials: false
           path: legacy
+      - name: Focused activation and documentation regressions
+        working-directory: candidate
+        run: |
+          python3 -m unittest discover -s tooling/tests -p test_doctor.py
+          python3 -m unittest discover -s tooling/validators/tests -p test_validate_documentation.py
+          PYTHONPATH=tooling/tests python3 -m unittest test_python_demo.PythonDemoTests.test_demo_documentation_validation_rejects_broken_internal_link
       - name: Build exact candidate archive
         working-directory: candidate
         env:
