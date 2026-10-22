@@ -1,4 +1,4 @@
-name: Proof Attestation
+name: AI Software Toolkit Proof Attestation
 description: Evaluate revision-bound producer evidence against a repository policy
 inputs:
   policy-file:
