@@ -75,6 +75,10 @@ def verify(archive: Path, legacy_source: Path, revision: str) -> dict:
             target = workspace / name
             target.mkdir()
             (target / "README.md").write_text("# Consumer\n")
+            run(["git", "init", "-q"], target, environment)
+            run(["git", "add", "README.md"], target, environment)
+            run(["git", "-c", "user.name=Toolkit Fixture", "-c", "user.email=fixture@example.invalid",
+                 "commit", "-qm", "Initialize consumer"], target, environment)
             run(command + ["init", "--target", str(target), "--yes", *options], target, environment)
             require(workflows(target) == (set() if name == "runtime-only" else STARTER), "Unexpected fresh workflows")
             lock = json.loads((target / "toolkit.lock.json").read_text())
@@ -91,7 +95,9 @@ def verify(archive: Path, legacy_source: Path, revision: str) -> dict:
                 require(len(list(root.glob("*/SKILL.md"))) == 7, "Starter skill count changed")
             run(command + ["update", "--target", str(target), "--force"], target, environment)
             require(workflows(target) == (set() if name == "runtime-only" else STARTER), "Update widened starter workflows")
+            before = run(["git", "status", "--porcelain"], target, environment)
             report = json.loads(run(command + ["doctor", "--target", str(target), "--json"], target, environment, codes=(0, 1)))
+            require(run(["git", "status", "--porcelain"], target, environment) == before, "Doctor mutated the consumer")
             require(len(report["activation"]) == 33, "Doctor omitted checks")
             require(all(not row["evidence"]["verified"] for row in report["activation"]), "Unexecuted fixture gained passing evidence")
             cases.append({"name": name, "status": "passed", "checks": 33, "core_advisory": 12})
