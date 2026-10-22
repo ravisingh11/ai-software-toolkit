@@ -36,6 +36,38 @@ into your repository exactly as a checkout does. Always verify a downloaded
 archive against its `.sha256` asset from the same pinned release; `update`
 never fetches anything on its own.
 
+## Fresh starter installation (v2.3.0)
+
+On the v2.3.0 source line, fresh `init` defaults to `--install-set starter`
+with `--components proof,skills` and the existing seven starter skills for the
+selected clients. Published older releases retain their original behavior.
+
+Starter installs these 11 workflows: scorecard, repository validation (including
+documentation and ground truth), PR size, PR metadata, build, unit tests,
+changed-code coverage, format/lint, migrations, Semgrep CE, and Gitleaks.
+The existing Core policy still selects all 12 advisory checks. A missing scanner
+or command remains unverified; lean installation does not waive coverage.
+
+`--install-set full` explicitly installs the legacy Core workflow collection,
+including Trivy and lifecycle templates. It does not select the GitHub profile
+or Pages. The low-level `tooling/install.py` retains its full legacy default;
+use the CLI for the fresh starter path.
+
+Trivy and lifecycle templates are absent from starter. Adopt a particular workflow
+explicitly by copying its template from `workflows/` into `.github/workflows/`,
+reviewing its prerequisites, and selecting/configuring its provider separately.
+See the [activation index](activation.md) and
+[independent security guide](providers/independent-security.md). Lifecycle runs
+remain manual. `--profile github` and the optional scorecard badge/Pages setup
+are separate choices.
+
+Existing configurations and locks without `install_set` keep full behavior.
+There is no automatic migration or pruning, and changing an existing set with
+`init` is refused. Updates preserve configurations, owned workflows, custom
+files, and recorded skills. A manually adopted optional workflow in a starter
+installation is left in place. Proof-only installations create no client skill
+directories; Claude-only installs populate `.claude/skills/` only.
+
 ## Set up a repository
 
 ```bash
@@ -67,7 +99,8 @@ or an interactive confirmation. Options:
 
 | Option | Effect |
 | --- | --- |
-| `--components proof,skills,qa` | Install a subset; each component is independently adoptable |
+| `--install-set starter\|full` | Fresh default: starter; persisted in configuration and lock. Existing missing metadata retains full behavior |
+| `--components proof,skills,qa` | Choose components; fresh default is proof,skills; QA orchestration requires explicit adoption |
 | `--clients codex,claude-code` | Project skill directories to populate (`.agents/skills`, `.claude/skills`); defaults to detected clients |
 | `--skills starter\|all\|name,...` | Skills to install; the starter set is small and review-oriented |
 | `--profile github` | Add the optional GitHub provider profile |
@@ -92,8 +125,9 @@ Commit this file. It holds only what nothing else owns:
 
 ```toml
 [toolkit]
-revision = "v2.1.0"
-components = ["proof", "skills", "qa"]
+revision = "v2.3.0"
+components = ["proof", "skills"]
+install_set = "starter"
 
 [agents]
 clients = ["codex", "claude-code"]
@@ -106,6 +140,9 @@ profiles = ".proof/profiles.yaml"
 actions = true            # false after init --no-actions; update never adds workflows then
 github_profile = false    # true after init --profile github
 ```
+
+`install_set` is also stored under `toolkit` in the managed-file lock; its absence
+means the full legacy plan. The lock format remains version 1.
 
 `actions` and `github_profile` record the installation mode chosen at `init`
 so `update` reproduces it even when a workflow file of the same name is

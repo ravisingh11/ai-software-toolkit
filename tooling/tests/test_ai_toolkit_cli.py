@@ -178,7 +178,7 @@ class DiscoverAndInitTests(CliFixture):
         self.assertTrue((self.target / ".proof" / "policy.yaml").is_file())
         self.assertTrue((self.target / ".github" / "workflows" / "build.yml").is_file())
         self.assertTrue((self.target / ".agents" / "skills" / "code-review" / "SKILL.md").is_file())
-        self.assertTrue((self.target / ".claude" / "skills" / "qa-bootstrap" / "SKILL.md").is_file())
+        self.assertFalse((self.target / ".claude" / "skills" / "qa-bootstrap" / "SKILL.md").is_file())
         configuration = config.read_configuration(self.target)
         self.assertEqual(configuration["agents"]["clients"], ["codex", "claude-code"])
         lock = config.read_lock(self.target)
@@ -279,7 +279,7 @@ class DoctorCheckTests(CliFixture):
         payload = json.loads(out)
         self.assertEqual(payload["components"]["proof"]["state"], "installed")
         self.assertEqual(payload["components"]["toolkit"]["state"], "configured")
-        self.assertEqual(payload["components"]["qa"]["state"], "missing")
+        self.assertNotIn("qa", payload["components"])
         states = {row["capability"]: row["state"] for row in payload["capabilities"]}
         self.assertEqual(states["build"], "installed")
         self.assertEqual(states["repository-validation"], "configured")
@@ -725,10 +725,9 @@ class ReviewRegressionTests(CliFixture):
         self.assertNotIn("security-audit-lite", selected)
         code, out, _ = self.init("--components", "proof")
         self.assertEqual(code, 0, out)
-        # The Proof installer ships prepare-safe-change with the runtime; nothing from the
-        # starter set beyond that may appear, and the earlier selection stays intact.
+        # Adding Proof to a new-style install does not implicitly install a skill.
         after = sorted(path.name for path in skills_dir.iterdir() if path.is_dir())
-        self.assertEqual(sorted(set(after) - {"prepare-safe-change"}), selected)
+        self.assertEqual(after, selected)
         self.assertNotIn("security-audit-lite", after)
         self.assertNotIn("security-audit-lite", out)
         configuration = config.read_configuration(self.target)

@@ -46,6 +46,13 @@ unpinned URL; verify `ai-toolkit.pyz.sha256` against the release asset first.
    then `ai-toolkit update --target .`. Modified managed files are preserved
    and listed as conflicts; `--rollback` restores the recorded backup.
 
+Fresh v2.3.0 installs default to `--install-set starter` with Proof and the
+seven starter skills. Use `--install-set full` only when explicitly requested.
+Trivy and lifecycle workflows, the GitHub profile, and Pages require separate
+adoption. Existing records without a set keep full behavior; never migrate or
+prune an existing installation automatically. Respect repository execution
+limits: skip the check step when the user has prohibited local tests.
+
 ## Decision rules
 
 - Existing workflows and provider integrations are reported, not duplicated.

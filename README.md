@@ -40,6 +40,12 @@ installs, updates, ownership, and rollback. The
 [activation index](docs/activation.md) covers **all 33 checks**, including
 prerequisites, execution, evidence, disabling, and optional enforcement.
 
+For the upcoming v2.3.0 source line, fresh installations default to
+`--install-set starter`: Proof, seven starter skills, and 11 Core workflows
+covering all 12 advisory Core checks. Existing installations keep their prior
+behavior. See [starter and full installation sets](docs/install.md#fresh-starter-installation-v230).
+The pinned v2.2.1 example above retains that published release's behavior.
+
 ## What you can use
 
 | Component | Purpose | Guide |

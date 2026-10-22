@@ -24,6 +24,7 @@ CLIENTS = ("codex", "claude-code")
 TOML_NAME = "toolkit.toml"
 LOCK_NAME = "toolkit.lock.json"
 LOCK_VERSION = 1
+INSTALL_SETS = ("starter", "full")
 
 TOML_TEMPLATE = """# AI Software Toolkit configuration. Policy and provider selection live in
 # .proof/ and are changed with .proof/configure.py; repository
@@ -31,7 +32,7 @@ TOML_TEMPLATE = """# AI Software Toolkit configuration. Policy and provider sele
 
 [toolkit]
 revision = {revision}
-components = [{components}]
+components = [{components}]{install_set}
 
 [agents]
 clients = [{clients}]
@@ -55,9 +56,9 @@ def _toml_list(values: list[str]) -> str:
 
 
 def default_configuration(revision: str, *, components: list[str], clients: list[str], skills_dir: str = ".agents/skills",
-                          actions: bool = True, github_profile: bool = False) -> dict[str, Any]:
+                          actions: bool = True, github_profile: bool = False, install_set: str | None = None) -> dict[str, Any]:
     return {
-        "toolkit": {"revision": revision, "components": list(components)},
+        "toolkit": {"revision": revision, "components": list(components), **({"install_set": install_set} if install_set is not None else {})},
         "agents": {"clients": list(clients), "skills_dir": skills_dir},
         "proof": {
             "policy": ".proof/policy.yaml",
@@ -105,10 +106,12 @@ def validate_configuration(configuration: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(value, bool):
             raise ToolkitError(f"{TOML_NAME} proof.{key} must be true or false")
         proof[key] = value
+    install_set = toolkit.get("install_set")
+    validate_install_set(install_set)
     revision = toolkit.get("revision", "")
     if not isinstance(revision, str):
         raise ToolkitError(f"{TOML_NAME} toolkit.revision must be a string")
-    return {"toolkit": {"revision": revision, "components": list(components)},
+    return {"toolkit": {"revision": revision, "components": list(components), **({"install_set": install_set} if install_set is not None else {})},
             "agents": {"clients": list(clients), "skills_dir": skills_dir},
             "proof": {key: proof[key] for key in ("policy", "providers", "profiles", "actions", "github_profile")}}
 
@@ -117,6 +120,7 @@ def render_configuration(configuration: dict[str, Any]) -> str:
     configuration = validate_configuration(configuration)
     return TOML_TEMPLATE.format(
         revision=_toml_string(configuration["toolkit"]["revision"]),
+        install_set=("\ninstall_set = " + _toml_string(configuration["toolkit"]["install_set"])) if "install_set" in configuration["toolkit"] else "",
         components=_toml_list(configuration["toolkit"]["components"]),
         clients=_toml_list(configuration["agents"]["clients"]),
         skills_dir=_toml_string(configuration["agents"]["skills_dir"]),
@@ -126,6 +130,22 @@ def render_configuration(configuration: dict[str, Any]) -> str:
         actions="true" if configuration["proof"]["actions"] else "false",
         github_profile="true" if configuration["proof"]["github_profile"] else "false",
     )
+
+
+def validate_install_set(value: Any) -> None:
+    if value is not None and value not in INSTALL_SETS:
+        raise ToolkitError("install_set must be starter or full")
+
+
+def recorded_install_set(configuration: dict | None, lock: dict | None = None) -> str | None:
+    """Absence retains the full legacy plan; inconsistent records fail closed."""
+    configured = configuration.get("toolkit", {}).get("install_set") if configuration else None
+    recorded = lock.get("toolkit", {}).get("install_set") if lock else None
+    validate_install_set(configured)
+    validate_install_set(recorded)
+    if configured is not None and recorded is not None and configured != recorded:
+        raise ToolkitError("configuration and lock disagree on install_set; restore matching records")
+    return configured if configured is not None else recorded
 
 
 def read_configuration(target: Path) -> dict[str, Any] | None:
@@ -156,8 +176,11 @@ def hash_managed(target: Path, paths: list[str]) -> dict[str, str]:
     return hashes
 
 
-def build_lock(revision: str, *, components: list[str], managed: dict[str, str], previous: dict[str, Any] | None = None) -> dict[str, Any]:
+def build_lock(revision: str, *, components: list[str], managed: dict[str, str], previous: dict[str, Any] | None = None, install_set: str | None = None) -> dict[str, Any]:
     lock = {"version": LOCK_VERSION, "toolkit": {"revision": revision}, "components": sorted(components), "managed": dict(sorted(managed.items()))}
+    validate_install_set(install_set)
+    if install_set is not None:
+        lock["toolkit"]["install_set"] = install_set
     if previous:
         lock["previous"] = previous
     return lock
@@ -174,6 +197,7 @@ def read_lock(target: Path) -> dict[str, Any] | None:
     for relative_path, digest in managed.items():
         if not isinstance(relative_path, str) or Path(relative_path).is_absolute() or ".." in Path(relative_path).parts or not isinstance(digest, str):
             raise ToolkitError(f"{LOCK_NAME} contains an invalid managed entry")
+    validate_install_set(lock["toolkit"].get("install_set"))
     components = lock.get("components", [])
     if not isinstance(components, list) or any(component not in COMPONENTS for component in components):
         raise ToolkitError(f"{LOCK_NAME} components must be a list drawn from {', '.join(COMPONENTS)}; delete it and run update to rebuild it")

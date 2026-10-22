@@ -20,7 +20,7 @@ PRODUCER = ROOT / "tooling" / "produce_proof_evidence.py"
 SEMGREP_IMAGE = "semgrep/semgrep@sha256:b94b53d02fd4a022f9eac4e2af1380f5c3c4c21400e79d3336bdff1d1db5e796"
 GITLEAKS_IMAGE = "ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ai_toolkit import VERSION  # noqa: E402
+from ai_toolkit import VERSION, config  # noqa: E402
 INSTALLER_MARKER = "# Proof installer-owned workflow."
 RUNTIME_MARKER = "# Proof installer-owned runtime."
 
@@ -94,7 +94,7 @@ def reject_symlink_destinations(target: Path, destinations: list[Path]) -> None:
                 )
 
 
-def runtime_sources(target: Path) -> list[InstallItem]:
+def runtime_sources(target: Path, *, install_set: str | None = None) -> list[InstallItem]:
     files = {
         "policy.yaml": POLICY,
         "profiles.yaml": ROOT / "policies/profiles.yaml",
@@ -140,10 +140,12 @@ def runtime_sources(target: Path) -> list[InstallItem]:
     }
     items = [InstallItem(source, target / ".proof" / name) for name, source in files.items()]
     items.extend(InstallItem(source, target / ".proof/validators" / name) for name, source in validators.items())
-    for source_root, destination_root in (
-        (ROOT / "security/semgrep/tests/fixtures", target / ".proof/semgrep-tests/fixtures"),
-        (ROOT / "skills/prepare-safe-change", target / ".agents/skills/prepare-safe-change"),
-    ):
+    roots = [(ROOT / "security/semgrep/tests/fixtures", target / ".proof/semgrep-tests/fixtures")]
+    # Preserve the historical direct-installer plan only for records with no set.
+    # Explicit new sets leave every client skill destination to the skill component.
+    if install_set is None:
+        roots.append((ROOT / "skills/prepare-safe-change", target / ".agents/skills/prepare-safe-change"))
+    for source_root, destination_root in roots:
         items.extend(
             InstallItem(source, destination_root / source.relative_to(source_root))
             for source in sorted(source_root.rglob("*"))
@@ -334,11 +336,13 @@ def refreshed_provider_bytes(existing: Path) -> bytes:
     return (json.dumps(canonical, indent=2) + "\n").encode()
 
 
-def build_plan(target: Path, *, profiles: list[str], no_actions: bool, scorecard_badge: bool = False) -> list[InstallItem]:
-    plan = runtime_sources(target)
+def build_plan(target: Path, *, profiles: list[str], no_actions: bool, scorecard_badge: bool = False, install_set: str | None = None) -> list[InstallItem]:
+    config.validate_install_set(install_set)
+    plan = runtime_sources(target, install_set=install_set)
     if no_actions:
         return plan
-    workflows = dict(CORE_WORKFLOWS)
+    workflows = {name: source for name, source in CORE_WORKFLOWS.items()
+                 if install_set != "starter" or name not in {"trivy.yml", "lifecycle-verification.yml"}}
     if "github" in profiles:
         workflows.update(GITHUB_WORKFLOWS)
     plan.extend(
@@ -428,8 +432,13 @@ def install(
     refresh_existing: bool = False,
     scorecard_badge: bool = False,
     remove_scorecard_badge: bool = False,
+    install_set: str | None = None,
 ) -> list[InstallItem]:
     target = target.resolve()
+    recorded_set = config.recorded_install_set(config.read_configuration(target), config.read_lock(target))
+    if recorded_set is not None and install_set is not None and recorded_set != install_set:
+        raise ValueError("changing an existing installation set is not supported; adopt optional workflows explicitly")
+    install_set = recorded_set if recorded_set is not None else install_set
     if scorecard_badge and remove_scorecard_badge:
         raise ValueError("--scorecard-badge and --remove-scorecard-badge cannot be combined")
     if scorecard_badge and no_actions:
@@ -459,7 +468,7 @@ def install(
     if scorecard_badge and policy_destination.exists() and not refresh_existing:
         raise ValueError("adding the scorecard badge to an existing installation requires --refresh-existing")
     complete_plan = [] if remove_scorecard_badge else build_plan(
-        target, profiles=selected_profiles, no_actions=no_actions, scorecard_badge=include_badge
+        target, profiles=selected_profiles, no_actions=no_actions, scorecard_badge=include_badge, install_set=install_set
     )
     if include_badge:
         for item in badge_items:
@@ -589,6 +598,7 @@ def main() -> int:
     parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
     parser.add_argument("--target", required=True, type=Path)
     parser.add_argument("--profile", action="append", choices=("core", "github"), default=[])
+    parser.add_argument("--install-set", choices=config.INSTALL_SETS, help="explicit fresh installation set; absent records retain the legacy full plan")
     parser.add_argument("--no-actions", action="store_true")
     parser.add_argument("--local-hooks", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
@@ -603,6 +613,7 @@ def main() -> int:
             dry_run=args.dry_run,
             profiles=args.profile,
             no_actions=args.no_actions,
+            install_set=args.install_set,
             local_hooks=args.local_hooks,
             merge_existing=args.merge_existing,
             refresh_existing=args.refresh_existing,

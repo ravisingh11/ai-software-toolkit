@@ -21,7 +21,7 @@ on:
         description: Comma-separated components to install.
         required: false
         type: string
-        default: proof,skills,qa
+        default: proof,skills
       clients:
         description: Comma-separated agent clients whose project skill directories receive skills.
         required: false

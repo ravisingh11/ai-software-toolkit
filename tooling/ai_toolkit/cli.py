@@ -82,7 +82,7 @@ def proof_managed(target: Path, configuration: dict[str, Any] | None = None, *, 
         (target / ".github" / "workflows" / name).is_file() and installer.installer_owned_workflow(target / ".github" / "workflows" / name)
         for name in installer.BADGE_WORKFLOWS
     )
-    plan = installer.build_plan(target, profiles=profiles, no_actions=no_actions, scorecard_badge=badge)
+    plan = installer.build_plan(target, profiles=profiles, no_actions=no_actions, scorecard_badge=badge, install_set=config.recorded_install_set(configuration, config.read_lock(target)))
     return sorted(relative(item.destination, target) for item in plan)
 
 
@@ -185,7 +185,7 @@ def canonical_sources(target: Path, configuration: dict[str, Any] | None) -> dic
     installer = _installer()
     sources: dict[str, Path] = {}
     if proof_component(target, configuration):
-        for item in installer.build_plan(target, profiles=installed_profiles(target, configuration), no_actions=False, scorecard_badge=True):
+        for item in installer.build_plan(target, profiles=installed_profiles(target, configuration), no_actions=False, scorecard_badge=True, install_set=config.recorded_install_set(configuration, config.read_lock(target))):
             sources[relative(item.destination, target)] = item.source
     for relative_path in skills_managed(target, configuration, config.read_lock(target)):
         parts = Path(relative_path).parts
@@ -284,7 +284,16 @@ def _confirm(prompt: str) -> bool:
 
 def cmd_init(args: argparse.Namespace) -> int:
     target = resolve_target(args.target)
-    components = [item.strip() for item in args.components.split(",") if item.strip()]
+    existing_configuration = config.read_configuration(target)
+    existing_lock = config.read_lock(target)
+    recorded_set = config.recorded_install_set(existing_configuration, existing_lock)
+    existing_install = bool(existing_configuration or existing_lock or (target / ".proof").exists()
+                            or any((target / directory).is_dir() for directory in skills.CLIENT_PROJECT_DIRS.values()))
+    if existing_install and args.install_set is not None and args.install_set != (recorded_set or "full"):
+        raise ToolkitError("install-set defaults apply only to fresh installations; adopt optional workflows explicitly")
+    install_set = recorded_set if existing_install else (args.install_set or "starter")
+    default_components = existing_configuration["toolkit"]["components"] if existing_configuration else existing_lock["components"] if existing_lock else list(config.COMPONENTS) if existing_install else ["proof", "skills"]
+    components = [item.strip() for item in args.components.split(",") if item.strip()] if args.components is not None else list(default_components)
     for component in components:
         if component not in config.COMPONENTS:
             raise ToolkitError(f"unknown component: {component}")
@@ -295,11 +304,10 @@ def cmd_init(args: argparse.Namespace) -> int:
     for client in clients:
         if client not in config.CLIENTS:
             raise ToolkitError(f"unknown agent client: {client}")
-    existing_configuration = config.read_configuration(target)
     # What this run asked for, as opposed to what stays managed from an earlier run: only an
     # explicit request installs a skill set, so re-running init for another component never
     # widens a narrowly selected installation to the starter set.
-    requested = list(components)
+    requested = [] if existing_configuration and args.components is None else list(components)
     if existing_configuration:
         # Components and clients already installed stay managed; removing one is a separate,
         # explicit step rather than a side effect of a narrower re-run.
@@ -325,10 +333,12 @@ def cmd_init(args: argparse.Namespace) -> int:
     no_actions = args.no_actions or (proof_was_configured and not existing_configuration["proof"]["actions"])
     github_profile = "github" in profiles or "github" in installed_profiles(target, existing_configuration)
     preview: dict[str, Any] = {"target": str(target), "components": components, "clients": clients, "discovery": found,
-                               "proof": [], "skills": [], "variables": [], "adopt_existing": already_installed, "reporting": None}
+                               "proof": [], "skills": [], "variables": [], "adopt_existing": already_installed, "install_set": install_set or "full", "reporting": None}
 
     if "proof" in components:
         arguments = ["--target", str(target), "--dry-run"]
+        if install_set is not None:
+            arguments.extend(["--install-set", install_set])
         for profile in profiles:
             arguments.extend(["--profile", profile])
         if no_actions:
@@ -383,6 +393,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     applied: dict[str, Any] = {"proof": [], "skills": [], "variables": [], "files": []}
     if "proof" in components and preview["proof"]:
         arguments = ["--target", str(target)]
+        if install_set is not None:
+            arguments.extend(["--install-set", install_set])
         for profile in profiles:
             arguments.extend(["--profile", profile])
         if no_actions:
@@ -402,8 +414,14 @@ def cmd_init(args: argparse.Namespace) -> int:
     configuration = config.default_configuration(
         revision(), components=components, clients=clients, skills_dir=skills.CLIENT_PROJECT_DIRS[clients[0]],
         actions=not no_actions and "proof" in components,
-        github_profile=github_profile,
+        github_profile=github_profile, install_set=install_set,
     )
+    if existing_configuration:
+        # Preserve consumer paths and preferences while recording explicit additions.
+        existing_configuration["toolkit"].update(configuration["toolkit"])
+        existing_configuration["agents"]["clients"] = clients
+        existing_configuration["proof"].update(actions=configuration["proof"]["actions"], github_profile=github_profile)
+        configuration = existing_configuration
     config.write_configuration(target, configuration)
     previous_lock = config.read_lock(target)
     # The skill inventory is what init installed now plus what the previous lock recorded;
@@ -423,7 +441,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         for path, digest in previous_lock.get("managed", {}).items():
             if path in retained and path not in written:
                 hashes[path] = digest
-    config.write_lock(target, config.build_lock(revision(), components=components, managed=hashes))
+    config.write_lock(target, config.build_lock(revision(), components=components, managed=hashes, install_set=install_set))
     applied["files"] = [config.TOML_NAME, config.LOCK_NAME]
     if ensure_gitignore(target, found):
         applied["files"].append(".gitignore")
@@ -760,7 +778,7 @@ def record_skills_in_lock(target: Path, destination: Path, rows: list[dict[str, 
             relative_path = (destination / name / source.relative_to(skills.source_dir() / name)).relative_to(target).as_posix()
             managed[relative_path] = sha256_file(source)
     config.write_lock(target, config.build_lock(lock["toolkit"].get("revision") or revision(), components=components,
-                                                managed=managed, previous=lock.get("previous")))
+                                                managed=managed, previous=lock.get("previous"), install_set=config.recorded_install_set(config.read_configuration(target), lock)))
     return True
 
 
@@ -884,6 +902,7 @@ def cmd_update(args: argparse.Namespace) -> int:
         return _rollback(target, configuration, lock, args)
     if configuration is None:
         raise ToolkitError(f"{config.TOML_NAME} is missing; run `ai-toolkit init` first")
+    config.recorded_install_set(configuration, lock)
     reject_retired_skills(target, configuration, lock)
     current = revision()
     managed = managed_files(target, configuration, lock)
@@ -962,7 +981,7 @@ def cmd_update(args: argparse.Namespace) -> int:
         for row in conflicts:
             path = row["path"]
             hashes[path] = sha256_file(sources[path])
-        config.write_lock(target, config.build_lock(current, components=components, managed=hashes, previous=previous))
+        config.write_lock(target, config.build_lock(current, components=components, managed=hashes, previous=previous, install_set=config.recorded_install_set(configuration, lock)))
     except (ToolkitError, OSError) as error:
         # Every mutation after the backup is undone together, including the configuration
         # and lock, so the files on disk never disagree with the lock that describes them.
@@ -1011,7 +1030,7 @@ def _rollback(target: Path, configuration: dict[str, Any] | None, lock: dict[str
     components = configuration["toolkit"]["components"] if configuration else list(config.COMPONENTS)
     recorded = previous.get("managed") if isinstance(previous.get("managed"), dict) else {}
     managed = recorded or config.hash_managed(target, managed_files(target, configuration))
-    config.write_lock(target, config.build_lock(previous.get("revision") or revision(), components=components, managed=managed))
+    config.write_lock(target, config.build_lock(previous.get("revision") or revision(), components=components, managed=managed, install_set=config.recorded_install_set(configuration, lock)))
     _emit({"restored": restored}, args.json, f"Restored {len(restored)} files from {previous['backup']}.")
     return 0
 
@@ -1033,7 +1052,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub = subparsers.add_parser("init", help="discover, preview, and install selected components")
     common(sub)
-    sub.add_argument("--components", default=",".join(config.COMPONENTS), help="comma-separated: proof,skills,qa")
+    sub.add_argument("--install-set", choices=config.INSTALL_SETS, help="fresh default: starter; absent metadata retains legacy full behavior")
+    sub.add_argument("--components", default=None, help="comma-separated: proof,skills,qa")
     sub.add_argument("--clients", default="", help="comma-separated agent clients: codex,claude-code (default: detected)")
     sub.add_argument("--skills", default="", help="comma-separated skills, 'starter' (default), or 'all'")
     sub.add_argument("--profile", choices=("core", "github"), default="core")
