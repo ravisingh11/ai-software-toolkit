@@ -157,7 +157,8 @@ install only the skills they actually need.
 - Use `ruleset-governance` for branch, tag, push, and required-check rulesets.
 - Use `commit-message-enforcer` for commit history hygiene and Conventional Commit enforcement.
 - Use `spec-driven-development` for substantial feature work that should start
-  from Spec Kit specs, plans, tasks, and release evidence.
+  from durable intent, plans, tasks, and acceptance evidence using the
+  repository's chosen tools. Spec Kit is one optional implementation.
 - Use `multi-tenant-saas-readiness` before launching or hardening tenant-scoped
   SaaS products.
 - Use `ios-release-qa` for release-candidate QA around environment locks,

@@ -38,8 +38,13 @@ The package is written to:
 dist/spec-kit-preset-engineering-standards-v1.0.0.zip
 ```
 
-Inspect the output and compute its checksum yourself (`shasum -a 256
- dist/spec-kit-preset-engineering-standards-v1.0.0.zip`). Packaging does not publish
+Inspect the output and compute its checksum yourself:
+
+```sh
+shasum -a 256 dist/spec-kit-preset-engineering-standards-v1.0.0.zip
+```
+
+The packager needs a POSIX shell, Python 3, and `zip`. Packaging does not publish
 or install it. Use `--dev` to adopt your reviewed source locally; a future package
 publication is a separate maintainer decision.
 
