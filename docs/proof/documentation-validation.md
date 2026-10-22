@@ -36,7 +36,8 @@ python3 .proof/validators/validate_documentation.py --policy .proof/documentatio
 python3 .proof/validators/validate_documentation.py --policy .proof/documentation.yaml --base-ref origin/main --head-ref HEAD
 ```
 
-The first command checks integrity only. The second also checks changed-file
+Doctor inspects mapping configuration and target availability without running link
+or change-comparison producers. The first command checks integrity only. The second also checks changed-file
 mappings; fetch the actual comparison base first. `--changed-file path` can supply
 an explicit reviewed changed-file list. Missing policy, invalid mappings, or an
 unavailable requested comparison base fail; none becomes a pass.

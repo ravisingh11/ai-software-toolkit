@@ -110,7 +110,7 @@ def repository_files(root: Path) -> list[Path]:
     to widen the scan to ignored files. Symlinks cannot escape the source root.
     """
     root = root.resolve()
-    has_git_metadata = any((parent / ".git").exists() for parent in (root, *root.parents))
+    has_git_metadata = any((parent / ".git").exists() or (parent / ".git").is_symlink() for parent in (root, *root.parents))
     try:
         probe = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], cwd=root,
                                capture_output=True, text=True, check=False)

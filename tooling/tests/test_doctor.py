@@ -574,3 +574,10 @@ class ActivationDiagnosticsTests(unittest.TestCase):
         row = next(row for row in report["activation"] if row["id"] == "dependency-vulnerability")
         self.assertEqual(row["credentials"], [{"name": "SNYK_TOKEN", "declared_locally": True, "validity": "unverified"}])
         self.assertFalse(row["evidence"]["verified"])
+
+    def test_documentation_configuration_gaps_are_read_only(self):
+        path = self.target / ".proof/documentation.yaml"
+        path.write_text("not-json")
+        rows = self.activation(environment={})
+        self.assertTrue(any("Documentation configuration" in gap for gap in rows["documentation-validation"]["configuration_gaps"]))
+        self.assertEqual(path.read_text(), "not-json")

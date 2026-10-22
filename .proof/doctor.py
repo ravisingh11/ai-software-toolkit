@@ -391,6 +391,22 @@ def diagnose(target: Path, *, operation: str = "change", environment: dict | Non
             "Default comparison base HEAD~1 exists." if code == 0 else "Default comparison base HEAD~1 is unavailable.",
             "Fetch full history or supply scan.py --base-ref <existing-base-commit>.")
 
+    if "documentation-validation" in selected:
+        documentation = trusted_module("tooling/validators/validate_documentation.py", "validators/validate_documentation.py")
+        try:
+            policy_path = (target / ".proof/documentation.yaml").resolve()
+            if not policy_path.is_relative_to(target):
+                raise ValueError("documentation configuration escapes the repository")
+            documentation_policy = documentation.load_policy(policy_path)
+            targets = documentation.validate_document_targets(target, documentation_policy)
+            valid_documentation = not targets
+        except (OSError, ValueError, subprocess.CalledProcessError):
+            valid_documentation = False
+        add("local.configuration.documentation-validation", "configured" if valid_documentation else "action_needed",
+            "Documentation mappings and tracked targets are declared; change comparisons and link checks were not run." if valid_documentation
+            else "Documentation configuration is missing, invalid, or references unavailable tracked targets.",
+            "Map real tracked code/doc paths in .proof/documentation.yaml; fetch an explicit comparison base before running validation.")
+
     if "repository-ground-truth" in selected:
         try:
             truth = read_object(target, ".proof/ground-truth-ai.yaml")
