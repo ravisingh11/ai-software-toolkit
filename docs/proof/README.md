@@ -11,6 +11,11 @@
 | [Producer contract](producer-contract.md) | Produce revision-bound evidence |
 | [Migrating from Guardrails](migrating-from-guardrails.md) | Move a Guardrails installation to the Proof names |
 
+The composite GitHub Action is named **AI Software Toolkit Proof Attestation**
+in [action.yml](../../action.yml). It evaluates revision-bound producer evidence
+against repository policy. Its workflow reference remains
+`ravisingh11/ai-software-toolkit@<reviewed-tag-or-commit>`.
+
 ## Purpose
 
 Proof is a deterministic evidence layer around engineering operations.
