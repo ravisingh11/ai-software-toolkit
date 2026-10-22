@@ -8,10 +8,13 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
-## [2.2.0] - Unreleased
+## [2.2.0] - 2026-10-21
 
-Release candidate for maintainer review; not tagged or published. See
-[preparation notes](docs/releases/v2.2.0.md) for scope and evidence limits.
+Published 2026-10-21 (America/New_York) from reviewed source
+`7b6638e001a27ebcda33202355926435c62234bd`. See the
+[published release](https://github.com/ravisingh11/ai-software-toolkit/releases/tag/v2.2.0)
+for immutable assets and provenance, and [release notes](docs/releases/v2.2.0.md)
+for scope and evidence limits.
 
 - Add an overview of all 33 built-in checks near the top of the scorecard,
   grouped by selected checks, available adoption options, and later-stage

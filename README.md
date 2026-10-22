@@ -86,16 +86,16 @@ Use Git, **Python 3.11+**, and a POSIX shell. Start from a reviewed toolkit
 release checkout and an existing application repository:
 
 ```sh
-git clone --branch v2.1.1 --depth 1 https://github.com/ravisingh11/ai-software-toolkit.git
+git clone --branch v2.2.0 --depth 1 https://github.com/ravisingh11/ai-software-toolkit.git
 cd ai-software-toolkit
 python3 tooling/ai_toolkit discover --target /path/to/your-repo
 python3 tooling/ai_toolkit init --target /path/to/your-repo --components proof --preview
 ```
 
-The example pins the published v2.1.1 release. Newer features described on
-`main`, including stage groups and independent security workflows, remain
-unreleased until included in a published version. Choose a reviewed source
-revision explicitly if you need them; do not assume `main` is a stable release.
+The example pins the published v2.2.0 release. Changes on `main` after that
+release remain unreleased until included in a later published version. Choose
+a reviewed source revision explicitly if you need them; do not assume `main`
+is a stable release.
 
 Discovery and preview do not write files. Review the proposed files and commands,
 then apply the same selection:
