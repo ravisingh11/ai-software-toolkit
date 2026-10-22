@@ -92,6 +92,8 @@ def run_scan(mode: str, target: str, root: Path, output: Path) -> int:
             command += ["--include-non-failures"]
         else:
             command += ["--scanners", "vuln", "--list-all-pkgs", "--ignore-unfixed=false"]
+        if mode == "dependencies":
+            command += ["--file-patterns", r"pip:requirements-.*\.txt$"]
         if mode == "image":
             command += ["--image-src", "remote"]
         subprocess.run([*command, resolved], check=True, timeout=900)

@@ -82,6 +82,11 @@ gh workflow run trivy.yml --ref main -f scan=iac -f path=infra
 gh workflow run trivy.yml --ref main -f scan=image -f image=REGISTRY/IMAGE@sha256:FULL_64_CHARACTER_DIGEST
 ```
 
+Dependency scans include both standard `requirements.txt` files and Python
+`requirements-*.txt` inputs, including this repository's CI, lint, and AI-review
+requirements. Trivy reports pinned direct dependencies; this does not resolve
+unlisted transitive dependencies. See [Trivy file selection](https://trivy.dev/docs/latest/configuration/skipping/).
+
 Dependency and IaC scans read repository files without installing packages or
 building the application. Image scans read the supplied public registry image
 by digest, produce its vulnerability report and CycloneDX SBOM, and do not

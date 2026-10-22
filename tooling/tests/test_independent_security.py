@@ -60,6 +60,7 @@ class TrivyReportsTests(unittest.TestCase):
                 report = {"SchemaVersion": 2, "Results": [{"Target": "requirements.txt", "Class": "lang-pkgs", "Type": "pip",
                           "Packages": [{"Name": "example"}], "Vulnerabilities": [{"Severity": "HIGH"}] if high else []}]}
                 def scan(command, **kwargs):
+                    self.assertEqual(command[command.index("--file-patterns") + 1], r"pip:requirements-.*\.txt$")
                     self.assertNotIn("--ignore-unfixed=true", command)
                     self.assertEqual(command[command.index("--ignorefile") + 1], "")
                     Path(command[command.index("--output") + 1]).write_text(json.dumps(report))
