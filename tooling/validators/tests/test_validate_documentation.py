@@ -232,3 +232,18 @@ class TrackedDocumentationTests(unittest.TestCase):
         git(self.root, "init", "-q")
         with self.assertRaises(subprocess.CalledProcessError):
             MODULE.changed_between(self.root, "missing", "HEAD", None)
+
+    def test_inventory_never_runs_repository_fsmonitor_or_filters(self):
+        git(self.root, "init", "-q")
+        git(self.root, "add", ".")
+        sentinel = self.root / "git-helper-ran"
+        script = self.root / "helper.sh"
+        script.write_text(f"#!/bin/sh\ntouch '{sentinel}'\ncat\n")
+        script.chmod(0o755)
+        git(self.root, "config", "core.fsmonitor", str(script))
+        git(self.root, "config", "filter.custom.clean", str(script))
+        git(self.root, "config", "filter.custom.process", str(script))
+        (self.root / ".gitattributes").write_text("*.md filter=custom\n")
+        (self.root / "README.md").write_text("Changed documentation\n")
+        self.assertTrue(MODULE.repository_files(self.root))
+        self.assertFalse(sentinel.exists(), "Inventory executed repository-configured code")

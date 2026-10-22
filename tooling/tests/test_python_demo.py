@@ -317,6 +317,8 @@ class PythonDemoTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
+            self.assertEqual(run(["git", "add", "."], demo).returncode, 0)
+
             completed = run(
                 ["python3", "tools/validate_demo.py", "--documentation"],
                 demo,

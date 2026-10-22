@@ -95,6 +95,8 @@ def matches(path: str, patterns: list[str]) -> bool:
     return any(glob_regex(pattern).fullmatch(path) for pattern in patterns)
 
 
+INVENTORY_GIT = ["git", "--no-optional-locks", "-c", "core.fsmonitor=false", "-c", f"core.hooksPath={os.devnull}"]
+
 FALLBACK_EXCLUDES = {
     ".git", ".artifacts", "node_modules", "vendor", "bower_components", "site-packages",
     ".venv", "venv", "__pycache__", ".tox", ".nox", ".cache", ".ruff_cache",
@@ -112,7 +114,7 @@ def repository_files(root: Path) -> list[Path]:
     root = root.resolve()
     has_git_metadata = any((parent / ".git").exists() or (parent / ".git").is_symlink() for parent in (root, *root.parents))
     try:
-        probe = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], cwd=root,
+        probe = subprocess.run([*INVENTORY_GIT, "rev-parse", "--is-inside-work-tree"], cwd=root,
                                capture_output=True, text=True, check=False)
     except OSError:
         if has_git_metadata:
@@ -120,7 +122,7 @@ def repository_files(root: Path) -> list[Path]:
         probe = None
     paths = []
     if probe is not None and probe.returncode == 0 and probe.stdout.strip() == "true":
-        raw = subprocess.run(["git", "ls-files", "--cached", "-z", "--", "."], cwd=root,
+        raw = subprocess.run([*INVENTORY_GIT, "ls-files", "--cached", "-z", "--", "."], cwd=root,
                              capture_output=True, check=True).stdout
         paths = [root / value.decode("utf-8", errors="surrogateescape") for value in raw.split(b"\0") if value]
     elif has_git_metadata:

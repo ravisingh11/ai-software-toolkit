@@ -52,7 +52,9 @@ not run either command. See [activation](../activation.md#documentation-validati
 
 In Git, validation scans Git-tracked repository files, including staged additions.
 Ignored or untracked dependency/generated Markdown cannot break the scan or satisfy
-a document mapping. Intentionally tracked generated documentation is still source
+a document mapping. Inventory queries disable filesystem monitors, hooks, and
+optional Git locks so setup inspection cannot invoke repository-configured helpers.
+Intentionally tracked generated documentation is still source
 owned by the repository and is checked. A failed Git inventory query is an error.
 
 A non-Git source snapshot uses a sorted filesystem inventory. The validator
