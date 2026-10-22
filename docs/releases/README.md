@@ -7,7 +7,7 @@ they do not establish the status of a newer revision or a consumer application.
 
 | Release | Scope |
 | --- | --- |
-| [v2.1.1 preparation](v2.1.1.md) | Patch release prepared for maintainer review; not yet tagged or published |
+| [v2.1.1](v2.1.1.md) | Published patch release; see its GitHub release for final assets and publication evidence |
 | [v2.1.0](v2.1.0.md) | Shared CLI distribution, optional providers and lifecycle checks, scorecards, and Claude Code onboarding |
 | [v1.0.0](v1.0.0.md) | Initial stable Proof runtime and public contract |
 

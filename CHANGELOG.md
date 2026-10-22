@@ -32,8 +32,9 @@ or evidence contracts require a major release and migration guidance.
 
 ## [2.1.1] - 2026-10-21
 
-Release preparation; tagging and publication await maintainer approval. See
-[release notes](docs/releases/v2.1.1.md) for scope and evidence limits.
+Published 2026-10-21. See the [published release](https://github.com/ravisingh11/ai-software-toolkit/releases/tag/v2.1.1)
+for final assets and provenance, and [preparation notes](docs/releases/v2.1.1.md)
+for scope and evidence limits.
 
 - Require maintainer code-owner review for contributions to this repository,
   retaining the owner-authored PR exception and separate required CI rules.
