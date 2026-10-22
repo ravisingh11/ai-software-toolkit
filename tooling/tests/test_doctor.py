@@ -581,3 +581,15 @@ class ActivationDiagnosticsTests(unittest.TestCase):
         rows = self.activation(environment={})
         self.assertTrue(any("Documentation configuration" in gap for gap in rows["documentation-validation"]["configuration_gaps"]))
         self.assertEqual(path.read_text(), "not-json")
+
+    def test_independent_provenance_does_not_require_lifecycle_workflow(self):
+        workflow = self.target / ".github/workflows/artifact-provenance.yml"
+        workflow.write_bytes((ROOT / "workflows/artifact-provenance.yml").read_bytes())
+        (self.target / ".github/workflows/lifecycle-verification.yml").unlink()
+        row = self.activation(environment={})["artifact-provenance"]
+        paths = {item["path"] for item in row["installed_prerequisites"]}
+        self.assertIn(".github/workflows/artifact-provenance.yml", paths)
+        self.assertNotIn(".github/workflows/lifecycle-verification.yml", paths)
+        self.assertNotIn(".proof/lifecycle.json", paths)
+        self.assertFalse(row["manual"])
+        self.assertEqual(row["evidence"]["status"], "missing")

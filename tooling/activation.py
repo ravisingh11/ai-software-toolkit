@@ -39,12 +39,18 @@ PROVIDER_HINTS = {
 }
 
 
-def hints(control: dict, provider_id: str, provider: dict) -> dict:
+def hints(control: dict, provider_id: str, provider: dict, *, target: Path | None = None) -> dict:
     """Return declarative setup guidance for one actual provider selection."""
     identifier = control["id"]
     contract = provider.get("checks", {}).get(identifier, {})
     template = provider.get("template") if provider.get("template_available") else None
     workflow = contract.get("workflow_path") or (template.replace("workflows/", ".github/workflows/", 1) if template else None)
+    # The same provenance provider supports the independently adoptable release
+    # workflow as well as the advanced lifecycle producer. Prefer the installed
+    # independent surface without falsely demanding lifecycle adoption.
+    independent_provenance = provider_id == "github-artifact-attestations" and target is not None and (target / ".github/workflows/artifact-provenance.yml").is_file()
+    if independent_provenance:
+        template, workflow = "workflows/artifact-provenance.yml", ".github/workflows/artifact-provenance.yml"
     variable, guide = PROVIDER_HINTS.get(provider_id, (None, "proof/control-setup.md"))
     manual = template == "workflows/lifecycle-verification.yml"
     if manual:
@@ -62,6 +68,9 @@ def hints(control: dict, provider_id: str, provider: dict) -> dict:
     required_variables = [COMMANDS[identifier]] if identifier in COMMANDS and provider_id == "repository-" + identifier else []
     if variable:
         required_variables.append(variable)
+    if independent_provenance:
+        required_variables.append("PROOF_ARTIFACT_PATH")
+        prerequisites.append(".proof/prepare_release_attestation.py")
     return {
         "guide": f"{GUIDE_URL}#{identifier}", "details": guide,
         "installed_files": prerequisites, "variables": required_variables,
@@ -125,6 +134,11 @@ def render_guide(catalog: dict, providers: dict) -> str:
                       f"- Execution: {hint['execution']}",
                       f"- Verification: require authoritative evidence for the exact `{control['evidence_subject']}`; see the common verification, enforcement, and disabling steps above.",
                       f"- Practical guide: [setup and limits]({hint['details']}).", ""])
+        if identifier == "artifact-provenance":
+            lines.extend(["Alternatively, explicitly adopt `artifact-provenance.yml` for independent",
+                          "published-asset verification or native build provenance. The installed",
+                          "standalone workflow does not require lifecycle adoption; see the",
+                          "[independent setup guide](providers/independent-security.md).", ""])
     return "\n".join(lines)
 
 

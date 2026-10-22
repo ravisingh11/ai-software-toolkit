@@ -262,6 +262,11 @@ merge checks separately so a disabled producer cannot leave merges waiting.
 - Verification: require authoritative evidence for the exact `artifact`; see the common verification, enforcement, and disabling steps above.
 - Practical guide: [setup and limits](providers/lifecycle.md).
 
+Alternatively, explicitly adopt `artifact-provenance.yml` for independent
+published-asset verification or native build provenance. The installed
+standalone workflow does not require lifecycle adoption; see the
+[independent setup guide](providers/independent-security.md).
+
 ### static-quality
 
 **Static Quality** — Evaluate maintainability, reliability, and static quality gates.

@@ -118,7 +118,7 @@ def github_setup(target: Path, repository: str, selected: dict, providers: dict,
         needed_variables["PROOF_ARTIFACT_PATH"] = None
     for identifier, entry in selected.items():
         provider_id = entry["authoritative"]
-        hint = activation.hints({"id": identifier}, provider_id, providers[provider_id])
+        hint = activation.hints({"id": identifier}, provider_id, providers[provider_id], target=target)
         needed_variables.update({name: hint["enabled_values"].get(name) for name in hint["variables"]})
     for name, expected in sorted(needed_variables.items()):
         value = variables.get(name) if variables is not None else None
@@ -298,7 +298,7 @@ def activation_rows(target: Path, documents: list[dict], selected: dict, provide
         identifier = control["id"]
         selection = selected.get(identifier)
         provider_id = selections[identifier]["authoritative"]
-        hint = activation.hints(control, provider_id, providers[provider_id])
+        hint = activation.hints(control, provider_id, providers[provider_id], target=target)
         files = [{"path": relative, "installed": (target / relative).is_file()
                   and (target / relative).resolve().is_relative_to(target)} for relative in hint["installed_files"]]
         variables = [{"name": name, "configured_locally": bool(environment.get(name, "").strip())
