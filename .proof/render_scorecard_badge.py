@@ -1929,7 +1929,7 @@ def _catalog_overview(controls: list[dict[str, Any]]) -> str:
         members = [row for row in controls if _selection_group(row) == group]
         if not members:
             continue
-        links = ''.join(f'<li><a href="#{_check_target(row["id"])}">{html.escape(row["name"])}</a></li>'
+        links = ''.join(f'<li><a href="#check-{html.escape(row["id"], quote=True)}">{html.escape(row["name"])}</a></li>'
                         for row in members)
         groups.append(f'<section class="catalog-group" data-selection="{group}">'
                       f'<h3>{label} <span>({len(members)})</span></h3><p>{note}</p><ul>{links}</ul></section>')

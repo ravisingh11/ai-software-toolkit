@@ -1285,14 +1285,15 @@ class RendererTests(unittest.TestCase):
             self.assertEqual(metadata["selection_counts"], {"selected": 16, "available-to-adopt": 9,
                              "relevant-later": 8, "unknown": 0, "evaluation-context": 0})
             page = (root / "site/index.html").read_text()
-            overview = page[page.index('<section class="catalog-overview"'):page.index('<dl class="snapshot-identity"')]
+            overview = page[page.index('<section class="catalog-overview"'):page.index('<aside class="freshness"')]
             self.assertIn('All 33 checks', overview)
             self.assertIn('Selected <span>(16)</span>', overview)
             self.assertIn('Available to adopt <span>(9)</span>', overview)
             self.assertIn('Relevant later <span>(8)</span>', overview)
             self.assertEqual(overview.count('<li>'), 33)
             for control_id, name, *_ in MODULE.PUBLIC_CONTROLS:
-                self.assertEqual(overview.count(f'href="#{MODULE._check_target(control_id)}"'), 1)
+                self.assertEqual(overview.count(f'href="#check-{control_id}"'), 1)
+                self.assertIn(f'id="check-{control_id}"', page)
             self.assertIn('Lifecycle verification stays manual', overview)
             self.assertIn('All checks are optional to adopt', overview)
             selected_table = page[page.index('id="checks-title"'):page.index('id="check-details-title"')]
