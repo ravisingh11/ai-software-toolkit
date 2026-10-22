@@ -50,6 +50,21 @@ quality examples. Their polyglot workflow is **manual (`workflow_dispatch`) and
 optional**, with an explicit comparison base and repository-selected threshold.
 Example results do not establish full-application coverage or deployment readiness.
 
+## Choose what fits your project
+
+Start with a few checks that address your current risks. Add tools as the
+project grows; adopting the toolkit does not mean activating the whole catalog.
+
+| Group | What belongs here | Counts toward the score? |
+| --- | --- | --- |
+| Selected checks | Checks your policy selects for this evaluation stage | Yes, including failed or unverifiable results |
+| Tools available to adopt | Unselected tools that can help at the current stage | No |
+| Checks relevant later | Unselected checks for later release or runtime work | No |
+
+Advisory or Enforced is a separate choice. Selection does not prove a check ran
+or passed. See [how to read the scorecard](#read-the-scorecard) for result states
+and evidence links.
+
 ## What you can use
 
 | Component | Purpose | Start here |
@@ -68,14 +83,19 @@ See the [toolkit vision](docs/vision.md) for the wider delivery lifecycle.
 ## Start here
 
 Use Git, **Python 3.11+**, and a POSIX shell. Start from a reviewed toolkit
-checkout and an existing application repository:
+release checkout and an existing application repository:
 
 ```sh
-git clone https://github.com/ravisingh11/ai-software-toolkit.git
+git clone --branch v2.1.1 --depth 1 https://github.com/ravisingh11/ai-software-toolkit.git
 cd ai-software-toolkit
 python3 tooling/ai_toolkit discover --target /path/to/your-repo
 python3 tooling/ai_toolkit init --target /path/to/your-repo --components proof --preview
 ```
+
+The example pins the published v2.1.1 release. Newer features described on
+`main`, including stage groups and independent security workflows, remain
+unreleased until included in a published version. Choose a reviewed source
+revision explicitly if you need them; do not assume `main` is a stable release.
 
 Discovery and preview do not write files. Review the proposed files and commands,
 then apply the same selection:
@@ -174,13 +194,13 @@ Markdown and JSON, fix actual failures, and verify independent producers on a PR
 
 An **illustrative example**, not a live scan:
 
-| Check | Provider | Mode | Evidence |
+| Check | Adoption group | Mode | Result or next step |
 | --- | --- | --- | --- |
-| Unit tests | Repository Unit Test Command | Advisory | Passed for the exact revision |
-| Changed-code coverage | Repository Changed Code Coverage Command | Advisory | No result; command not configured |
-| Deep SAST | GitHub CodeQL default setup | Advisory | No result; analysis provenance unavailable |
-| Container vulnerability | Trivy Container Image | Advisory | Failed; findings remain visible |
-| Artifact provenance | Not configured | Not activated | Excluded from selected totals |
+| Unit tests | Selected checks | Advisory | Passed for the exact revision |
+| Changed-code coverage | Selected checks | Advisory | Unable to verify; configure the coverage command |
+| Deep SAST | Selected checks | Advisory | Unable to verify; analysis provenance unavailable |
+| Functional QA | Tools available to adopt | — | Set up app-specific QA when useful |
+| Container vulnerability | Checks relevant later | — | Select when an owned container artifact applies |
 
 This example is **ORANGE / ALLOW**, with zero enforced controls. `ALLOW` means
 the configured policy permits the evaluated snapshot; it does not mean all
@@ -199,13 +219,8 @@ The **All 33 checks** overview near the top links every built-in check to its
 details, grouped as selected, available to adopt, or relevant later. Checks are
 optional to adopt, and advanced lifecycle verification stays manual.
 
-The scorecard groups tools by the project's evaluation stage:
-
-| Group | Meaning | Included in the score? |
-| --- | --- | --- |
-| **Selected checks** | Checks chosen by this project's policy for the evaluated stage | Yes, including failed or unverifiable results |
-| **Tools available to adopt** | Unselected tools that can help at the current stage | No |
-| **Checks relevant later** | Unselected checks for a later release or runtime stage | No |
+The [three adoption groups](#choose-what-fits-your-project) follow the project's
+evaluation stage. Only selected checks contribute to this evaluation's totals.
 
 Selection does not prove execution. Each selected check shows its actual result:
 **Passed**, **Failed**, **Blocked**, or **Unable to verify**. Setup information

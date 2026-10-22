@@ -8,6 +8,12 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Add an overview of all 33 built-in checks near the top of the scorecard,
+  grouped by selected checks, available adoption options, and later-stage
+  relevance, with links to each check's details ([#144](https://github.com/ravisingh11/ai-software-toolkit/pull/144)).
+- Pin the README quickstart to the published release, introduce adoption groups
+  before setup, and align the illustrative scorecard with current result labels.
+
 - Group scorecards into selected checks, tools available to adopt, and checks
   relevant later. Score only the checks selected for the evaluation stage;
   preserve actual failures and missing evidence without penalizing adoption
