@@ -277,6 +277,9 @@ revision with nothing changed is a no-op.
 
 ## Optional Spec Kit add-on
 
+The maintainer-only `tooling/verify_distribution.py` acceptance harness stays
+in the full source archive, outside the consumer CLI payload.
+
 The v2.3.0 CLI archive excludes `tooling/speckit/` and
 `tooling/package-speckit-preset.sh`. Standard toolkit release assets do not include
 the independent preset ZIP/checksum. Use the full source archive and the

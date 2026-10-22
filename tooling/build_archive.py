@@ -24,7 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ARCHIVE_NAME = "ai-toolkit.pyz"
 PAYLOAD_DIRECTORIES = ("tooling", "proof", "policies", "workflows", "security/semgrep", "skills", "pr-review")
-EXCLUDED_PATHS = (Path("tooling/speckit"), Path("tooling/package-speckit-preset.sh"))
+EXCLUDED_PATHS = (Path("tooling/speckit"), Path("tooling/package-speckit-preset.sh"), Path("tooling/verify_distribution.py"))
 EXCLUDED_PARTS = {"__pycache__", ".ruff_cache", "tests", "coverage-support", ".DS_Store"}
 
 LAUNCHER = '''"""ai-toolkit archive launcher: extract the payload once per checksum, then run the CLI."""

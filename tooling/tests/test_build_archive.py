@@ -39,6 +39,7 @@ class BuildArchiveTests(unittest.TestCase):
         files = {path.relative_to(ROOT).as_posix() for path in self.module.payload_files()}
         self.assertIn("tooling/install.py", files)
         self.assertNotIn("tooling/package-speckit-preset.sh", files)
+        self.assertNotIn("tooling/verify_distribution.py", files)
         self.assertFalse(any(name.startswith("tooling/speckit/") for name in files))
         self.assertTrue((ROOT / "tooling/package-speckit-preset.sh").is_file())
         self.assertTrue((ROOT / "tooling/speckit/engineering-standards/preset.yml").is_file())
