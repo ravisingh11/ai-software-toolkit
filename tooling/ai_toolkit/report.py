@@ -252,6 +252,15 @@ def render_doctor(target: Path, doctor_report: dict[str, Any], rows: list[dict[s
     lines.append("")
     lines.append(" | ".join(f"{state}: {count}" for state, count in counts.items()))
     lines.append("")
+    if doctor_report.get("activation"):
+        lines.append("All check activation:")
+        for item in doctor_report["activation"]:
+            evidence = item["evidence"]
+            lines.append(f"  {item['id']}: {item['policy_mode']}; evidence {evidence['status']} for {evidence['revision'] or 'no revision'}")
+            lines.append(f"    Gaps: {'; '.join(item['configuration_gaps']) or 'none detected; execution still unverified'}")
+            lines.append(f"    Guide: {item['guide']}")
+            lines.append(f"    Next: {item['next_steps'][-2]}")
+        lines.append("")
     lines.append("Proof diagnostics:")
     for row in doctor_report.get("checks", []):
         lines.append(f"  [{row['status'].upper()}] {row['id']}: {row['message']}")

@@ -46,9 +46,9 @@ def hints(control: dict, provider_id: str, provider: dict) -> dict:
     template = provider.get("template") if provider.get("template_available") else None
     workflow = contract.get("workflow_path") or (template.replace("workflows/", ".github/workflows/", 1) if template else None)
     variable, guide = PROVIDER_HINTS.get(provider_id, (None, "proof/control-setup.md"))
-    manual = bool(template == "workflows/lifecycle-verification.yml" and provider_id != "github-artifact-attestations")
+    manual = template == "workflows/lifecycle-verification.yml"
     if manual:
-        guide = "providers/lifecycle.md"
+        variable, guide = None, "providers/lifecycle.md"
     if provider_id.startswith("ai-"):
         variable, guide = "AI_REVIEW_COMMAND", "proof/control-setup.md"
     prerequisites = [".proof/policy.yaml", ".proof/providers.yaml"]
@@ -56,12 +56,16 @@ def hints(control: dict, provider_id: str, provider: dict) -> dict:
         prerequisites.append(CONFIG_FILES[identifier])
     if workflow:
         prerequisites.append(workflow)
-    required_variables = [COMMANDS[identifier]] if identifier in COMMANDS else []
+    prerequisites.extend(path for path in contract.get("trusted_paths", []) if path not in prerequisites)
+    if manual:
+        prerequisites.append(".proof/lifecycle.json")
+    required_variables = [COMMANDS[identifier]] if identifier in COMMANDS and provider_id == "repository-" + identifier else []
     if variable:
         required_variables.append(variable)
     return {
         "guide": f"{GUIDE_URL}#{identifier}", "details": guide,
         "installed_files": prerequisites, "variables": required_variables,
+        "enabled_values": {name: "true" for name in required_variables if name.endswith("_ENABLED")},
         "credential_names": provider.get("secrets", []), "workflow": workflow,
         "manual": manual,
         "execution": ("Explicit workflow_dispatch with an owned immutable subject and lifecycle configuration."

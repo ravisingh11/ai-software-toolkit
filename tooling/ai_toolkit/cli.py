@@ -551,7 +551,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         exit_code = 1
     if any(row["state"] == "missing" for row in components.values()):
         exit_code = 1
-    payload = {"version": 1, "kind": "toolkit-doctor", "components": components, "capabilities": rows, "proof": doctor_report}
+    payload = {"version": 1, "kind": "toolkit-doctor", "components": components, "capabilities": rows, "proof": doctor_report, "activation": doctor_report.get("activation", [])}
     _emit(payload, args.json, report.render_doctor(target, doctor_report, rows, components))
     return exit_code
 

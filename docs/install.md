@@ -176,6 +176,13 @@ Each component and capability is reported as one of:
 | `configured` | Required commands, workflows, and provider selections are declared | the existing setup diagnostic |
 | `verified` | Evidence bound to the current `HEAD` shows `passed` or `failed` from the authoritative provider | `.artifacts/proof/evidence.json` from `check`, or a CI scorecard |
 
+The additive `activation` array exposes all 33 checks: policy selection, provider,
+installed prerequisites, local configuration gaps, credential names only, manual
+execution, guide, next steps, and the available evidence subject/revision/status.
+Stale evidence is shown with `bound_to_head=false`; a bound failure stays failed.
+Unknown GitHub settings remain unverified. No producers, credential values,
+variables, or branch rules are touched.
+
 Every gap prints one concrete next action. `verified` describes the evidence
 that exists; it is not a pass.
 

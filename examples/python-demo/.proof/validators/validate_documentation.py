@@ -95,12 +95,52 @@ def matches(path: str, patterns: list[str]) -> bool:
     return any(glob_regex(pattern).fullmatch(path) for pattern in patterns)
 
 
+FALLBACK_EXCLUDES = {
+    ".git", ".artifacts", "node_modules", "vendor", "bower_components", "site-packages",
+    ".venv", "venv", "__pycache__", ".tox", ".nox", ".cache", ".ruff_cache",
+    "dist", "build", "target", "coverage", "htmlcov", ".next", ".nuxt", ".svelte-kit",
+    ".gradle", ".worktrees", ".omx", ".superpowers", "out", "generated", ".output", "_site",
+}
+
+
+def repository_files(root: Path) -> list[Path]:
+    """Tracked files in Git; deterministic, pruned traversal for source snapshots.
+
+    A broken/unavailable Git query in a repository is an error, never permission
+    to widen the scan to ignored files. Symlinks cannot escape the source root.
+    """
+    root = root.resolve()
+    has_git_metadata = any((parent / ".git").exists() for parent in (root, *root.parents))
+    try:
+        probe = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], cwd=root,
+                               capture_output=True, text=True, check=False)
+    except OSError:
+        if has_git_metadata:
+            raise ValueError("Git is unavailable; cannot inventory tracked documentation") from None
+        probe = None
+    paths = []
+    if probe is not None and probe.returncode == 0 and probe.stdout.strip() == "true":
+        raw = subprocess.run(["git", "ls-files", "--cached", "-z", "--", "."], cwd=root,
+                             capture_output=True, check=True).stdout
+        paths = [root / value.decode("utf-8", errors="surrogateescape") for value in raw.split(b"\0") if value]
+    elif has_git_metadata:
+        raise ValueError("Git could not inventory tracked documentation")
+    else:
+        for directory, directories, files in os.walk(root, followlinks=False):
+            directories[:] = sorted(name for name in directories if name not in FALLBACK_EXCLUDES
+                                    and not (Path(directory) / name).is_symlink())
+            paths.extend(Path(directory) / name for name in sorted(files))
+    result = []
+    for path in sorted(set(paths)):
+        if not path.resolve().is_relative_to(root):
+            raise ValueError(f"documentation inventory escapes the repository: {path.relative_to(root)}")
+        if path.is_file():
+            result.append(path)
+    return result
+
+
 def markdown_files(root: Path) -> list[Path]:
-    return sorted(
-        path
-        for path in root.rglob("*.md")
-        if ".git" not in path.relative_to(root).parts
-    )
+    return [path for path in repository_files(root) if path.suffix == ".md"]
 
 
 def link_target(raw: str) -> str:
@@ -147,11 +187,7 @@ def validate_document_targets(
     root: Path,
     policy: dict[str, Any],
 ) -> list[str]:
-    files = [
-        path.relative_to(root).as_posix()
-        for path in root.rglob("*")
-        if path.is_file() and ".git" not in path.relative_to(root).parts
-    ]
+    files = [path.relative_to(root.resolve()).as_posix() for path in repository_files(root)]
     failures: list[str] = []
     for mapping in policy["mappings"]:
         for pattern in mapping["documents"]:

@@ -100,9 +100,10 @@ def github_setup(target: Path, repository: str, selected: dict, providers: dict,
             for item in page[key]:
                 if not isinstance(item, dict) or not isinstance(item.get("name"), str):
                     return None
-                result[item["name"]] = item.get("value", "")
+                result[item["name"]] = item.get("value", "") if key == "variables" else ""
         return result
 
+    activation = trusted_module("tooling/activation.py", "activation.py")
     variables = collection("/actions/variables", "variables")
     secrets = collection("/actions/secrets", "secrets")
     selected_providers = {provider_id for entry in selected.values()
@@ -115,6 +116,10 @@ def github_setup(target: Path, repository: str, selected: dict, providers: dict,
         needed_variables["PROOF_DEPENDENCY_REVIEW_ENABLED"] = "true"
     if "github-artifact-attestations" in selected_providers:
         needed_variables["PROOF_ARTIFACT_PATH"] = None
+    for identifier, entry in selected.items():
+        provider_id = entry["authoritative"]
+        hint = activation.hints({"id": identifier}, provider_id, providers[provider_id])
+        needed_variables.update({name: hint["enabled_values"].get(name) for name in hint["variables"]})
     for name, expected in sorted(needed_variables.items()):
         value = variables.get(name) if variables is not None else None
         status = "unverified" if value is None else "configured" if isinstance(value, str) and value.strip() and (expected is None or value == expected) else "action_needed"
@@ -254,7 +259,7 @@ def adapter_setup(target: Path, selected: dict, providers: dict, environment: di
                          "message": f"Adapter owns the {contract['binary']} command shape; the CLI is {'on PATH' if available else 'not on PATH'} locally and was not executed.",
                          "next_step": f"Run .proof/adapter.py {provider_id} locally or the {provider['display_name']} workflow on a PR to produce evidence."})
         for name in credential_names:
-            present = bool(environment.get(name, "").strip())
+            present = name in environment
             rows.append({"id": f"local.credential.{name}", "status": "unverified",
                          "message": f"{name} is {'set' if present else 'unset'} locally; its validity was not checked." ,
                          "next_step": f"Store {name} as a GitHub secret for CI; export it locally only to run the adapter yourself."})
@@ -267,13 +272,71 @@ def adapter_setup(target: Path, selected: dict, providers: dict, environment: di
     return rows
 
 
+def activation_rows(target: Path, documents: list[dict], selected: dict, providers: dict,
+                    environment: dict, checks: list[dict]) -> list[dict]:
+    """All catalog checks, including inactive/later checks, without running producers.
+
+    Existing evidence is an observation, never synthesized passing evidence.
+    Only credential names are inspected; credential values are never accessed.
+    """
+    if not documents or not providers:
+        return []
+    activation = trusted_module("tooling/activation.py", "activation.py")
+    try:
+        evidence = read_object(target, ".artifacts/proof/evidence.json")
+        evaluator = trusted_module("proof/evaluate.py", "evaluate.py")
+        evaluator.validate_evidence(evidence, evaluator.catalog_map(documents[2]), providers)
+    except (OSError, ValueError, KeyError, TypeError):
+        evidence = {}
+    code, head = git_probe(["rev-parse", "--verify", "HEAD^{commit}"], target)
+    head = head if code == 0 else None
+    subject = evidence.get("subject", {})
+    results = evidence.get("results", {})
+    selections = documents[3]["selections"]
+    output = []
+    for control in documents[2]["controls"]:
+        identifier = control["id"]
+        selection = selected.get(identifier)
+        provider_id = selections[identifier]["authoritative"]
+        hint = activation.hints(control, provider_id, providers[provider_id])
+        files = [{"path": relative, "installed": (target / relative).is_file()
+                  and (target / relative).resolve().is_relative_to(target)} for relative in hint["installed_files"]]
+        variables = [{"name": name, "configured_locally": bool(environment.get(name, "").strip())
+                      and (name not in hint["enabled_values"] or environment.get(name) == hint["enabled_values"][name]),
+                      "ci": "not inspected here; use --github for metadata"} for name in hint["variables"]]
+        credentials = [{"name": name, "declared_locally": name in environment,
+                        "validity": "unverified"} for name in hint["credential_names"]]
+        gaps = ["Missing file: " + row["path"] for row in files if not row["installed"]]
+        gaps.extend("Local variable unset: " + row["name"] for row in variables if not row["configured_locally"])
+        gaps.extend("Local credential name absent: " + row["name"] for row in credentials if not row["declared_locally"])
+        relevant = [row for row in checks if row["status"] == "action_needed" and
+                    (row["id"].endswith("." + identifier) or row["id"].endswith("." + provider_id)
+                     or row["id"] in {"configuration", "runtime"})]
+        gaps.extend(row["message"] for row in relevant)
+        result = results.get(identifier, {}).get(provider_id)
+        result = result if isinstance(result, dict) else {}
+        bound = bool(head and subject.get("type") == control["evidence_subject"] == "git-commit"
+                     and subject.get("revision") == head)
+        status = result.get("status", "missing")
+        next_steps = list(dict.fromkeys([*gaps, hint["execution"], "Verify exact-subject authoritative evidence; configuration is not a pass."]))
+        output.append({"id": identifier, "name": control["name"], "stage": control["stage"],
+                       "selected": selection is not None, "policy_mode": selection["mode"] if selection else "not_activated",
+                       "authoritative_provider": provider_id, "installed_prerequisites": files,
+                       "configuration_gaps": gaps, "variables": variables, "credentials": credentials,
+                       "manual": hint["manual"], "guide": hint["guide"], "next_steps": next_steps,
+                       "evidence": {"revision": subject.get("revision"), "subject_type": subject.get("type"),
+                                    "current_head": head, "bound_to_head": bound, "status": status,
+                                    "verified": bool(bound and status in {"passed", "failed"})}})
+    return output
+
+
 def diagnose(target: Path, *, operation: str = "change", environment: dict | None = None, github: str | None = None) -> dict:
     target = target.resolve()
     if not target.is_dir():
         raise ValueError("--target must name an existing repository directory")
     if github is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9_.-]+", github):
         raise ValueError("--github must be OWNER/REPO on github.com")
-    environment = dict(os.environ) if environment is None else environment
+    environment = os.environ if environment is None else environment
     checks = []
 
     def add(identifier, status, message, next_step):
@@ -288,7 +351,7 @@ def diagnose(target: Path, *, operation: str = "change", environment: dict | Non
 
     evaluator = trusted_module("proof/evaluate.py", "evaluate.py")
     producer = trusted_module("tooling/produce_proof_evidence.py", "produce.py")
-    selected, providers = {}, {}
+    selected, providers, documents = {}, {}, []
     try:
         documents = [read_object(target, f".proof/{name}.yaml")
                      for name in ("policy", "profiles", "control-catalog", "providers")]
@@ -388,7 +451,8 @@ def diagnose(target: Path, *, operation: str = "change", environment: dict | Non
     if github and selected:
         checks.extend(github_setup(target, github, selected, providers, producer))
     return {"version": 1, "kind": "setup-diagnostics", "operation": operation, "github_repository": github,
-            "checks": checks, "summary": {status: sum(row["status"] == status for row in checks)
+            "checks": checks, "activation": activation_rows(target, documents, selected, providers, environment, checks),
+            "summary": {status: sum(row["status"] == status for row in checks)
                                            for status in ("configured", "action_needed", "unverified")}}
 
 
@@ -409,6 +473,12 @@ def main() -> int:
         print("Proof Setup Diagnostic\nConfiguration is not passing evidence. No producers were run.\n")
         for row in report["checks"]:
             print(f"[{row['status'].upper()}] {row['id']}: {row['message']}\n  Next: {row['next_step']}")
+        print("\nCheck activation (selection and setup are not passing evidence):")
+        for row in report["activation"]:
+            evidence = row["evidence"]
+            print(f"{row['id']}: {row['policy_mode']}; provider={row['authoritative_provider']}; evidence={evidence['status']}; revision={evidence['revision'] or 'none'}")
+            print(f"  Gaps: {'; '.join(row['configuration_gaps']) or 'none detected; execution still unverified'}")
+            print(f"  Guide: {row['guide']}\n  Next: {row['next_steps'][-2]}")
         print("\n" + " | ".join(f"{key}: {value}" for key, value in report["summary"].items()))
     return 1 if report["summary"]["action_needed"] else 0
 

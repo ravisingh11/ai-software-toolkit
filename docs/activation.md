@@ -52,7 +52,7 @@ merge checks separately so a disabled producer cannot leave merges waiting.
 
 - Stage / evidence subject: `change-and-release` / `git-commit`.
 - Provider selection: `repository-validator`.
-- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/repository-validation.yml`.
+- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/repository-validation.yml`, `.proof/validators/validate_repository.py`, `.proof/evaluate.py`.
 - Configuration / enablement: repository-owned configuration and provider prerequisites; no provider secret declared.
 - Execution: Run the configured provider locally or on its documented CI trigger; inspect the exact-subject result.
 - Verification: require authoritative evidence for the exact `git-commit`; see the common verification, enforcement, and disabling steps above.
@@ -64,7 +64,7 @@ merge checks separately so a disabled producer cannot leave merges waiting.
 
 - Stage / evidence subject: `change-and-release` / `git-commit`.
 - Provider selection: `repository-validator`.
-- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.proof/documentation.yaml`, `.github/workflows/repository-validation.yml`.
+- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.proof/documentation.yaml`, `.github/workflows/repository-validation.yml`, `.proof/validators/validate_documentation.py`.
 - Configuration / enablement: repository-owned configuration and provider prerequisites; no provider secret declared.
 - Execution: Run the configured provider locally or on its documented CI trigger; inspect the exact-subject result.
 - Verification: require authoritative evidence for the exact `git-commit`; see the common verification, enforcement, and disabling steps above.
@@ -76,7 +76,7 @@ merge checks separately so a disabled producer cannot leave merges waiting.
 
 - Stage / evidence subject: `change-and-release` / `git-commit`.
 - Provider selection: `repository-validator`.
-- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.proof/ground-truth-ai.yaml`, `.github/workflows/repository-validation.yml`.
+- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.proof/ground-truth-ai.yaml`, `.github/workflows/repository-validation.yml`, `.proof/validate_ground_truth.py`.
 - Configuration / enablement: repository-owned configuration and provider prerequisites; no provider secret declared.
 - Execution: Run the configured provider locally or on its documented CI trigger; inspect the exact-subject result.
 - Verification: require authoritative evidence for the exact `git-commit`; see the common verification, enforcement, and disabling steps above.
@@ -100,7 +100,7 @@ merge checks separately so a disabled producer cannot leave merges waiting.
 
 - Stage / evidence subject: `change` / `pull-request`.
 - Provider selection: `repository-pr-metadata`.
-- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.proof/pr-metadata.yaml`, `.github/workflows/pr-metadata.yml`.
+- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.proof/pr-metadata.yaml`, `.github/workflows/pr-metadata.yml`, `.proof/validators/validate_pr_metadata.py`.
 - Configuration / enablement: repository-owned configuration and provider prerequisites; no provider secret declared.
 - Execution: Run the configured provider locally or on its documented CI trigger; inspect the exact-subject result.
 - Verification: require authoritative evidence for the exact `pull-request`; see the common verification, enforcement, and disabling steps above.
@@ -184,7 +184,7 @@ merge checks separately so a disabled producer cannot leave merges waiting.
 
 - Stage / evidence subject: `change-and-release` / `git-commit`.
 - Provider selection: `semgrep-ce`; alternatives: `semgrep-app`.
-- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/semgrep-ce.yml`.
+- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/semgrep-ce.yml`, `.proof/semgrep-rules.yml`, `.proof/semgrep-tests/fixtures/safe/requests.py`, `.proof/semgrep-tests/fixtures/safe/tls.js`, `.proof/semgrep-tests/fixtures/unsafe/requests.py`, `.proof/semgrep-tests/fixtures/unsafe/tls.js`.
 - Configuration / enablement: repository-owned configuration and provider prerequisites; no provider secret declared.
 - Execution: Run the configured provider locally or on its documented CI trigger; inspect the exact-subject result.
 - Verification: require authoritative evidence for the exact `git-commit`; see the common verification, enforcement, and disabling steps above.
@@ -256,11 +256,11 @@ merge checks separately so a disabled producer cannot leave merges waiting.
 
 - Stage / evidence subject: `release` / `artifact`.
 - Provider selection: `github-artifact-attestations`.
-- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`.
-- Configuration / enablement: `PROOF_ARTIFACT_PROVENANCE_ENABLED`; no provider secret declared.
-- Execution: Run the configured provider locally or on its documented CI trigger; inspect the exact-subject result.
+- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`, `.proof/lifecycle.json`.
+- Configuration / enablement: repository-owned configuration and provider prerequisites; no provider secret declared.
+- Execution: Explicit workflow_dispatch with an owned immutable subject and lifecycle configuration.
 - Verification: require authoritative evidence for the exact `artifact`; see the common verification, enforcement, and disabling steps above.
-- Practical guide: [setup and limits](providers/independent-security.md).
+- Practical guide: [setup and limits](providers/lifecycle.md).
 
 ### static-quality
 
@@ -352,7 +352,7 @@ merge checks separately so a disabled producer cannot leave merges waiting.
 
 - Stage / evidence subject: `pre-release` / `environment`.
 - Provider selection: `repository-soak`.
-- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`.
+- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`, `.proof/lifecycle.json`.
 - Configuration / enablement: repository-owned configuration and provider prerequisites; no provider secret declared.
 - Execution: Explicit workflow_dispatch with an owned immutable subject and lifecycle configuration.
 - Verification: require authoritative evidence for the exact `environment`; see the common verification, enforcement, and disabling steps above.
@@ -364,7 +364,7 @@ merge checks separately so a disabled producer cannot leave merges waiting.
 
 - Stage / evidence subject: `release` / `artifact`.
 - Provider selection: `trivy-container-image`.
-- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`.
+- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`, `.proof/lifecycle.json`.
 - Configuration / enablement: repository-owned configuration and provider prerequisites; no provider secret declared.
 - Execution: Explicit workflow_dispatch with an owned immutable subject and lifecycle configuration.
 - Verification: require authoritative evidence for the exact `artifact`; see the common verification, enforcement, and disabling steps above.
@@ -376,7 +376,7 @@ merge checks separately so a disabled producer cannot leave merges waiting.
 
 - Stage / evidence subject: `change-and-release` / `git-commit`.
 - Provider selection: `trivy-iac-config`; alternatives: `trivy-repository-iac`.
-- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`.
+- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`, `.proof/lifecycle.json`.
 - Configuration / enablement: repository-owned configuration and provider prerequisites; no provider secret declared.
 - Execution: Explicit workflow_dispatch with an owned immutable subject and lifecycle configuration.
 - Verification: require authoritative evidence for the exact `git-commit`; see the common verification, enforcement, and disabling steps above.
@@ -388,7 +388,7 @@ merge checks separately so a disabled producer cannot leave merges waiting.
 
 - Stage / evidence subject: `release` / `artifact`.
 - Provider selection: `trivy-artifact-sbom`.
-- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`.
+- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`, `.proof/lifecycle.json`.
 - Configuration / enablement: repository-owned configuration and provider prerequisites; no provider secret declared.
 - Execution: Explicit workflow_dispatch with an owned immutable subject and lifecycle configuration.
 - Verification: require authoritative evidence for the exact `artifact`; see the common verification, enforcement, and disabling steps above.
@@ -400,7 +400,7 @@ merge checks separately so a disabled producer cannot leave merges waiting.
 
 - Stage / evidence subject: `release` / `artifact`.
 - Provider selection: `trivy-artifact-sbom-scan`.
-- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`.
+- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`, `.proof/lifecycle.json`.
 - Configuration / enablement: repository-owned configuration and provider prerequisites; no provider secret declared.
 - Execution: Explicit workflow_dispatch with an owned immutable subject and lifecycle configuration.
 - Verification: require authoritative evidence for the exact `artifact`; see the common verification, enforcement, and disabling steps above.
@@ -412,7 +412,7 @@ merge checks separately so a disabled producer cannot leave merges waiting.
 
 - Stage / evidence subject: `deployment` / `environment`.
 - Provider selection: `repository-deployment-policy`.
-- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`.
+- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`, `.proof/lifecycle.json`.
 - Configuration / enablement: repository-owned configuration and provider prerequisites; no provider secret declared.
 - Execution: Explicit workflow_dispatch with an owned immutable subject and lifecycle configuration.
 - Verification: require authoritative evidence for the exact `environment`; see the common verification, enforcement, and disabling steps above.
@@ -424,7 +424,7 @@ merge checks separately so a disabled producer cannot leave merges waiting.
 
 - Stage / evidence subject: `post-deployment` / `environment`.
 - Provider selection: `zap-baseline-local`.
-- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`.
+- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`, `.proof/lifecycle.json`.
 - Configuration / enablement: repository-owned configuration and provider prerequisites; no provider secret declared.
 - Execution: Explicit workflow_dispatch with an owned immutable subject and lifecycle configuration.
 - Verification: require authoritative evidence for the exact `environment`; see the common verification, enforcement, and disabling steps above.
@@ -436,7 +436,7 @@ merge checks separately so a disabled producer cannot leave merges waiting.
 
 - Stage / evidence subject: `runtime` / `environment`.
 - Provider selection: `repository-runtime-assurance`.
-- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`.
+- Installed prerequisites: `.proof/policy.yaml`, `.proof/providers.yaml`, `.github/workflows/lifecycle-verification.yml`, `.proof/lifecycle.json`.
 - Configuration / enablement: repository-owned configuration and provider prerequisites; no provider secret declared.
 - Execution: Explicit workflow_dispatch with an owned immutable subject and lifecycle configuration.
 - Verification: require authoritative evidence for the exact `environment`; see the common verification, enforcement, and disabling steps above.

@@ -518,3 +518,59 @@ class AdapterDiagnosticTests(DoctorTests):
     def test_no_rows_without_external_selection(self):
         checks = self.checks(self.report())
         self.assertFalse([key for key in checks if key.startswith("provider.")])
+
+
+class ActivationDiagnosticsTests(unittest.TestCase):
+    setUp = DoctorTests.setUp
+    git = DoctorTests.git
+    report = DoctorTests.report
+
+    def activation(self, **kwargs):
+        return {row["id"]: row for row in self.report(**kwargs)["activation"]}
+
+    def test_all_checks_remain_discoverable_with_selection_and_local_gaps(self):
+        rows = self.activation(environment={})
+        self.assertEqual(len(rows), 33)
+        self.assertEqual(sum(row["selected"] for row in rows.values()), 12)
+        self.assertEqual(rows["unit-tests"]["policy_mode"], "advisory")
+        self.assertIn("Local variable unset: PROOF_UNIT_TEST_COMMAND", rows["unit-tests"]["configuration_gaps"])
+        self.assertEqual(rows["unit-tests"]["evidence"]["status"], "missing")
+        self.assertFalse(rows["runtime-soak"]["selected"])
+        self.assertTrue(rows["runtime-soak"]["manual"])
+        self.assertTrue(rows["runtime-soak"]["guide"].endswith("#runtime-soak"))
+
+    def test_selected_failure_stale_evidence_and_manual_execution_stay_distinct(self):
+        path = self.target / ".artifacts/proof/evidence.json"
+        path.parent.mkdir(parents=True)
+        evidence = {"version": 2, "subject": {"type": "git-commit", "revision": self.git("rev-parse", "HEAD")},
+                    "results": {"unit-tests": {"repository-unit-tests": {"producer": "fixture", "status": "failed", "evidence": ["CI log"]}}}}
+        path.write_text(json.dumps(evidence))
+        observed = self.activation(environment={})["unit-tests"]["evidence"]
+        self.assertTrue(observed["verified"])
+        self.assertEqual(observed["status"], "failed")
+        evidence["subject"]["revision"] = "a" * 40
+        path.write_text(json.dumps(evidence))
+        observed = self.activation(environment={})["unit-tests"]["evidence"]
+        self.assertEqual(observed["revision"], "a" * 40)
+        self.assertEqual(observed["status"], "failed")
+        self.assertFalse(observed["verified"])
+        self.assertFalse(observed["bound_to_head"])
+
+    def test_credentials_are_names_only_and_values_are_not_accessed(self):
+        policy_path = self.target / ".proof/policy.yaml"
+        policy = json.loads(policy_path.read_text())
+        policy["overrides"]["change"]["dependency-vulnerability"] = "advisory"
+        policy_path.write_text(json.dumps(policy))
+
+        class NamesOnly(dict):
+            def get(self, key, default=None):
+                if key == "SNYK_TOKEN":
+                    raise AssertionError("credential value accessed")
+                return super().get(key, default)
+
+        environment = NamesOnly(SNYK_TOKEN="must-never-appear")
+        report = self.report(environment=environment)
+        self.assertNotIn("must-never-appear", json.dumps(report))
+        row = next(row for row in report["activation"] if row["id"] == "dependency-vulnerability")
+        self.assertEqual(row["credentials"], [{"name": "SNYK_TOKEN", "declared_locally": True, "validity": "unverified"}])
+        self.assertFalse(row["evidence"]["verified"])

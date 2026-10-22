@@ -79,6 +79,10 @@ The five `docs/*-standard*.md` guides are now under `docs/standards/`, and
 `docs/superpowers/` became `docs/archive/`. Runtime paths and release tags did
 not move.
 
+See [documentation mappings and execution](proof/documentation-validation.md) for
+practical consumer setup. `tooling/activation.py` owns shared activation hints
+and renders the index; both doctor commands use those same hints.
+
 ## Documentation coverage check
 
 `tooling/validators/validate_repository.py` checks workflow templates, skill

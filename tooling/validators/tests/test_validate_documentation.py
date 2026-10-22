@@ -170,3 +170,65 @@ class DocumentationValidatorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TrackedDocumentationTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        self.policy = {"version": 1, "mappings": [{"name": "api", "triggers": ["src/**"], "documents": ["docs/api.md"]}]}
+        (self.root / "docs").mkdir()
+        (self.root / "docs/api.md").write_text("# API\n")
+        (self.root / "README.md").write_text("[API](docs/api.md)\n")
+
+    def test_git_inventory_ignores_untracked_dependencies_but_checks_tracked_docs(self):
+        git(self.root, "init", "-q")
+        git(self.root, "add", "README.md", "docs")
+        for name in ("node_modules", ".artifacts", "dist"):
+            (self.root / name).mkdir()
+            (self.root / name / "broken.md").write_text("[bad](missing.md)\n")
+        self.assertEqual(MODULE.validate_markdown_links(self.root), [])
+        self.assertEqual(MODULE.validate_document_targets(self.root, self.policy), [])
+        (self.root / "docs/api.md").write_text("[broken](gone.md)\n")
+        self.assertIn("missing link target", MODULE.validate_markdown_links(self.root)[0])
+        self.assertEqual(len(MODULE.validate_changed_files(self.policy, ["src/api.py"])), 1)
+        self.assertEqual(MODULE.validate_changed_files(self.policy, ["src/api.py", "docs/api.md"]), [])
+
+    def test_untracked_document_cannot_satisfy_mapping_and_nested_root_is_scoped(self):
+        git(self.root, "init", "-q")
+        git(self.root, "add", "README.md")
+        self.assertTrue(MODULE.validate_document_targets(self.root, self.policy))
+        git(self.root, "add", "docs/api.md")
+        self.assertEqual([p.name for p in MODULE.markdown_files(self.root / "docs")], ["api.md"])
+
+    def test_snapshot_fallback_excludes_output_and_is_deterministic(self):
+        for name in ("node_modules", "vendor", ".venv", "build", "generated", ".artifacts"):
+            path = self.root / name
+            path.mkdir()
+            (path / "bad.md").write_text("[bad](absent.md)\n")
+        self.assertEqual(MODULE.validate_markdown_links(self.root), [])
+        self.assertEqual(MODULE.validate_document_targets(self.root, self.policy), [])
+        self.assertEqual(MODULE.repository_files(self.root), sorted(MODULE.repository_files(self.root)))
+        with self.assertRaises((ValueError, subprocess.CalledProcessError)):
+            MODULE.changed_between(self.root, "missing", "HEAD", None)
+
+    def test_unavailable_git_inventory_and_symlink_escape_fail_closed(self):
+        git(self.root, "init", "-q")
+        with mock.patch.object(MODULE.subprocess, "run", return_value=subprocess.CompletedProcess([], 128, "", "")):
+            with self.assertRaises(ValueError):
+                MODULE.repository_files(self.root)
+        with tempfile.TemporaryDirectory() as outside:
+            secret = Path(outside) / "outside.md"
+            secret.write_text("private")
+            (self.root / "escape.md").symlink_to(secret)
+            git(self.root, "add", "escape.md")
+            with self.assertRaisesRegex(ValueError, "escapes"):
+                MODULE.markdown_files(self.root)
+
+    def test_missing_policy_or_comparison_baseline_is_not_a_pass(self):
+        with self.assertRaises(OSError):
+            MODULE.validate(self.root, self.root / "missing-policy.yaml")
+        git(self.root, "init", "-q")
+        with self.assertRaises(subprocess.CalledProcessError):
+            MODULE.changed_between(self.root, "missing", "HEAD", None)
