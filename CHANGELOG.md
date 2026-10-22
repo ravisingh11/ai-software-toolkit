@@ -8,6 +8,22 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+- Group scorecards into selected checks, tools available to adopt, and checks
+  relevant later. Score only the checks selected for the evaluation stage;
+  preserve actual failures and missing evidence without penalizing adoption
+  options or later-stage tools. Keep advisory/enforced mode separate.
+- Distinguish activation and configuration from execution evidence, explain
+  missing or ambiguous results as Unable to verify, hide zero result counts,
+  and link results to their evaluated revision and producer runs. Improve
+  mobile presentation and preserve fail-closed evidence validation.
+- Enable advisory Dependabot verification for this repository and explain
+  missing settings proof without treating provider selection as execution.
+- Include the toolkit's pinned Python requirements files in optional Trivy
+  dependency scans. Document that these scans cover declared direct inputs
+  without resolving unlisted transitive dependencies.
+- Document selection, adoption, stage relevance, and agent skill execution
+  separately. All toolkit checks remain optional and polyglot examples manual.
+
 - Add independent, opt-in Trivy dependency/IaC PR providers and manual image
   scans with SBOM output. Add exact published release-asset verification
   attestations alongside compatible native build provenance, without requiring

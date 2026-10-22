@@ -195,19 +195,35 @@ revision, and source CI run. Provider names link to configuration at that
 revision; **Latest reported run** opens available evidence for that snapshot.
 Provider selection is separate from successful execution.
 
-**Selected checks** counts checks included in the evaluation, not checks that
-have successfully run. The scorecard separates failed, blocked, and unverified
-results. Inactive checks stay outside that total, including checks belonging
-to a subject this evaluation did not score. An empty enforced selection says
-**No checks enforced**; it does not represent a passing check.
+The scorecard groups tools by the project's evaluation stage:
 
-- **Passed:** usable authoritative evidence satisfies the check.
-- **Failed:** usable evidence reports a failed check.
-- **Blocked:** the producer could not complete or the evidence could not be accepted.
-- **Unverified:** usable evidence is missing; it is never a pass.
-- **Not configured:** no provider is selected.
-- **Not reported:** this snapshot has no validated result row.
-- **Not activated:** the check is outside the selected policy or operation.
+| Group | Meaning | Included in the score? |
+| --- | --- | --- |
+| **Selected checks** | Checks chosen by this project's policy for the evaluated stage | Yes, including failed or unverifiable results |
+| **Tools available to adopt** | Unselected tools that can help at the current stage | No |
+| **Checks relevant later** | Unselected checks for a later release or runtime stage | No |
+
+Selection does not prove execution. Each selected check shows its actual result:
+**Passed**, **Failed**, **Blocked**, or **Unable to verify**. Setup information
+separately explains missing configuration, disabled providers, and manual runs
+that have not happened. Zero result counts are hidden. Missing evidence never
+counts as a pass; an empty enforced selection says **No checks enforced**.
+
+**Advisory / Enforced** is a separate policy choice. Advisory findings remain
+visible without blocking the toolkit decision. Enforced checks must pass;
+failed, blocked, or unverifiable evidence prevents that decision from allowing
+progress. GitHub's required merge checks are configured separately.
+
+The toolkit repository currently selects its Core/GitHub development checks as
+advisory. The [provider adoption guide](docs/providers/availability.md#selection-and-stage)
+explains how to inspect the exact policy and execution evidence. Counts and run
+results belong to the revision shown on the live page, not to this README.
+
+Installed [agent skills](skills/README.md) are available playbooks. An agent
+uses a relevant skill for a task; installing it does not execute it, schedule it,
+or prove that functional QA or a release review happened. Keep skill-use reports
+bound to the source and behavior actually reviewed. Hosted QA needs its own
+configured executor and evidence producer.
 
 A passing scanner check is not a claim of zero vulnerabilities. Finding counts,
 when displayed, retain their reporting source. Missing credentials, skipped
