@@ -22,7 +22,7 @@ Use Git, Python 3.11+, and a POSIX shell. Preview a Proof-only installation from
 the published release before applying it to your application repository:
 
 ```sh
-git clone --branch v2.2.1 --depth 1 https://github.com/ravisingh11/ai-software-toolkit.git
+git clone --branch v2.3.0 --depth 1 https://github.com/ravisingh11/ai-software-toolkit.git
 cd ai-software-toolkit
 python3 tooling/ai_toolkit discover --target /path/to/your-repo
 python3 tooling/ai_toolkit init --target /path/to/your-repo --components proof --preview
@@ -40,11 +40,10 @@ installs, updates, ownership, and rollback. The
 [activation index](docs/activation.md) covers **all 33 checks**, including
 prerequisites, execution, evidence, disabling, and optional enforcement.
 
-For the upcoming v2.3.0 source line, fresh installations default to
+In v2.3.0, fresh installations default to
 `--install-set starter`: Proof, seven starter skills, and 11 Core workflows
 covering all 12 advisory Core checks. Existing installations keep their prior
 behavior. See [starter and full installation sets](docs/install.md#fresh-starter-installation-v230).
-The pinned v2.2.1 example above retains that published release's behavior.
 
 ## What you can use
 
