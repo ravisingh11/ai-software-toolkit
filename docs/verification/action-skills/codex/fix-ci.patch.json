@@ -1,0 +1,15 @@
+{
+  "format": "git-unified-diff-lines",
+  "lines": [
+    "diff --git a/calc.py b/calc.py\n",
+    "index 1e2c865..5b57a7f 100644\n",
+    "--- a/calc.py\n",
+    "+++ b/calc.py\n",
+    "@@ -1,4 +1,4 @@\n",
+    " def divide(a, b):\n",
+    "     if b == 0:\n",
+    "         raise ZeroDivisionError(\"b must not be zero\")\n",
+    "-    return abs(a) / abs(b)  # seeded bug: sign is lost\n",
+    "+    return a / b\n"
+  ]
+}

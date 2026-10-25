@@ -12,14 +12,17 @@ fixed fixture commits, patch hashes and raw transcript hashes. Raw transcripts
 and fixture Git bundles remain with the maintainer because they include private
 environment paths. The sanitized patches below reproduce the captured outputs
 against `tooling/tests/fixtures/skills/<name>/` at the recorded source revision.
+Patches are stored as JSON line arrays so context-only blank lines retain their
+exact bytes without requiring whitespace exceptions. Join `lines` without a
+separator to recover the unified diff; its SHA-256 is the recorded patch hash.
 
 | Skill | Captured output | Hosted verification |
 | --- | --- | --- |
-| fix-ci | [Patch](fix-ci.patch) | Pending |
-| generate-unit-tests | [Patch](generate-unit-tests.patch) | Pending |
-| fix-security-finding | [Patch](fix-security-finding.patch) | Pending |
-| dependency-upgrade | [Patch](dependency-upgrade.patch) | Pending |
-| address-pr-findings | [Patch](address-pr-findings.patch) | Pending |
+| fix-ci | [Patch](fix-ci.patch.json) | Pending |
+| generate-unit-tests | [Patch](generate-unit-tests.patch.json) | Pending |
+| fix-security-finding | [Patch](fix-security-finding.patch.json) | Pending |
+| dependency-upgrade | [Patch](dependency-upgrade.patch.json) | Pending |
+| address-pr-findings | [Patch](address-pr-findings.patch.json) | Pending |
 
 The existing Unit Tests workflow runs
 `tooling/tests/test_action_skill_demonstrations.py` in hosted CI. It applies each

@@ -27,12 +27,16 @@ class CodexActionSkillDemonstrations(unittest.TestCase):
     def prepare(self, name):
         records = json.loads((EVIDENCE / "captures.json").read_text())
         record = next(row for row in records if row["skill"] == name)
-        patch = EVIDENCE / (name + ".patch")
-        self.assertEqual(hashlib.sha256(patch.read_bytes()).hexdigest(), record["patch_sha256"])
+        encoded = json.loads((EVIDENCE / (name + ".patch.json")).read_text())
+        self.assertEqual(encoded["format"], "git-unified-diff-lines")
+        patch_bytes = "".join(encoded["lines"]).encode()
+        self.assertEqual(hashlib.sha256(patch_bytes).hexdigest(), record["patch_sha256"])
         directory = tempfile.TemporaryDirectory(prefix="skill-demonstration-")
         self.addCleanup(directory.cleanup)
         work = Path(directory.name)
         shutil.copytree(SEEDS / name, work, dirs_exist_ok=True)
+        patch = work / "captured.patch"
+        patch.write_bytes(patch_bytes)
         return work, patch
 
     def command(self, work, *args, passes=True, timeout=60):
@@ -149,6 +153,14 @@ class CodexActionSkillDemonstrations(unittest.TestCase):
         for row in findings:
             self.assertNotEqual(row["status"], "open")
             self.assertTrue(row["verification"]["result"])
+            if row["id"] in {"ENG-001", "ENG-002"}:
+                self.assertEqual(row["status"], "resolved")
+                self.assertEqual(row["verification"]["result"], "passed")
+                self.assertIn("https://github.com/ravisingh11/ai-software-toolkit/actions/runs/",
+                              row["verification"]["method"])
+            else:
+                self.assertEqual(row["status"], "deferred")
+                self.assertIn("import", row["verification"]["residualRisk"])
         self.suite(work)
         self.command(work, sys.executable, "-c", """
 import store

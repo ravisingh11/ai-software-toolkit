@@ -46,6 +46,12 @@ verify Claude Code; leave an unavailable client's row `no` with an explicit
 blocked or not-run outcome. Do not install a second client or provision its
 credentials merely to make the table green.
 
+The toolkit's own Unit Tests and standards-source validation jobs fetch Git
+history so the existing ledger validator can compare recorded source commits.
+Consumer workflow templates and their defaults are unchanged. Validator unit
+tests create their own blank ledger rows for negative controls; production
+verification records must not serve as mutable test inputs.
+
 Each ledger links its skill-specific task and outcome criteria. The existing
 validator checks ledger shape and source freshness; it cannot establish that
 the transcript is authentic or that an agent performed the work. Changes to the

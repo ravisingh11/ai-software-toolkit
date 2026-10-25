@@ -58,8 +58,9 @@ to both `init` commands; that choice does not install starter skills.
 Check [workspace selection and skill discovery](skill-onboarding.md) before
 invoking a skill. Installation and a successful skill run are separate states.
 
-For advanced installation options below, use `tooling/install.py` from the same
-toolkit checkout. Its direct preview/apply equivalent is:
+For advanced standalone Proof installations, `tooling/install.py` remains
+available from the same checkout. It retains the legacy full Core workflow
+default and does not install the CLI's seven-skill starter selection:
 
 ```sh
 python3 tooling/install.py --target /path/to/repo --dry-run
@@ -79,8 +80,8 @@ mappings, scope/metadata settings, and consumer-owned workflows. Review the
 diff before committing; provider definitions are refreshed while retaining
 repository-specific trusted paths.
 
-A normal install includes the Core runtime and Core GitHub Actions. To install
-only the runtime, use:
+A standalone install includes the Core runtime and legacy Core GitHub Actions.
+To install only the runtime with that installer, use:
 
 ```sh
 python3 tooling/install.py --target /path/to/repo --no-actions

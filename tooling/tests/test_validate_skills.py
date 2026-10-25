@@ -31,6 +31,15 @@ class ActionSkillValidationTests(unittest.TestCase):
         self.fixtures = root / "fixtures"
         shutil.copytree(ROOT / "skills" / "fix-ci", self.skills / "fix-ci")
         shutil.copytree(ROOT / "tooling" / "tests" / "fixtures" / "skills" / "fix-ci", self.fixtures / "fix-ci")
+        # Negative controls need a known fixture, independent of real client-run
+        # records gaining dates, evidence or verified status in the source ledger.
+        ledger = self.skills / "fix-ci" / "VERIFICATION.md"
+        rows = ledger.read_text().splitlines()
+        for index, row in enumerate(rows):
+            for client in ("codex", "claude-code"):
+                if row.startswith(f"| {client} |"):
+                    rows[index] = f"| {client} | no | — | — | — | — | — |"
+        ledger.write_text("\n".join(rows) + "\n")
         self.patches = [patch.object(self.module, "ROOT", root), patch.object(self.module, "SKILLS_DIR", self.skills), patch.object(self.module, "FIXTURES_DIR", self.fixtures)]
         for item in self.patches:
             item.start()
@@ -43,7 +52,7 @@ class ActionSkillValidationTests(unittest.TestCase):
 
     def test_shipped_action_skills_validate(self):
         for name in self.module.ACTION_SKILLS:
-            with patch.object(self.module, "SKILLS_DIR", ROOT / "skills"), patch.object(self.module, "FIXTURES_DIR", ROOT / "tooling" / "tests" / "fixtures" / "skills"):
+            with patch.object(self.module, "ROOT", ROOT), patch.object(self.module, "SKILLS_DIR", ROOT / "skills"), patch.object(self.module, "FIXTURES_DIR", ROOT / "tooling" / "tests" / "fixtures" / "skills"):
                 self.module.validate_action_skill(name)
 
     def test_missing_pieces_are_reported(self):
