@@ -18,21 +18,25 @@ branch protection. Advanced lifecycle and polyglot execution stay manual.
 
 ## Start here
 
-Use Git, Python 3.11+, and a POSIX shell. Preview a Proof-only installation from
-the published release before applying it to your application repository:
+Use Git, Python 3.11+, and a POSIX shell. Preview the starter installation
+(Proof and seven skills) before applying it to your application repository:
 
 ```sh
 git clone --branch v2.3.0 --depth 1 https://github.com/ravisingh11/ai-software-toolkit.git
 cd ai-software-toolkit
 python3 tooling/ai_toolkit discover --target /path/to/your-repo
-python3 tooling/ai_toolkit init --target /path/to/your-repo --components proof --preview
-python3 tooling/ai_toolkit init --target /path/to/your-repo --components proof --yes
+python3 tooling/ai_toolkit init --target /path/to/your-repo --clients codex --preview
+python3 tooling/ai_toolkit init --target /path/to/your-repo --clients codex --yes
 python3 tooling/ai_toolkit doctor --target /path/to/your-repo
 ```
 
 Replace the target path with your repository. Discovery, preview, and doctor
 are read-only; doctor does not run producers. Configure your real commands
 before executing checks. Code on `main` may be newer than the published release.
+For Claude Code, replace `--clients codex` with `--clients claude-code`.
+For Proof without starter skills, explicitly use `--components proof` on both
+`init` commands. See [workspace and skill discovery](docs/skill-onboarding.md)
+before expecting an agent to find or use installed skills.
 
 [Onboarding](docs/quickstart.md) covers local and CI setup. The
 [installation guide](docs/install.md) covers component selection, runtime-only

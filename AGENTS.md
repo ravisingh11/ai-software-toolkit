@@ -35,6 +35,30 @@ the chosen framework's real migration validation command in the same change.
   commit them.
 - Preserve the `.proof/` public runtime contract and document migrations.
 
+## Choose a skill for the task
+
+Read the applicable canonical `skills/<name>/SKILL.md` before using its procedure.
+This is the toolkit source repository; installed consumers use their selected
+`.agents/skills/` (Codex) or `.claude/skills/` (Claude Code) copies instead.
+
+| Task | Skill |
+| --- | --- |
+| Establish repository boundaries and evidence | `prepare-safe-change` |
+| Review a change | `code-review` |
+| Assess dependency risk; implement an upgrade | `dependency-risk-review`; `dependency-upgrade` |
+| Repair documentation or onboarding | `docs-sync` |
+| Diagnose and fix failing CI | `fix-ci` |
+| Assess release readiness | `release-readiness` |
+| Review cleanup and repository metadata | `repo-admin-hygiene` |
+| Review overall repository health | `project-health-check` |
+
+Select only skills relevant to the task. User limits on tests and external
+actions take precedence over a skill's generic procedure. When local tests are
+excluded, use hosted CI and report unavailable verification honestly. Reading a
+skill or installing its files is not evidence of successful execution; report
+the skill revision, task revision, actual actions and linked results separately.
+See [skill onboarding](docs/skill-onboarding.md).
+
 ## Verification
 
 Run the smallest relevant checks while working. Before opening or updating a

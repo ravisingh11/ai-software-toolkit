@@ -27,8 +27,11 @@ for availability. Installing a skill does not prove it has run.
 - Treat `skills/` in this repository as the active source of truth for shared
   agent skills.
 - Prefer linking to these skills from repo-local `AGENTS.md`.
-- Copy a skill into a product repo only when the repo needs customization.
-- Repo-local copies should live under `docs/ai/skills/<skill-name>/SKILL.md`.
+- Install only the skills a product repo needs through a supported installer.
+- Discoverable project copies belong under `.agents/skills/<skill-name>/SKILL.md`
+  for Codex or `.claude/skills/<skill-name>/SKILL.md` for Claude Code.
+- `docs/ai/skills` can hold explanatory documentation, but is not the supported
+  automatic skill-discovery destination.
 - Keep `_shared-project-ops` with the skill set because multiple skills depend on its scripts and reference templates.
 - Do not add machine-local skills such as screen-history or personal-memory tooling to this directory.
 - Keep `SKILL.md` concise. Put detailed examples, rubrics, and long procedures under `references/`.
@@ -40,9 +43,9 @@ From the repository root:
 
 ```bash
 tooling/install-skills.sh --list
-tooling/install-skills.sh --all --dry-run
-tooling/install-skills.sh --all --merge-existing
-tooling/install-skills.sh --all --client claude-code   # ~/.claude/skills instead of ~/.codex/skills
+tooling/install-skills.sh --skill code-review --target /path/to/repo/.agents/skills --dry-run
+tooling/install-skills.sh --skill code-review --target /path/to/repo/.agents/skills --merge-existing
+tooling/install-skills.sh --skill code-review --client claude-code --target /path/to/repo/.claude/skills
 ```
 
 One canonical source serves both clients: the `SKILL.md` frontmatter (`name`,
@@ -59,6 +62,12 @@ for Codex (`.agents/skills`) and Claude Code (`.claude/skills`) without
 ```bash
 python3 tooling/ai_toolkit skills install --skill starter --client codex,claude-code
 ```
+
+Run that command in the consumer checkout or add `--target /path/to/repo`.
+The standalone installer's legacy Codex user default remains
+`${CODEX_HOME:-$HOME/.codex}/skills`; existing installations are unchanged.
+Prefer explicit project destinations above. For current Codex user-wide discovery,
+explicitly target `$HOME/.agents/skills`. See [skill onboarding](../docs/skill-onboarding.md).
 
 Install behavior:
 
@@ -95,6 +104,10 @@ Code). A skill is verified only when a live run is recorded there;
 `tooling/validate-skills.py` requires both rows. `ai-toolkit check` names the
 applicable action skill for each failed capability; running it is a separate,
 explicit step.
+
+See the [real-client verification protocol](../docs/skill-verification.md)
+for invocation records, hosted verification, negative controls and client-specific
+limitations. An installed or structurally valid skill is not a verified skill.
 
 - `fix-ci` — make a red check green by fixing the cause, never by weakening the check.
 - `generate-unit-tests` — write behavior-protecting tests for changed or untested code.

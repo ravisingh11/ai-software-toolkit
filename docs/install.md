@@ -13,6 +13,10 @@ Three entry points use the same code: the CLI, the
 Claude Code, and the [`AI Toolkit Setup` starter workflow](../workflows/README.md#starter-workflow)
 for GitHub. Python 3.11+ is the only prerequisite.
 
+Start with the [v2.3.0 walkthrough](quickstart.md) and
+[workspace/client skill setup](skill-onboarding.md). The latter distinguishes
+installation, discovery, invocation and demonstrated results.
+
 ## Get the CLI
 
 Either run it from a source checkout:
@@ -206,7 +210,7 @@ python3 ai-toolkit.pyz providers                       # list with credentials a
 python3 ai-toolkit.pyz providers show sonarqube
 python3 ai-toolkit.pyz providers select deep-sast=snyk-code
 python3 ai-toolkit.pyz skills install --skill starter --client codex,claude-code
-python3 ai-toolkit.pyz skills refresh --skill all --user
+python3 ai-toolkit.pyz skills refresh --skill code-review --client codex
 python3 ai-toolkit.pyz qa status
 python3 ai-toolkit.pyz qa bootstrap --client claude-code
 ```
@@ -214,6 +218,10 @@ python3 ai-toolkit.pyz qa bootstrap --client claude-code
 Skills have one canonical source under `skills/` and are copied to
 client-specific locations: `.agents/skills` (Codex) and `.claude/skills`
 (Claude Code) in the project, or the clients' user directories with `--user`.
+The existing Codex user default is `${CODEX_HOME:-$HOME/.codex}/skills`;
+it remains unchanged for compatibility. Prefer project installation for new
+adoption, or explicitly target `$HOME/.agents/skills` with the standalone
+installer for current Codex user-wide discovery. See [client locations](skill-onboarding.md#client-locations).
 `qa bootstrap` installs the `qa-bootstrap` skill; your agent then runs it to
 generate the `qa` orchestrator. Functional QA stays advisory.
 

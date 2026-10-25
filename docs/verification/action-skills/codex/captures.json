@@ -1,0 +1,67 @@
+[
+  {
+    "skill": "fix-ci",
+    "client": "codex-cli 0.163.0",
+    "skill_revision": "984f34aecfb1aa57b96fb3b2823d79d5b06717dd",
+    "initial_fixture_commit": "0c3ad960fb032955c52be4ba4defdf67175ad9ac",
+    "fixed_fixture_commit": "c449fb32227c04f2c07f9481f2c86f75e6917927",
+    "patch_sha256": "a5b51a9b07ad44aee6be542d12ad3c19410dc599dbfd2e4f8f42287f9e94fd0f",
+    "transcript_sha256": "c74c9ea380a65dd1e8cd726cb2552f4002a9322c97377cb968e21b6000cf4702",
+    "observed_at_utc": "2026-10-25T01:56:41.392788+00:00",
+    "local_verification": "not run",
+    "invocation_evidence": "Maintainer-retained real Codex CLI transcript; installed skill read confirmed; raw transcript withheld for environment privacy",
+    "verification": "Hosted CI tests verify captured output; they do not attest agent identity"
+  },
+  {
+    "skill": "generate-unit-tests",
+    "client": "codex-cli 0.163.0",
+    "skill_revision": "984f34aecfb1aa57b96fb3b2823d79d5b06717dd",
+    "initial_fixture_commit": "afa27c3f7a79dbd913a3fc53cf5002da0a98be13",
+    "fixed_fixture_commit": "11bd715dd6742a27ac00b1c32dd7c8821a485230",
+    "patch_sha256": "ecd843802e6f4f50465dbc7fb3c407dec54347f104230357f570d6669803c105",
+    "transcript_sha256": "bfc3e0b8a3d77b3ba718210552517728454ddc61cd814a78f6d2e5f4313a5c9d",
+    "observed_at_utc": "2026-10-25T01:57:07.746391+00:00",
+    "local_verification": "not run",
+    "invocation_evidence": "Maintainer-retained real Codex CLI transcript; installed skill read confirmed; raw transcript withheld for environment privacy",
+    "verification": "Hosted CI tests verify captured output; they do not attest agent identity"
+  },
+  {
+    "skill": "fix-security-finding",
+    "client": "codex-cli 0.163.0",
+    "skill_revision": "984f34aecfb1aa57b96fb3b2823d79d5b06717dd",
+    "initial_fixture_commit": "d0d02f20439d3fc33b2471d456c54d09faf75ef5",
+    "fixed_fixture_commit": "9fb3939fab6154431331d5d5c5f6589380e0feb0",
+    "patch_sha256": "5626fd54be3ff988dd06af48b985d7f3ebbf0edf2bcae0a0af37eeb7cdfec0f4",
+    "transcript_sha256": "d8b83c93607c1bcf35c211cd3d6171b4360d1258df184bb4726ec7b9c3dedb00",
+    "observed_at_utc": "2026-10-25T01:57:43.263222+00:00",
+    "local_verification": "not run",
+    "invocation_evidence": "Maintainer-retained real Codex CLI transcript; installed skill read confirmed; raw transcript withheld for environment privacy",
+    "verification": "Hosted CI tests verify captured output; they do not attest agent identity"
+  },
+  {
+    "skill": "dependency-upgrade",
+    "client": "codex-cli 0.163.0",
+    "skill_revision": "984f34aecfb1aa57b96fb3b2823d79d5b06717dd",
+    "initial_fixture_commit": "f43cf9b42fd5787714f59227dd1a16b8353bb78a",
+    "fixed_fixture_commit": "cfb359b4d929f0a161e6b08a00acc45c08ed8284",
+    "patch_sha256": "4462591cd07a46f95c422cbd750ffdca0f0cd7d1b9294caab592a5d4ffe10568",
+    "transcript_sha256": "7de5bce9dbc987ebbacc782e04b82888abbd2f39debec6ee875cdb8f9a634cb2",
+    "observed_at_utc": "2026-10-25T01:58:30.219641+00:00",
+    "local_verification": "not run",
+    "invocation_evidence": "Maintainer-retained real Codex CLI transcript; installed skill read confirmed; raw transcript withheld for environment privacy",
+    "verification": "Hosted CI tests verify captured output; they do not attest agent identity"
+  },
+  {
+    "skill": "address-pr-findings",
+    "client": "codex-cli 0.163.0",
+    "skill_revision": "984f34aecfb1aa57b96fb3b2823d79d5b06717dd",
+    "initial_fixture_commit": "ca8af1d2b1f67ad49c10768a1d40ab4ce6504f2c",
+    "fixed_fixture_commit": "c1f2f616d6ebaebc9cf13a4e217ac804ba53f2ce",
+    "patch_sha256": "07bd308f68ee188e85837828d88e36d2fc2ffb31c8aa5492d39882e93e13cc22",
+    "transcript_sha256": "fc86f1af64979fa2ff1a129425339c6d7f2a528bf576f1fc093ba3739ec1deb5",
+    "observed_at_utc": "2026-10-25T01:59:26.412295+00:00",
+    "local_verification": "not run",
+    "invocation_evidence": "Maintainer-retained real Codex CLI transcript; installed skill read confirmed; raw transcript withheld for environment privacy",
+    "verification": "Hosted CI tests verify captured output; they do not attest agent identity"
+  }
+]

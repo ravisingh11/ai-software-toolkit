@@ -1,0 +1,99 @@
+diff --git a/findings.json b/findings.json
+index fd30bed..57b37a6 100644
+--- a/findings.json
++++ b/findings.json
+@@ -1,5 +1,5 @@
+ [
+-  {"id": "ENG-001", "severity": "P1", "status": "open", "blocking": true, "title": "put() accepts non-string keys", "surface": "store.put", "evidence": ["store.py:4"], "impact": "Unhashable or None keys raise deep inside callers.", "fixPlan": "Validate that key is a non-empty string and raise ValueError.", "verification": {"method": "targeted test", "command": "python3 -m unittest discover", "result": "pending", "residualRisk": ""}},
+-  {"id": "ENG-002", "severity": "P2", "status": "open", "blocking": false, "title": "Cache grows without bound", "surface": "store._CACHE", "evidence": ["store.py:1"], "impact": "Long-running processes exhaust memory.", "fixPlan": "Bound the cache to a documented maximum with eviction.", "verification": {"method": "targeted test", "command": "python3 -m unittest discover", "result": "pending", "residualRisk": ""}},
+-  {"id": "STD-001", "severity": "P3", "status": "open", "blocking": false, "title": "Module name store is generic", "surface": "store", "evidence": ["store.py"], "impact": "Discoverability.", "fixPlan": "Rename to kv_store.", "verification": {"method": "none", "command": "", "result": "pending", "residualRisk": ""}}
++  {"id": "ENG-001", "severity": "P1", "status": "deferred", "blocking": true, "title": "put() accepts non-string keys", "surface": "store.put", "evidence": ["store.py:4"], "impact": "Unhashable or None keys raise deep inside callers.", "fixPlan": "Validate that key is a non-empty string and raise ValueError.", "verification": {"method": "Added validation before mutation and regression tests for invalid keys, including at capacity. No sibling route required for this engineering defect. Proposed command follows the existing unittest module; no separate validation configuration is present.", "command": "python3 -m unittest discover", "result": "pending", "residualRisk": "Implementation complete; status deferred pending hosted CI because the user prohibits local execution. No verification command was run. P1 remains blocking until verified."}},
++  {"id": "ENG-002", "severity": "P2", "status": "deferred", "blocking": false, "title": "Cache grows without bound", "surface": "store._CACHE", "evidence": ["store.py:1"], "impact": "Long-running processes exhaust memory.", "fixPlan": "Bound the cache to a documented maximum with eviction.", "verification": {"method": "Added documented 128-entry FIFO limit and tests for capacity, repeated eviction, reads, and updates preserving FIFO order. No sibling route required for this engineering defect. Proposed command follows the existing unittest module; no separate validation configuration is present.", "command": "python3 -m unittest discover", "result": "pending", "residualRisk": "Implementation complete; status deferred pending hosted CI because the user prohibits local execution. No verification command was run. Entry count is bounded, but individual values can consume arbitrary memory; no concurrency guarantee is introduced."}},
++  {"id": "STD-001", "severity": "P3", "status": "deferred", "blocking": false, "title": "Module name store is generic", "surface": "store", "evidence": ["store.py"], "impact": "Discoverability.", "fixPlan": "Rename to kv_store.", "verification": {"method": "Documented naming decision; no rename applied or risk acceptance claimed.", "command": "", "result": "pending", "residualRisk": "Deferred because renaming changes existing imports for a low-priority discoverability improvement. Revisit with a coordinated import migration. Hosted verification pending; no verification command was run."}}
+ ]
+diff --git a/store.py b/store.py
+index 8d0fc22..6c7aa77 100644
+--- a/store.py
++++ b/store.py
+@@ -1,8 +1,19 @@
++"""A 128-entry FIFO store; updates and reads preserve insertion order.
++
++The limit bounds entry count, not the size of individual values.
++"""
++
++MAX_CACHE_SIZE = 128
+ _CACHE = {}
+ 
+ 
+ def put(key, value):
++    """Store a value under a non-empty string key, evicting the oldest entry."""
++    if not isinstance(key, str) or not key:
++        raise ValueError("key must be a non-empty string")
+     _CACHE[key] = value
++    if len(_CACHE) > MAX_CACHE_SIZE:
++        del _CACHE[next(iter(_CACHE))]
+ 
+ 
+ def get(key):
+diff --git a/test_store.py b/test_store.py
+index 651e1ae..bab9c02 100644
+--- a/test_store.py
++++ b/test_store.py
+@@ -4,6 +4,57 @@ import store
+ 
+ 
+ class StoreTests(unittest.TestCase):
++    def setUp(self):
++        store._CACHE.clear()
++
++    def tearDown(self):
++        store._CACHE.clear()
++
+     def test_round_trip(self):
+         store.put("a", 1)
+         self.assertEqual(store.get("a"), 1)
++
++    def test_invalid_keys_do_not_mutate_cache(self):
++        store.put("existing", 1)
++        for key in (None, "", 1, False, [], {}, ("key",), b"key"):
++            with self.subTest(key=key):
++                with self.assertRaises(ValueError):
++                    store.put(key, 2)
++                self.assertEqual(store._CACHE, {"existing": 1})
++
++    def test_fifo_eviction_at_capacity(self):
++        for index in range(store.MAX_CACHE_SIZE):
++            store.put(str(index), index)
++        self.assertEqual(len(store._CACHE), store.MAX_CACHE_SIZE)
++        self.assertEqual(store.get("0"), 0)
++
++        for index in range(store.MAX_CACHE_SIZE, store.MAX_CACHE_SIZE + 3):
++            store.put(str(index), index)
++            self.assertEqual(len(store._CACHE), store.MAX_CACHE_SIZE)
++
++        for index in range(3):
++            self.assertIsNone(store.get(str(index)))
++        for index in range(3, store.MAX_CACHE_SIZE + 3):
++            self.assertEqual(store.get(str(index)), index)
++
++    def test_update_at_capacity_preserves_fifo_order(self):
++        for index in range(store.MAX_CACHE_SIZE):
++            store.put(str(index), index)
++
++        store.put("0", "updated")
++        self.assertEqual(store.get("0"), "updated")
++        self.assertEqual(len(store._CACHE), store.MAX_CACHE_SIZE)
++        self.assertEqual(store.get("1"), 1)
++
++        store.put("new", "value")
++        self.assertIsNone(store.get("0"))
++        self.assertEqual(store.get("1"), 1)
++        self.assertEqual(store.get("new"), "value")
++
++    def test_invalid_key_at_capacity_does_not_evict(self):
++        for index in range(store.MAX_CACHE_SIZE):
++            store.put(str(index), index)
++        before = store._CACHE.copy()
++        with self.assertRaises(ValueError):
++            store.put("", "invalid")
++        self.assertEqual(store._CACHE, before)
