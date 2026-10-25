@@ -64,8 +64,8 @@
     "client": "codex-cli 0.163.0",
     "skill_revision": "984f34aecfb1aa57b96fb3b2823d79d5b06717dd",
     "initial_fixture_commit": "ca8af1d2b1f67ad49c10768a1d40ab4ce6504f2c",
-    "fixed_fixture_commit": "ef5e93a8cf8796a81b5c9274a02c87b0f22f8108",
-    "patch_sha256": "1b05b474649a3ad9a2eb652c54e79b6cf8d8e8d4bf055f27761e48c77819df6a",
+    "fixed_fixture_commit": "39cc2be1174758ab403a572f691615a5cc04f4dc",
+    "patch_sha256": "5cd60cb2a909430a652a0e12de909281698328a0acef8fc5c9949cedd05b50f0",
     "transcript_sha256": "fc86f1af64979fa2ff1a129425339c6d7f2a528bf576f1fc093ba3739ec1deb5",
     "observed_at_utc": "2026-10-25T01:59:26.412295+00:00",
     "local_verification": "not run",
@@ -74,6 +74,7 @@
     "initial_capture_fixture_commit": "c1f2f616d6ebaebc9cf13a4e217ac804ba53f2ce",
     "finalization_transcript_sha256": "35f994a3168378542d12745d6116fdfbb6ee17af928786a989ad2651cd77f736",
     "hosted_code_verification": "https://github.com/ravisingh11/ai-software-toolkit/actions/runs/40152952529",
-    "finalized_at_utc": "2026-10-25T02:17:07.908880+00:00"
+    "finalized_at_utc": "2026-10-25T02:17:07.908880+00:00",
+    "command_finalization_transcript_sha256": "89dd0ad316d11956486b9976d2d4b67e88907e620f5955c4618dcd77ceb40000"
   }
 ]

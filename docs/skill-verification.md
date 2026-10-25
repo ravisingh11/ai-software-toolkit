@@ -46,9 +46,11 @@ verify Claude Code; leave an unavailable client's row `no` with an explicit
 blocked or not-run outcome. Do not install a second client or provision its
 credentials merely to make the table green.
 
-The toolkit's own Unit Tests and standards-source validation jobs fetch Git
-history so the existing ledger validator can compare recorded source commits.
-Consumer workflow templates and their defaults are unchanged. Validator unit
+The Unit Tests and standards-source templates fetch recorded source history
+only when `tooling/validate-skills.py` exists after the initial checkout. This
+lets the ledger validator compare recorded source commits; ordinary consumers
+without that maintainer script retain shallow checkouts. Shipped and installed
+workflow copies stay synchronized. Validator unit
 tests create their own blank ledger rows for negative controls; production
 verification records must not serve as mutable test inputs.
 

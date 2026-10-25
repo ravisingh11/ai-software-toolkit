@@ -12,6 +12,11 @@ checkout, reopen its new location and update any saved project entry that still
 points to the old folder. Changing a shell command's working directory does not
 change the desktop client's saved project folder.
 
+With the Codex CLI installed, `codex app /path/to/repo` opens that workspace in
+the desktop app. Confirm the saved project entry also refers to the new folder;
+an old bookmark can remain after opening a directory. Attaching a folder to a
+message does not by itself establish that the saved project path changed.
+
 Inspect the folder in the client's terminal:
 
 ```sh
@@ -53,6 +58,11 @@ again merely to change an existing installation set. Preview updates and retain
 customized skills as described in the [installation guide](install.md).
 
 ## Invoke one relevant skill
+
+The starter set contains `toolkit-setup`, `prepare-safe-change`, `code-review`,
+`test-gap-finder`, `security-audit-lite`, `dependency-risk-review` and `qa-bootstrap`.
+These are agent procedures, separate from the 11 installed workflows and the
+12 advisory Core checks. Additional action skills are explicit selections.
 
 Open the client's skill selector and confirm the expected skill name and path.
 If the client exposes both project and user copies, choose the intended copy;

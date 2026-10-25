@@ -31,7 +31,7 @@ Keep failed, blocked, or inconclusive runs marked `no`.
 
 | Client | Verified | Date | Toolkit revision | Agent version | Outcome | Evidence link |
 | --- | --- | --- | --- | --- | --- | --- |
-| codex | no | 2026-10-24 | 984f34aecfb1aa57b96fb3b2823d79d5b06717dd | codex-cli 0.163.0 | output captured; hosted verification pending | withheld: raw client transcript and fixture bundle retained by maintainer; sanitized output under docs/verification/action-skills/codex/ |
+| codex | yes | 2026-10-24 | 984f34aecfb1aa57b96fb3b2823d79d5b06717dd | codex-cli 0.163.0 | passed | withheld: maintainer retains raw client transcripts and fixture bundles; sanitized output and hosted outcome evidence in docs/verification/action-skills/codex/README.md |
 | claude-code | no | — | — | — | not run; Codex-only verification selected | — |
 
 A row is stale once `SKILL.md` or the fixture changes after the recorded

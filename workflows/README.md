@@ -4,6 +4,12 @@ These workflows provide Proof evidence within [AI Software Toolkit](../docs/visi
 For consumer-specific functional QA workflows, start with
 [QA bootstrap](../skills/qa-bootstrap/SKILL.md).
 
+The Unit Tests and standards-source validation jobs perform an additional full
+history checkout only when `tooling/validate-skills.py` is present after the
+initial checkout. This supports revision-bound skill verification in the toolkit
+source repository. Consumers without that maintainer validator retain shallow
+checkouts. The installed copies of these templates use the same condition.
+
 The installer deploys independent producer workflows and an aggregate
 scorecard. A workflow file is configuration; only exact-subject provider
 evidence can pass a capability.

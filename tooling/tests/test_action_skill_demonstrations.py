@@ -156,6 +156,7 @@ class CodexActionSkillDemonstrations(unittest.TestCase):
             if row["id"] in {"ENG-001", "ENG-002"}:
                 self.assertEqual(row["status"], "resolved")
                 self.assertEqual(row["verification"]["result"], "passed")
+                self.assertEqual(row["verification"]["command"], "python3 -m unittest discover -v")
                 self.assertIn("https://github.com/ravisingh11/ai-software-toolkit/actions/runs/",
                               row["verification"]["method"])
             else:
