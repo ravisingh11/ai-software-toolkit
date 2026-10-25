@@ -8,9 +8,27 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
-## [2.3.0] - Draft
+## [2.3.1] - Draft
 
-Prepared for maintainer review; not published. See [draft release notes](docs/releases/v2.3.0.md).
+Prepared for maintainer review; not published. See [draft release notes](docs/releases/v2.3.1.md).
+
+- Align README and quickstart with the existing seven-skill starter default,
+  using explicit project/client destinations and preserving Proof-only adoption.
+- Add workspace/client onboarding and maintainer task-to-skill routing.
+- Distinguish installation, discovery, invocation, task output and verified
+  outcomes; record five real Codex fixture demonstrations with hosted behavioral
+  checks and negative controls. Claude remains independently unverified.
+- Keep live verification ledgers separate from validator test fixtures; fetch
+  source history only for repositories with the maintainer skill validator.
+  Synchronize installed, shipped and embedded demo workflow copies.
+- Correct the published v2.3.0 release status without changing historical assets.
+
+## [2.3.0] - 2026-10-22
+
+Published from reviewed source `9108f2fda1cc04087cb1326e0457302fab214f3c`.
+See the [published release](https://github.com/ravisingh11/ai-software-toolkit/releases/tag/v2.3.0)
+for immutable assets and final evidence; the [preparation notes](docs/releases/v2.3.0.md)
+retain the historical draft description.
 
 - Shorten onboarding, retain detailed evidence guides, and index all 33 optional checks.
 - Make specification-driven development tool-independent and remove unsupported fork-secret advice.
