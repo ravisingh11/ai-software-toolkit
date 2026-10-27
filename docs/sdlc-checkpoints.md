@@ -185,7 +185,7 @@ evidence; it need not rerun every producer before every merge.
 | [repository-validation](activation.md#repository-validation) | C1, C2; C6–C8 | Adapt early feedback to the actual files inspected; commit-bound CI validates installed contracts. |
 | [documentation-validation](activation.md#documentation-validation) | C1; C6–C8 | Use declared code-to-document mappings and a valid comparison baseline. |
 | [repository-ground-truth](activation.md#repository-ground-truth) | C1; C6–C8 | Review architecture/engineering contracts and validate declared ground truth. |
-| [change-scope](activation.md#change-scope) | C1; C6–C7 | The built-in PR check needs an actual PR diff/base; an early size estimate is guidance. |
+| [change-scope](activation.md#change-scope) | C1, C5; C6–C7 | The inspector accepts explicit base/head refs; record the compared range and relate it to the actual PR when used for review. |
 | [pr-metadata](activation.md#pr-metadata) | C6–C7 | Use the current mutable PR snapshot; this is not commit-message validation. |
 | [format-and-lint](activation.md#format-and-lint) | C1, C2, C5; C6–C8 | Local subset and full CI scope must remain distinguishable. |
 | [migration-validation](activation.md#migration-validation) | C1; C6–C8 | Assess applicable repository migration contracts and compatibility; retain the real command scope. |
