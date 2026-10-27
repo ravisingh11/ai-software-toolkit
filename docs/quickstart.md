@@ -12,6 +12,10 @@ whether any check becomes enforced; completing this guide does not require
 creating a merge gate. Skills and QA bootstrap are independently adoptable
 through the [CLI installation guide](install.md).
 
+Use the [SDLC checkpoint guide](sdlc-checkpoints.md) to decide which evidence
+is useful before commit, push, review and merge. Its checkpoint labels are
+guidance, not new CLI operations or automatic workflow triggers.
+
 ## See a working application
 
 [Fieldnotes, the sample application](https://github.com/ravisingh11/ai-software-toolkit-reference-app),

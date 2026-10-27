@@ -3,6 +3,7 @@
 | Guide | Purpose |
 | --- | --- |
 | [Quickstart](../quickstart.md) | Install and run in a consuming repository |
+| [SDLC checkpoints](../sdlc-checkpoints.md) | Place existing checks around commit, push, review and merge decisions |
 | [Architecture](architecture.md) | Runtime contracts and evidence boundaries |
 | [Implementation](implementation.md) | Distributed components and supported entry points |
 | [Control setup](control-setup.md) | Configure providers and commands |
