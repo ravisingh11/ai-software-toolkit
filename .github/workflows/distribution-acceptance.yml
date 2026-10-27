@@ -4,6 +4,8 @@ name: Distribution Acceptance
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -42,6 +44,7 @@ jobs:
           rows = [
               ("Hook / invocation", cause),
               ("Checkpoint", checkpoint),
+              ("Git ref", os.environ["GITHUB_REF"]),
               ("Evidence scope", scope),
               ("Tested revision", revision),
               ("Event revision", os.environ["GITHUB_SHA"]),

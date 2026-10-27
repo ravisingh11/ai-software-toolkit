@@ -167,54 +167,81 @@ The diagram uses **teal for decisions**, **purple for invocation**, **blue for
 capabilities**, and **dashed amber for limitations**. Labels and line styles
 carry the meaning as well as color.
 
-Here, “hook” means an invocation point. These two examples are **GitHub events**,
-not installed local Git hooks. Both invoke the existing **Distribution Acceptance**
-workflow and its toolkit distribution/consumer compatibility checks.
-No trigger, selection, scoring, or enforcement is added by these examples.
+Here, “hook” means an invocation point. These are **GitHub events**, not installed
+local Git hooks. The contrast is **before merge: PR update** versus
+**after merge: push to main**, using the same **Distribution Acceptance** workflow.
 
-| Hook / invocation | How to invoke it | What the run describes |
-| --- | --- | --- |
-| `pull_request:opened`, `synchronize`, or `reopened` | Open/reopen a PR or push a new commit to its branch. | PR head; the output records the actual checkout plus the PR head/base. |
-| `workflow_dispatch` | Explicitly choose **Run workflow** and a ref, or use the command below. | The explicitly selected ref; a manual run is not automatically PR or merge evidence. |
-
-For an authorized **hosted** manual run from this checkout:
-
-```sh
-gh workflow run distribution-acceptance.yml --ref "$(git branch --show-current)"
-gh run list --workflow distribution-acceptance.yml --limit 5
+```mermaid
+flowchart LR
+  PR["Hook 1: PR update<br/>pull_request: synchronize"] --> CHECK["Distribution Acceptance<br/>Run adopted checks"]
+  MAIN["Hook 2: Push to main<br/>push: refs/heads/main"] --> CHECK
+  CHECK --> OUTPUT["Output names invocation<br/>Actual tested revision and separate result"]
+  style PR fill:#f3e8ff,stroke:#7e22ce,color:#581c87
+  style MAIN fill:#d1fae5,stroke:#047857,color:#064e3b
+  style CHECK fill:#dbeafe,stroke:#1d4ed8,color:#172554
+  style OUTPUT fill:#dbeafe,stroke:#1d4ed8,color:#172554
 ```
 
-This executes CI, not a read-only inspection. Choose a committed branch containing
-the workflow change. It does not run local tests, dispatch lifecycle/polyglot,
-or deploy anything. Open the run's **Record hook / invocation** log step or its
-job summary to distinguish the cause from the result.
+| Hook / invocation | What causes it | What the run describes |
+| --- | --- | --- |
+| `pull_request:synchronize` | Push a new commit to an open PR's branch. | PR head; output records the actual checkout and PR head/base. Open/reopen events also remain supported. |
+| `push` on `refs/heads/main` | A reviewed PR merges into main, or another permitted push updates main. | The actual main revision after the update; earlier PR results keep their original identities. |
 
-Illustrative output from the two invocations (revision values are placeholders):
+This repository adopts the `push` to `main` trigger in its maintainer-only
+Distribution Acceptance workflow. That workflow is not distributed as a consumer
+default; installed check selection and consumer workflow triggers are unchanged.
+All toolkit checks remain optional to adopt, Core advisory, and lifecycle/polyglot
+execution manual. These invocations do not deploy or publish anything.
+
+For a committed change on your open PR's branch:
+
+```sh
+git push
+gh pr checks --required
+```
+
+After review, merge only when required CI and repository requirements pass.
+Then inspect the **new** main-branch run:
+
+```sh
+gh run list --workflow distribution-acceptance.yml --branch main --event push --limit 5
+```
+
+Open **Record hook / invocation** in the run log or job summary. It identifies
+why the job ran, separately from its outcome. Illustrative output (revision
+values are placeholders):
 
 ```text
-Hook / invocation: GitHub pull_request:opened
+Hook / invocation: GitHub pull_request:synchronize
 Checkpoint: PR review readiness
+Git ref: refs/pull/<number>/merge
 Evidence scope: PR head
-Tested revision: <actual checkout SHA>
+Tested revision: <actual PR checkout SHA>
 PR head: <head SHA>
 PR base: <base SHA>
 Result: reported separately by the check; invocation is not a pass
 ```
 
 ```text
-Hook / invocation: GitHub workflow_dispatch
-Checkpoint: Explicit manual verification
-Evidence scope: Explicitly selected ref
-Tested revision: <actual checkout SHA>
+Hook / invocation: GitHub push
+Checkpoint: Post-merge/main validation
+Git ref: refs/heads/main
+Evidence scope: Main revision
+Tested revision: <actual resulting main SHA>
 PR head: not supplied
 PR base: not supplied
 Result: reported separately by the check; invocation is not a pass
 ```
 
-The event revision and actual tested revision are recorded separately. A workflow
-can test a PR head or an integration checkout; the event alone does not establish
-which. The summary also links its run and attempt. Invocation labels are display
-context, not signed provenance or a replacement for accepted Proof evidence.
+A push event does not identify a PR by itself: establish the merge relationship
+from the merged PR record and resulting commit. Do not relabel the PR result as
+the resulting main commit. The event revision and actual tested revision are
+recorded separately, along with the run/attempt link. Invocation labels are
+display context, not signed provenance or accepted Proof evidence.
+
+Explicit manual dispatch remains supported, labeled `GitHub workflow_dispatch`
+and **Explicit manual verification**; it is a separate invocation, not one of
+the two checkpoints above. No local tests are needed to inspect hosted runs.
 See the [workflow](https://github.com/ravisingh11/ai-software-toolkit/blob/main/.github/workflows/distribution-acceptance.yml)
 and [hosted runs](https://github.com/ravisingh11/ai-software-toolkit/actions/workflows/distribution-acceptance.yml).
 
