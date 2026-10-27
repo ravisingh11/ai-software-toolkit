@@ -49,6 +49,39 @@ In v2.3.0, fresh installations default to
 covering all 12 advisory Core checks. Existing installations keep their prior
 behavior. See [starter and full installation sets](docs/install.md#fresh-starter-installation-v230).
 
+## Use across the SDLC
+
+Place selected checks around the decision you are making. An early review,
+a PR check, and a result for merged `main` establish different things.
+
+```mermaid
+flowchart TD
+    A["Prepare a commit<br/>Coding finished · Pre-commit · Commit creation"]
+    B["Share the revision<br/>Post-commit · Pre-push"]
+    C["Review and integrate<br/>PR created or updated · Pre-merge"]
+    D["Verify main<br/>Post-merge"]
+    E["Later handoff<br/>Release · Deployment · Runtime"]
+    A --> B --> C --> D
+    D -.-> E
+```
+
+This is a map of decisions, not an automatic execution pipeline.
+
+| Decision | How to use the toolkit |
+| --- | --- |
+| Prepare a commit | Use review skills and selected fast checks for the actual working diff or staged scope. Commit-message conventions are separate from source validation. |
+| Share the revision | Keep results bound to the commit or outgoing range that was inspected; choose useful early feedback before pushing. |
+| Review and integrate | Inspect adopted CI, PR metadata and review evidence. Validate the combined integration candidate where that capability is adopted. |
+| Verify main | Check the actual resulting revision and retain the original identities of earlier results. Release and deployment need their own evidence and authorization. |
+
+The [SDLC checkpoint guide](docs/sdlc-checkpoints.md) maps **all 33 checks** to
+these checkpoints or later handoffs, with scope, authority, invalidation rules
+and worked examples. It distinguishes current support from recommendations:
+exact staged-snapshot evaluation and a built-in commit-message producer are
+future capabilities. Existing operations remain `change` and `release`.
+All checks remain optional, Core advisory, and lifecycle/polyglot manual;
+this diagram installs no hooks, enables no triggers, and grants no action authority.
+
 ## What you can use
 
 | Component | Purpose | Guide |
