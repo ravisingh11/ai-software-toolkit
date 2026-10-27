@@ -22,7 +22,7 @@ Use Git, Python 3.11+, and a POSIX shell. Preview the starter installation
 (Proof and seven skills) before applying it to your application repository:
 
 ```sh
-git clone --branch v2.3.0 --depth 1 https://github.com/ravisingh11/ai-software-toolkit.git
+git clone --branch v2.3.1 --depth 1 https://github.com/ravisingh11/ai-software-toolkit.git
 cd ai-software-toolkit
 python3 tooling/ai_toolkit discover --target /path/to/your-repo
 python3 tooling/ai_toolkit init --target /path/to/your-repo --clients codex --preview
@@ -53,34 +53,240 @@ behavior. See [starter and full installation sets](docs/install.md#fresh-starter
 
 Place selected checks around the decision you are making. An early review,
 a PR check, and a result for merged `main` establish different things.
+Read down the first column for the process, and across each row for the
+invocation and relevant toolkit capabilities.
 
 ```mermaid
-flowchart TD
-    A["Prepare a commit<br/>Coding finished · Pre-commit · Commit creation"]
-    B["Share the revision<br/>Post-commit · Pre-push"]
-    C["Review and integrate<br/>PR created or updated · Pre-merge"]
-    D["Verify main<br/>Post-merge"]
-    E["Later handoff<br/>Release · Deployment · Runtime"]
-    A --> B --> C --> D
-    D -.-> E
+block-beta
+  columns 3
+
+  block:process
+    columns 1
+    PH["SDLC<br/>checkpoint"]
+    P1["Coding<br/>finished"]
+    P2["Before<br/>commit"]
+    P3["Commit<br/>creation"]
+    P4["Post-commit<br/>feedback"]
+    P5["Before<br/>push"]
+    P6["PR created<br/>or updated"]
+    P7["Before<br/>merge"]
+    P8["After<br/>merge"]
+  end
+
+  block:hooks
+    columns 1
+    HH["Hook or<br/>invocation"]
+    H1["Explicit human<br/>or agent request"]
+    H2["Optional local<br/>pre-commit hook"]
+    H3["Repository-owned<br/>commit-msg hook"]
+    H4["Explicit command<br/>or adopted hook"]
+    H5["Repository-owned<br/>pre-push hook"]
+    H6["Configured GitHub<br/>PR workflows"]
+    H7["Platform checks<br/>and evaluation"]
+    H8["Repository-adopted<br/>main-branch CI"]
+  end
+
+  block:toolkit
+    columns 1
+    TH["AI Software Toolkit<br/>capabilities"]
+    T1["Review skills<br/>Test-gap analysis"]
+    T2["Local static and secret checks<br/>Exact staged scope: future"]
+    T3["Message conventions<br/>No built-in producer"]
+    T4["Commit-bound checks<br/>Evidence recording"]
+    T5["Outgoing-range checks<br/>Secrets and change scope"]
+    T6["Build, tests and PR metadata<br/>Security and review evidence"]
+    T7["Policy evaluation<br/>Inspect accepted evidence"]
+    T8["Merged-revision checks<br/>Release handoff"]
+  end
+
+  P1 --> P2
+  P2 --> P3
+  P3 --> P4
+  P4 --> P5
+  P5 --> P6
+  P6 --> P7
+  P7 --> P8
+
+  P1 --> H1
+  H1 --> T1
+  P2 --> H2
+  H2 --> T2
+  P3 --> H3
+  H3 --> T3
+  P4 --> H4
+  H4 --> T4
+  P5 --> H5
+  H5 --> T5
+  P6 --> H6
+  H6 --> T6
+  P7 --> H7
+  H7 --> T7
+  P8 --> H8
+  H8 --> T8
+
+  classDef stage fill:#edf3ec,stroke:#55715a,color:#243529
+  classDef hook fill:#f4f4f0,stroke:#858879,color:#34372f
+  classDef capability fill:#eef3fa,stroke:#58718e,color:#243549
+  classDef limitation fill:#fff5df,stroke:#aa8238,color:#624b20,stroke-dasharray:5 4
+
+  class P1,P2,P3,P4,P5,P6,P7,P8 stage
+  class H1,H2,H3,H4,H5,H6,H7,H8 hook
+  class T1,T4,T5,T6,T7,T8 capability
+  class T2,T3 limitation
 ```
 
-This is a map of decisions, not an automatic execution pipeline.
+Downward arrows show process progression. Across each row, a hook or explicit
+request can invoke selected capabilities; this is not an automatically installed
+pipeline. Dashed boxes identify current limitations.
 
-| Decision | How to use the toolkit |
-| --- | --- |
-| Prepare a commit | Use review skills and selected fast checks for the actual working diff or staged scope. Commit-message conventions are separate from source validation. |
-| Share the revision | Keep results bound to the commit or outgoing range that was inspected; choose useful early feedback before pushing. |
-| Review and integrate | Inspect adopted CI, PR metadata and review evidence. Validate the combined integration candidate where that capability is adopted. |
-| Verify main | Check the actual resulting revision and retain the original identities of earlier results. Release and deployment need their own evidence and authorization. |
+The optional local hook bundle provides static and secret checks with its
+configured scope. General Proof evaluation of an exact staged snapshot is a
+future capability; working-tree results do not prove partially staged contents
+passed. Commit-message conventions have no built-in producer. Pre-push hooks,
+main-branch CI, and integration-candidate validation require repository adoption.
+Local hooks are bypassable and do not replace hosted merge checks.
 
 The [SDLC checkpoint guide](docs/sdlc-checkpoints.md) maps **all 33 checks** to
-these checkpoints or later handoffs, with scope, authority, invalidation rules
-and worked examples. It distinguishes current support from recommendations:
-exact staged-snapshot evaluation and a built-in commit-message producer are
-future capabilities. Existing operations remain `change` and `release`.
-All checks remain optional, Core advisory, and lifecycle/polyglot manual;
-this diagram installs no hooks, enables no triggers, and grants no action authority.
+these checkpoints or later release, deployment, and runtime handoffs. It covers
+scope, authority, invalidation rules, partial staging, PR edits, and squash/merge
+examples. Existing operations remain `change` and `release`; checkpoint names
+are guidance, not new CLI flags. All checks remain optional, Core advisory,
+and lifecycle/polyglot manual. The diagram installs no hooks, enables no
+triggers, and grants no action authority.
+
+## How to invoke it
+
+### Ask an agent to use a skill
+
+After installing skills for your selected client, name the relevant skill and
+the decision you want help with. For example, in Codex:
+
+> Use `$code-review` to review my working changes. Read AGENTS.md first.
+> Report correctness risks and test gaps. Do not run tests, commit, or push.
+
+Before merging:
+
+> Use `$prepare-safe-change` to assess before-merge using the existing change
+> policy and hosted evidence. Identify the tested revision, comparison base,
+> missing results, and unresolved findings. Do not run local tests or merge.
+
+The checkpoint describes the task. It does not introduce a new runtime
+operation or authorize the next action. See [skill onboarding](docs/skill-onboarding.md)
+for client discovery and evidence of actual skill use.
+
+### Inspect readiness without running producers
+
+From your application checkout, use your toolkit source path:
+
+```sh
+python3 /path/to/ai-software-toolkit/tooling/ai_toolkit doctor --target .
+```
+
+Doctor is read-only. It reports selection, configuration gaps, available
+evidence, and next steps; it does not execute producers or enable checks.
+
+### Execute selected local checks when authorized
+
+For a clean, committed feature branch with the installed runtime, available
+prerequisites, and a meaningful `origin/main` comparison, an example is:
+
+```sh
+export PROOF_UNIT_TEST_COMMAND="npm test"
+python3 /path/to/ai-software-toolkit/tooling/ai_toolkit check \
+  --target . \
+  --operation change \
+  --revision "$(git rev-parse HEAD)" \
+  --base-ref origin/main
+```
+
+Replace the example test command with your repository's real command and
+prepare its dependencies first. `check` can execute multiple selected supported
+producers and write evidence artifacts. The local scanner uses producer
+configuration such as environment variables; the command-runner JSON below is
+not automatically its fallback. Missing providers remain visibly unverified.
+An advisory `ALLOW` can coexist with unresolved evidence.
+
+If your task excludes local tests, skip this execution step and use hosted CI.
+To inspect the current branch's PR required checks from its checkout:
+
+```sh
+gh pr checks --required
+```
+
+This reads GitHub results. It does not run checks, evaluate every Proof control,
+or authorize a merge. Confirm the current head, applicable required checks,
+and review requirements before integrating.
+
+## Example: connect unit tests to a checkpoint
+
+Adopt the Unit Tests workflow and configure the repository-owned test command.
+When the PR is opened, reopened, or receives new commits, the workflow runs
+against the PR head revision:
+
+```mermaid
+block-beta
+  columns 1
+  A["Hook<br/>PR opened, reopened, or new commits pushed"]
+  B["AI Software Toolkit<br/>Unit Tests workflow and command runner"]
+  C["Repository-owned test command<br/>Example: npm test"]
+  D["GitHub check result<br/>Bound to the exact tested commit"]
+  E["Trusted evidence collection and Proof<br/>Evaluate selected policy and publish the scorecard"]
+  A --> B
+  B --> C
+  C --> D
+  D --> E
+  classDef toolkit fill:#eef3fa,stroke:#58718e,color:#243549
+  class B,E toolkit
+```
+
+For a Node application, one optional configuration is `.proof/commands.json`:
+
+```json
+{
+  "version": 1,
+  "setup": "npm ci",
+  "working_directory": ".",
+  "commands": {
+    "unit-tests": "npm test"
+  }
+}
+```
+
+Merge these values into an existing configuration, preserving other adopted
+commands. Choose setup and test commands appropriate to your application;
+the installer does not create or overwrite this consumer-owned file.
+Nonempty corresponding `PROOF_*` variables take precedence. See
+[repository command configuration](docs/providers/README.md) for provider setup.
+
+The installed Unit Tests workflow invokes the existing runner in two phases:
+
+```sh
+python3 .proof/run_repository_command.py --command unit-tests --phase setup
+python3 .proof/run_repository_command.py --command unit-tests --phase producer
+```
+
+The runner preserves the command's failure status. A missing command fails the
+job rather than becoming passing evidence. GitHub records the tested revision;
+the configured trusted collector must accept the correct workflow, provider,
+and revision before Proof evaluates that evidence. Running the command runner
+alone does not create authoritative CI evidence. Editing only the PR body does
+not rerun this unit-test workflow; metadata has its own invalidation rules.
+
+For optional early feedback, your repository could adopt a custom `pre-push`
+hook that calls the same runner after dependencies are available:
+
+```sh
+#!/bin/sh
+exec python3 .proof/run_repository_command.py \
+  --command unit-tests --phase producer
+```
+
+This is a repository-owned example, not an automatically installed toolkit
+hook. Compose it with existing hooks instead of overwriting them. Its exit
+status can stop that local push, but it is bypassable, does not satisfy remote
+required CI, and does not prove every outgoing commit was tested. Leave it
+unconfigured when local tests are excluded. See the
+[checkpoint guide](docs/sdlc-checkpoints.md) for evidence scope and boundaries.
 
 ## What you can use
 
