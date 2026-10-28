@@ -59,6 +59,17 @@ skill or installing its files is not evidence of successful execution; report
 the skill revision, task revision, actual actions and linked results separately.
 See [skill onboarding](docs/skill-onboarding.md).
 
+## Scope the checkpoint decision
+
+Use the [SDLC checkpoint guide](docs/sdlc-checkpoints.md) to name the intended
+action, actual evidence subject, check scope and next authorization boundary.
+The guide's C1–C8 labels are documentation, not new Proof operations or CLI flags.
+Distinguish working-tree/index feedback from commit-bound evidence; retain
+original result identities across PR edits, base changes and squash/merge.
+Use the existing `change`/`release` contracts and selected applicable checks.
+Follow user execution limits and keep missing evidence explicit; a checkpoint
+recommendation grants no permission to run producers or change enforcement.
+
 ## Verification
 
 Run the smallest relevant checks while working. Before opening or updating a

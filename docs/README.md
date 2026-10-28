@@ -14,6 +14,10 @@ Six entry points, one per component:
 | **Providers** | [Providers](providers/README.md) — SonarQube, Snyk, FOSSA, reason codes, adapter-owned commands | [Live verification ledger](providers/verification.md) |
 | **Reference app** | [Reference app](reference-app.md) — the embedded Python fixture and separate TypeScript application | [Demo README](../examples/python-demo/README.md) |
 
+For decisions from coding through merge, use [SDLC checkpoints](sdlc-checkpoints.md):
+recommended check placement, evidence scope, authority, invalidation and later
+release/deployment handoffs. The guide maps all 33 checks without activating them.
+
 For a first installation, follow [workspace and skill onboarding](skill-onboarding.md).
 For evidence that an action skill worked, use the
 [real-client verification protocol](skill-verification.md); file validation and

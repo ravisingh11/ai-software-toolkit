@@ -78,6 +78,11 @@ skill configuration before reinstalling. Do not install all skills to repair
 discovery. In the toolkit source repository, follow the canonical task-to-skill
 map in [AGENTS.md](../AGENTS.md#choose-a-skill-for-the-task).
 
+Use [SDLC checkpoints](sdlc-checkpoints.md) to scope human and agent procedures
+to the decision at hand. An early working-diff review, a PR check and a
+post-merge result can establish different things; keep their subjects and
+execution limits separate.
+
 ## Recognize what has been demonstrated
 
 | State | Evidence |

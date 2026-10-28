@@ -4,6 +4,8 @@ name: Distribution Acceptance
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -20,6 +22,41 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           path: candidate
+      - name: Record hook / invocation
+        working-directory: candidate
+        env:
+          INVOCATION_ACTION: ${{ github.event.action }}
+          INVOCATION_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          INVOCATION_PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+          import subprocess
+
+          event = os.environ["GITHUB_EVENT_NAME"]
+          action = os.environ.get("INVOCATION_ACTION", "")
+          cause = f"GitHub {event}" + (f":{action}" if action else "")
+          checkpoint = {"pull_request": "PR review readiness", "push": "Post-merge/main validation"}.get(event, "Explicit manual verification" if event == "workflow_dispatch" else "Other invocation")
+          scope = 'PR head' if event == "pull_request" else ("Main revision" if event == "push" else "Explicitly selected ref")
+          revision = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          run_url = f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}/attempts/{os.environ['GITHUB_RUN_ATTEMPT']}"
+          rows = [
+              ("Hook / invocation", cause),
+              ("Checkpoint", checkpoint),
+              ("Git ref", os.environ["GITHUB_REF"]),
+              ("Evidence scope", scope),
+              ("Tested revision", revision),
+              ("Event revision", os.environ["GITHUB_SHA"]),
+              ("PR head", os.environ.get("INVOCATION_PR_HEAD") or "not supplied"),
+              ("PR base", os.environ.get("INVOCATION_PR_BASE") or "not supplied"),
+              ("Run", run_url),
+              ("Result", "reported separately by the check; invocation is not a pass"),
+          ]
+          print("\n".join(f"{key}: {value}" for key, value in rows))
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as summary:
+              summary.write("## Hook / invocation\n\n" + "\n".join(f"- **{key}:** {value}" for key, value in rows) + "\n")
+          PYTHON
       - name: Download immutable published baseline
         run: |
           mkdir -p legacy
