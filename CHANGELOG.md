@@ -8,9 +8,20 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
-## [2.3.1] - Draft
+## [2.3.2] - 2026-10-28
 
-Prepared for maintainer review; not published. See [draft release notes](docs/releases/v2.3.1.md).
+- Explain all eight SDLC checkpoints, evidence subjects, invalidation and authorization boundaries.
+- Connect README process diagrams to invocation and toolkit capabilities, with clearer colors and arrow spacing.
+- Report maintainer CI invocation and distinguish PR updates from main-branch pushes; consumer triggers remain unchanged.
+- Synchronize optional CodeQL Action v4.39.1 pins across shipped, installed and embedded workflows.
+- Preserve optional adoption, advisory Core, manual lifecycle/polyglot and existing evaluation/scoring contracts.
+
+## [2.3.1] - 2026-10-25
+
+Published from reviewed source `f53a167be5283c1378740f475f231aa130f3aee9`.
+See the [published release](https://github.com/ravisingh11/ai-software-toolkit/releases/tag/v2.3.1)
+for immutable assets and final evidence. [Preparation notes](docs/releases/v2.3.1.md)
+retain their historical draft description.
 
 - Align README and quickstart with the existing seven-skill starter default,
   using explicit project/client destinations and preserving Proof-only adoption.

@@ -7,7 +7,8 @@ they do not establish the status of a newer revision or a consumer application.
 
 | Release | Scope |
 | --- | --- |
-| [v2.3.1](v2.3.1.md) | Draft: starter onboarding, client discovery, skill routing and captured Codex verification |
+| [v2.3.2](v2.3.2.md) | SDLC checkpoint guidance, invocation reporting, diagrams and synchronized optional CodeQL pins |
+| [v2.3.1](v2.3.1.md) | Published 2026-10-25: starter onboarding, client discovery, skill routing and captured Codex verification |
 | [v2.3.0](v2.3.0.md) | Published 2026-10-22: lean fresh installations, activation guidance, diagnostics, and optional Spec Kit separation |
 | [v2.2.1](v2.2.1.md) | Published 2026-10-22: Action display-name patch |
 | [v2.2.0](v2.2.0.md) | Published minor release with stage-aware scorecards and independent optional security workflows |
