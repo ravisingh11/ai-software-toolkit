@@ -57,6 +57,7 @@ Read down the first column for the process, and across each row for the
 invocation and relevant toolkit capabilities.
 
 ```mermaid
+%%{init: {"block": {"padding": 32}}}%%
 block-beta
   columns 3
 
