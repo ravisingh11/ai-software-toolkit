@@ -286,10 +286,15 @@ class DoctorCheckTests(CliFixture):
         with patch.dict(os.environ, {"PROOF_BUILD_COMMAND": "python3 -m compileall -q calc.py", "PROOF_UNIT_TEST_COMMAND": "python3 -m unittest discover"}):
             code, out, _ = run_cli("check", "--target", str(self.target))
         self.assertEqual(code, 0, out)
-        self.assertIn("PASS  unit-tests", out)
-        self.assertIn("PASS  build", out)
-        self.assertIn("What remains unverified", out)
+        passed_section = out.split("### Passed (", 1)[1].split("### Failed (", 1)[0]
+        self.assertIn("**Unit Tests**", passed_section)
+        self.assertIn("**Build**", passed_section)
+        self.assertIn("Original status: passed", passed_section)
+        self.assertIn("### Unverified / not run (", out)
         self.assertTrue((self.target / ".artifacts" / "proof" / "evidence.json").is_file())
+        evidence = json.loads((self.target / ".artifacts" / "proof" / "evidence.json").read_text())
+        self.assertEqual(evidence["results"]["unit-tests"]["repository-unit-tests"]["status"], "passed")
+        self.assertEqual(evidence["results"]["build"]["repository-build"]["status"], "passed")
         self.assertEqual(self.git("status", "--porcelain"), "")
         code, out, _ = run_cli("doctor", "--target", str(self.target))
         self.assertIn("verified   unit-tests", out)

@@ -49,6 +49,7 @@ jobs:
         working-directory: candidate
         run: |
           python3 -m unittest discover -s tooling/tests -p test_checkpoint_report.py
+          PYTHONPATH=tooling/tests python3 -m unittest test_ai_toolkit_cli.DoctorCheckTests.test_init_check_doctor_lifecycle
           python3 -m unittest discover -s tooling/tests -p test_doctor.py
           PYTHONPATH=tooling/tests python3 -m unittest test_starter_installation
           python3 -m unittest discover -s tooling/validators/tests -p test_validate_documentation.py
