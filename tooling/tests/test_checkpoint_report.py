@@ -47,7 +47,7 @@ def card(status="passed", *, revision="tested", supplemental=False):
         }
         providers["selections"]["build"]["supplemental"] = ["supplemental-build"]
         results["supplemental-build"] = {"producer": "helper", "status": "passed", "evidence": ["helper result"]}
-    evidence = {"version": 2, "subject": {"type": "git-commit", "revision": revision}, "results": {"build": results}}
+    evidence = {"version": 2, "subject": {"type": "git-commit", "revision": revision}, "results": {"build": results} if results else {}}
     return EVALUATE.evaluate(policy, profiles, catalog, providers, evidence, "change", "tested", "git-commit", all_catalog_controls=True)
 
 
