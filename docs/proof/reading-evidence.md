@@ -83,6 +83,32 @@ producers, and unavailable analyses stay explicit. The
 [evidence guide](../proof/control-setup.md#reading-scorecard-evidence)
 explains the full contract.
 
+### Separate SDLC checkpoint examples
+
+The page places **PR created or updated** and **After merge** examples above
+the latest detailed PR scorecard. Each has a separate check list, invocation,
+tested revision, source run, and next decision. Their outcomes are never
+combined with one another or with the live scorecard totals.
+
+These are fixed historical examples from the toolkit repository, even when
+the renderer is installed in a different repository. The PR example records
+metadata, change-scope, coverage and dependency-review outcomes from
+[Proof Scorecard run 40879663676](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/40879663676/attempts/1),
+evaluating `2388c864ef72fd9f803ff6195a4395b5d7a5fd02`.
+Its recorded metadata and size failures remain advisory findings.
+
+The main example records activation/documentation regressions, archive build
+and consumer verification from
+[Distribution Acceptance run 40631525656](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/40631525656/attempts/1),
+on `8a36b246f6bd0c3808276de0f7794b26f574ce5e`. These are workflow-step
+observations, not an evaluation of all selected Proof checks or deployed health.
+
+Inspect the exact run metadata and raw receipts before updating the examples;
+their independent source projections are retained in the renderer's hosted
+regression fixtures. Source logs/artifacts remain subject to GitHub retention.
+An unavailable historical receipt must not be reinterpreted as a new pass.
+All checks stay optional, Core advisory, and lifecycle/polyglot manual.
+
 ### Scorecard freshness
 
 The page checks for a newer publication on load, when returning to the tab, and
