@@ -227,6 +227,20 @@ class CheckpointReportTests(unittest.TestCase):
         self.assertIn("continue-on-error: true", report_step)
         self.assertNotIn("continue-on-error: true", workflow.split("- name: Summarize SDLC checkpoint", 1)[0])
 
+    def test_renderer_rejects_overwriting_input_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            evidence = directory / "report.json"
+            original = json.dumps(card("failed"))
+            evidence.write_text(original)
+            (directory / "context.json").write_text(json.dumps(self.context()))
+            (directory / "config.json").write_text('{"steps": []}')
+            result = subprocess.run([sys.executable, str(SCRIPT), "render", "--context", str(directory / "context.json"), "--config", str(directory / "config.json"), "--scorecard", str(evidence), "--output-dir", str(directory)], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("must not overwrite", result.stderr)
+            self.assertEqual(evidence.read_text(), original)
+            self.assertFalse((directory / "report.md").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

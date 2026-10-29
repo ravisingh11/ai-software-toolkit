@@ -243,6 +243,12 @@ def main() -> None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(capture(args.target, args.scope, os.environ), indent=2) + "\n", encoding="utf-8")
         return
+    inputs = {path.resolve() for path in (args.context, args.config, args.scorecard) if path is not None}
+    outputs = {args.output_dir / "report.json", args.output_dir / "report.md"}
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        outputs.add(Path(os.environ["GITHUB_STEP_SUMMARY"]))
+    if inputs & {path.resolve() for path in outputs}:
+        raise ValueError("report destinations must not overwrite or append to input evidence/configuration")
     context, config = read_object(args.context), read_object(args.config)
     observations = json.loads(os.environ.get("CHECKPOINT_STEPS", "{}"))
     if not isinstance(observations, dict):
