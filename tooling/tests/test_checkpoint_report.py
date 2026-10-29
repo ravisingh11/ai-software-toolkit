@@ -109,7 +109,7 @@ class CheckpointReportTests(unittest.TestCase):
         self.assertIn("Stale evidence (1)", rendered)
         self.assertIn("Original status: missing", rendered)
         self.assertIn("previous-revision", rendered)
-        self.assertIn("expected_subject", rendered)
+        self.assertIn(r"expected\_subject", rendered)
         self.assertEqual(document, before)
 
     def test_mismatch_on_companion_does_not_taint_other_subject(self):
@@ -218,6 +218,27 @@ class CheckpointReportTests(unittest.TestCase):
         self.assertIn("&#124;", rendered)
         self.assertIn("https://example.com/a%28b%29", rendered)
         self.assertNotIn("](javascript:", rendered)
+
+    def test_plain_receipts_cannot_insert_markdown_images_or_links(self):
+        document = card("failed")
+        row = next(row for row in document["controls"] if row["id"] == "build")
+        row["authoritative_result"]["reason"] = "![forged](https://example.test/badge.svg)"
+        row["authoritative_result"]["evidence"] = ["[forged result](javascript:alert(1))"]
+        rendered = MODULE.render_card(document)
+        self.assertIn(r"\!\[forged\]", rendered)
+        self.assertNotIn("![forged]", rendered)
+        self.assertNotIn("[forged result](javascript:", rendered)
+
+    def test_malformed_evidence_url_retains_the_report_and_receipt(self):
+        document = card("failed")
+        row = next(row for row in document["controls"] if row["id"] == "build")
+        row["authoritative_result"]["evidence"] = ["https://[invalid", "check: failed; https://[invalid"]
+        original = copy.deepcopy(document)
+        rendered = MODULE.render_card(document)
+        self.assertIn("Failed (1)", rendered)
+        self.assertIn("link unavailable", rendered)
+        self.assertIn(r"https://\[invalid", rendered)
+        self.assertEqual(document, original)
 
     def test_cli_retains_failure_report_and_raw_evaluation_without_mutation(self):
         with tempfile.TemporaryDirectory() as temporary:

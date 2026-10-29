@@ -34,13 +34,20 @@ REVIEW_ALTERNATIVES = {
 
 
 def text(value: object) -> str:
-    return html.escape(str(value), quote=True).replace("|", "&#124;").replace("`", "&#96;").replace("\n", "<br>").replace("\r", "")
+    escaped = html.escape(str(value), quote=True)
+    for character in "\\[]*_!":
+        escaped = escaped.replace(character, "\\" + character)
+    return escaped.replace("|", "&#124;").replace("`", "&#96;").replace("\n", "<br>").replace("\r", "")
 
 
 def link(label: str, url: str) -> str:
-    parsed = urlsplit(url)
+    unavailable = text(label) + " (link unavailable: " + text(url) + ")"
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        return unavailable
     if parsed.scheme not in {"https", "http"} or not parsed.netloc or any(ord(c) < 33 for c in url):
-        return text(label) + " (link unavailable)"
+        return unavailable
     return f"[{text(label)}]({quote(url, safe='/:?#=&%+-._~')})"
 
 
