@@ -11,17 +11,7 @@ from typing import Any
 
 from .runtime import head_revision, load_json
 
-# Repair skill -> capabilities whose failed authoritative result it addresses.
-# Capability ids are policy vocabulary, not credentials; only names appear here.
-SKILL_CAPABILITIES = {
-    "fix-ci": ("build", "unit-tests", "format-and-lint", "migration-validation"),
-    "generate-unit-tests": ("changed-code-coverage",),
-    "fix-security-finding": ("custom-static-analysis", "deep-sast", "secret-detection", "platform-secret-protection", "static-quality"),
-    "dependency-upgrade": ("dependency-change-review", "dependency-vulnerability", "dependency-remediation", "license-compliance"),
-    "address-pr-findings": ("ai-engineering-review", "ai-security-review", "ai-qa-review", "ai-repository-standards-review"),
-    "qa": ("functional-qa",),
-}
-REPAIR_SKILLS = {capability: skill for skill, capabilities in SKILL_CAPABILITIES.items() for capability in capabilities}
+from checkpoint_report import REPAIR_SKILLS, SKILL_CAPABILITIES, installed_skills, render_card
 
 # Existing review skills that apply before a repair skill exists (Stage 3
 # implements the repair skills; until then the report points at these).
@@ -124,46 +114,13 @@ def next_action(row: dict[str, Any]) -> str:
     return "No action."
 
 
-def render_check(card: dict[str, Any], *, evidence_path: str | None = None, report_path: str | None = None) -> str:
-    groups = group_controls(card)
-    subject = card.get("subject", {})
-    lines = [
-        f"Toolkit check: {card.get('status', 'UNKNOWN')} / {card.get('decision', 'unknown')} — policy {card.get('policy', '?')}, operation {card.get('operation', '?')}",
-        f"Subject: {subject.get('type', '?')} {subject.get('revision', '?')}",
-        "",
-        f"What ran and passed ({len(groups['passed'])}):",
-    ]
-    if groups["passed"]:
-        lines.extend(f"  PASS  {row['id']} — {(row.get('authoritative_provider') or {}).get('display_name', '?')}" for row in groups["passed"])
-    else:
-        lines.append("  (none)")
-    lines.append("")
-    lines.append(f"What failed ({len(groups['failed'])}):")
-    if groups["failed"]:
-        for row in groups["failed"]:
-            lines.append(f"  FAIL  {row['id']} [{row.get('effective_mode')}] — {(row.get('authoritative_provider') or {}).get('display_name', '?')}")
-            lines.append(f"        Next: {next_action(row)}")
-    else:
-        lines.append("  (none)")
-    lines.append("")
-    lines.append(f"What remains unverified ({len(groups['unverified'])}):")
-    if groups["unverified"]:
-        for row in groups["unverified"]:
-            lines.append(f"  {row.get('authoritative_evidence_status', 'missing').upper():<9} {row['id']} [{row.get('effective_mode')}]")
-            lines.append(f"        Next: {next_action(row)}")
-    else:
-        lines.append("  (none)")
-    if groups["not_activated"]:
-        lines.append("")
-        lines.append(f"Not activated ({len(groups['not_activated'])}): " + ", ".join(row["id"] for row in groups["not_activated"]))
-    for finding in card.get("findings", []):
-        if finding.get("kind") == "subject_mismatch":
-            lines.append("")
-            lines.append("Subject mismatch: " + finding.get("message", ""))
+def render_check(card: dict[str, Any], *, evidence_path: str | None = None, report_path: str | None = None, target: Path | None = None) -> str:
+    rendered = render_card(card, skills=installed_skills(target) if target else {})
     if evidence_path or report_path:
-        lines.append("")
-        lines.append(f"Evidence: {evidence_path or '-'}\nScorecard: {report_path or '-'}")
-    return "\n".join(lines) + "\n"
+        from checkpoint_report import text
+
+        rendered += f"\nEvidence: {text(evidence_path or '-')}\nScorecard: {text(report_path or '-')}\n"
+    return rendered
 
 
 def authoritative_selections(target: Path) -> dict[str, str]:

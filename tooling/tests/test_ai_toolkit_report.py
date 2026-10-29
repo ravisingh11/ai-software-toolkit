@@ -83,14 +83,16 @@ class ReportTests(unittest.TestCase):
         self.assertIn("No evidence from Provider", report.next_action(card["controls"][7]))
         self.assertEqual(report.next_action({"id": "x", "authoritative_evidence_status": "weird"}), "No action.")
         rendered = report.render_check(card, evidence_path="e.json", report_path="r.md")
-        self.assertIn("What ran and passed (1)", rendered)
-        self.assertIn("What failed (2)", rendered)
-        self.assertIn("What remains unverified (5)", rendered)
-        self.assertIn("Not activated (1): runtime-soak", rendered)
+        self.assertIn("Passed (1)", rendered)
+        self.assertIn("Failed (2)", rendered)
+        self.assertIn("Unverified / not run (4)", rendered)
+        self.assertIn("Blocked (1)", rendered)
+        self.assertIn("Inactive (1)", rendered)
+        self.assertIn("runtime-soak", rendered)
         self.assertIn("Subject mismatch", rendered)
         self.assertIn("Evidence: e.json", rendered)
         empty = report.render_check({"controls": [], "findings": []})
-        self.assertEqual(empty.count("(none)"), 3)
+        self.assertEqual(empty.count("None recorded."), 6)
 
     def write_selections(self, selections: dict) -> None:
         path = self.target / ".proof" / "providers.yaml"

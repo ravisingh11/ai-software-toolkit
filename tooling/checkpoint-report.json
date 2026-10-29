@@ -1,0 +1,32 @@
+{
+  "steps": [
+    {
+      "id": "baseline",
+      "name": "Published baseline download",
+      "next_action": "Inspect the download log; obtain and verify the pinned published baseline."
+    },
+    {
+      "id": "regressions",
+      "name": "Activation, documentation and checkpoint regressions",
+      "next_action": "Inspect failing assertions; fix the implementation without weakening acceptance.",
+      "control": "repository-validation"
+    },
+    {
+      "id": "archive",
+      "name": "Candidate CLI archive build",
+      "next_action": "Inspect archive build errors before attempting distribution verification.",
+      "control": "build"
+    },
+    {
+      "id": "consumers",
+      "name": "Fresh and legacy distribution acceptance",
+      "next_action": "Inspect exact-consumer differences and retained verification output.",
+      "control": "unit-tests"
+    },
+    {
+      "id": "verified_bytes",
+      "name": "Retain verified candidate bytes",
+      "next_action": "Inspect artifact upload; unavailable candidate bytes do not establish archive integrity."
+    }
+  ]
+}

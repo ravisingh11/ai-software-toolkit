@@ -303,3 +303,50 @@ This guide installs no hooks, adds no triggers, changes no schemas or scores,
 and activates/enforces nothing. Existing installations, defaults and historical
 evidence retain their contracts. For prerequisites use the [activation index](activation.md);
 for operating existing checks use the [operating guide](proof/operating-guide.md).
+
+## Actionable checkpoint reports
+
+The maintainer Distribution Acceptance workflow captures invocation context
+immediately after checkout and attempts a final report even after a failed or
+cancelled step. It preserves the actual checkout, event revision, PR head/base
+when supplied, run and attempt. On a main push, absent PR/base metadata remains
+absent. An earlier PR result is never renamed as a main result.
+
+The report and `checkpoint-<run>-<attempt>` artifact describe **this workflow's
+steps only**. Raw `outcome` and `conclusion` remain visible, including a failure
+masked by `continue-on-error`. Missing, skipped and interrupted work is never
+passed. Acceptance steps are not converted into authoritative Proof receipts;
+other workflows, current merge requirements and deployment health require
+separate inspection. Main CI does not run the release/deployment handoffs.
+
+The shared renderer also presents an existing evaluator card, as used by the
+CLI `check` report. Failed, blocked, missing/not-run, subject-mismatched and
+inactive rows remain separate. Original decisions, scores and statuses are
+unchanged. Subject mismatches apply only to affected subject types; checks
+selected on another subject are labeled accordingly. Only installed project
+skills can be recommended, and are explicitly not claimed as invoked.
+
+To inspect an existing card without running a producer, use a toolkit source
+checkout containing this reporting change (not an older published archive):
+
+```sh
+python3 /path/to/toolkit/tooling/checkpoint_report.py render \
+  --context /path/to/downloaded/context.json \
+  --config /path/to/toolkit/tooling/checkpoint-report.json \
+  --scorecard /path/to/existing/scorecard.json \
+  --output-dir /path/to/review-output
+```
+
+Outside GitHub, omit `GITHUB_STEP_SUMMARY`; the renderer writes only the named
+output directory. `CHECKPOINT_STEPS` defaults to an empty object, so no workflow
+step is presumed to have passed. The supplied card is displayed, not rerun or
+reauthenticated; keep its original provenance. `report.json` is a presentation
+record containing the unmodified supplied card, not a new Proof evidence file.
+Its skill inventory describes capture time, not current client discovery.
+
+Reports link the run logs and artifacts; artifact access and retention depend
+on GitHub. Abrupt cancellation, runner loss or checkout failure may prevent
+final reporting and upload. Inspect GitHub's original run conclusion when a
+report is absent. Reporting/upload failures do not change producer outcomes.
+All 33 checks remain in the [activation index](activation.md); adoption stays
+optional, Core advisory, and lifecycle/polyglot manual.

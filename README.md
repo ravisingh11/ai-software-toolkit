@@ -162,6 +162,41 @@ are guidance, not new CLI flags. All checks remain optional, Core advisory,
 and lifecycle/polyglot manual. The diagram installs no hooks, enables no
 triggers, and grants no action authority.
 
+## Act on the checkpoint report
+
+Existing acceptance runs now finish with an **SDLC checkpoint report** in the
+job summary and a retained `checkpoint-<run>-<attempt>` artifact. It records
+why the workflow ran, its actual tested revision and comparison base when
+supplied, the observed step outcomes, links to logs, and the next action.
+
+```text
+Checkpoint: PR review
+Hook / invocation: pull_request:synchronize
+Evidence scope: PR head
+Tested revision: <actual checkout>
+
+Archive build          Passed
+Consumer verification  Failed      Inspect exact-consumer differences
+Later step             Unverified  No result; inspect the preceding failure
+
+Next: Resolve the finding; review current merge requirements separately.
+```
+
+This is an illustrative example, not a claimed run. Acceptance reports describe
+**their own workflow steps**, not all selected checks or an authoritative Proof
+score. Inspect the separate [Proof Scorecard runs](https://github.com/ravisingh11/ai-software-toolkit/actions/workflows/proof-scorecard.yml)
+for evaluated policy evidence. The CLI's `check` presentation separately groups
+supplied evaluator results as **passed, failed, blocked, unverified/not run,
+stale evidence, and inactive**, preserving original statuses and scores.
+Repair skills are recommended only when their project files are installed;
+a recommendation is not execution evidence.
+
+See [checkpoint report usage and limits](docs/sdlc-checkpoints.md#actionable-checkpoint-reports).
+[PR runs](https://github.com/ravisingh11/ai-software-toolkit/actions/workflows/distribution-acceptance.yml?query=event%3Apull_request)
+and [main-push runs](https://github.com/ravisingh11/ai-software-toolkit/actions/workflows/distribution-acceptance.yml?query=event%3Apush)
+retain their original identities. Main results require a new run after merge;
+passing main CI does not establish live deployment health.
+
 ## Two invocation hooks, visible in the output
 
 The diagram uses **teal for decisions**, **purple for invocation**, **blue for

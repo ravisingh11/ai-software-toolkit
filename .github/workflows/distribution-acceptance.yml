@@ -23,41 +23,18 @@ jobs:
           persist-credentials: false
           path: candidate
       - name: Record hook / invocation
+        id: checkpoint_context
         working-directory: candidate
         env:
           INVOCATION_ACTION: ${{ github.event.action }}
           INVOCATION_PR_HEAD: ${{ github.event.pull_request.head.sha }}
           INVOCATION_PR_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          python3 - <<'PYTHON'
-          import os
-          from pathlib import Path
-          import subprocess
-
-          event = os.environ["GITHUB_EVENT_NAME"]
-          action = os.environ.get("INVOCATION_ACTION", "")
-          cause = f"GitHub {event}" + (f":{action}" if action else "")
-          checkpoint = {"pull_request": "PR review readiness", "push": "Post-merge/main validation"}.get(event, "Explicit manual verification" if event == "workflow_dispatch" else "Other invocation")
-          scope = 'PR head' if event == "pull_request" else ("Main revision" if event == "push" else "Explicitly selected ref")
-          revision = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-          run_url = f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}/attempts/{os.environ['GITHUB_RUN_ATTEMPT']}"
-          rows = [
-              ("Hook / invocation", cause),
-              ("Checkpoint", checkpoint),
-              ("Git ref", os.environ["GITHUB_REF"]),
-              ("Evidence scope", scope),
-              ("Tested revision", revision),
-              ("Event revision", os.environ["GITHUB_SHA"]),
-              ("PR head", os.environ.get("INVOCATION_PR_HEAD") or "not supplied"),
-              ("PR base", os.environ.get("INVOCATION_PR_BASE") or "not supplied"),
-              ("Run", run_url),
-              ("Result", "reported separately by the check; invocation is not a pass"),
-          ]
-          print("\n".join(f"{key}: {value}" for key, value in rows))
-          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as summary:
-              summary.write("## Hook / invocation\n\n" + "\n".join(f"- **{key}:** {value}" for key, value in rows) + "\n")
-          PYTHON
+          python3 tooling/checkpoint_report.py capture --scope "PR head" \
+            --output .artifacts/checkpoint/context.json
+          cat .artifacts/checkpoint/context.json
       - name: Download immutable published baseline
+        id: baseline
         run: |
           mkdir -p legacy
           curl --fail --location --retry 3 \
@@ -68,18 +45,22 @@ jobs:
             --output legacy/ai-toolkit.pyz.sha256
           # The acceptance harness pins both digests before executing the baseline.
       - name: Focused activation and documentation regressions
+        id: regressions
         working-directory: candidate
         run: |
+          python3 -m unittest discover -s tooling/tests -p test_checkpoint_report.py
           python3 -m unittest discover -s tooling/tests -p test_doctor.py
           PYTHONPATH=tooling/tests python3 -m unittest test_starter_installation
           python3 -m unittest discover -s tooling/validators/tests -p test_validate_documentation.py
           PYTHONPATH=tooling/tests python3 -m unittest test_python_demo.PythonDemoTests.test_demo_documentation_validation_rejects_broken_internal_link
       - name: Build exact candidate archive
+        id: archive
         working-directory: candidate
         env:
           CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: python3 tooling/build_archive.py --output dist/ai-toolkit.pyz --revision "$CANDIDATE_SHA"
       - name: Verify fresh and published consumers
+        id: consumers
         working-directory: candidate
         env:
           CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -88,9 +69,29 @@ jobs:
             --legacy-archive ../legacy/ai-toolkit.pyz --revision "$CANDIDATE_SHA" \
             --output dist/distribution-verification.json
       - name: Retain verified candidate bytes
+        id: verified_bytes
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: verified-distribution-${{ github.event.pull_request.head.sha || github.sha }}
           path: candidate/dist/
           if-no-files-found: error
+          retention-days: 30
+      - name: Summarize SDLC checkpoint
+        if: ${{ always() && steps.checkpoint_context.outcome == 'success' }}
+        continue-on-error: true
+        working-directory: candidate
+        env:
+          CHECKPOINT_STEPS: ${{ toJSON(steps) }}
+        run: |
+          python3 tooling/checkpoint_report.py render \
+            --context .artifacts/checkpoint/context.json --config tooling/checkpoint-report.json \
+            --output-dir .artifacts/checkpoint
+      - name: Retain SDLC checkpoint report
+        if: ${{ always() && steps.checkpoint_context.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: checkpoint-${{ github.run_id }}-${{ github.run_attempt }}
+          path: candidate/.artifacts/checkpoint/
+          if-no-files-found: warn
           retention-days: 30

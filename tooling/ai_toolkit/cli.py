@@ -571,7 +571,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     except json.JSONDecodeError as error:
         raise ToolkitError(f"scan produced unreadable output: {error}") from error
     artifacts = card.get("artifacts", {}) if isinstance(card.get("artifacts"), dict) else {}
-    _emit(card, args.json, report.render_check(card, evidence_path=artifacts.get("evidence"), report_path=artifacts.get("report")))
+    _emit(card, args.json, report.render_check(card, evidence_path=artifacts.get("evidence"), report_path=artifacts.get("report"), target=target))
     return 0 if card.get("decision") == "allow" else 1
 
 
