@@ -8,6 +8,16 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+## [2.3.4] - Unreleased
+
+Draft candidate; v2.3.3 remains the latest published release.
+
+- Add final SDLC job summaries and retained JSON/Markdown reports to maintainer acceptance, with invocation, exact checkout, PR/base identities, evidence links and next actions.
+- Present CLI evaluator results in separate passed, failed, blocked, unverified/not-run, stale and inactive groups, retaining original statuses, scores and machine-readable output.
+- Recommend relevant installed skills without claiming they ran; preserve failed, skipped, cancelled and unavailable workflow observations.
+- Add hosted reporting regressions and PR/main examples without changing evaluation, selection, enforcement or producer triggers.
+- Align the candidate CLI version to 2.3.4; published installation examples stay on v2.3.3 until publication.
+
 ## [2.3.3] - 2026-10-29
 
 - Show separate recorded PR policy evidence and post-merge workflow observations on the scorecard page, retaining their original revisions, statuses and next decisions.

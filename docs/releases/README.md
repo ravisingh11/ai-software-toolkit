@@ -7,6 +7,7 @@ they do not establish the status of a newer revision or a consumer application.
 
 | Release | Scope |
 | --- | --- |
+| [v2.3.4](v2.3.4.md) | Draft candidate: actionable CI/CLI reporting; unpublished |
 | [v2.3.3](v2.3.3.md) | Separate PR/main report examples, an authentic README screenshot and aligned installation guidance |
 | [v2.3.2](v2.3.2.md) | SDLC checkpoint guidance, invocation reporting, diagrams and synchronized optional CodeQL pins |
 | [v2.3.1](v2.3.1.md) | Published 2026-10-25: starter onboarding, client discovery, skill routing and captured Codex verification |
