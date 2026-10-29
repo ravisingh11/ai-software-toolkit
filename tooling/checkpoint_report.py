@@ -77,11 +77,14 @@ def capture(target: Path, scope: str, environment: dict) -> dict:
     }
 
 
-def display_group(row: dict, card: dict) -> str:
+def display_group(row: dict, card: dict, expected_commit: str | None = None) -> str:
     """Describe existing facts; never replace the evaluator's status or score."""
     if row.get("effective_mode") == "not_activated":
         return "Inactive"
     subject_type = row.get("evidence_subject") or card.get("subject", {}).get("type")
+    revision = row.get("evidence_revision") or card.get("subject", {}).get("revision")
+    if expected_commit and subject_type == "git-commit" and revision != expected_commit:
+        return "Stale evidence"
     # A mismatch on one companion subject must not taint another subject's rows.
     if any(f.get("kind") == "subject_mismatch" and f.get("observed_subject", {}).get("type") == subject_type
            for f in card.get("findings", [])):
@@ -110,7 +113,7 @@ def next_step(row: dict, group: str, skills: dict) -> str:
     return "Obtain matching evidence from the selected authoritative provider; supplemental success is insufficient."
 
 
-def render_card(card: dict, *, skills: dict | None = None) -> str:
+def render_card(card: dict, *, skills: dict | None = None, expected_commit: str | None = None) -> str:
     skills = skills or {}
     rows = card.get("controls", [])
     lines = ["## Supplied Proof evaluation", "",
@@ -118,10 +121,12 @@ def render_card(card: dict, *, skills: dict | None = None) -> str:
              f"Policy: {text(card.get('policy', 'unknown'))}; operation: {text(card.get('operation', 'unknown'))}.",
              f"Subject: {text(card.get('subject', {}).get('type', 'unknown'))} {text(card.get('subject', {}).get('revision', 'unknown'))}.", "",
              "Original evaluator decision, statuses and scores are preserved. Display groups are explanations, not new policy outcomes.", ""]
+    if expected_commit:
+        lines.append(f"Checkpoint commit: {text(expected_commit)}. Results for other commits are historical and do not establish this checkpoint's readiness.")
     for mode, counts in card.get("summary", {}).items():
         lines.append(f"- {text(mode)}: {text(counts.get('passed', '?'))}/{text(counts.get('total', '?'))} passed.")
     for group in GROUPS:
-        members = [row for row in rows if display_group(row, card) == group]
+        members = [row for row in rows if display_group(row, card, expected_commit) == group]
         lines.extend(["", f"### {group} ({len(members)})", ""])
         if not members:
             lines.append("None recorded.")
@@ -132,7 +137,7 @@ def render_card(card: dict, *, skills: dict | None = None) -> str:
             lines.extend([
                 f"- **{text(row.get('name', identifier))}** — authoritative provider: {text(provider.get('display_name', 'not evaluated for this subject' if row.get('inactive_reason') == 'other_subject' else 'not selected'))} ({text(provider.get('id', 'none'))}).",
                 f"  Original status: {text(row.get('authoritative_evidence_status', 'missing'))}; mode: {text(row.get('effective_mode', 'unknown'))}.",
-                f"  Reason: {text(result.get('reason') or ('Expected and observed subjects differ; inspect subject_mismatch findings.' if group == 'Stale evidence' else 'No additional producer reason recorded.'))}",
+                f"  Reason: {text(result.get('reason') or ('Evidence/evaluation subject differs from its expected subject or checkpoint commit; retain the original result.' if group == 'Stale evidence' else 'No additional producer reason recorded.'))}",
                 f"  Next: {text(next_step(row, group, skills))}",
                 f"  Guide: {link(identifier, GUIDE + '#' + str(identifier))}.",
             ])
@@ -196,7 +201,7 @@ def render_workflow(context: dict, rows: list[dict], *, evaluation: dict | None 
     if not rows:
         lines.append("No workflow outcomes were observed. This is not a pass.")
     if evaluation is not None:
-        lines.extend(["", render_card(evaluation, skills=context.get("installed_skills", {}))])
+        lines.extend(["", render_card(evaluation, skills=context.get("installed_skills", {}), expected_commit=context.get("tested_revision"))])
     else:
         lines.extend(["", "No Proof scorecard was supplied. Selected-check failures, blockers, stale results and inactive checks in other workflows remain unassessed here.",
                       link("Inspect the separate Proof Scorecard runs", context["run_url"].split("/actions/runs/")[0] + "/actions/workflows/proof-scorecard.yml")])

@@ -119,6 +119,18 @@ class CheckpointReportTests(unittest.TestCase):
         self.assertIn("Passed (1)", rendered)
         self.assertIn("Stale evidence (0)", rendered)
 
+    def test_previously_passing_card_cannot_establish_a_new_checkpoint(self):
+        document = card()
+        original = copy.deepcopy(document)
+        context = self.context("push", "")
+        rendered = MODULE.render_workflow(context, [], evaluation=document)
+        self.assertIn("Stale evidence (1)", rendered)
+        self.assertIn("Original status: passed", rendered)
+        self.assertIn("advisory: 1/1 passed", rendered)
+        self.assertIn("Results for other commits are historical", rendered)
+        self.assertEqual(document, original)
+        self.assertEqual(document["decision"], "allow")
+
     def test_supplemental_success_is_never_an_authoritative_pass(self):
         document = card(None, supplemental=True)
         rendered = MODULE.render_card(document)
@@ -205,6 +217,7 @@ class CheckpointReportTests(unittest.TestCase):
             directory = Path(temporary)
             context = self.context()
             document = card("failed")
+            context["tested_revision"] = "tested"
             for name, payload in (("context", context), ("card", document), ("config", {"steps": [{"id": "test", "name": "Unit tests", "control": "unit-tests", "next_action": "Inspect tests"}]})):
                 (directory / (name + ".json")).write_text(json.dumps(payload))
             (directory / ".ignored").write_text("unchanged")
