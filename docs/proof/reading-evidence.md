@@ -83,6 +83,41 @@ producers, and unavailable analyses stay explicit. The
 [evidence guide](../proof/control-setup.md#reading-scorecard-evidence)
 explains the full contract.
 
+### Separate SDLC checkpoint examples
+
+The page places **PR created or updated** and **After merge** examples above
+the latest detailed PR scorecard. Each has a separate check list, invocation,
+tested revision, source run, and next decision. Their outcomes are never
+combined with one another or with the live scorecard totals.
+
+These are fixed historical examples from different changes. The toolkit PR example records
+metadata, change-scope, coverage and dependency-review outcomes from
+[Proof Scorecard run 40879663676](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/40879663676/attempts/1),
+evaluating `2388c864ef72fd9f803ff6195a4395b5d7a5fd02`.
+Its recorded metadata and size failures remain advisory findings.
+
+The main example records activation/documentation regressions, archive build
+and consumer verification from
+[Distribution Acceptance run 40631525656](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/40631525656/attempts/1),
+on `8a36b246f6bd0c3808276de0f7794b26f574ce5e`. These are workflow-step
+observations, not an evaluation of all selected Proof checks or deployed health.
+
+The [reference app report](https://ravisingh11.github.io/ai-software-toolkit-reference-app/)
+selects its own examples: PR #63 at `510e25a6c8f4816a35ef9f2d4d1d00f2db74cab8`
+from [run 40879661416](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/40879661416/attempts/1),
+and main `c3df3f459f14dd4a9945f4988722ebaafc804edd` from
+[Application acceptance 40632274819](https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/40632274819/attempts/1).
+The app's recorded missing changed-coverage result remains unverified, while
+its separate main example shows build, unit/coverage, browser and migration steps.
+Other repositories display the explicitly named toolkit teaching examples;
+they never inherit those results as their own evidence.
+
+Inspect the exact run metadata and raw receipts before updating the examples;
+their independent source projections are retained in the renderer's hosted
+regression fixtures. Source logs/artifacts remain subject to GitHub retention.
+An unavailable historical receipt must not be reinterpreted as a new pass.
+All checks stay optional, Core advisory, and lifecycle/polyglot manual.
+
 ### Scorecard freshness
 
 The page checks for a newer publication on load, when returning to the tab, and

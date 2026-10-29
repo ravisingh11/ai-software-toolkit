@@ -52,6 +52,110 @@ def scorecard(
 
 
 class RendererTests(unittest.TestCase):
+    def test_checkpoint_examples_keep_separate_check_lists_and_sources(self) -> None:
+        examples = MODULE._checkpoint_examples_html()
+        pr = examples.split('id="checkpoint-pr-example"', 1)[1].split('</article>', 1)[0]
+        main = examples.split('id="checkpoint-main-example"', 1)[1].split('</article>', 1)[0]
+        self.assertIn('Ready for review?', pr)
+        self.assertIn('pull_request_target', pr)
+        self.assertIn('push: refs/heads/main', main)
+        for identifier in ('pr-metadata', 'change-scope', 'changed-code-coverage', 'dependency-change-review'):
+            self.assertIn(f'data-example-check="{identifier}"', pr)
+            self.assertNotIn(f'data-example-check="{identifier}"', main)
+        for identifier in ('activation-documentation-regressions', 'cli-archive-build', 'consumer-compatibility'):
+            self.assertIn(f'data-example-check="{identifier}"', main)
+            self.assertNotIn(f'data-example-check="{identifier}"', pr)
+        self.assertEqual(pr.count('Failed · advisory'), 2)
+        self.assertNotIn('Failed', main)
+        self.assertIn('not a Proof policy score', main)
+        self.assertIn('There is no combined score', examples)
+
+    def test_checkpoint_examples_match_independently_captured_source_receipts(self) -> None:
+        fixture = json.loads((ROOT / 'tooling/tests/fixtures/checkpoint-examples.json').read_text())
+        pr, main = MODULE._CHECKPOINT_EXAMPLES
+        self.assertEqual(pr['revision'], fixture['pr']['revision'])
+        self.assertEqual(main['revision'], fixture['main']['revision'])
+        self.assertNotEqual(pr['revision'], main['revision'])
+        for example in (pr, main):
+            url = f"https://github.com/{fixture['repository']}/actions/runs/{example['run_id']}/attempts/{example['run_attempt']}"
+            self.assertEqual(MODULE._validate_run_url(fixture['repository'], example['run_id'], example['run_attempt'], url), url)
+            self.assertEqual(example['run_id'], fixture[example['id']]['run_id'])
+        self.assertEqual(pr['event'], fixture['pr']['event'])
+        for identifier, _, status, _ in pr['checks']:
+            self.assertEqual(status, fixture['pr']['checks'][identifier]['status'])
+            self.assertEqual(fixture['pr']['checks'][identifier]['mode'], 'advisory')
+        self.assertEqual(fixture['main']['event'], 'push')
+        self.assertEqual(fixture['main']['branch'], 'main')
+        self.assertEqual(list(fixture['main']['checks'].values()), ['success'] * 3)
+        self.assertEqual([row[2] for row in main['checks']], ['passed'] * 3)
+
+    def test_historical_examples_do_not_change_current_counts_or_public_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = self.render(self.write_source(root), root / 'output')
+            page = (root / 'output/index.html').read_text()
+            published = json.loads((root / 'output/scorecard.json').read_text())
+            self.assertEqual(metadata['message'], 'GREEN 14/14')
+            self.assertEqual((published['passed'], published['total']), (14, 14))
+            self.assertNotIn('checkpoint_examples', published)
+            self.assertLess(page.index('id="checkpoint-examples-title"'), page.index('id="scorecard"'))
+            gallery = page.split('<section class="checkpoint-gallery"', 1)[1].split('<section class="scorecard-section"', 1)[0]
+            self.assertNotIn('owner/repo', gallery)
+            self.assertIn('Historical examples from <strong>ravisingh11/ai-software-toolkit</strong>', gallery)
+            self.assertIn('not the latest results for the repository shown on this page', gallery)
+            self.assertIn('never contribute to the live scorecard totals below', gallery)
+            self.assertEqual(gallery.count('<article class="checkpoint-card '), 2)
+            self.assertIn('Core advisory', gallery)
+            self.assertIn('lifecycle/polyglot manual', gallery)
+
+    def test_checkpoint_examples_keep_missing_and_blocked_outcomes_explicit(self) -> None:
+        original = MODULE._CHECKPOINT_EXAMPLES
+        changed = dict(original[0])
+        changed['checks'] = (('missing', 'Not observed', 'not_run', RUN_URL),
+                             ('blocked', 'Interrupted', 'blocked', RUN_URL))
+        with mock.patch.object(MODULE, '_CHECKPOINT_EXAMPLES', (changed, original[1])):
+            examples = MODULE._checkpoint_examples_html()
+            pr = examples.split('id="checkpoint-pr-example"', 1)[1].split('</article>', 1)[0]
+            self.assertIn('Unverified · advisory', pr)
+            self.assertIn('Blocked · advisory', pr)
+            self.assertNotIn('Passed', pr)
+
+    def test_reference_examples_select_own_runs_without_borrowing_toolkit_results(self) -> None:
+        repository = 'ravisingh11/ai-software-toolkit-reference-app'
+        fixture = json.loads((ROOT / 'tooling/tests/fixtures/checkpoint-examples.json').read_text())['reference_app']
+        examples = MODULE._checkpoint_examples_html(repository)
+        pr = examples.split('id="checkpoint-pr-example"', 1)[1].split('</article>', 1)[0]
+        main = examples.split('id="checkpoint-main-example"', 1)[1].split('</article>', 1)[0]
+        self.assertIn('Historical examples from <strong>' + repository + '</strong>', examples)
+        self.assertNotIn('/ai-software-toolkit/actions/runs/', examples)
+        self.assertIn('Unverified · advisory', pr)
+        self.assertEqual(pr.count('Failed · advisory'), 1)
+        self.assertEqual(main.count('>Passed</span>'), 4)
+        self.assertIn('not a Proof policy score or live deployment evidence', main)
+        for example in MODULE._REFERENCE_CHECKPOINT_EXAMPLES:
+            source = fixture[example['id']]
+            self.assertEqual(example['run_id'], source['run_id'])
+            self.assertEqual(example['revision'], source['revision'])
+            for _, _, _, url in example['checks']:
+                self.assertTrue(url.startswith('https://github.com/' + repository + '/actions/runs/'))
+        for identifier, _, status, _ in MODULE._REFERENCE_CHECKPOINT_EXAMPLES[0]['checks']:
+            self.assertEqual(status, fixture['pr']['checks'][identifier]['status'])
+        self.assertEqual(list(fixture['main']['checks'].values()), ['success'] * 4)
+
+    def test_reference_page_uses_reference_examples_without_altering_evaluation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = 'ravisingh11/ai-software-toolkit-reference-app'
+            self.render(self.write_source(root), root / 'site', repository=repository,
+                        run_url=f'https://github.com/{repository}/actions/runs/12345/attempts/2')
+            page = (root / 'site/index.html').read_text()
+            gallery = page.split('<section class="checkpoint-gallery"', 1)[1].split('<section class="scorecard-section"', 1)[0]
+            self.assertIn('Application build', gallery)
+            self.assertIn('Browser acceptance', gallery)
+            self.assertNotIn('CLI archive build', gallery)
+            result = json.loads((root / 'site/scorecard.json').read_text())
+            self.assertEqual((result['passed'], result['total']), (14, 14))
+
     def test_independent_iac_stays_in_pr_scope_without_lifecycle_setup(self) -> None:
         card = scorecard(status="ORANGE", enforced=(0, 0), advisory=(0, 1))
         provider = {"id": "trivy-repository-iac", "display_name": "Trivy Repository IaC"}

@@ -1,0 +1,75 @@
+{
+  "repository": "ravisingh11/ai-software-toolkit",
+  "pr": {
+    "run_id": 40879663676,
+    "revision": "2388c864ef72fd9f803ff6195a4395b5d7a5fd02",
+    "event": "pull_request_target",
+    "checks": {
+      "change-scope": {
+        "status": "failed",
+        "mode": "advisory"
+      },
+      "pr-metadata": {
+        "status": "failed",
+        "mode": "advisory"
+      },
+      "changed-code-coverage": {
+        "status": "passed",
+        "mode": "advisory"
+      },
+      "dependency-change-review": {
+        "status": "passed",
+        "mode": "advisory"
+      }
+    }
+  },
+  "main": {
+    "run_id": 40631525656,
+    "revision": "8a36b246f6bd0c3808276de0f7794b26f574ce5e",
+    "event": "push",
+    "branch": "main",
+    "checks": {
+      "Focused activation and documentation regressions": "success",
+      "Build exact candidate archive": "success",
+      "Verify fresh and published consumers": "success"
+    }
+  },
+  "reference_app": {
+    "repository": "ravisingh11/ai-software-toolkit-reference-app",
+    "pr": {
+      "run_id": 40879661416,
+      "revision": "510e25a6c8f4816a35ef9f2d4d1d00f2db74cab8",
+      "event": "pull_request_target",
+      "checks": {
+        "change-scope": {
+          "status": "failed",
+          "mode": "advisory"
+        },
+        "pr-metadata": {
+          "status": "passed",
+          "mode": "advisory"
+        },
+        "changed-code-coverage": {
+          "status": "no_result",
+          "mode": "advisory"
+        },
+        "dependency-change-review": {
+          "status": "passed",
+          "mode": "advisory"
+        }
+      }
+    },
+    "main": {
+      "run_id": 40632274819,
+      "revision": "c3df3f459f14dd4a9945f4988722ebaafc804edd",
+      "event": "push",
+      "branch": "main",
+      "checks": {
+        "Run npm run build": "success",
+        "Run npm run test:coverage": "success",
+        "Run npm run validate:migrations": "success",
+        "Run npm run test:e2e": "success"
+      }
+    }
+  }
+}

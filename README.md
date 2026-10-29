@@ -16,13 +16,22 @@ files, selecting a check, configuring it, executing it, and obtaining passing
 evidence are distinct steps. Installation does not enforce checks or change
 branch protection. Advanced lifecycle and polyglot execution stay manual.
 
+## See the evidence
+
+[![Reference app report showing separate PR and post-merge checks, including failed PR size and unverified coverage.](docs/assets/sdlc-checkpoint-example.png)](https://ravisingh11.github.io/ai-software-toolkit-reference-app/)
+
+The reference app shows separate checks, outcomes and next decisions for PR
+review and verification after merge. These recorded examples come from different
+changes; each keeps its own revision and evidence.
+[Explore the live reference app report](https://ravisingh11.github.io/ai-software-toolkit-reference-app/).
+
 ## Start here
 
 Use Git, Python 3.11+, and a POSIX shell. Preview the starter installation
 (Proof and seven skills) before applying it to your application repository:
 
 ```sh
-git clone --branch v2.3.2 --depth 1 https://github.com/ravisingh11/ai-software-toolkit.git
+git clone --branch v2.3.3 --depth 1 https://github.com/ravisingh11/ai-software-toolkit.git
 cd ai-software-toolkit
 python3 tooling/ai_toolkit discover --target /path/to/your-repo
 python3 tooling/ai_toolkit init --target /path/to/your-repo --clients codex --preview

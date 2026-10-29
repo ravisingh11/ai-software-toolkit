@@ -8,6 +8,14 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+## [2.3.3] - 2026-10-29
+
+- Show separate recorded PR policy evidence and post-merge workflow observations on the scorecard page, retaining their original revisions, statuses and next decisions.
+- Add reference-app examples and an authentic, linked README screenshot; distinguish historical examples from current evaluation and deployment health.
+- Document how to read the two checkpoints without changing evaluator outcomes, scores, check selection or workflow triggers.
+- Align the CLI version, README and quickstart installation with v2.3.3.
+- Keep all checks optional, Core advisory, lifecycle/polyglot manual and Spec Kit separately adoptable.
+
 ## [2.3.2] - 2026-10-28
 
 - Explain all eight SDLC checkpoints, evidence subjects, invalidation and authorization boundaries.

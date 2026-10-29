@@ -42,7 +42,7 @@ Clone the toolkit into a separate directory. From that checkout, discover the
 target's commands, preview the installation, and apply the reviewed plan:
 
 ```sh
-git clone --branch v2.3.0 --depth 1 https://github.com/ravisingh11/ai-software-toolkit.git
+git clone --branch v2.3.3 --depth 1 https://github.com/ravisingh11/ai-software-toolkit.git
 cd ai-software-toolkit
 python3 tooling/ai_toolkit discover --target /path/to/repo
 python3 tooling/ai_toolkit init --target /path/to/repo --clients codex --preview
