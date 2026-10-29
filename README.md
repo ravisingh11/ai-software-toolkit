@@ -200,7 +200,8 @@ passing main CI does not establish live deployment health.
 Observed hosted examples: [successful PR-update report](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/40873871261)
 (tested source `f07876015209`) and [retained failure report](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/40873416614)
 (tested source `34f0befb16c5`). These are historical runs of this PR, not results
-for a later revision. A report from the new code on main remains pending merge.
+for a later revision. Inspect a new main-push report separately after merge; earlier PR results do
+not establish main health.
 
 ## Two invocation hooks, visible in the output
 

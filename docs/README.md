@@ -83,6 +83,16 @@ run it on the final merged revision and retain the verified CLI bytes and
 activate providers. Full source archives retain the optional Spec Kit source;
 the default CLI archive and standard release attachments exclude its package.
 
+## Checkpoint reporting
+
+`tooling/checkpoint_report.py` captures invocation context and renders final
+workflow observations without executing producers or evaluating policy.
+`tooling/checkpoint-report.json` names this repository's observed acceptance
+steps; it does not select or activate catalog checks. See
+[report usage and limits](sdlc-checkpoints.md#actionable-checkpoint-reports)
+for retained JSON/Markdown, supplied evaluator-card presentation, failure and
+cancellation behavior, and separate merge/deployment decisions.
+
 ## Local output and history
 
 `dist/`, `.artifacts/`, `.omx/`, `.superpowers/`, and `.worktrees/` hold local
