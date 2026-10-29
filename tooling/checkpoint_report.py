@@ -167,7 +167,7 @@ def workflow_rows(config: dict, steps: dict) -> list[dict]:
     return rows
 
 
-def render_workflow(context: dict, rows: list[dict], *, evaluation: dict | None = None) -> str:
+def render_workflow(context: dict, rows: list[dict], *, evaluation: dict | None = None, job_status: str = "not supplied") -> str:
     lines = ["# SDLC checkpoint report", ""]
     for key, label in (("checkpoint", "Checkpoint"), ("decision", "Decision considered"), ("invocation", "Hook / invocation"),
                        ("scope", "Evidence scope"), ("tested_revision", "Tested revision"), ("event_revision", "Event revision"),
@@ -175,6 +175,7 @@ def render_workflow(context: dict, rows: list[dict], *, evaluation: dict | None 
         lines.append(f"- **{label}:** {text(context.get(key) or 'not supplied')}")
     lines.extend(["- " + link("Run and step logs", context["run_url"]),
                   "- " + link("Retained artifacts (availability/retention depends on GitHub)", context["run_url"].split("/attempts/")[0] + "#artifacts"), "",
+                  f"Job status when reporting: **{text(job_status)}**. This snapshot precedes final reporting/upload; inspect GitHub for the final run conclusion.", "",
                   "## This workflow's observations", "",
                   "These are workflow-step outcomes, **not authoritative Proof evidence or a full toolkit score**. Checks in other workflows are not assessed here.", "",
                   "| Check / activity | Outcome | Recorded outcome / conclusion | Next action |",
@@ -214,6 +215,8 @@ def render_workflow(context: dict, rows: list[dict], *, evaluation: dict | None 
         lines.append("Obtain results after resolving prerequisites: " + ", ".join(text(name) for name in unavailable) + ".")
     if rows and not failed and not unavailable:
         lines.append("All listed steps passed; this statement applies only to these observations.")
+    if job_status in {"cancelled", "failure"}:
+        lines.append("The job was cancelled or failing when reported. Passing individual steps do not establish a successful run.")
     if context["checkpoint"] == "PR review":
         lines.append("Review findings and check current required CI, approvals and conversations separately. This report neither checks all merge requirements nor authorizes a merge.")
     else:
@@ -260,10 +263,11 @@ def main() -> None:
         raise ValueError("CHECKPOINT_STEPS must contain an object")
     rows = workflow_rows(config, observations)
     evaluation = read_object(args.scorecard) if args.scorecard else None
-    rendered = render_workflow(context, rows, evaluation=evaluation)
+    job_status = os.environ.get("CHECKPOINT_JOB_STATUS") or "not supplied"
+    rendered = render_workflow(context, rows, evaluation=evaluation, job_status=job_status)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     # Retain only whitelisted step facts; step outputs may contain sensitive data.
-    document = {"kind": "checkpoint-presentation", "context": context, "workflow_observations": rows, "evaluation": evaluation}
+    document = {"kind": "checkpoint-presentation", "context": context, "job_status_at_reporting": job_status, "workflow_observations": rows, "evaluation": evaluation}
     (args.output_dir / "report.json").write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     (args.output_dir / "report.md").write_text(rendered, encoding="utf-8")
     if os.environ.get("GITHUB_STEP_SUMMARY"):

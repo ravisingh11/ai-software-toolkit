@@ -197,6 +197,11 @@ and [main-push runs](https://github.com/ravisingh11/ai-software-toolkit/actions/
 retain their original identities. Main results require a new run after merge;
 passing main CI does not establish live deployment health.
 
+Observed hosted examples: [successful PR-update report](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/40873871261)
+(tested source `f07876015209`) and [retained failure report](https://github.com/ravisingh11/ai-software-toolkit/actions/runs/40873416614)
+(tested source `34f0befb16c5`). These are historical runs of this PR, not results
+for a later revision. A report from the new code on main remains pending merge.
+
 ## Two invocation hooks, visible in the output
 
 The diagram uses **teal for decisions**, **purple for invocation**, **blue for

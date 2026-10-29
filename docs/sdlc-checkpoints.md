@@ -350,3 +350,8 @@ final reporting and upload. Inspect GitHub's original run conclusion when a
 report is absent. Reporting/upload failures do not change producer outcomes.
 All 33 checks remain in the [activation index](activation.md); adoption stays
 optional, Core advisory, and lifecycle/polyglot manual.
+
+The report also records job status **at reporting time**, separately from step
+outcomes. Cancellation can occur after all listed tests passed; that does not
+establish a successful workflow. The original final GitHub run conclusion is
+authoritative for run completion, including cancellation during later steps.

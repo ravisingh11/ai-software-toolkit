@@ -82,6 +82,7 @@ jobs:
         working-directory: candidate
         env:
           CHECKPOINT_STEPS: ${{ toJSON(steps) }}
+          CHECKPOINT_JOB_STATUS: ${{ job.status }}
         run: |
           python3 tooling/checkpoint_report.py render \
             --context .artifacts/checkpoint/context.json --config tooling/checkpoint-report.json \

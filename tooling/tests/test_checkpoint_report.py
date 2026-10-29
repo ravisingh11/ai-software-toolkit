@@ -201,6 +201,13 @@ class CheckpointReportTests(unittest.TestCase):
         self.assertIn("No result recorded. Inspect preceding failures", rendered)
         self.assertIn("actions/runs/123#artifacts", rendered)
 
+    def test_cancellation_after_successful_steps_is_not_a_successful_run(self):
+        rows = MODULE.workflow_rows({"steps": [{"id": "test", "name": "Tests", "next_action": "Inspect tests"}]}, {"test": {"outcome": "success", "conclusion": "success"}})
+        rendered = MODULE.render_workflow(self.context(), rows, job_status="cancelled")
+        self.assertIn("Job status when reporting: **cancelled**", rendered)
+        self.assertIn("Passing individual steps do not establish a successful run", rendered)
+        self.assertEqual(rows[0]["outcome"], "success")
+
     def test_untrusted_markdown_and_unsafe_links_are_not_rendered_as_markup(self):
         document = card("failed")
         row = next(row for row in document["controls"] if row["id"] == "build")
@@ -236,6 +243,7 @@ class CheckpointReportTests(unittest.TestCase):
         workflow = (ROOT / ".github/workflows" / name).read_text()
         self.assertIn("always() && steps.checkpoint_context.outcome == 'success'", workflow)
         self.assertIn("CHECKPOINT_STEPS: ${{ toJSON(steps) }}", workflow)
+        self.assertIn("CHECKPOINT_JOB_STATUS: ${{ job.status }}", workflow)
         report_step = workflow.split("- name: Summarize SDLC checkpoint", 1)[1].split("- name: Retain SDLC checkpoint report", 1)[0]
         self.assertIn("continue-on-error: true", report_step)
         self.assertNotIn("continue-on-error: true", workflow.split("- name: Summarize SDLC checkpoint", 1)[0])
