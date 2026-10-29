@@ -142,6 +142,14 @@ class CheckpointReportTests(unittest.TestCase):
         self.assertIn("docs/activation.md#build", rendered)
         self.assertIn("[Open evidence](https://github.com/owner/repo/actions/runs/123)", rendered)
 
+    def test_collector_receipt_links_are_preserved_without_inventing_urls(self):
+        document = card("failed")
+        row = next(row for row in document["controls"] if row["id"] == "build")
+        row["authoritative_result"]["evidence"] = ["check: failed; https://github.com/owner/repo/actions/runs/123", "receipt with no URL"]
+        rendered = MODULE.render_card(document)
+        self.assertIn("[Open recorded evidence](https://github.com/owner/repo/actions/runs/123)", rendered)
+        self.assertIn("receipt with no URL", rendered)
+
     def test_skills_are_recommended_only_if_installed_and_never_claimed_executed(self):
         document = card("failed")
         self.assertNotIn("Consider installed", MODULE.render_card(document))
@@ -177,6 +185,9 @@ class CheckpointReportTests(unittest.TestCase):
         self.assertIn("runner loss or checkout failure", rendered)
         self.assertIn("current required CI, approvals and conversations separately", rendered)
         self.assertIn("No Proof scorecard was supplied", rendered)
+        self.assertNotIn("All listed steps passed", rendered)
+        self.assertIn("No result recorded. Inspect preceding failures", rendered)
+        self.assertIn("actions/runs/123#artifacts", rendered)
 
     def test_untrusted_markdown_and_unsafe_links_are_not_rendered_as_markup(self):
         document = card("failed")

@@ -10,6 +10,7 @@ import argparse
 import html
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 from urllib.parse import quote, urlsplit
@@ -136,9 +137,11 @@ def render_card(card: dict, *, skills: dict | None = None) -> str:
                 f"  Guide: {link(identifier, GUIDE + '#' + str(identifier))}.",
             ])
             for item in result.get("evidence", []):
-                # Preserve original evidence text and link only complete URLs;
-                # free-form provider receipts must not be fabricated into URLs.
+                # Preserve receipts and link URLs actually present in them.
                 lines.append("  Evidence: " + (link("Open evidence", item) if isinstance(item, str) and item.startswith(("https://", "http://")) else text(item)))
+                if isinstance(item, str) and not item.startswith(("https://", "http://")):
+                    for url in re.findall(r'https?://[^\s<>"\']+', item):
+                        lines.append("  " + link("Open recorded evidence", url.rstrip(".,;")))
     for finding in card.get("findings", []):
         if finding.get("kind") == "subject_mismatch":
             lines.extend(["", "Subject mismatch: " + text(json.dumps(finding, sort_keys=True))])
@@ -166,13 +169,17 @@ def render_workflow(context: dict, rows: list[dict], *, evaluation: dict | None 
                        ("pr_head", "PR head"), ("comparison_base", "Comparison base"), ("ref", "Git ref")):
         lines.append(f"- **{label}:** {text(context.get(key) or 'not supplied')}")
     lines.extend(["- " + link("Run and step logs", context["run_url"]),
-                  "- " + link("Retained artifacts (availability/retention depends on GitHub)", context["run_url"] + "#artifacts"), "",
+                  "- " + link("Retained artifacts (availability/retention depends on GitHub)", context["run_url"].split("/attempts/")[0] + "#artifacts"), "",
                   "## This workflow's observations", "",
                   "These are workflow-step outcomes, **not authoritative Proof evidence or a full toolkit score**. Checks in other workflows are not assessed here.", "",
                   "| Check / activity | Outcome | Recorded outcome / conclusion | Next action |",
                   "| --- | --- | --- | --- |"])
     for row in rows:
         action = "Inspect the recorded scope; no repair indicated by this step." if row["display_group"] == "Passed" else row["next_action"]
+        if row["display_group"] == "Unverified / not run":
+            action = "No result recorded. Inspect preceding failures or prerequisites before authorizing this step."
+        elif row["display_group"] == "Blocked":
+            action = "Execution was interrupted. Inspect the run cancellation and prerequisites before an authorized rerun."
         if row["display_group"] == "Failed" and row.get("control"):
             skill = REPAIR_SKILLS.get(row["control"])
             skills = context.get("installed_skills", {})
@@ -194,8 +201,14 @@ def render_workflow(context: dict, rows: list[dict], *, evaluation: dict | None 
         lines.extend(["", "No Proof scorecard was supplied. Selected-check failures, blockers, stale results and inactive checks in other workflows remain unassessed here.",
                       link("Inspect the separate Proof Scorecard runs", context["run_url"].split("/actions/runs/")[0] + "/actions/workflows/proof-scorecard.yml")])
     lines.extend(["", "## What happens next?", ""])
-    unresolved = [row["name"] for row in rows if row["display_group"] != "Passed"]
-    lines.append("Investigate: " + ", ".join(text(name) for name in unresolved) + "." if unresolved else "All listed steps passed; this statement applies only to these observations.")
+    failed = [row["name"] for row in rows if row["display_group"] == "Failed"]
+    unavailable = [row["name"] for row in rows if row["display_group"] in {"Blocked", "Unverified / not run"}]
+    if failed:
+        lines.append("Resolve recorded failures: " + ", ".join(text(name) for name in failed) + ".")
+    if unavailable:
+        lines.append("Obtain results after resolving prerequisites: " + ", ".join(text(name) for name in unavailable) + ".")
+    if rows and not failed and not unavailable:
+        lines.append("All listed steps passed; this statement applies only to these observations.")
     if context["checkpoint"] == "PR review":
         lines.append("Review findings and check current required CI, approvals and conversations separately. This report neither checks all merge requirements nor authorizes a merge.")
     else:
