@@ -1996,10 +1996,46 @@ _CHECKPOINT_EXAMPLES = (
 )
 
 
-def _checkpoint_examples_html() -> str:
-    repository = "ravisingh11/ai-software-toolkit"
+_REFERENCE_CHECKPOINT_EXAMPLES = (
+    {
+        "id": "pr", "title": "PR created or updated", "decision": "Ready for review?",
+        "kind": "Recorded PR policy evidence · advisory",
+        "event": "pull_request_target", "revision": "510e25a6c8f4816a35ef9f2d4d1d00f2db74cab8",
+        "created_at": "2026-10-29T13:11:26Z", "run_id": 40879661416, "run_attempt": 1,
+        "scope": "Four PR checks from the recorded evaluation of reference app PR #63.",
+        "checks": (
+            ("pr-metadata", "PR title and body", "passed", "https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/40879661416/attempts/1"),
+            ("change-scope", "PR size and change scope", "failed", "https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/40879661249"),
+            ("changed-code-coverage", "Changed-code coverage", "no_result", "https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/40876100183/job/123455314109"),
+            ("dependency-change-review", "Dependency change review", "passed", "https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/40876100236/job/123455184321"),
+        ),
+        "next": "Review the recorded size finding and missing coverage evidence. Inspect fresh results and current merge requirements before deciding to merge.",
+    },
+    {
+        "id": "main", "title": "After merge", "decision": "Did this main revision pass its adopted verification?",
+        "kind": "Recorded workflow observations · main",
+        "event": "push: refs/heads/main", "revision": "c3df3f459f14dd4a9945f4988722ebaafc804edd",
+        "created_at": "2026-10-28T04:25:51Z", "run_id": 40632274819, "run_attempt": 1,
+        "scope": "Four Application acceptance steps on main. These are workflow outcomes, not a Proof policy score or live deployment evidence.",
+        "checks": (
+            ("application-build", "Application build", "passed", "https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/40632274819/job/122631173511"),
+            ("unit-tests", "Unit tests and coverage", "passed", "https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/40632274819/job/122631173511"),
+            ("browser-acceptance", "Browser acceptance", "passed", "https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/40632274819/job/122631173511"),
+            ("migration-validation", "Migration validation", "passed", "https://github.com/ravisingh11/ai-software-toolkit-reference-app/actions/runs/40632274819/job/122631173511"),
+        ),
+        "next": "Inspect evidence for the resulting main revision. Deployment approval and live health/API/UI verification remain separate decisions.",
+    },
+)
+
+
+def _checkpoint_examples_html(repository: str = "ravisingh11/ai-software-toolkit") -> str:
+    if repository == "ravisingh11/ai-software-toolkit-reference-app":
+        examples = _REFERENCE_CHECKPOINT_EXAMPLES
+    else:
+        repository = "ravisingh11/ai-software-toolkit"
+        examples = _CHECKPOINT_EXAMPLES
     cards = []
-    for example in _CHECKPOINT_EXAMPLES:
+    for example in examples:
         run_url = f"https://github.com/{repository}/actions/runs/{example['run_id']}/attempts/{example['run_attempt']}"
         rows = []
         for identifier, name, status, url in example["checks"]:
@@ -2028,7 +2064,7 @@ def _checkpoint_examples_html() -> str:
   <p class="eyebrow">Separate decisions · separate checks</p>
   <h2 id="checkpoint-examples-title">Two SDLC checkpoints in practice</h2>
   <p class="checkpoint-intro">A PR review and verification after merge answer different questions. Each checkpoint below has its own check list, revision and evidence. There is no combined score.</p>
-  <p class="checkpoint-history">Historical examples from <strong>ravisingh11/ai-software-toolkit</strong>. These are fixed teaching examples, not the latest results for the repository shown on this page.</p>
+  <p class="checkpoint-history">Historical examples from <strong>''' + repository + '''</strong>. These runs come from different changes. They are fixed teaching examples, not the latest results for the repository shown on this page.</p>
   <div class="checkpoint-grid">''' + ''.join(cards) + '''</div>
   <p class="checkpoint-boundary">PR findings do not become main results. Main CI does not establish deployment health. These examples never contribute to the live scorecard totals below. Checks remain optional, Core advisory, and lifecycle/polyglot manual.</p>
 </section>''')
@@ -2142,7 +2178,7 @@ def _html(metadata: dict[str, Any]) -> str:
       Installing skills does not run them or make checks required. Your team owns
       its application, commands, review decisions, and release authority.</p>
   </section>
-  {_checkpoint_examples_html()}
+  {_checkpoint_examples_html(metadata['repository'])}
   <section class="scorecard-section" id="scorecard" aria-labelledby="scorecard-title" tabindex="-1">
   <p class="eyebrow">CI evidence / change assessment</p>
   <h2 class="report-title" id="scorecard-title">Latest PR Scorecard</h2>

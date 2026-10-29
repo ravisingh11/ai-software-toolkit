@@ -120,6 +120,42 @@ class RendererTests(unittest.TestCase):
             self.assertIn('Blocked · advisory', pr)
             self.assertNotIn('Passed', pr)
 
+    def test_reference_examples_select_own_runs_without_borrowing_toolkit_results(self) -> None:
+        repository = 'ravisingh11/ai-software-toolkit-reference-app'
+        fixture = json.loads((ROOT / 'tooling/tests/fixtures/checkpoint-examples.json').read_text())['reference_app']
+        examples = MODULE._checkpoint_examples_html(repository)
+        pr = examples.split('id="checkpoint-pr-example"', 1)[1].split('</article>', 1)[0]
+        main = examples.split('id="checkpoint-main-example"', 1)[1].split('</article>', 1)[0]
+        self.assertIn('Historical examples from <strong>' + repository + '</strong>', examples)
+        self.assertNotIn('/ai-software-toolkit/actions/runs/', examples)
+        self.assertIn('Unverified · advisory', pr)
+        self.assertEqual(pr.count('Failed · advisory'), 1)
+        self.assertEqual(main.count('>Passed</span>'), 4)
+        self.assertIn('not a Proof policy score or live deployment evidence', main)
+        for example in MODULE._REFERENCE_CHECKPOINT_EXAMPLES:
+            source = fixture[example['id']]
+            self.assertEqual(example['run_id'], source['run_id'])
+            self.assertEqual(example['revision'], source['revision'])
+            for _, _, _, url in example['checks']:
+                self.assertTrue(url.startswith('https://github.com/' + repository + '/actions/runs/'))
+        for identifier, _, status, _ in MODULE._REFERENCE_CHECKPOINT_EXAMPLES[0]['checks']:
+            self.assertEqual(status, fixture['pr']['checks'][identifier]['status'])
+        self.assertEqual(list(fixture['main']['checks'].values()), ['success'] * 4)
+
+    def test_reference_page_uses_reference_examples_without_altering_evaluation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = 'ravisingh11/ai-software-toolkit-reference-app'
+            self.render(self.write_source(root), root / 'site', repository=repository,
+                        run_url=f'https://github.com/{repository}/actions/runs/12345/attempts/2')
+            page = (root / 'site/index.html').read_text()
+            gallery = page.split('<section class="checkpoint-gallery"', 1)[1].split('<section class="scorecard-section"', 1)[0]
+            self.assertIn('Application build', gallery)
+            self.assertIn('Browser acceptance', gallery)
+            self.assertNotIn('CLI archive build', gallery)
+            result = json.loads((root / 'site/scorecard.json').read_text())
+            self.assertEqual((result['passed'], result['total']), (14, 14))
+
     def test_independent_iac_stays_in_pr_scope_without_lifecycle_setup(self) -> None:
         card = scorecard(status="ORANGE", enforced=(0, 0), advisory=(0, 1))
         provider = {"id": "trivy-repository-iac", "display_name": "Trivy Repository IaC"}
