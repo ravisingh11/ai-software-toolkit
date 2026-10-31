@@ -83,10 +83,18 @@ def materialize(target: Path, entries: list[dict], destination: Path) -> None:
 
 
 def run_command(command: list[str], cwd: Path, environment: dict) -> tuple[int, str]:
+    def limits():
+        import resource
+        resource.setrlimit(resource.RLIMIT_FSIZE, (4 * 1024 * 1024, 4 * 1024 * 1024))
     try:
-        result = subprocess.run(command, cwd=cwd, env=environment, text=True, stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL, timeout=180)
-        return result.returncode, result.stdout[:65536]
+        # File-backed capture prevents communicate() from buffering arbitrary output.
+        # POSIX children also cannot grow reports/output beyond the file-size bound.
+        with tempfile.TemporaryFile() as output:
+            result = subprocess.run(command, cwd=cwd, env=environment, stdout=output,
+                                    stderr=subprocess.DEVNULL, timeout=180,
+                                    preexec_fn=limits if os.name == "posix" else None)
+            output.seek(0)
+            return result.returncode, output.read(65536).decode("utf-8", errors="replace")
     except (OSError, subprocess.TimeoutExpired):
         return 125, ""
 
@@ -110,6 +118,9 @@ def scan(identifier: str, tool: dict, snapshot: Path, output: Path) -> dict:
         report_path, source_path = str(output / "findings.json"), "."
         rules = ".proof/semgrep-rules.yml"
     elif shutil.which("docker"):
+        if not hasattr(os, "getuid"):
+            result["reason"] = "Docker staged execution requires a POSIX host; use pinned host tools on this platform."
+            return result
         docker = True
         prefix = [shutil.which("docker"), "--config", str(output / "docker-config"), "run", "--rm", "--pull", "never", "--network", "none",
                   "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", str(os.getuid()) + ":" + str(os.getgid()),
@@ -150,6 +161,16 @@ def scan(identifier: str, tool: dict, snapshot: Path, output: Path) -> dict:
     return result
 
 
+def reject_symlink_ancestors(path: Path) -> Path:
+    if ".." in path.parts:
+        raise ValueError("Use a canonical receipt destination without parent traversal")
+    absolute = path.absolute()
+    for ancestor in (absolute, *absolute.parents):
+        if ancestor.is_symlink():
+            raise ValueError("Receipt destination must not traverse a symlink")
+    return absolute
+
+
 def run(target: Path, receipt_path: Path | None = None) -> dict:
     tree, entries = index_state(target)
     planning = plan(target, "pre-commit")
@@ -164,14 +185,14 @@ def run(target: Path, receipt_path: Path | None = None) -> dict:
         if (target / name).is_symlink() or (target / name).read_bytes() != blob:
             raise ValueError("Assurance configuration differs between index and working tree")
     if receipt_path is None:
-        parent = target / ".artifacts/checkpoints"
-        if parent.exists() and (parent.is_symlink() or not parent.resolve().is_relative_to(target.resolve())):
-            raise ValueError("Unsafe receipt destination")
+        parent = reject_symlink_ancestors(target / ".artifacts/checkpoints")
         parent.mkdir(parents=True, exist_ok=True)
         receipt_path = Path(tempfile.mkdtemp(prefix="pre-commit-", dir=parent)) / "receipt.json"
+    receipt_path = reject_symlink_ancestors(receipt_path)
     if receipt_path.exists() or receipt_path.is_symlink():
         raise ValueError("Preserve existing receipt; choose a new path")
     receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    reject_symlink_ancestors(receipt_path)
     evidence_dir = Path(tempfile.mkdtemp(prefix="evidence-", dir=receipt_path.parent))
     rows, refs = [], []
     with tempfile.TemporaryDirectory(prefix="ai-toolkit-index-") as temporary:
@@ -182,18 +203,24 @@ def run(target: Path, receipt_path: Path | None = None) -> dict:
         for path in snapshot.rglob("*"):
             if path.is_file():
                 path.chmod(0o555 if path.stat().st_mode & 0o111 else 0o444)
+        snapshot_corrupt = False
         for identifier, tool in TOOLS.items():
             selected = next((row for row in planning["checks"] if row["id"] == identifier), None)
             if not selected or not selected["selected"] or selected["authoritative_provider"] != tool["provider"]:
                 continue
             output = Path(temporary) / identifier
             output.mkdir()
-            outcome = scan(identifier, tool, snapshot, output)
+            outcome = ({"check": identifier, "provider": tool["provider"], "status": "blocked", "reason": "A preceding producer modified the isolated snapshot."}
+                       if snapshot_corrupt else scan(identifier, tool, snapshot, output))
             execution = outcome.pop("recorded_execution", None)
+            if execution:
+                execution["reported_status"] = outcome["status"]
             if not snapshot_matches(snapshot, entries):
+                snapshot_corrupt = True
                 outcome["status"] = "blocked"
                 outcome["reason"] = "Scanner modified isolated snapshot; original contents were not established."
-                execution = None
+            if execution:
+                execution["snapshot_unchanged"] = not snapshot_corrupt
             if execution:
                 file = evidence_dir / (tool["provider"] + ".json")
                 file.write_text(json.dumps({"index_tree": tree, "configuration_digest": configuration_digest(entries), "execution": execution}, indent=2) + "\n")

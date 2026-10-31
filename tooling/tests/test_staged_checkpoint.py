@@ -81,6 +81,44 @@ class StagedTests(unittest.TestCase):
         self.assertFalse(result["all_reported_checks_passed"])
         self.assertTrue(all(row["status"] == "blocked" for row in result["results"]))
 
+    def test_absent_output_leaf_under_symlink_rejects_before_writes_or_producers(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        (self.target / ".artifacts").symlink_to(outside, target_is_directory=True)
+        with patch.object(staged, "scan") as producer:
+            with self.assertRaises(ValueError):
+                staged.run(self.target)
+            producer.assert_not_called()
+        self.assertEqual(list(outside.iterdir()), [])
+        explicit = self.root / "linked"
+        explicit.symlink_to(outside, target_is_directory=True)
+        with patch.object(staged, "scan") as producer:
+            with self.assertRaises(ValueError):
+                staged.run(self.target, explicit / "absent/receipt.json")
+            producer.assert_not_called()
+        self.assertEqual(list(outside.iterdir()), [])
+
+    def test_mutated_snapshot_blocks_following_producers_and_retains_raw_exit(self):
+        def mutate(identifier, tool, snapshot, output):
+            outcome = self.fake_scan(identifier, tool, snapshot, output)
+            (snapshot / "app.py").chmod(0o644)
+            (snapshot / "app.py").write_text("changed by producer\n")
+            return outcome
+        with patch.object(staged, "scan", side_effect=mutate) as producer:
+            result = staged.run(self.target, self.path)
+        self.assertFalse(result["all_reported_checks_passed"])
+        self.assertTrue(all(row["status"] == "blocked" for row in result["results"]))
+        self.assertEqual(producer.call_count, 1)
+        receipt = assurance.read_document(self.path)
+        evidence = assurance.read_document(self.path.parent / receipt["evidence_refs"][0]["path"])
+        self.assertEqual(evidence["execution"]["reported_status"], "passed")
+        self.assertFalse(evidence["execution"]["snapshot_unchanged"])
+
+    def test_stdout_capture_is_bounded_for_noisy_child(self):
+        code, output = staged.run_command([sys.executable, "-c", "print('x' * 1000000)"], self.root, {})
+        self.assertEqual(code, 0)
+        self.assertEqual(len(output), 65536)
+
     def test_modified_unstaged_policy_and_receipt_overwrite_reject_before_execution(self):
         (self.target / ".proof/policy.yaml").write_text('{"not":"staged"}')
         with patch.object(staged, "scan") as producer:
