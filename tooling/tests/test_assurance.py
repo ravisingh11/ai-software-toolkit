@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import copy
+import contextlib
 from datetime import datetime, timezone
 import hashlib
+import io
 import json
 from pathlib import Path
 import sys
@@ -41,6 +43,28 @@ class AssuranceTests(unittest.TestCase):
     def verify(self, expected=None):
         self.path.write_text(json.dumps(self.receipt))
         return assurance.verify_receipt(self.path, expected=expected, now=datetime(2026, 2, 1, tzinfo=timezone.utc))
+
+    def test_portable_cli_checks_bytes_and_returns_nonpassing_exit_codes(self):
+        manifest = self.root / "manifest.json"
+        manifest.write_text(json.dumps(self.manifest))
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = assurance.main(["package-verify", "--root", str(self.payload), "--manifest", str(manifest)])
+        self.assertEqual(code, 0)
+        self.assertFalse(json.loads(output.getvalue())["authenticated_build_provenance"])
+        (self.payload / "worker.js").write_text("modified after verification")
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = assurance.main(["package-verify", "--root", str(self.payload), "--manifest", str(manifest)])
+        self.assertEqual(code, 2)
+        self.assertFalse(json.loads(output.getvalue())["valid"])
+        self.receipt["results"] = [{"check": "unit-tests", "provider": "repository-unit-tests", "status": "blocked", "reason": "No authoritative producer result"}]
+        self.path.write_text(json.dumps(self.receipt))
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = assurance.main(["receipt-verify", "--receipt", str(self.path)])
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(output.getvalue())["results"][0]["status"], "blocked")
 
     def test_complete_package_and_canonical_identity(self):
         result = assurance.verify_package(self.payload, self.manifest)

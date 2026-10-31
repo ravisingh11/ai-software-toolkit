@@ -111,6 +111,22 @@ class CliFixture(unittest.TestCase):
         return run_cli("init", "--target", str(self.target), "--yes", "--clients", "codex", *extra)
 
 
+class CheckpointDispatchTests(CliFixture):
+    def test_checkpoint_routes_to_distribution_helper_and_preserves_exit_code(self):
+        receipt, context = self.root / "receipt.json", self.root / "context.json"
+        with patch.object(cli, "run_python", return_value=subprocess.CompletedProcess([], 2)) as run:
+            code, _, _ = run_cli("checkpoint", "verify", "--target", str(self.target), "--receipt", str(receipt), "--expected-context", str(context), "--json")
+        self.assertEqual(code, 2)
+        self.assertEqual(run.call_args.args[0], ROOT / "tooling/checkpoints.py")
+        arguments = run.call_args.args[1]
+        self.assertEqual(arguments[:3], ["verify", "--checkpoint", "pre-commit"])
+        self.assertIn(str(receipt), arguments)
+        self.assertIn(str(context), arguments)
+        self.assertIn("--json", arguments)
+        self.assertEqual(run.call_args.kwargs["cwd"], self.target)
+        self.assertFalse((self.target / ".proof").exists())
+
+
 class DiscoverAndInitTests(CliFixture):
     def test_discover_text_and_json(self):
         code, out, _ = run_cli("discover", "--target", str(self.target))
