@@ -38,6 +38,9 @@ class BuildArchiveTests(unittest.TestCase):
     def test_payload_excludes_tests_and_bytecode(self):
         files = {path.relative_to(ROOT).as_posix() for path in self.module.payload_files()}
         self.assertIn("tooling/install.py", files)
+        self.assertIn("tooling/checkpoints.py", files)
+        self.assertIn("tooling/assurance.py", files)
+        self.assertIn("tooling/staged_checkpoint.py", files)
         self.assertNotIn("tooling/package-speckit-preset.sh", files)
         self.assertNotIn("tooling/verify_distribution.py", files)
         self.assertFalse(any(name.startswith("tooling/speckit/") for name in files))

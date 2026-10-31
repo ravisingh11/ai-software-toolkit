@@ -51,11 +51,24 @@ jobs:
           python3 -m unittest discover -s tooling/tests -p test_checkpoint_report.py
           python3 -m unittest discover -s tooling/tests -p test_assurance.py
           python3 -m unittest discover -s tooling/tests -p test_checkpoints.py
+          python3 -m unittest discover -s tooling/tests -p test_staged_checkpoint.py
           PYTHONPATH=tooling/tests python3 -m unittest test_ai_toolkit_cli.DoctorCheckTests.test_init_check_doctor_lifecycle
           python3 -m unittest discover -s tooling/tests -p test_doctor.py
           PYTHONPATH=tooling/tests python3 -m unittest test_starter_installation
           python3 -m unittest discover -s tooling/validators/tests -p test_validate_documentation.py
           PYTHONPATH=tooling/tests python3 -m unittest test_python_demo.PythonDemoTests.test_demo_documentation_validation_rejects_broken_internal_link
+      - name: Provision pinned scanners and verify staged-snapshot integration
+        working-directory: candidate
+        run: |
+          python3 - <<'PY'
+          import subprocess
+          import sys
+          sys.path.insert(0, "tooling")
+          import staged_checkpoint
+          for tool in staged_checkpoint.TOOLS.values():
+              subprocess.run(["docker", "pull", tool["image"]], check=True)
+          PY
+          PROOF_CHECKPOINT_SCANNER_INTEGRATION=1 python3 -m unittest discover -s tooling/tests -p test_staged_checkpoint.py
       - name: Build exact candidate archive
         id: archive
         working-directory: candidate
