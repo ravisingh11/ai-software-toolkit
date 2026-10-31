@@ -173,10 +173,11 @@ class StagedTests(unittest.TestCase):
 
     @unittest.skipUnless(os.environ.get("PROOF_CHECKPOINT_SCANNER_INTEGRATION") == "1", "Pinned scanner integration runs only in explicitly provisioned hosted acceptance")
     def test_pinned_scanners_safe_staged_and_unsafe_unstaged_then_selected_failure(self):
-        safe = 'import requests\nrequests.get("https://example.invalid", timeout=3)\n'
+        safe = 'import requests\nrequests.get("https://example.invalid", timeout=3, verify=True)\n'
         (self.target / "app.py").write_text(safe)
         self.git("add", "app.py")
-        bad = 'import requests\nrequests.get("https://example.invalid")\nTOKEN = "' + "ghp_" + hashlib.sha256(b"synthetic-checkpoint-fixture").hexdigest()[:36] + '"\n'
+        # Exercise the actual installed TLS rule, not an assumed timeout rule.
+        bad = 'import requests\nrequests.get("https://example.invalid", timeout=3, verify=False)\nTOKEN = "' + "ghp_" + hashlib.sha256(b"synthetic-checkpoint-fixture").hexdigest()[:36] + '"\n'
         (self.target / "app.py").write_text(bad)
         docker = shutil.which("docker")
         with patch.object(staged.shutil, "which", side_effect=lambda name: docker if name == "docker" else None):
@@ -185,7 +186,8 @@ class StagedTests(unittest.TestCase):
             self.git("add", "app.py")
             failed = staged.run(self.target, self.root / "failed/receipt.json")
         self.assertFalse(failed["all_reported_checks_passed"])
-        self.assertEqual({row["status"] for row in failed["results"]}, {"failed"})
+        self.assertEqual({row["check"]: row["status"] for row in failed["results"]},
+                         {"custom-static-analysis": "failed", "secret-detection": "failed"}, failed)
 
 
 if __name__ == "__main__":
