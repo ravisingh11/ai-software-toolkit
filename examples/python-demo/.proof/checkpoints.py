@@ -29,7 +29,7 @@ EARLY = {"coding-finished", "pre-commit", "commit-creation", "pre-push"}
 def git(target: Path, *args: str, binary=False, input_data=None):
     environment = {key: os.environ[key] for key in ("PATH", "SYSTEMROOT", "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL", "TZ") if key in os.environ}
     environment.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_TERMINAL_PROMPT="0")
-    result = subprocess.run(["git", "--no-optional-locks", "-c", "core.fsmonitor=false", "-c", f"core.hooksPath={os.devnull}",
+    result = subprocess.run(["git", "--no-optional-locks", "--no-lazy-fetch", "--no-replace-objects", "-c", "credential.helper=", "-c", "core.fsmonitor=false", "-c", f"core.hooksPath={os.devnull}",
                              "-C", str(target), *args], capture_output=True, input=input_data, env=environment, timeout=30, check=True)
     return result.stdout if binary else result.stdout.decode().strip()
 

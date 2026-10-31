@@ -35,6 +35,10 @@ Intent-to-add (`git add -N`) placeholders are unsupported: stage their contents
 explicitly first. They are not treated as checked empty files. Ordinary staged
 empty files remain supported. Git plumbing runs with external diff/text conversion
 and hooks disabled; no index refresh or tree-object writes are required.
+Git object reads disable replacement refs and lazy fetching. Missing objects in
+a partial clone remain unavailable; no promisor remote or credential helper is
+invoked to fill them. A Git version without these safety options is unsupported
+for checkpoint Git access rather than silently falling back to online access.
 
 Checkpoint IDs are `coding-finished`, `pre-commit`, `commit-creation`,
 `post-commit`, `pre-push`, `pr`, `pre-merge`, `post-merge`, `release`, `deployment`
