@@ -60,6 +60,10 @@ behavior. See [starter and full installation sets](docs/install.md#fresh-starter
 
 ## Use across the SDLC
 
+The **v2.4.0 candidate** adds a read-only checkpoint planner and separately bound
+handoff receipts. See [checkpoint commands and integrity limits](docs/checkpoints.md).
+The published installation below remains v2.3.4 until this candidate is reviewed.
+
 Place selected checks around the decision you are making. An early review,
 a PR check, and a result for merged `main` establish different things.
 Read down the first column for the process, and across each row for the

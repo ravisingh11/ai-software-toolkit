@@ -5,6 +5,10 @@ been checked, and does that evidence justify proceeding?** Git events provide
 opportunities to run checks. A checkpoint describes the decision being made.
 This guide serves both human contributors and agents.
 
+The v2.4.0 candidate's [checkpoint planner and receipt verifier](checkpoints.md)
+make placement and missing evidence inspectable. They do not change operations,
+scores or platform authorization. Exact staged execution is a separate adapter.
+
 All 33 catalog checks remain available to discover and optional to adopt.
 Core defaults remain advisory. A successful early check supports its recorded
 decision; merge, publication and deployment each retain their own evidence and

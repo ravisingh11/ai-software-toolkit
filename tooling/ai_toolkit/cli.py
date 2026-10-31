@@ -1050,6 +1050,18 @@ def _rollback(target: Path, configuration: dict[str, Any] | None, lock: dict[str
 
 # --------------------------------------------------------------------------- parser
 
+def cmd_checkpoint(args: argparse.Namespace) -> int:
+    arguments = [args.action, "--checkpoint", args.checkpoint, "--target", str(resolve_target(args.target))]
+    if args.receipt:
+        arguments.extend(["--receipt", str(args.receipt)])
+    if args.expected_context:
+        arguments.extend(["--expected-context", str(args.expected_context)])
+    if args.json:
+        arguments.append("--json")
+    # Use the CLI distribution's code, never executable helpers from --target.
+    return run_python(ROOT / "tooling" / "checkpoints.py", arguments, cwd=resolve_target(args.target)).returncode
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ai-toolkit", description="AI Software Toolkit: install, diagnose, check, and update Proof, skills, and QA.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION} ({revision()})")
@@ -1062,6 +1074,14 @@ def build_parser() -> argparse.ArgumentParser:
     sub = subparsers.add_parser("discover", help="detect repository structure, commands, workflows, and agent clients (read-only)")
     common(sub)
     sub.set_defaults(func=cmd_discover)
+
+    sub = subparsers.add_parser("checkpoint", help="plan checkpoints or verify separately bound assurance receipts")
+    common(sub)
+    sub.add_argument("action", choices=("plan", "run", "verify"))
+    sub.add_argument("--checkpoint", default="pre-commit")
+    sub.add_argument("--receipt", type=Path)
+    sub.add_argument("--expected-context", type=Path, help="current subject/dependencies supplied by the caller; never grants provider authority")
+    sub.set_defaults(func=cmd_checkpoint)
 
     sub = subparsers.add_parser("init", help="discover, preview, and install selected components")
     common(sub)

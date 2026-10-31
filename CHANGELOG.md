@@ -8,6 +8,12 @@ or evidence contracts require a major release and migration guidance.
 
 ## [Unreleased]
 
+### v2.4.0 candidate
+
+- Add read-only checkpoint planning using the existing 33-check catalog and provider selections.
+- Add portable package manifests and separately bound checkpoint receipts with explicit integrity, subject, freshness and authority limits.
+- Preserve existing Proof subjects, operations, decisions, scores, installed skill ownership and optional/advisory defaults.
+
 ## [2.3.4] - Unreleased
 
 Draft candidate; v2.3.3 remains the latest published release.
