@@ -128,6 +128,16 @@ class CheckpointDispatchTests(CliFixture):
         self.assertEqual(run.call_args.kwargs["cwd"], self.target)
         self.assertFalse((self.target / ".proof").exists())
 
+    def test_checkpoint_keeps_symlink_components_visible_to_destination_validation(self):
+        link = self.root / "linked"
+        link.symlink_to(self.target, target_is_directory=True)
+        receipt = link / "new/receipt.json"
+        with patch.object(cli, "run_python", return_value=subprocess.CompletedProcess([], 2)) as run:
+            code, _, _ = run_cli("checkpoint", "run", "--target", str(self.target), "--receipt", str(receipt))
+        self.assertEqual(code, 2)
+        self.assertIn(str(receipt), run.call_args.args[1])
+        self.assertNotIn(str(receipt.resolve()), run.call_args.args[1])
+
     def test_verify_uses_caller_relative_inputs_instead_of_target_shadow_files(self):
         evidence = self.root / "producer.json"
         evidence.write_text('{"fixture":"original outcome"}')

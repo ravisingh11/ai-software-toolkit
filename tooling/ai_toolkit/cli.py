@@ -1066,9 +1066,9 @@ def cmd_checkpoint(args: argparse.Namespace) -> int:
     if args.checkpoint is not None:
         arguments.extend(["--checkpoint", args.checkpoint])
     if args.receipt:
-        arguments.extend(["--receipt", str(args.receipt.resolve())])
+        arguments.extend(["--receipt", str(args.receipt.absolute())])
     if args.expected_context:
-        arguments.extend(["--expected-context", str(args.expected_context.resolve())])
+        arguments.extend(["--expected-context", str(args.expected_context.absolute())])
     if args.json:
         arguments.append("--json")
     # Use the CLI distribution's code, never executable helpers from --target.
