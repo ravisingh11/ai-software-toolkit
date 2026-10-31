@@ -64,6 +64,23 @@ class CheckpointPlanTests(unittest.TestCase):
         self.git("rm", "--cached", "example.py")
         self.assertEqual(checkpoints.index_state(self.target)[0], self.git("write-tree"))
 
+    def test_unborn_head_still_plans_exact_index_without_claiming_commit_evidence(self):
+        target = self.target.parent / "unborn"
+        target.mkdir()
+        shutil.copytree(ROOT / ".proof", target / ".proof", ignore=shutil.ignore_patterns("__pycache__"))
+        subprocess.run(["git", "init", "-q", str(target)], check=True)
+        (target / "first.py").write_text("first = True\n")
+        subprocess.run(["git", "-C", str(target), "add", "."], check=True)
+        expected = subprocess.check_output(["git", "-C", str(target), "write-tree"], text=True).strip()
+        before = {str(p.relative_to(target)): p.read_bytes() for p in target.rglob("*") if p.is_file()}
+        value = checkpoints.plan(target, "pre-commit")
+        self.assertEqual(value["subject"], {"type": "git-index", "revision": expected})
+        self.assertNotIn("source_revision", value)
+        self.assertEqual(len(value["checks"]), 33)
+        self.assertFalse(any(row["existing_evidence"]["matches_commit"] for row in value["checks"]))
+        self.assertEqual({str(p.relative_to(target)): p.read_bytes() for p in target.rglob("*") if p.is_file()}, before)
+        self.assertIsNone(checkpoints.plan(target, "post-commit")["subject"])
+
     def test_does_not_execute_target_helpers_or_credentials(self):
         (self.target / ".proof/evaluate.py").write_text("raise RuntimeError('target code executed')\n")
         with patch.dict(os.environ, {"PROVIDER_TOKEN": "credential-value-must-not-be-used"}), patch.object(checkpoints, "shutil") as tools:
