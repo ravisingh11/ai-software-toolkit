@@ -38,6 +38,20 @@ def provider_digest() -> str:
     return hashlib.sha256(canonical(TOOLS)).hexdigest()
 
 
+def snapshot_matches(snapshot: Path, entries: list[dict]) -> bool:
+    paths = list(snapshot.rglob("*"))
+    if any(path.is_symlink() or not (path.is_file() or path.is_dir()) for path in paths):
+        return False
+    if {path.relative_to(snapshot).as_posix() for path in paths if path.is_file()} != {entry["path"] for entry in entries}:
+        return False
+    for entry in entries:
+        data = (snapshot / entry["path"]).read_bytes()
+        oid = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data, usedforsecurity=False).hexdigest()
+        if oid != entry["oid"]:
+            return False
+    return True
+
+
 def materialize(target: Path, entries: list[dict], destination: Path) -> None:
     """Read blobs directly; never run filters, checkout hooks or Git write-tree."""
     ids = [entry["oid"] for entry in entries]
@@ -82,7 +96,7 @@ def scan(identifier: str, tool: dict, snapshot: Path, output: Path) -> dict:
     result = {"check": identifier, "provider": tool["provider"], "status": "blocked", "reason": "Pinned scanner unavailable or incomplete."}
     environment = {key: os.environ[key] for key in ("PATH", "SYSTEMROOT", "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL") if key in os.environ}
     environment.update(SEMGREP_SEND_METRICS="off", SEMGREP_ENABLE_VERSION_CHECK="0", SEMGREP_SETTINGS_FILE=str(output / "settings.yml"),
-                       XDG_CONFIG_HOME=str(output / "config"), XDG_CACHE_HOME=str(output / "cache"))
+                       SEMGREP_LOG_FILE=str(output / "semgrep.log"), XDG_CONFIG_HOME=str(output / "config"), XDG_CACHE_HOME=str(output / "cache"))
     binary = shutil.which(tool["binary"])
     docker = False
     if binary:
@@ -101,7 +115,7 @@ def scan(identifier: str, tool: dict, snapshot: Path, output: Path) -> dict:
                   "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", str(os.getuid()) + ":" + str(os.getgid()),
                   "-v", str(snapshot) + ":/src:ro", "-v", str(output) + ":/out", "-w", "/src"]
         if tool["provider"] == "semgrep-ce":
-            prefix += ["-e", "SEMGREP_SETTINGS_FILE=/out/settings.yml", "-e", "SEMGREP_SEND_METRICS=off", "-e", "SEMGREP_ENABLE_VERSION_CHECK=0"]
+            prefix += ["-e", "SEMGREP_SETTINGS_FILE=/out/settings.yml", "-e", "SEMGREP_LOG_FILE=/out/semgrep.log", "-e", "SEMGREP_SEND_METRICS=off", "-e", "SEMGREP_ENABLE_VERSION_CHECK=0"]
         prefix += [tool["image"]]
         if tool["provider"] == "semgrep-ce":
             prefix += ["semgrep"]
@@ -125,7 +139,7 @@ def scan(identifier: str, tool: dict, snapshot: Path, output: Path) -> dict:
         report = json.loads(path.read_text())
         findings = report.get("results") if tool["provider"] == "semgrep-ce" and isinstance(report, dict) else report
         errors = report.get("errors", []) if tool["provider"] == "semgrep-ce" and isinstance(report, dict) else []
-        if not isinstance(findings, list) or errors or code not in (0, 1) or (code == 0 and findings) or (code == 1 and not findings):
+        if not isinstance(findings, list) or not isinstance(errors, list) or errors or code not in (0, 1) or (code == 0 and findings) or (code == 1 and not findings):
             raise ValueError("Incomplete or inconsistent scanner report")
     except (OSError, ValueError, TypeError):
         result["reason"] = "Scanner report is malformed, incomplete or inconsistent with exit status."
@@ -176,6 +190,10 @@ def run(target: Path, receipt_path: Path | None = None) -> dict:
             output.mkdir()
             outcome = scan(identifier, tool, snapshot, output)
             execution = outcome.pop("recorded_execution", None)
+            if not snapshot_matches(snapshot, entries):
+                outcome["status"] = "blocked"
+                outcome["reason"] = "Scanner modified isolated snapshot; original contents were not established."
+                execution = None
             if execution:
                 file = evidence_dir / (tool["provider"] + ".json")
                 file.write_text(json.dumps({"index_tree": tree, "configuration_digest": configuration_digest(entries), "execution": execution}, indent=2) + "\n")

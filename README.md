@@ -63,6 +63,9 @@ behavior. See [starter and full installation sets](docs/install.md#fresh-starter
 The **v2.4.0 candidate** adds a read-only checkpoint planner and separately bound
 handoff receipts. See [checkpoint commands and integrity limits](docs/checkpoints.md).
 The published installation below remains v2.3.4 until this candidate is reviewed.
+Explicit pre-commit adapters inspect an isolated copy of the exact index with
+pinned Semgrep/Gitleaks tools; they preserve partial staging and invalidate
+applicability after index changes. Hooks remain separately adopted.
 
 Place selected checks around the decision you are making. An early review,
 a PR check, and a result for merged `main` establish different things.
