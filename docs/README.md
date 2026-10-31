@@ -85,6 +85,10 @@ the default CLI archive and standard release attachments exclude its package.
 
 ## Checkpoint reporting
 
+For the v2.4.0 candidate's read-only planner and portable receipt/package
+integrity contracts, see [checkpoint readiness](checkpoints.md). These records
+do not replace Proof outcomes, authenticate producers, or grant permissions.
+
 `tooling/checkpoint_report.py` captures invocation context and renders final
 workflow observations without executing producers or evaluating policy.
 `tooling/checkpoint-report.json` names this repository's observed acceptance

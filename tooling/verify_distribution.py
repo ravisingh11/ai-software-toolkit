@@ -228,7 +228,8 @@ def verify(archive: Path, legacy_archive: Path, revision: str) -> dict:
         for name in old_payload.keys() & new_payload.keys():
             if old_payload[name] != new_payload[name] and name != "tooling/ai_toolkit/BUILD.json":
                 replacements.setdefault(digest(old_payload[name]), set()).add(digest(new_payload[name]))
-        additions = {".proof/activation.py": digest(new_payload["tooling/activation.py"])}
+        additions = {".proof/" + name: digest(new_payload["tooling/" + name])
+                     for name in ("activation.py", "assurance.py", "checkpoints.py")}
         binaries = workspace / "bin"
         binaries.mkdir()
         gh = binaries / "gh"
@@ -297,6 +298,7 @@ def verify(archive: Path, legacy_archive: Path, revision: str) -> dict:
                     if customized:
                         (seed / ".github/workflows/build.yml").write_text("name: Consumer-owned build\n")
                         (seed / ".proof/consumer-owned.txt").write_text("preserve custom file\n")
+                        (seed / ".proof/assurance.py").write_text("# Consumer-owned, not toolkit-managed\n")
                         skill = seed / ".agents/skills/code-review/SKILL.md"
                         skill.write_text(skill.read_text() + "\nConsumer-owned instructions.\n")
                         policy_path = seed / ".proof/policy.yaml"
@@ -344,7 +346,7 @@ def verify(archive: Path, legacy_archive: Path, revision: str) -> dict:
             "published_baseline": {"tag": "v2.2.1", "source_revision": LEGACY_REVISION, "archive_sha256": LEGACY_SHA256,
                                    "checksum_sha256": LEGACY_CHECKSUM_SHA256, "asset_ids": LEGACY_ASSETS},
             "evaluation_cases": evaluations, "negative_controls": negative_controls,
-            "normalization": "Only toolkit.revision removed from parsed consumer configuration. Evaluator/scorecard JSON compared without normalization. File differences must match exact published-to-candidate canonical bytes; managed additions limited to .proof/activation.py.",
+            "normalization": "Only toolkit.revision removed from parsed consumer configuration. Evaluator/scorecard JSON compared without normalization. File differences must match exact published-to-candidate canonical bytes; managed additions limited to the exact candidate bytes of .proof/activation.py, assurance.py and checkpoints.py.",
             "limits": "Hosted fixture acceptance only; no real scanner, lifecycle, credential validity, application certification, build provenance or deployment claim."}
 
 
