@@ -81,6 +81,17 @@ class StagedTests(unittest.TestCase):
         self.assertFalse(result["all_reported_checks_passed"])
         self.assertTrue(all(row["status"] == "blocked" for row in result["results"]))
 
+    def test_intent_to_add_rejects_before_producers_or_output(self):
+        (self.target / "pending.py").write_text("not staged yet\n")
+        self.git("add", "-N", "pending.py")
+        before = (self.target / ".git/index").read_bytes()
+        with patch.object(staged, "scan") as producer:
+            with self.assertRaisesRegex(ValueError, "Intent-to-add"):
+                staged.run(self.target, self.path)
+            producer.assert_not_called()
+        self.assertEqual((self.target / ".git/index").read_bytes(), before)
+        self.assertFalse(self.path.parent.exists())
+
     def test_absent_output_leaf_under_symlink_rejects_before_writes_or_producers(self):
         outside = self.root / "outside"
         outside.mkdir()

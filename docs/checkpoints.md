@@ -55,7 +55,7 @@ temporary directory without Git checkout filters or hooks. It scans that tree
 with selected Semgrep/Gitleaks adapters using pinned host versions or locally
 available digest-pinned Docker images. Docker runs have no network and never
 pull implicitly. No dependencies are installed; missing tools, rules or complete
-reports remain blocked. Conflicted entries, symlinks, submodules, oversized
+reports remain blocked. Conflicted or intent-to-add entries, symlinks, submodules, oversized
 snapshots and unstaged assurance-policy changes are unsupported and reject before
 execution. Source findings are not retained; bound reports contain redacted
 outcome counts, tool/config identities and scope, never credential values.
