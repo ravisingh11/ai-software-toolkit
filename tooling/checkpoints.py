@@ -110,12 +110,16 @@ def plan(target: Path, checkpoint: str, *, operation: str | None = None) -> dict
     try:
         if Path(git(target, "rev-parse", "--show-toplevel")).resolve() != target.resolve():
             raise ValueError("Target must be repository root")
-        head = git(target, "rev-parse", "HEAD^{commit}")
-        result["source_revision"] = head
+        head = None
+        try:
+            head = git(target, "rev-parse", "HEAD^{commit}")
+            result["source_revision"] = head
+        except subprocess.SubprocessError:
+            result["gaps"].append("No committed HEAD is available; commit-bound evidence remains unavailable.")
         if checkpoint == "pre-commit":
             index, _ = index_state(target)
             result["subject"] = {"type": "git-index", "revision": index}
-        elif checkpoint not in EARLY and checkpoint not in {"release", "deployment", "runtime"}:
+        elif head and checkpoint not in EARLY and checkpoint not in {"release", "deployment", "runtime"}:
             result["subject"] = {"type": "git-commit", "revision": head}
         else:
             result["gaps"].append("Supply the actual working/range, PR, artifact or environment subject; no subject was inferred from HEAD.")

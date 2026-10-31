@@ -3,7 +3,9 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import io
+import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -88,6 +90,25 @@ class BuildArchiveTests(unittest.TestCase):
             completed = subprocess.run([sys.executable, str(self.archive), "--version"], text=True, capture_output=True, env=dict(os.environ))
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertTrue((self.root / "xdg" / "ai-toolkit").is_dir())
+
+    def test_archive_checkpoint_plan_uses_bundled_helpers_offline(self):
+        target = self.root / "checkpoint-consumer"
+        target.mkdir()
+        shutil.copytree(ROOT / ".proof", target / ".proof", ignore=shutil.ignore_patterns("__pycache__"))
+        (target / ".proof/evaluate.py").write_text("raise RuntimeError('untrusted consumer helper executed')\n")
+        subprocess.run(["git", "init", "-q", str(target)], check=True)
+        subprocess.run(["git", "-C", str(target), "add", "."], check=True)
+        before = {str(p.relative_to(target)): p.read_bytes() for p in target.rglob("*") if p.is_file()}
+        environment = {**os.environ, "AI_TOOLKIT_CACHE": str(self.root / "checkpoint-cache"),
+                       "HTTP_PROXY": "http://127.0.0.1:1", "HTTPS_PROXY": "http://127.0.0.1:1"}
+        completed = subprocess.run([sys.executable, str(self.archive), "checkpoint", "plan", "--checkpoint", "pre-commit", "--target", str(target), "--json"],
+                                   text=True, capture_output=True, env=environment, timeout=30)
+        self.assertEqual(completed.returncode, 0, completed.stderr + completed.stdout)
+        value = json.loads(completed.stdout)
+        self.assertEqual(value["subject"]["type"], "git-index")
+        self.assertEqual(len(value["checks"]), 33)
+        self.assertFalse(value["authorization_granted"])
+        self.assertEqual({str(p.relative_to(target)): p.read_bytes() for p in target.rglob("*") if p.is_file()}, before)
 
     def test_main_builds_and_verifies(self):
         output = self.root / "out" / "ai-toolkit.pyz"

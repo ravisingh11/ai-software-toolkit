@@ -27,6 +27,8 @@ distribution helpers. It does not execute target helpers, repository commands,
 scanners, credentials, or Git hooks. It reports all 33 checks, selection, provider,
 recommended placement, prerequisites and existing evidence observations. Missing
 configuration is a gap. Evidence-file contents are not authenticated execution.
+An index can be planned before the first commit; absence of HEAD leaves
+commit-bound evidence unavailable without discarding the staged tree identity.
 
 Checkpoint IDs are `coding-finished`, `pre-commit`, `commit-creation`,
 `post-commit`, `pre-push`, `pr`, `pre-merge`, `post-merge`, `release`, `deployment`
