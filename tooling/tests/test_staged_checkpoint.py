@@ -248,6 +248,20 @@ class StagedTests(unittest.TestCase):
             producer.assert_not_called()
         self.assertEqual(list(outside.iterdir()), [])
 
+    def test_public_cli_rejects_symlinked_output_without_writing_through_it(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        link = self.target / "linked"
+        link.symlink_to(outside, target_is_directory=True)
+        before_index = (self.target / ".git/index").read_bytes()
+        command = [sys.executable, str(ROOT / "tooling/ai_toolkit"), "checkpoint", "run", "--target", str(self.target),
+                   "--receipt", str(link / "absent/receipt.json"), "--json"]
+        result = subprocess.run(command, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("symlink", json.loads(result.stdout)["error"])
+        self.assertEqual(list(outside.iterdir()), [])
+        self.assertEqual((self.target / ".git/index").read_bytes(), before_index)
+
     def test_mutated_snapshot_blocks_following_producers_and_retains_raw_exit(self):
         def mutate(identifier, tool, snapshot, output):
             outcome = self.fake_scan(identifier, tool, snapshot, output)
