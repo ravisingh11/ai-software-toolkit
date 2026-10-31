@@ -6,6 +6,10 @@ authority and scoring are unchanged. Skills remain in the toolkit; AgentBay is
 an optional discovery source. Human work and local/external skills are valid
 inputs, not passing evidence by themselves.
 
+The CLI dispatches to `tooling/checkpoints.py`; installed repositories also
+receive `.proof/checkpoints.py` and `.proof/assurance.py` through the supported
+installer. The portable verifier remains standard-library-only.
+
 ## Plan without executing
 
 ```sh
