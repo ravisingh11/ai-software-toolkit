@@ -81,6 +81,19 @@ class CheckpointPlanTests(unittest.TestCase):
         self.assertEqual({str(p.relative_to(target)): p.read_bytes() for p in target.rglob("*") if p.is_file()}, before)
         self.assertIsNone(checkpoints.plan(target, "post-commit")["subject"])
 
+    def test_intent_to_add_is_blocked_without_confusing_a_staged_empty_file(self):
+        (self.target / "pending.py").write_text("not staged yet\n")
+        self.git("add", "-N", "pending.py")
+        before = self.inventory()
+        with self.assertRaisesRegex(ValueError, "Intent-to-add"):
+            checkpoints.index_state(self.target)
+        self.assertIsNone(checkpoints.plan(self.target, "pre-commit")["subject"])
+        self.assertEqual(self.inventory(), before)
+        self.git("add", "pending.py")
+        (self.target / "empty.txt").write_bytes(b"")
+        self.git("add", "empty.txt")
+        self.assertEqual(checkpoints.index_state(self.target)[0], self.git("write-tree"))
+
     def test_does_not_execute_target_helpers_or_credentials(self):
         (self.target / ".proof/evaluate.py").write_text("raise RuntimeError('target code executed')\n")
         with patch.dict(os.environ, {"PROVIDER_TOKEN": "credential-value-must-not-be-used"}), patch.object(checkpoints, "shutil") as tools:

@@ -38,6 +38,13 @@ def index_state(target: Path) -> tuple[str, list[dict]]:
     """Compute Git's tree identity from index entries without writing Git objects."""
     if git(target, "rev-parse", "--show-object-format") != "sha1":
         raise ValueError("This checkpoint adapter currently requires SHA-1 Git object format")
+    # add -N records a placeholder, not staged content. ls-files --stage alone
+    # makes that placeholder look like a real empty blob. Do not certify it.
+    diff = ("diff", "--cached", "--name-only", "--no-renames", "--no-ext-diff", "--no-textconv", "--ignore-submodules=all", "-z")
+    visible = set(git(target, *diff, "--ita-visible-in-index", binary=True).split(b"\0"))
+    invisible = set(git(target, *diff, "--ita-invisible-in-index", binary=True).split(b"\0"))
+    if visible != invisible:
+        raise ValueError("Intent-to-add entries are unsupported; explicitly stage or remove their contents first")
     raw = git(target, "ls-files", "--stage", "-z", binary=True)
     entries, tree = [], {}
     for record in raw.split(b"\0"):

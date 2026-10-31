@@ -31,6 +31,10 @@ recommended placement, prerequisites and existing evidence observations. Missing
 configuration is a gap. Evidence-file contents are not authenticated execution.
 An index can be planned before the first commit; absence of HEAD leaves
 commit-bound evidence unavailable without discarding the staged tree identity.
+Intent-to-add (`git add -N`) placeholders are unsupported: stage their contents
+explicitly first. They are not treated as checked empty files. Ordinary staged
+empty files remain supported. Git plumbing runs with external diff/text conversion
+and hooks disabled; no index refresh or tree-object writes are required.
 
 Checkpoint IDs are `coding-finished`, `pre-commit`, `commit-creation`,
 `post-commit`, `pre-push`, `pr`, `pre-merge`, `post-merge`, `release`, `deployment`
