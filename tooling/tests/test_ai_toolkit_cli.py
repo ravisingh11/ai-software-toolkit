@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import hashlib
 import os
 import stat
 import shutil
@@ -109,6 +110,63 @@ class CliFixture(unittest.TestCase):
 
     def init(self, *extra: str) -> tuple[int, str, str]:
         return run_cli("init", "--target", str(self.target), "--yes", "--clients", "codex", *extra)
+
+
+class CheckpointDispatchTests(CliFixture):
+    def test_checkpoint_routes_to_distribution_helper_and_preserves_exit_code(self):
+        receipt, context = self.root / "receipt.json", self.root / "context.json"
+        with patch.object(cli, "run_python", return_value=subprocess.CompletedProcess([], 2)) as run:
+            code, _, _ = run_cli("checkpoint", "verify", "--target", str(self.target), "--receipt", str(receipt), "--expected-context", str(context), "--json")
+        self.assertEqual(code, 2)
+        self.assertEqual(run.call_args.args[0], ROOT / "tooling/checkpoints.py")
+        arguments = run.call_args.args[1]
+        self.assertEqual(arguments[:3], ["verify", "--target", str(self.target)])
+        self.assertNotIn("--checkpoint", arguments)
+        self.assertIn(str(receipt), arguments)
+        self.assertIn(str(context), arguments)
+        self.assertIn("--json", arguments)
+        self.assertEqual(run.call_args.kwargs["cwd"], self.target)
+        self.assertFalse((self.target / ".proof").exists())
+
+    def test_checkpoint_keeps_symlink_components_visible_to_destination_validation(self):
+        link = self.root / "linked"
+        link.symlink_to(self.target, target_is_directory=True)
+        receipt = link / "new/receipt.json"
+        with patch.object(cli, "run_python", return_value=subprocess.CompletedProcess([], 2)) as run:
+            code, _, _ = run_cli("checkpoint", "run", "--target", str(self.target), "--receipt", str(receipt))
+        self.assertEqual(code, 2)
+        self.assertIn(str(receipt), run.call_args.args[1])
+        self.assertNotIn(str(receipt.resolve()), run.call_args.args[1])
+
+    def test_verify_uses_caller_relative_inputs_instead_of_target_shadow_files(self):
+        evidence = self.root / "producer.json"
+        evidence.write_text('{"fixture":"original outcome"}')
+        head = self.git("rev-parse", "HEAD")
+        document = {"version": 1, "kind": "checkpoint-receipt", "checkpoint": "post-commit",
+                    "subject": {"type": "git-commit", "revision": head}, "observed_at": "2020-01-01T00:00:00Z",
+                    "context": {"invocation": "fixture:verify"}, "dependencies": {"source_revision": head},
+                    "results": [{"check": "unit-tests", "provider": "repository-unit-tests", "status": "passed", "evidence": [evidence.name]}],
+                    "evidence_refs": [{"path": evidence.name, "size": evidence.stat().st_size,
+                                       "sha256": hashlib.sha256(evidence.read_bytes()).hexdigest()}]}
+        (self.root / "receipt.json").write_text(json.dumps(document))
+        (self.root / "context.json").write_text(json.dumps({"source_revision": head}))
+        (self.target / "receipt.json").write_text("wrong target receipt must not be read")
+        (self.target / "context.json").write_text("wrong target context must not be read")
+        caller = Path.cwd()
+        try:
+            os.chdir(self.root)
+            # Exercise the real public CLI and its subprocess dispatch. The
+            # contrasting target files make incorrect path resolution fail.
+            command = [sys.executable, str(ROOT / "tooling/ai_toolkit"), "checkpoint", "verify",
+                       "--target", str(self.target), "--receipt", "receipt.json", "--expected-context", "context.json", "--json"]
+            accepted = subprocess.run(command, text=True, capture_output=True)
+            self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+            self.assertEqual(json.loads(accepted.stdout)["checkpoint"], "post-commit")
+            rejected = subprocess.run([*command, "--checkpoint", "pre-merge"], text=True, capture_output=True)
+            self.assertEqual(rejected.returncode, 1, rejected.stdout + rejected.stderr)
+            self.assertIn("checkpoint-mismatch", json.loads(rejected.stdout)["invalidation_reasons"])
+        finally:
+            os.chdir(caller)
 
 
 class DiscoverAndInitTests(CliFixture):
