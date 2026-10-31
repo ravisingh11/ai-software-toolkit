@@ -298,6 +298,7 @@ def verify(archive: Path, legacy_archive: Path, revision: str) -> dict:
                     if customized:
                         (seed / ".github/workflows/build.yml").write_text("name: Consumer-owned build\n")
                         (seed / ".proof/consumer-owned.txt").write_text("preserve custom file\n")
+                        (seed / ".proof/assurance.py").write_text("# Consumer-owned, not toolkit-managed\n")
                         skill = seed / ".agents/skills/code-review/SKILL.md"
                         skill.write_text(skill.read_text() + "\nConsumer-owned instructions.\n")
                         policy_path = seed / ".proof/policy.yaml"
