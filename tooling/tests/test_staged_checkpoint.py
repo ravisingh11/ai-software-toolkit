@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -15,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tooling"))
 import staged_checkpoint as staged  # noqa: E402
 import assurance  # noqa: E402
+import checkpoints  # noqa: E402
 
 
 class StagedTests(unittest.TestCase):
@@ -56,6 +59,84 @@ class StagedTests(unittest.TestCase):
         receipt = assurance.read_document(self.path)
         self.assertEqual(receipt["dependencies"]["provider_digest"], staged.provider_digest())
         self.assertFalse(result["authenticated_producer"])
+
+    def test_explicit_run_entrypoint_reports_receipt_and_nonpassing_results(self):
+        output = io.StringIO()
+        with patch.object(staged, "scan", side_effect=self.fake_scan), contextlib.redirect_stdout(output):
+            code = checkpoints.main(["run", "--target", str(self.target), "--receipt", str(self.path)])
+        self.assertEqual(code, 0)
+        self.assertIn("Receipt: " + str(self.path), output.getvalue())
+        self.assertIn("No action is authorized", output.getvalue())
+        output = io.StringIO()
+        blocked = self.root / "blocked/receipt.json"
+        with patch.object(staged.shutil, "which", return_value=None), contextlib.redirect_stdout(output):
+            code = checkpoints.main(["run", "--target", str(self.target), "--receipt", str(blocked), "--json"])
+        self.assertEqual(code, 1)
+        value = json.loads(output.getvalue())
+        self.assertEqual(value["status_counts"]["blocked"], 2)
+        self.assertFalse(value["authorization_granted"])
+
+    def test_unselected_adapters_do_not_execute_or_become_passed(self):
+        with patch.object(staged, "plan", return_value={"checks": [{"id": "unit-tests", "selected": True}]}), patch.object(staged, "scan") as scanner:
+            result = staged.run(self.target, self.path)
+        scanner.assert_not_called()
+        self.assertEqual(result["status_counts"]["not_run"], 1)
+        self.assertFalse(result["all_reported_checks_passed"])
+        self.assertIn("nothing was activated", result["results"][0]["reason"])
+
+    def test_materialization_rejects_unavailable_oversized_and_truncated_git_objects(self):
+        oid = "a" * 40
+        entry = {"path": "app.py", "mode": "100644", "oid": oid}
+        metadata = oid.encode() + b" blob 3\n"
+        cases = [[oid.encode() + b" missing\n"],
+                 [oid.encode() + b" blob " + str(staged.MAX_SNAPSHOT + 1).encode() + b"\n"],
+                 [metadata, b"no header"], [metadata, metadata + b"x"],
+                 [metadata, metadata + b"abc\nextra bytes"]]
+        for number, responses in enumerate(cases):
+            with self.subTest(number=number):
+                destination = self.root / ("object-snapshot-" + str(number))
+                destination.mkdir()
+                with patch.object(staged, "git", side_effect=responses), self.assertRaises(ValueError):
+                    staged.materialize(self.target, [entry], destination)
+
+    def test_pinned_host_scanner_checks_version_scope_and_redaction(self):
+        snapshot, output = self.root / "host-source", self.root / "host-output"
+        snapshot.mkdir(); output.mkdir()
+        tool = staged.TOOLS["secret-detection"]
+        calls = []
+
+        def execute(command, cwd, environment):
+            calls.append((command, environment))
+            if command[-1] == "version":
+                return 0, tool["version"]
+            (output / "findings.json").write_text("[]")
+            return 0, ""
+
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "private-sentinel"}), patch.object(staged.shutil, "which", return_value="/pinned-gitleaks"), patch.object(staged, "run_command", side_effect=execute):
+            result = staged.scan("secret-detection", tool, snapshot, output)
+        self.assertEqual(result["status"], "passed")
+        self.assertIn("dir", calls[1][0]); self.assertIn("--redact", calls[1][0])
+        self.assertNotIn("GITHUB_TOKEN", calls[1][1])
+        self.assertIsNone(result["recorded_execution"]["image"])
+        with patch.object(staged.shutil, "which", return_value="/unpinned-gitleaks"), patch.object(staged, "run_command", return_value=(0, "0.0.1")) as command:
+            result = staged.scan("secret-detection", tool, snapshot, output)
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(command.call_count, 1)
+        (output / "findings.json").unlink()
+        with patch.object(staged.shutil, "which", return_value="/pinned-gitleaks"), patch.object(staged, "run_command", side_effect=[(0, tool["version"]), (0, "")]):
+            result = staged.scan("secret-detection", tool, snapshot, output)
+        self.assertEqual(result["status"], "blocked")
+        semgrep = staged.TOOLS["custom-static-analysis"]
+        with patch.object(staged.shutil, "which", return_value="/pinned-semgrep"), patch.object(staged, "run_command", return_value=(0, semgrep["version"])) as command:
+            result = staged.scan("custom-static-analysis", semgrep, snapshot, output)
+        self.assertEqual(result["status"], "blocked")
+        self.assertIn("rules are absent", result["reason"])
+        self.assertEqual(command.call_count, 1)
+
+    def test_command_timeout_and_unavailable_binary_remain_incomplete(self):
+        for error in (OSError("unavailable"), subprocess.TimeoutExpired(["fixture-tool"], 180)):
+            with self.subTest(error=type(error).__name__), patch.object(staged.subprocess, "run", side_effect=error):
+                self.assertEqual(staged.run_command(["fixture-tool"], self.root, {}), (125, ""))
 
     def test_index_changes_during_scan_invalidate_without_relabeling_pass(self):
         calls = []
