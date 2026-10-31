@@ -1062,11 +1062,13 @@ def _rollback(target: Path, configuration: dict[str, Any] | None, lock: dict[str
 # --------------------------------------------------------------------------- parser
 
 def cmd_checkpoint(args: argparse.Namespace) -> int:
-    arguments = [args.action, "--checkpoint", args.checkpoint, "--target", str(resolve_target(args.target))]
+    arguments = [args.action, "--target", str(resolve_target(args.target))]
+    if args.checkpoint is not None:
+        arguments.extend(["--checkpoint", args.checkpoint])
     if args.receipt:
-        arguments.extend(["--receipt", str(args.receipt)])
+        arguments.extend(["--receipt", str(args.receipt.resolve())])
     if args.expected_context:
-        arguments.extend(["--expected-context", str(args.expected_context)])
+        arguments.extend(["--expected-context", str(args.expected_context.resolve())])
     if args.json:
         arguments.append("--json")
     # Use the CLI distribution's code, never executable helpers from --target.
@@ -1089,7 +1091,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = subparsers.add_parser("checkpoint", help="plan checkpoints or verify separately bound assurance receipts")
     common(sub)
     sub.add_argument("action", choices=("plan", "run", "verify"))
-    sub.add_argument("--checkpoint", default="pre-commit")
+    sub.add_argument("--checkpoint", default=None)
     sub.add_argument("--receipt", type=Path)
     sub.add_argument("--expected-context", type=Path, help="current subject/dependencies supplied by the caller; never grants provider authority")
     sub.set_defaults(func=cmd_checkpoint)
