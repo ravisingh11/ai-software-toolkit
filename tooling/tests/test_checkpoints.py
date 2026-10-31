@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -15,6 +17,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tooling"))
 import checkpoints  # noqa: E402
+import assurance  # noqa: E402
 
 
 class CheckpointPlanTests(unittest.TestCase):
@@ -34,6 +37,75 @@ class CheckpointPlanTests(unittest.TestCase):
 
     def inventory(self):
         return {str(p.relative_to(self.target)): hashlib.sha256(p.read_bytes()).hexdigest() for p in self.target.rglob("*") if p.is_file()}
+
+    def invoke(self, *arguments):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = checkpoints.main(list(arguments))
+        return code, output.getvalue()
+
+    def test_plan_entrypoint_text_and_json_remain_read_only(self):
+        before = self.inventory()
+        code, output = self.invoke("plan", "--target", str(self.target), "--json")
+        self.assertEqual(code, 0)
+        value = json.loads(output)
+        self.assertTrue(value["read_only"])
+        self.assertFalse(value["authorization_granted"])
+        self.assertEqual(len(value["checks"]), 33)
+        code, output = self.invoke("plan", "--target", str(self.target))
+        self.assertEqual(code, 0)
+        self.assertIn("selection does not prove execution", output)
+        self.assertIn("No action is authorized", output)
+        self.assertEqual(self.inventory(), before)
+
+    def test_verify_entrypoint_preserves_outcomes_context_and_authority(self):
+        receipt = self.target.parent / "receipt.json"
+        current = self.target.parent / "current.json"
+        head = self.git("rev-parse", "HEAD")
+        document = {"version": 1, "kind": "checkpoint-receipt", "checkpoint": "pr",
+                    "subject": {"type": "git-commit", "revision": head}, "observed_at": "2020-01-01T00:00:00Z",
+                    "context": {"invocation": "fixture:verify"}, "dependencies": {"source_revision": head},
+                    "results": [{"check": "unit-tests", "provider": "repository-unit-tests", "status": "blocked", "reason": "Producer unavailable"}],
+                    "evidence_refs": [], "platform_requirements": ["Inspect required CI and approvals separately."]}
+        receipt.write_text(json.dumps(document))
+        context = {"source_revision": head, "subject": document["subject"], "comparison_base": "b" * 40}
+        current.write_text(json.dumps(context))
+        args = ("verify", "--receipt", str(receipt), "--expected-context", str(current))
+        code, output = self.invoke(*args, "--json")
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(output)["status_counts"]["blocked"], 1)
+        context["subject"] = {"type": "git-commit", "revision": "c" * 40}
+        current.write_text(json.dumps(context))
+        code, output = self.invoke(*args)
+        self.assertEqual(code, 1)
+        self.assertIn("subject-mismatch", output)
+        self.assertIn("blocked", output)
+        self.assertIn("Inspect required CI and approvals separately", output)
+        evidence = receipt.parent / "original.json"
+        evidence.write_text('{"fixture":"reported success"}')
+        document["results"][0] = {"check": "unit-tests", "provider": "repository-unit-tests", "status": "passed", "evidence": [evidence.name]}
+        document["evidence_refs"] = [{"path": evidence.name, "size": evidence.stat().st_size, "sha256": assurance.sha256_file(evidence)}]
+        receipt.write_text(json.dumps(document))
+        context["subject"] = document["subject"]
+        current.write_text(json.dumps(context))
+        code, output = self.invoke(*args, "--json")
+        self.assertEqual(code, 0)
+        self.assertFalse(json.loads(output)["authenticated_producer"])
+        self.assertFalse(json.loads(output)["authorization_granted"])
+
+    def test_entrypoint_rejects_missing_corrupt_and_unsupported_inputs(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+            self.invoke("verify")
+        self.assertEqual(error.exception.code, 2)
+        receipt = self.target.parent / "corrupt.json"
+        receipt.write_text("invalid JSON")
+        for args in (("verify", "--receipt", str(receipt)), ("run", "--checkpoint", "pr")):
+            code, output = self.invoke(*args, "--json")
+            self.assertEqual(code, 2)
+            self.assertFalse(json.loads(output)["valid"])
+        code, output = self.invoke("verify", "--receipt", str(receipt))
+        self.assertEqual(code, 2)
+        self.assertIn("Checkpoint unavailable", output)
 
     def test_all_33_checks_and_policy_selection_remain_visible(self):
         value = checkpoints.plan(self.target, "pr")
