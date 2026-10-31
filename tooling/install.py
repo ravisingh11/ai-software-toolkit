@@ -117,6 +117,7 @@ def runtime_sources(target: Path, *, install_set: str | None = None) -> list[Ins
         "doctor.py": ROOT / "tooling/doctor.py",
         "activation.py": ROOT / "tooling/activation.py",
         "checkpoints.py": ROOT / "tooling/checkpoints.py",
+        "staged_checkpoint.py": ROOT / "tooling/staged_checkpoint.py",
         "assurance.py": ROOT / "tooling/assurance.py",
         "run_repository_command.py": ROOT / "tooling/run_repository_command.py",
         "fetch_pr_metadata.py": ROOT / "tooling/fetch_pr_metadata.py",
