@@ -10,6 +10,11 @@ The CLI dispatches to `tooling/checkpoints.py`; installed repositories also
 receive `.proof/checkpoints.py` and `.proof/assurance.py` through the supported
 installer. The portable verifier remains standard-library-only.
 
+If an existing consumer owns a file at a newly introduced checkpoint-helper
+path, reinitialization/update preserve its bytes and do not adopt its ownership.
+An update offers the canonical helper separately as a conflict. Review that
+collision explicitly; do not run a consumer-owned file as a trusted verifier.
+
 ## Plan without executing
 
 ```sh

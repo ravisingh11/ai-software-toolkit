@@ -18,6 +18,7 @@ from . import VERSION, config, discovery, report, skills
 from .runtime import ROOT, ToolkitError, installed_runtime, relative, resolve_target, revision, run_python, script_path, sha256_file
 
 INSTALLER_MARKER = "# Proof installer-owned workflow."
+CHECKPOINT_RUNTIME_PATHS = {".proof/assurance.py", ".proof/checkpoints.py"}
 ADAPTER_PROVIDERS = {
     "snyk-code": "snyk code test; SNYK_CODE_ARGS",
     "snyk-open-source": "snyk test; SNYK_OPEN_SOURCE_ARGS",
@@ -453,6 +454,10 @@ def cmd_init(args: argparse.Namespace) -> int:
         for path, digest in previous_lock.get("managed", {}).items():
             if path in retained and path not in written:
                 hashes[path] = digest
+    if already_installed:
+        for path in CHECKPOINT_RUNTIME_PATHS:
+            if path not in written and path not in (previous_lock or {}).get("managed", {}):
+                hashes.pop(path, None)
     config.write_lock(target, config.build_lock(revision(), components=components, managed=hashes, install_set=install_set))
     applied["files"] = [config.TOML_NAME, config.LOCK_NAME]
     if ensure_gitignore(target, found):
@@ -919,10 +924,13 @@ def cmd_update(args: argparse.Namespace) -> int:
     current = revision()
     managed = managed_files(target, configuration, lock)
     classification = config.classify(target, lock, managed) if lock else bootstrap_classification(target, managed, configuration)
+    unmanaged_checkpoints = {path for path in CHECKPOINT_RUNTIME_PATHS if (target / path).is_file()
+                             and path not in (lock or {}).get("managed", {})
+                             and (lock is not None or path in classification["modified"])}
     preserved = preserved_configuration()
     up_to_date = bool(lock) and lock["toolkit"].get("revision") == current and not classification["modified"] and not classification["missing"] and not classification["new"]
     payload: dict[str, Any] = {"target": str(target), "from": lock["toolkit"].get("revision") if lock else None, "to": current,
-                               "classification": classification, "applied": False}
+                               "classification": classification, "unmanaged_checkpoint_conflicts": sorted(unmanaged_checkpoints), "applied": False}
     lines = [f"Toolkit update: {payload['from'] or 'unrecorded'} -> {current}"]
     if lock is None:
         lines.append(f"No {config.LOCK_NAME}; ownership was inferred from installer markers and canonical copies.")
@@ -974,7 +982,7 @@ def cmd_update(args: argparse.Namespace) -> int:
                 if recorded:
                     skills.install_skills(recorded, root, existing="refresh", boundary=target)
         sources = canonical_sources(target, configuration)
-        for relative_path in classification["modified"]:
+        for relative_path in sorted(set(classification["modified"]) | unmanaged_checkpoints):
             if relative_path in preserved or relative_path not in sources:
                 continue
             conflict_copy = conflicts_root / (relative_path + ".toolkit")
@@ -992,7 +1000,10 @@ def cmd_update(args: argparse.Namespace) -> int:
         # accepting that version also resumes normal refreshes on later upgrades.
         for row in conflicts:
             path = row["path"]
-            hashes[path] = sha256_file(sources[path])
+            if path in unmanaged_checkpoints:
+                hashes.pop(path, None)
+            else:
+                hashes[path] = sha256_file(sources[path])
         config.write_lock(target, config.build_lock(current, components=components, managed=hashes, previous=previous, install_set=config.recorded_install_set(configuration, lock)))
     except (ToolkitError, OSError) as error:
         # Every mutation after the backup is undone together, including the configuration
