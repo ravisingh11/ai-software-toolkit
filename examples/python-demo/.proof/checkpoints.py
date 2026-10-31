@@ -191,7 +191,7 @@ def render(value: dict) -> str:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("plan", "run", "verify"))
-    parser.add_argument("--checkpoint", choices=CHECKPOINTS, default="pre-commit")
+    parser.add_argument("--checkpoint", choices=CHECKPOINTS)
     parser.add_argument("--target", type=Path, default=Path.cwd())
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--expected-context", type=Path)
@@ -199,7 +199,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.action == "plan":
-            value = plan(args.target.resolve(), args.checkpoint)
+            value = plan(args.target.resolve(), args.checkpoint or "pre-commit")
             code = 0 if value["checks"] and value["subject"] else 1
         elif args.action == "verify":
             if not args.receipt:
@@ -207,6 +207,10 @@ def main(argv=None) -> int:
             from assurance import read_document
             expected = read_document(args.expected_context) if args.expected_context else None
             value = verify_receipt(args.receipt, expected=expected)
+            if args.checkpoint is not None and args.checkpoint != value["checkpoint"]:
+                value["invalidation_reasons"].append("checkpoint-mismatch")
+                value["applicable"] = False
+                value["all_reported_checks_passed"] = False
             code = 0 if value["all_reported_checks_passed"] else 1
         else:
             raise ValueError("Checkpoint execution is unavailable in this installation; use adopted producers.")

@@ -92,6 +92,14 @@ class CheckpointPlanTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertFalse(json.loads(output)["authenticated_producer"])
         self.assertFalse(json.loads(output)["authorization_granted"])
+        code, output = self.invoke(*args, "--checkpoint", "pre-merge", "--json")
+        self.assertEqual(code, 1)
+        rejected = json.loads(output)
+        self.assertFalse(rejected["applicable"])
+        self.assertIn("checkpoint-mismatch", rejected["invalidation_reasons"])
+        self.assertEqual(rejected["results"], document["results"])
+        code, output = self.invoke(*args, "--checkpoint", "pr", "--json")
+        self.assertEqual(code, 0)
 
     def test_entrypoint_rejects_missing_corrupt_and_unsupported_inputs(self):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:

@@ -53,7 +53,13 @@ approvals and review resolution must be inspected separately on the platform.
 ```sh
 python3 tooling/ai_toolkit checkpoint verify --receipt /path/to/receipt.json --json
 python3 tooling/ai_toolkit checkpoint verify --receipt /path/to/receipt.json --expected-context /path/to/current-context.json --json
+python3 tooling/ai_toolkit checkpoint verify --checkpoint pre-commit --receipt /path/to/receipt.json --json
 ```
+
+Relative receipt and expected-context paths are resolved from the caller's
+directory, even when `--target` points elsewhere. Verification without a
+checkpoint selector reports the recorded checkpoint; an explicit `--checkpoint`
+must match it. Planning and execution default to `pre-commit` when omitted.
 
 The version 1 `checkpoint-receipt` contract is defined and validated by
 [`tooling/assurance.py`](../tooling/assurance.py). It records a checkpoint, exact
