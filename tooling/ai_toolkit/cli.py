@@ -18,7 +18,7 @@ from . import VERSION, config, discovery, report, skills
 from .runtime import ROOT, ToolkitError, installed_runtime, relative, resolve_target, revision, run_python, script_path, sha256_file
 
 INSTALLER_MARKER = "# Proof installer-owned workflow."
-CHECKPOINT_RUNTIME_PATHS = {".proof/assurance.py", ".proof/checkpoints.py"}
+CHECKPOINT_RUNTIME_PATHS = {".proof/assurance.py", ".proof/checkpoints.py", ".proof/staged_checkpoint.py"}
 ADAPTER_PROVIDERS = {
     "snyk-code": "snyk code test; SNYK_CODE_ARGS",
     "snyk-open-source": "snyk test; SNYK_OPEN_SOURCE_ARGS",

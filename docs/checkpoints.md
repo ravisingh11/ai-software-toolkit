@@ -40,6 +40,12 @@ a partial clone remain unavailable; no promisor remote or credential helper is
 invoked to fill them. A Git version without these safety options is unsupported
 for checkpoint Git access rather than silently falling back to online access.
 
+Staged execution requires the repository root. Alternate `GIT_INDEX_FILE`
+invocations, including proposed temporary indexes supplied by some commit hooks
+such as `git commit -a`, are explicitly blocked before scanning or writing a
+receipt. They never fall back to checking the default index. Stage explicitly
+and invoke against the default index instead; no hooks are installed for you.
+
 Checkpoint IDs are `coding-finished`, `pre-commit`, `commit-creation`,
 `post-commit`, `pre-push`, `pr`, `pre-merge`, `post-merge`, `release`, `deployment`
 and `runtime`. These are context labels, not new Proof operations. The existing
@@ -47,6 +53,37 @@ and `runtime`. These are context labels, not new Proof operations. The existing
 Unsupported execution stays unavailable; the planner never infers an artifact,
 environment, outgoing range or proposed message from HEAD. Merge checks,
 approvals and review resolution must be inspected separately on the platform.
+
+## Run exact staged contents explicitly
+
+```sh
+python3 tooling/ai_toolkit checkpoint run --checkpoint pre-commit --target /path/to/repo --json
+```
+
+`tooling/staged_checkpoint.py` materializes regular index blobs in an isolated
+temporary directory without Git checkout filters or hooks. It scans that tree
+with selected Semgrep/Gitleaks adapters using pinned host versions or locally
+available digest-pinned Docker images. Docker runs have no network and never
+pull implicitly. No dependencies are installed; missing tools, rules or complete
+reports remain blocked. Conflicted or intent-to-add entries, symlinks, submodules, oversized
+snapshots and unstaged assurance-policy changes are unsupported and reject before
+execution. Source findings are not retained; bound reports contain redacted
+outcome counts, tool/config identities and scope, never credential values.
+
+Receipts are written into a new `.artifacts/checkpoints/` directory, or the new
+path passed with `--receipt`. Existing receipts are never overwritten. The original
+index identity is rechecked after execution; if the index changes, original raw
+outcomes remain recorded but applicability is invalidated. Working/index and
+existing ignored contents are not rewritten. No other checkpoint runner or
+automatic hook installation is included.
+Provider identity binds both tool pins and adapter source bytes. It is captured
+before execution and checked again afterward; changing adapter behavior with
+unchanged scanner versions invalidates the old applicability claim too.
+
+A repository can explicitly wire the CLI command into its own `pre-commit`
+hook after reviewing its local blocking behavior. The toolkit does not create
+or replace `.git/hooks`, `core.hooksPath`, or an existing hook configuration.
+Local checkpoint results do not become authoritative CI or Proof results.
 
 ## Verify a separately bound record
 

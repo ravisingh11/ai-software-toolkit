@@ -26,16 +26,20 @@ DECISIONS = {
 EARLY = {"coding-finished", "pre-commit", "commit-creation", "pre-push"}
 
 
-def git(target: Path, *args: str, binary=False):
+def git(target: Path, *args: str, binary=False, input_data=None):
     environment = {key: os.environ[key] for key in ("PATH", "SYSTEMROOT", "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL", "TZ") if key in os.environ}
     environment.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_TERMINAL_PROMPT="0")
     result = subprocess.run(["git", "--no-optional-locks", "--no-lazy-fetch", "--no-replace-objects", "-c", "credential.helper=", "-c", "core.fsmonitor=false", "-c", f"core.hooksPath={os.devnull}",
-                             "-C", str(target), *args], capture_output=True, env=environment, timeout=30, check=True)
+                             "-C", str(target), *args], capture_output=True, input=input_data, env=environment, timeout=30, check=True)
     return result.stdout if binary else result.stdout.decode().strip()
 
 
 def index_state(target: Path) -> tuple[str, list[dict]]:
     """Compute Git's tree identity from index entries without writing Git objects."""
+    if "GIT_INDEX_FILE" in os.environ:
+        raise ValueError("Alternate GIT_INDEX_FILE is unsupported; this adapter cannot certify a proposed commit index")
+    if Path(git(target, "rev-parse", "--show-toplevel")).resolve() != target.resolve():
+        raise ValueError("Target must be repository root")
     if git(target, "rev-parse", "--show-object-format") != "sha1":
         raise ValueError("This checkpoint adapter currently requires SHA-1 Git object format")
     # add -N records a placeholder, not staged content. ls-files --stage alone
@@ -185,6 +189,8 @@ def render(value: dict) -> str:
         lines += [f"- {row['check']}: {row['status']} ({row['provider']})" for row in value["results"]]
         lines += ["Invalidation: " + reason for reason in value["invalidation_reasons"]]
         lines += ["Merge requirements: " + text for text in value["platform_requirements"]]
+        if value.get("receipt_path"):
+            lines.append("Receipt: " + value["receipt_path"])
     return "\n".join([*lines, "No action is authorized by this report."])
 
 
@@ -213,11 +219,17 @@ def main(argv=None) -> int:
                 value["all_reported_checks_passed"] = False
             code = 0 if value["all_reported_checks_passed"] else 1
         else:
-            raise ValueError("Checkpoint execution is unavailable in this installation; use adopted producers.")
+            if (args.checkpoint or "pre-commit") != "pre-commit":
+                raise ValueError("Only pre-commit execution is supported; use the adopted producer for this checkpoint.")
+            from staged_checkpoint import run
+            value = run(args.target.resolve(), args.receipt)
+            code = 0 if value["all_reported_checks_passed"] else 1
         print(json.dumps(value, indent=2) if args.json else render(value))
         return code
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
-        print(json.dumps({"valid": False, "error": str(error)}) if args.json else "Checkpoint unavailable: " + str(error))
+        unavailable = {"valid": False, "kind": "checkpoint-unavailable", "checkpoint": args.checkpoint or "pre-commit",
+                       "status": "blocked", "error": str(error), "authorization_granted": False}
+        print(json.dumps(unavailable) if args.json else "Checkpoint unavailable: " + str(error))
         return 2
 
 

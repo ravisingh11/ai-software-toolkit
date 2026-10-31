@@ -34,9 +34,12 @@ authorization boundaries. Lifecycle and polyglot execution remain manual.
 - **Recommended placement:** the checkpoint and catalog tables describe when
   a capability is useful. They do not install it, change policy selection,
   schedule execution or establish passing evidence.
-- **Future capabilities:** exact staged-snapshot evaluation, commit-message
-  validation and first-class checkpoint scheduling would need separately
-  designed producers/contracts. Commit-message conventions are repository
+- **Candidate support:** explicit staged-filesystem Semgrep/Gitleaks execution
+  records a separate index receipt; see [checkpoint commands](checkpoints.md).
+  It does not change the older checkout/history hook scopes or create
+  commit-bound Proof evidence.
+- **Future capabilities:** commit-message validation and first-class checkpoint
+  scheduling need separately designed producers/contracts. Commit-message conventions are repository
   guidance today, not a new built-in check. Do not fabricate `git-commit`
   evidence for an uncommitted index or working tree.
 
