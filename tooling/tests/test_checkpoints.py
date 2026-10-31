@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -101,6 +102,37 @@ class CheckpointPlanTests(unittest.TestCase):
             value = checkpoints.plan(self.target, "pre-commit")
         self.assertEqual(len(value["checks"]), 33)
         self.assertNotIn("credential-value-must-not-be-used", json.dumps(value))
+
+    def test_object_reads_ignore_replacement_refs(self):
+        original = self.git("rev-parse", ":example.py")
+        substitute = self.target.parent / "substitute"
+        substitute.write_text("different = True\n")
+        replacement = self.git("hash-object", "-w", str(substitute))
+        self.git("replace", original, replacement)
+        before = self.inventory()
+        self.assertEqual(checkpoints.git(self.target, "cat-file", "blob", original, binary=True), b"safe = True\n")
+        self.assertEqual(self.inventory(), before)
+
+    def test_missing_objects_do_not_fetch_or_execute_promisor_helper(self):
+        marker = self.target.parent / "remote-invoked"
+        helper = self.target.parent / "promisor-helper"
+        helper.write_text("#!/bin/sh\nprintf reached > " + shlex.quote(str(marker)) + "\nexit 1\n")
+        helper.chmod(0o755)
+        self.git("config", "remote.origin.url", "ext::" + str(helper))
+        self.git("config", "remote.origin.promisor", "true")
+        self.git("config", "extensions.partialClone", "origin")
+        self.git("config", "protocol.ext.allow", "always")
+        before = self.inventory()
+        with self.assertRaises(subprocess.CalledProcessError):
+            checkpoints.git(self.target, "cat-file", "blob", "1" * 40)
+        self.assertFalse(marker.exists())
+        self.assertEqual(self.inventory(), before)
+        # Negative control: native unguarded object access really invokes this
+        # fixture's promisor helper; the guarded assertion above is meaningful.
+        unguarded = subprocess.run(["git", "-C", str(self.target), "cat-file", "blob", "1" * 40],
+                                   capture_output=True, timeout=10)
+        self.assertNotEqual(unguarded.returncode, 0)
+        self.assertTrue(marker.exists(), unguarded.stderr.decode())
 
     def test_missing_invalid_contracts_never_appear_passing(self):
         (self.target / ".proof/policy.yaml").write_text('{"bad":true}')
