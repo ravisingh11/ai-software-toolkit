@@ -40,6 +40,12 @@ a partial clone remain unavailable; no promisor remote or credential helper is
 invoked to fill them. A Git version without these safety options is unsupported
 for checkpoint Git access rather than silently falling back to online access.
 
+Staged execution requires the repository root. Alternate `GIT_INDEX_FILE`
+invocations, including proposed temporary indexes supplied by some commit hooks
+such as `git commit -a`, are explicitly blocked before scanning or writing a
+receipt. They never fall back to checking the default index. Stage explicitly
+and invoke against the default index instead; no hooks are installed for you.
+
 Checkpoint IDs are `coding-finished`, `pre-commit`, `commit-creation`,
 `post-commit`, `pre-push`, `pr`, `pre-merge`, `post-merge`, `release`, `deployment`
 and `runtime`. These are context labels, not new Proof operations. The existing

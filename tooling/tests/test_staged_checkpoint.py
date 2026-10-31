@@ -60,6 +60,42 @@ class StagedTests(unittest.TestCase):
         self.assertEqual(receipt["dependencies"]["provider_digest"], staged.provider_digest())
         self.assertFalse(result["authenticated_producer"])
 
+    def test_alternate_commit_index_rejects_without_scanning_default_index(self):
+        alternate = self.target / ".git/proposed-index"
+        shutil.copyfile(self.target / ".git/index", alternate)
+        (self.target / "app.py").write_text("unsafe_in_proposed_commit = True\n")
+        environment = {**os.environ, "GIT_INDEX_FILE": str(alternate)}
+        subprocess.run(["git", "-C", str(self.target), "add", "app.py"], env=environment, check=True)
+        proposed = subprocess.check_output(["git", "-C", str(self.target), "show", ":app.py"], env=environment)
+        self.assertNotEqual(proposed, checkpoints.git(self.target, "show", ":app.py", binary=True))
+        before = {str(p.relative_to(self.target)): p.read_bytes() for p in self.target.rglob("*") if p.is_file()}
+        with patch.dict(os.environ, {"GIT_INDEX_FILE": str(alternate)}), patch.object(staged, "scan") as producer:
+            with self.assertRaisesRegex(ValueError, "GIT_INDEX_FILE"):
+                staged.run(self.target, self.path)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = checkpoints.main(["run", "--target", str(self.target), "--receipt", str(self.path), "--json"])
+            self.assertEqual(code, 2)
+            self.assertEqual(json.loads(output.getvalue())["status"], "blocked")
+            self.assertIsNone(checkpoints.plan(self.target, "pre-commit")["subject"])
+            producer.assert_not_called()
+        self.assertFalse(self.path.parent.exists())
+        self.assertEqual({str(p.relative_to(self.target)): p.read_bytes() for p in self.target.rglob("*") if p.is_file()}, before)
+
+    def test_subdirectory_target_cannot_certify_only_part_of_pending_commit(self):
+        nested = self.target / "component"
+        nested.mkdir()
+        shutil.copytree(self.target / ".proof", nested / ".proof")
+        (nested / "app.py").write_text("safe = True\n")
+        self.git("add", "component")
+        before = {str(p.relative_to(self.target)): p.read_bytes() for p in self.target.rglob("*") if p.is_file()}
+        with patch.object(staged, "scan") as producer:
+            with self.assertRaisesRegex(ValueError, "repository root"):
+                staged.run(nested, self.path)
+            producer.assert_not_called()
+        self.assertFalse(self.path.parent.exists())
+        self.assertEqual({str(p.relative_to(self.target)): p.read_bytes() for p in self.target.rglob("*") if p.is_file()}, before)
+
     def test_explicit_run_entrypoint_reports_receipt_and_nonpassing_results(self):
         output = io.StringIO()
         with patch.object(staged, "scan", side_effect=self.fake_scan), contextlib.redirect_stdout(output):

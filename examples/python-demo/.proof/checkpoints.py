@@ -36,6 +36,10 @@ def git(target: Path, *args: str, binary=False, input_data=None):
 
 def index_state(target: Path) -> tuple[str, list[dict]]:
     """Compute Git's tree identity from index entries without writing Git objects."""
+    if "GIT_INDEX_FILE" in os.environ:
+        raise ValueError("Alternate GIT_INDEX_FILE is unsupported; this adapter cannot certify a proposed commit index")
+    if Path(git(target, "rev-parse", "--show-toplevel")).resolve() != target.resolve():
+        raise ValueError("Target must be repository root")
     if git(target, "rev-parse", "--show-object-format") != "sha1":
         raise ValueError("This checkpoint adapter currently requires SHA-1 Git object format")
     # add -N records a placeholder, not staged content. ls-files --stage alone
@@ -215,7 +219,7 @@ def main(argv=None) -> int:
                 value["all_reported_checks_passed"] = False
             code = 0 if value["all_reported_checks_passed"] else 1
         else:
-            if args.checkpoint != "pre-commit":
+            if (args.checkpoint or "pre-commit") != "pre-commit":
                 raise ValueError("Only pre-commit execution is supported; use the adopted producer for this checkpoint.")
             from staged_checkpoint import run
             value = run(args.target.resolve(), args.receipt)
@@ -223,7 +227,7 @@ def main(argv=None) -> int:
         print(json.dumps(value, indent=2) if args.json else render(value))
         return code
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
-        unavailable = {"valid": False, "kind": "checkpoint-unavailable", "checkpoint": args.checkpoint,
+        unavailable = {"valid": False, "kind": "checkpoint-unavailable", "checkpoint": args.checkpoint or "pre-commit",
                        "status": "blocked", "error": str(error), "authorization_granted": False}
         print(json.dumps(unavailable) if args.json else "Checkpoint unavailable: " + str(error))
         return 2
