@@ -81,6 +81,28 @@ class StagedTests(unittest.TestCase):
         self.assertFalse(result["all_reported_checks_passed"])
         self.assertTrue(all(row["status"] == "blocked" for row in result["results"]))
 
+    def test_adapter_change_invalidates_original_passes_with_same_tool_pins(self):
+        adapter = self.root / "adapter.py"
+        adapter.write_bytes(Path(staged.__file__).read_bytes())
+        calls = []
+        with patch.object(staged, "__file__", str(adapter)):
+            original = staged.provider_digest()
+
+            def change_adapter(identifier, tool, snapshot, output):
+                outcome = self.fake_scan(identifier, tool, snapshot, output)
+                if not calls:
+                    adapter.write_bytes(adapter.read_bytes() + b"\n# changed adapter implementation\n")
+                calls.append(identifier)
+                return outcome
+
+            with patch.object(staged, "scan", side_effect=change_adapter):
+                result = staged.run(self.target, self.path)
+            self.assertNotEqual(staged.provider_digest(), original)
+        self.assertFalse(result["applicable"])
+        self.assertIn("provider_digest-mismatch", result["invalidation_reasons"])
+        self.assertTrue(all(row["status"] == "passed" for row in result["results"]))
+        self.assertEqual(assurance.read_document(self.path)["dependencies"]["provider_digest"], original)
+
     def test_intent_to_add_rejects_before_producers_or_output(self):
         (self.target / "pending.py").write_text("not staged yet\n")
         self.git("add", "-N", "pending.py")

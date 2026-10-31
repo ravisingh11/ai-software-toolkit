@@ -35,7 +35,7 @@ def configuration_digest(entries: list[dict]) -> str:
 
 
 def provider_digest() -> str:
-    return hashlib.sha256(canonical(TOOLS)).hexdigest()
+    return hashlib.sha256(canonical({"tools": TOOLS, "adapter_sha256": sha256_file(Path(__file__))})).hexdigest()
 
 
 def snapshot_matches(snapshot: Path, entries: list[dict]) -> bool:
@@ -173,6 +173,7 @@ def reject_symlink_ancestors(path: Path) -> Path:
 
 def run(target: Path, receipt_path: Path | None = None) -> dict:
     tree, entries = index_state(target)
+    producer = provider_digest()
     planning = plan(target, "pre-commit")
     if not planning["checks"]:
         raise ValueError("Valid installed policy and providers are required before scanning")
@@ -223,7 +224,7 @@ def run(target: Path, receipt_path: Path | None = None) -> dict:
                 execution["snapshot_unchanged"] = not snapshot_corrupt
             if execution:
                 file = evidence_dir / (tool["provider"] + ".json")
-                file.write_text(json.dumps({"index_tree": tree, "configuration_digest": configuration_digest(entries), "execution": execution}, indent=2) + "\n")
+                file.write_text(json.dumps({"index_tree": tree, "configuration_digest": configuration_digest(entries), "provider_digest": producer, "execution": execution}, indent=2) + "\n")
                 relative = file.relative_to(receipt_path.parent).as_posix()
                 outcome["evidence"] = [relative]
                 refs.append({"path": relative, "sha256": sha256_file(file), "size": file.stat().st_size})
@@ -232,7 +233,7 @@ def run(target: Path, receipt_path: Path | None = None) -> dict:
         rows = [{"check": "pre-commit-snapshot", "provider": "checkpoint-adapters", "status": "not_run", "reason": "No supported staged scanner is selected; nothing was activated."}]
     receipt = {"version": 1, "kind": "checkpoint-receipt", "checkpoint": "pre-commit", "subject": {"type": "git-index", "revision": tree},
                "observed_at": datetime.now(timezone.utc).isoformat(), "context": {"invocation": "explicit:checkpoint-run"},
-               "dependencies": {"index_tree": tree, "configuration_digest": configuration_digest(entries), "provider_digest": provider_digest()},
+               "dependencies": {"index_tree": tree, "configuration_digest": configuration_digest(entries), "provider_digest": producer},
                "results": rows, "evidence_refs": refs}
     validate_receipt(receipt)
     # Refuse overwrite even if another process created the requested file during scans.

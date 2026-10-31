@@ -70,6 +70,9 @@ index identity is rechecked after execution; if the index changes, original raw
 outcomes remain recorded but applicability is invalidated. Working/index and
 existing ignored contents are not rewritten. No other checkpoint runner or
 automatic hook installation is included.
+Provider identity binds both tool pins and adapter source bytes. It is captured
+before execution and checked again afterward; changing adapter behavior with
+unchanged scanner versions invalidates the old applicability claim too.
 
 A repository can explicitly wire the CLI command into its own `pre-commit`
 hook after reviewing its local blocking behavior. The toolkit does not create
