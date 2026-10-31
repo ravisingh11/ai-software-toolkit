@@ -114,11 +114,24 @@ class AssuranceTests(unittest.TestCase):
 
     def test_metadata_edit_does_not_invalidate_separate_commit_receipt(self):
         self.receipt["dependencies"] = {"source_revision": "a" * 40}
-        self.assertTrue(self.verify({"source_revision": "a" * 40})["all_reported_checks_passed"])
+        current = {"subject": copy.deepcopy(self.receipt["subject"]), "source_revision": "a" * 40,
+                   "pr_metadata_revision": "b" * 64, "comparison_base": "c" * 40}
+        self.assertTrue(self.verify(current)["all_reported_checks_passed"])
+        current["pr_metadata_revision"] = "d" * 64
+        current["comparison_base"] = "e" * 40
+        self.assertTrue(self.verify(current)["all_reported_checks_passed"])
         metadata = copy.deepcopy(self.receipt)
         metadata["subject"] = {"type": "pull-request", "revision": "old-metadata"}
+        metadata["dependencies"]["pr_metadata_revision"] = "b" * 64
         self.receipt = metadata
-        self.assertFalse(self.verify({"subject": {"type": "pull-request", "revision": "new-metadata"}, "source_revision": "a" * 40})["applicable"])
+        current["subject"] = copy.deepcopy(metadata["subject"])
+        self.assertFalse(self.verify(current)["applicable"])
+        self.assertIn("pr_metadata_revision-mismatch", self.verify(current)["invalidation_reasons"])
+
+    def test_unknown_or_malformed_expected_context_never_passes(self):
+        for current in ({"comparison_bas": "a" * 40}, {"source_revision": "invalid"}, {"subject": {"type": "git-commit", "revision": "invalid"}}):
+            with self.subTest(current=current), self.assertRaises(ValueError):
+                self.verify(current)
 
     def test_expiry_runtime_freshness_and_future_observation(self):
         self.receipt["checkpoint"] = "runtime"

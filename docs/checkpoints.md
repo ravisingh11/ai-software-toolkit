@@ -97,7 +97,9 @@ An expected-context object names the current `subject` and dependency keys:
 `index_tree`, `source_revision`, `comparison_base`, `pr_metadata_revision`,
 `configuration_digest`, and `provider_digest`. Supply only context obtained by
 the caller from the intended repository/platform. Uncompared dependencies are
-unverified; changed ones invalidate applicability. Missing runtime expiry
+unverified; changed declared dependencies invalidate applicability. Recognized
+context that a receipt does not depend on is ignored; unknown keys and malformed
+identities are rejected. Missing runtime expiry
 leaves freshness unverified. An expired or future-dated observation is not a
 current passing result. Metadata edits affect metadata-bound receipts, not
 separate commit-only receipts. A merge relation does not rename PR results.

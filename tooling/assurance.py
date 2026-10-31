@@ -26,6 +26,8 @@ CHECKPOINTS = (
 )
 SUBJECTS = {"git-index", "git-commit", "pull-request", "artifact", "environment"}
 STATUSES = {"passed", "failed", "blocked", "not_run"}
+DEPENDENCIES = {"index_tree": 40, "source_revision": 40, "comparison_base": 40,
+                "pr_metadata_revision": 64, "configuration_digest": 64, "provider_digest": 64}
 
 
 def canonical(value: object) -> bytes:
@@ -192,11 +194,10 @@ def validate_receipt(receipt: dict) -> None:
     _object(receipt["context"], {"invocation"}, {"repository", "run_url", "run_id", "run_attempt", "workflow_revision"})
     for value in receipt["context"].values():
         _text(value)
-    allowed_dependencies = {"index_tree", "source_revision", "comparison_base", "pr_metadata_revision", "configuration_digest", "provider_digest"}
-    if not isinstance(receipt["dependencies"], dict) or set(receipt["dependencies"]) - allowed_dependencies:
+    if not isinstance(receipt["dependencies"], dict) or set(receipt["dependencies"]) - DEPENDENCIES.keys():
         raise ValueError("Unsupported dependency key")
     for key, value in receipt["dependencies"].items():
-        _hex(value, 40 if key in {"index_tree", "source_revision", "comparison_base"} else 64)
+        _hex(value, DEPENDENCIES[key])
     results = receipt["results"]
     if not isinstance(results, list) or not 1 <= len(results) <= 100:
         raise ValueError("Receipt requires bounded explicit outcomes")
@@ -268,6 +269,18 @@ def validate_receipt(receipt: dict) -> None:
 def verify_receipt(path: Path, *, expected: dict | None = None, now: datetime | None = None) -> dict:
     receipt = read_document(path)
     validate_receipt(receipt)
+    if expected is not None:
+        _object(expected, set(), {"subject", *DEPENDENCIES})
+        for key, value in expected.items():
+            if key == "subject":
+                _object(value, {"type", "revision"})
+                if value["type"] not in SUBJECTS:
+                    raise ValueError("Unsupported expected subject")
+                _text(value["revision"])
+                if value["type"] in {"git-index", "git-commit"}:
+                    _hex(value["revision"], 40)
+            else:
+                _hex(value, DEPENDENCIES[key])
     for ref in receipt["evidence_refs"]:
         evidence = confined_file(path.parent, ref["path"])
         if evidence.stat().st_size != ref["size"] or sha256_file(evidence) != ref["sha256"]:
@@ -284,7 +297,7 @@ def verify_receipt(path: Path, *, expected: dict | None = None, now: datetime | 
         if key == "subject":
             if receipt["subject"] != value:
                 reasons.append("subject-mismatch")
-        elif key not in receipt["dependencies"] or receipt["dependencies"][key] != value:
+        elif key in receipt["dependencies"] and receipt["dependencies"][key] != value:
             reasons.append(key + "-mismatch")
     for key in receipt["dependencies"]:
         if key not in (expected or {}):
